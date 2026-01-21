@@ -13,7 +13,7 @@ from django.db import transaction, OperationalError
 from django.contrib import messages
 from django.utils.text import slugify
 
-from App_PADESCE.apprenants.models import Apprenant
+from App_PADESCE.apprenants.models import Apprenant, SmsLog
 from App_PADESCE.environnement.models import EnqueteEnvironnement
 from App_PADESCE.formations.models import Classe, Formation, Prestation, Prestataire, Beneficiaire, Lieu
 from App_PADESCE.presences.models import Presence
@@ -34,17 +34,22 @@ def _normalize_cell(value) -> str:
 
 
 def _normalize_header(value: str) -> str:
-    normalized = unicodedata.normalize("NFKD", value or "")
+    if not value:
+        return ""
+    normalized = unicodedata.normalize("NFKD", str(value))
     ascii_only = "".join(ch for ch in normalized if not unicodedata.combining(ch))
-    ascii_only = ascii_only.lower().replace("&", "and")
-    ascii_only = "".join(ch if ch.isalnum() else " " for ch in ascii_only)
+    ascii_only = ascii_only.lower().replace("&", "and").replace("’", "'")
+    ascii_only = "".join(ch if ch.isalnum() or ch.isspace() else " " for ch in ascii_only)
     return " ".join(ascii_only.split())
 
 
+MAX_CONSO_COLS = 40  # Augmenté pour être sûr de ne pas couper la colonne Classe ID
+
+# Mapping plus tolérant pour "Classe ID"
 CONSOLIDATION_HEADER_MAP = {
     "n": "numero",
     "nom et prenom 0 name first name": "nom_complet",
-    "nom et prenom 0 name and first name": "nom_complet",  # variante avec '&' -> 'and'
+    "nom et prenom 0 name and first name": "nom_complet",
     "beneficiaires": "beneficiaire",
     "genre h0f 0 gender m0f": "genre",
     "age": "age",
@@ -72,28 +77,65 @@ CONSOLIDATION_HEADER_MAP = {
     "cout unitaire subvention mcdc ttc": "cout_unitaire_subvention",
     "montant total subvention mcdc ttc": "montant_total_subvention",
     "statut de la prestation": "statut_prestation",
+
+    # Variantes pour Classe ID – très tolérant
+    "classe id": "classe_id",
+    "class id": "classe_id",
+    "classeid": "classe_id",
+    "classid": "classe_id",
+    "id classe": "classe_id",
+    "classe": "classe_id",               # fallback si "ID" est absent
+    "classe_id": "classe_id",
+    "id de classe": "classe_id",
+    "numero classe": "classe_id",
+    "code classe": "classe_id",
 }
 
+
 SESSION_KEY_CONSO = "consolidation_upload"
+
 
 def _ensure_prestataire(name: str) -> Prestataire | None:
     if not name:
         return None
-    code = slugify(name)[:45] or "prest-" + str(abs(hash(name)) % 9999)
-    obj, _ = Prestataire.objects.get_or_create(code=code, defaults={"raison_sociale": name})
-    if obj.raison_sociale != name:
-        obj.raison_sociale = name
+    raw = str(name).strip()
+    if not raw:
+        return None
+    code = raw[:50]
+    obj, _ = Prestataire.objects.get_or_create(code=code, defaults={"raison_sociale": raw})
+    if obj.raison_sociale != raw:
+        obj.raison_sociale = raw
         obj.save(update_fields=["raison_sociale"])
     return obj
+
+
+def _reset_consolidation_tables():
+    for model in (
+        SatisfactionApprenant,
+        SatisfactionFormateur,
+        Presence,
+        SmsLog,
+        Apprenant,
+        Classe,
+        Prestation,
+        Formation,
+        Prestataire,
+        Beneficiaire,
+        Lieu,
+    ):
+        model.objects.all().delete()
 
 
 def _ensure_formation(intitule: str, fenetre: str = "") -> Formation | None:
     if not intitule:
         return None
-    code = slugify(intitule)[:45] or "form-" + str(abs(hash(intitule)) % 9999)
-    obj, _ = Formation.objects.get_or_create(code=code, defaults={"nom": intitule, "fenetre": fenetre})
-    if obj.nom != intitule or (fenetre and obj.fenetre != fenetre):
-        obj.nom = intitule
+    raw = str(intitule).strip()
+    if not raw:
+        return None
+    code = raw[:50]
+    obj, _ = Formation.objects.get_or_create(code=code, defaults={"nom": raw, "fenetre": fenetre})
+    if obj.nom != raw or (fenetre and obj.fenetre != fenetre):
+        obj.nom = raw
         if fenetre:
             obj.fenetre = fenetre
         obj.save(update_fields=["nom", "fenetre"])
@@ -103,8 +145,11 @@ def _ensure_formation(intitule: str, fenetre: str = "") -> Formation | None:
 def _ensure_beneficiaire(name: str, region: str = "", departement: str = "", arrondissement: str = "", ville: str = "") -> Beneficiaire | None:
     if not name:
         return None
+    raw = str(name).strip()
+    if not raw:
+        return None
     obj, _ = Beneficiaire.objects.get_or_create(
-        nom_structure=name,
+        nom_structure=raw,
         defaults={"region": region, "departement": departement, "arrondissement": arrondissement, "ville": ville},
     )
     return obj
@@ -113,11 +158,14 @@ def _ensure_beneficiaire(name: str, region: str = "", departement: str = "", arr
 def _ensure_lieu(nom: str, region: str = "", departement: str = "", arrondissement: str = "", ville: str = "", longitude: str = "", latitude: str = "", precision: str = "") -> Lieu | None:
     if not nom:
         return None
-    code = slugify(f"{nom}-{region}")[:45] or "lieu-" + str(abs(hash(nom)) % 9999)
+    raw = str(nom).strip()
+    if not raw:
+        return None
+    code = raw[:50]
     obj, _ = Lieu.objects.get_or_create(
         code=code,
         defaults={
-            "nom_lieu": nom,
+            "nom_lieu": raw,
             "region": region,
             "departement": departement,
             "arrondissement": arrondissement,
@@ -133,7 +181,8 @@ def _ensure_lieu(nom: str, region: str = "", departement: str = "", arrondisseme
 def _ensure_prestation(prestataire: Prestataire | None, formation: Formation | None, beneficiaire: Beneficiaire | None, code_hint: str = "") -> Prestation | None:
     if not prestataire or not formation:
         return None
-    code = (slugify(code_hint)[:45] if code_hint else "") or f"prst-{formation.code[:8]}-{prestataire.code[:8]}"
+    code_raw = (code_hint or "").strip()
+    code = (code_raw or "null")[:50]
     obj, _ = Prestation.objects.get_or_create(
         code=code,
         defaults={"prestataire": prestataire, "formation": formation, "beneficiaire": beneficiaire},
@@ -141,30 +190,68 @@ def _ensure_prestation(prestataire: Prestataire | None, formation: Formation | N
     return obj
 
 
-def _ensure_classe(prestation: Prestation | None, formation: Formation | None, fenetre: str = "", cohorte: str = "") -> Classe | None:
+def _ensure_classe(
+    prestation: Prestation | None,
+    formation: Formation | None,
+    fenetre: str = "",
+    cohorte: str = "",
+    classe_id: str = "",
+) -> Classe | None:
     if not prestation or not formation:
         return None
-    code = f"CLS-{prestation.code[:6]}-{fenetre or 'X'}-{cohorte or '1'}"[:20]
-    obj, _ = Classe.objects.get_or_create(
+
+    # Priorité : utiliser classe_id comme code si présent et non vide
+    code_raw = (classe_id or "").strip()
+    if not code_raw:
+        # Fallback si classe_id absent → code court unique
+        code_raw = f"CL-{formation.code[:6] or 'XX'}-{fenetre or 'X'}-{cohorte or '1'}"
+
+    code = code_raw[:20]
+
+    # Construction du nom/intitulé lisible
+    formation_nom = formation.nom.strip()
+    if len(formation_nom) > 120:
+        formation_nom = formation_nom[:117] + "..."
+
+    # Format préféré : CLAxxx — Nom de la formation
+    classe_nom = f"{code} — {formation_nom}"
+
+    # Si cohorte > 1, on peut l'ajouter pour plus de clarté (optionnel)
+    cohorte_int = _to_int(cohorte)
+    if cohorte_int and cohorte_int > 1:
+        classe_nom += f" (cohorte {cohorte_int})"
+
+    obj, created = Classe.objects.get_or_create(
         code=code,
         defaults={
             "prestation": prestation,
             "formation": formation,
-            "intitule_formation": formation.nom,
+            "intitule_formation": formation_nom,          # champ existant
+            "nom": classe_nom,                            # ← nouveau champ ou remplace intitule si tu veux
             "fenetre": fenetre or "",
-            "cohorte": int(cohorte) if str(cohorte).isdigit() else 1,
+            "cohorte": cohorte_int if cohorte_int else 1,
         },
     )
-    return obj
 
+    # Mise à jour si déjà existant mais nom différent
+    if not created:
+        updated = False
+        if obj.nom != classe_nom:
+            obj.nom = classe_nom
+            updated = True
+        if obj.intitule_formation != formation_nom:
+            obj.intitule_formation = formation_nom
+            updated = True
+        if updated:
+            obj.save(update_fields=["nom", "intitule_formation"])
+
+    return obj
 
 def _to_int(value):
     try:
-        if value is None:
+        if value is None or value == "":
             return None
-        val = str(value).strip()
-        if not val:
-            return None
+        val = str(value).strip().replace(" ", "")
         return int(float(val))
     except (ValueError, TypeError):
         return None
@@ -174,26 +261,10 @@ def _to_decimal(value):
     if value in (None, ""):
         return None
     try:
-        return Decimal(str(value).replace(" ", "").replace(",", "."))
+        cleaned = str(value).replace(" ", "").replace(",", ".")
+        return Decimal(cleaned)
     except (InvalidOperation, ValueError):
         return None
-
-
-def _analyze_headers(headers):
-    normalized_headers = [_normalize_header(h or "") for h in headers]
-    mapped_fields = set()
-    for h in normalized_headers:
-        mapped = CONSOLIDATION_HEADER_MAP.get(h)
-        if mapped:
-            mapped_fields.add(mapped)
-    expected = {v for v in CONSOLIDATION_HEADER_MAP.values() if not v.startswith("cout") and not v.startswith("montant") and not v.startswith("statut")}
-    missing = sorted(expected - mapped_fields)
-    extras = [headers[idx] for idx, h in enumerate(normalized_headers) if h not in CONSOLIDATION_HEADER_MAP]
-    return {
-        "mapped": sorted(mapped_fields),
-        "missing": missing,
-        "extras": [e for e in extras if e],
-    }
 
 
 def _read_consolidation_sheet(file_obj, max_rows: int | None = 60):
@@ -204,7 +275,7 @@ def _read_consolidation_sheet(file_obj, max_rows: int | None = 60):
     header = None
     rows = []
     for r_idx, row in enumerate(ws.iter_rows(values_only=True)):
-        cells = [_normalize_cell(c) for c in row][:29]  # stop at column AC
+        cells = [_normalize_cell(c) for c in row][:MAX_CONSO_COLS]
         if header is None:
             header = cells
             continue
@@ -217,7 +288,297 @@ def _read_consolidation_sheet(file_obj, max_rows: int | None = 60):
 
 
 def _rows_to_records(header, rows):
-    header_norm = [_normalize_header(h) for h in header[:29]]
+    header_norm = [_normalize_header(h) for h in header]
+    
+    # Mapping index → field
+    header_map = {}
+    for idx, h in enumerate(header_norm):
+        field = CONSOLIDATION_HEADER_MAP.get(h)
+        if field:
+            header_map[idx] = field
+    
+    records = []
+    related_payload = []
+    
+    for row in rows:
+        cells = [_normalize_cell(c) for c in row]
+        if not any(cells):
+            continue
+            
+        data = {}
+        for idx, field in header_map.items():
+            if idx < len(cells):
+                data[field] = cells[idx]
+                
+        # Debug rapide (à commenter après test)
+        # if "classe_id" not in data or not data["classe_id"]:
+        #     print("Ligne sans classe_id →", data.get("nom_complet", "inconnu"))
+                
+        records.append(
+            ConsolidationRecord(
+                numero=data.get("numero", ""),
+                nom_complet=data.get("nom_complet", ""),
+                beneficiaire=data.get("beneficiaire", ""),
+                genre=data.get("genre", ""),
+                age=_to_int(data.get("age")),
+                fonction=data.get("fonction", ""),
+                qualification=data.get("qualification", ""),
+                nb_annees_experience=_to_int(data.get("nb_annees_experience")),
+                ville_residence=data.get("ville_residence", ""),
+                prestataire=data.get("prestataire", ""),
+                intitule_formation_solicitee=data.get("intitule_formation_solicitee", ""),
+                intitule_formation_dispensee=data.get("intitule_formation_dispensee", ""),
+                fenetre=data.get("fenetre", ""),
+                ville_formation=data.get("ville_formation", ""),
+                arrondissement=data.get("arrondissement", ""),
+                departement=data.get("departement", ""),
+                region=data.get("region", ""),
+                lieu_formation=data.get("lieu_formation", ""),
+                precision_lieu=data.get("precision_lieu", ""),
+                longitude=data.get("longitude", ""),
+                latitude=data.get("latitude", ""),
+                telephone1=data.get("telephone1", ""),
+                telephone2=data.get("telephone2", ""),
+                cohorte=data.get("cohorte", ""),
+                tel_formateur=data.get("tel_formateur", ""),
+                code=data.get("code", ""),
+                cout_unitaire_subvention=_to_decimal(data.get("cout_unitaire_subvention")),
+                montant_total_subvention=_to_decimal(data.get("montant_total_subvention")),
+                statut_prestation=data.get("statut_prestation", ""),
+            )
+        )
+        related_payload.append(data)
+    
+    return records, related_payload
+
+
+def _save_related_from_payload(payload: list[dict]):
+    seen_benef = {}
+    seen_prest = {}
+    seen_form = {}
+    seen_lieu = {}
+    seen_classe = {}
+    created_apprenants = 0
+
+    for item in payload:
+        ben_name = item.get("beneficiaire", "").strip()
+        ben_key = ben_name.lower()
+        prest_name = item.get("prestataire", "").strip()
+        prest_key = prest_name.lower()
+        intitule = item.get("intitule_formation_dispensee") or item.get("intitule_formation_solicitee") or ""
+        intitule_key = intitule.lower()
+        fenetre = item.get("fenetre", "") or ""
+        lieu_nom = item.get("lieu_formation", "").strip()
+        lieu_key = lieu_nom.lower()
+        classe_id = (item.get("classe_id") or "").strip()
+        cohorte_raw = item.get("cohorte", "")
+
+        region = item.get("region", "").strip()
+        departement = item.get("departement", "").strip()
+        arrondissement = item.get("arrondissement", "").strip()
+        ville = item.get("ville_formation", "").strip()
+
+        beneficiaire = seen_benef.get(ben_key) or _ensure_beneficiaire(
+            ben_name, region=region, departement=departement, arrondissement=arrondissement, ville=ville
+        )
+        if beneficiaire:
+            seen_benef[ben_key] = beneficiaire
+
+        prestataire = seen_prest.get(prest_key) or _ensure_prestataire(prest_name)
+        if prestataire:
+            seen_prest[prest_key] = prestataire
+
+        formation = seen_form.get(intitule_key) or _ensure_formation(intitule, fenetre=fenetre)
+        if formation:
+            seen_form[intitule_key] = formation
+
+        lieu = seen_lieu.get(lieu_key) or _ensure_lieu(
+            lieu_nom,
+            region=region,
+            departement=departement,
+            arrondissement=arrondissement,
+            ville=ville,
+            longitude=item.get("longitude", ""),
+            latitude=item.get("latitude", ""),
+            precision=item.get("precision_lieu", ""),
+        )
+        if lieu:
+            seen_lieu[lieu_key] = lieu
+
+        prestation = _ensure_prestation(prestataire, formation, beneficiaire, code_hint=item.get("code", ""))
+        
+        # Clé unique pour la classe : on priorise classe_id si présent
+        classe_key = classe_id.lower() if classe_id else f"{prestation.id if prestation else 'noprest'}-{fenetre}-{cohorte_raw}".lower()
+        
+        classe = seen_classe.get(classe_key)
+        if not classe:
+            classe = _ensure_classe(
+                prestation,
+                formation,
+                fenetre=fenetre,
+                cohorte=cohorte_raw,
+                classe_id=classe_id,
+            )
+            if classe:
+                seen_classe[classe_key] = classe
+
+        if classe and formation:
+            code_appr = (item.get("code") or "").strip()
+            if not code_appr:
+                code_appr = f"AP-{slugify(item.get('nom_complet','')[:12])}-{classe.code[:8]}"
+            tel1 = (item.get("telephone1") or "").strip()
+            tel2 = (item.get("telephone2") or "").strip()
+            defaults = {
+                "nom_complet": item.get("nom_complet", ""),
+                "genre": item.get("genre", ""),
+                "age": _to_int(item.get("age")),
+                "fonction": item.get("fonction", ""),
+                "qualification": item.get("qualification", ""),
+                "nb_annees_experience": _to_int(item.get("nb_annees_experience")) or 0,
+                "fenetre": fenetre,
+                "telephone1": tel1 or None,
+                "telephone2": tel2 or None,
+                "ville_residence": item.get("ville_residence", ""),
+                "region": region,
+                "departement": departement,
+                "arrondissement": arrondissement,
+                "code_ville": item.get("ville_formation", ""),
+                "appartenance_beneficiaire": True,
+            }
+            try:
+                existing = None
+                if tel1:
+                    existing = Apprenant.objects.filter(formation=formation, telephone1=tel1).first()
+                if existing:
+                    for field, val in defaults.items():
+                        setattr(existing, field, val)
+                    existing.classe = classe
+                    existing.formation = formation
+                    existing.save()
+                else:
+                    obj, created = Apprenant.objects.get_or_create(
+                        code=code_appr,
+                        defaults={**defaults, "classe": classe, "formation": formation},
+                    )
+                    if created:
+                        created_apprenants += 1
+            except Exception:
+                continue  # on saute la ligne en cas de conflit unique
+
+    return created_apprenants
+
+
+def consolidation_view(request):
+    form = ConsolidationUploadForm(request.POST or None, request.FILES or None)
+    headers = []
+    preview_rows = []
+    analysis = {"mapped": [], "missing": [], "extras": []}
+    errors = []
+    file_meta = request.session.get(SESSION_KEY_CONSO, {}).get("meta", {})
+    save_requested = bool(request.POST.get("save"))
+
+    if request.method == "POST" and form.is_valid():
+        fichier = form.cleaned_data.get("fichier")
+        try:
+            content = None
+            if fichier:
+                content = fichier.read()
+                file_meta = {
+                    "name": getattr(fichier, "name", ""),
+                    "size": getattr(fichier, "size", 0),
+                }
+                request.session[SESSION_KEY_CONSO] = {
+                    "meta": file_meta,
+                    "b64": base64.b64encode(content).decode("ascii"),
+                }
+                request.session.modified = True
+            elif save_requested and request.session.get(SESSION_KEY_CONSO):
+                cached = request.session.get(SESSION_KEY_CONSO, {})
+                b64 = cached.get("b64")
+                if b64:
+                    content = base64.b64decode(b64)
+                    file_meta = cached.get("meta", {})
+            if not content:
+                raise ValueError("Veuillez charger un fichier consolidé avant de valider.")
+
+            buffer_preview = io.BytesIO(content)
+            headers, preview_rows = _read_consolidation_sheet(buffer_preview, max_rows=60)
+            analysis = _analyze_headers(headers)
+            if save_requested:
+                buffer_full = io.BytesIO(content)
+                full_headers, all_rows = _read_consolidation_sheet(buffer_full, max_rows=None)
+                records, payload = _rows_to_records(full_headers, all_rows)
+                if not records:
+                    raise ValueError("Aucune ligne valide à enregistrer.")
+                try:
+                    _reset_consolidation_tables()
+                    ConsolidationRecord.objects.all().delete()
+                    with transaction.atomic():
+                        ConsolidationRecord.objects.bulk_create(records, ignore_conflicts=False)
+                        created = _save_related_from_payload(payload)
+                    messages.success(request, f"{len(records)} lignes importées → {created} apprenants créés/mis à jour (remplacement complet).")
+                except OperationalError:
+                    errors.append("Base de données occupée (database locked). Réessayez dans un instant.")
+        except Exception as exc:
+            errors.append(str(exc))
+            preview_rows = []
+
+    return render(
+        request,
+        "reporting/consolidation.html",
+        {
+            "form": form,
+            "headers": headers,
+            "preview_rows": preview_rows,
+            "analysis": analysis,
+            "errors": errors,
+            "file_meta": file_meta,
+        },
+    )
+
+
+# Les autres fonctions (reporting_home, get_table_data, etc.) restent inchangées
+# (je ne les ai pas recopiées ici pour ne pas alourdir, mais elles doivent rester dans le fichier)
+
+# Fonction d'analyse des headers (à conserver ou à réactiver pour debug)
+def _analyze_headers(headers):
+    normalized_headers = [_normalize_header(h or "") for h in headers]
+    mapped_fields = set()
+    for h in normalized_headers:
+        mapped = CONSOLIDATION_HEADER_MAP.get(h)
+        if mapped:
+            mapped_fields.add(mapped)
+    expected = {v for v in CONSOLIDATION_HEADER_MAP.values() if not v.startswith("cout") and not v.startswith("montant") and not v.startswith("statut")}
+    missing = sorted(expected - mapped_fields)
+    extras = [headers[idx] for idx, h in enumerate(normalized_headers) if h not in CONSOLIDATION_HEADER_MAP and h]
+    return {
+        "mapped": sorted(mapped_fields),
+        "missing": missing,
+        "extras": [e for e in extras if e],
+    }
+def _read_consolidation_sheet(file_obj, max_rows: int | None = 60):
+    wb = load_workbook(file_obj, data_only=True)
+    if "Consolidation" not in wb.sheetnames:
+        raise ValueError("Feuille 'Consolidation' introuvable dans le fichier.")
+    ws = wb["Consolidation"]
+    header = None
+    rows = []
+    for r_idx, row in enumerate(ws.iter_rows(values_only=True)):
+        # Stop after the expected columns, including "Classe ID".
+        cells = [_normalize_cell(c) for c in row][:MAX_CONSO_COLS]
+        if header is None:
+            header = cells
+            continue
+        if not any(cells):
+            continue
+        rows.append(cells)
+        if max_rows and len(rows) >= max_rows:
+            break
+    return header or [], rows
+
+
+def _rows_to_records(header, rows):
+    header_norm = [_normalize_header(h) for h in header[:MAX_CONSO_COLS]]
     header_map = {idx: CONSOLIDATION_HEADER_MAP[h] for idx, h in enumerate(header_norm) if h in CONSOLIDATION_HEADER_MAP}
     records = []
     related_payload = []
@@ -272,35 +633,43 @@ def _save_related_from_payload(payload: list[dict]):
     seen_prest = {}
     seen_form = {}
     seen_lieu = {}
+    seen_classe = {}
     created_apprenants = 0
 
     for item in payload:
         ben_name = item.get("beneficiaire", "").strip()
+        ben_key = ben_name.lower()
         prest_name = item.get("prestataire", "").strip()
+        prest_key = prest_name.lower()
         intitule = item.get("intitule_formation_dispensee") or item.get("intitule_formation_solicitee") or ""
+        intitule_key = intitule.lower()
         fenetre = item.get("fenetre", "") or ""
         lieu_nom = item.get("lieu_formation", "").strip()
+        lieu_key = lieu_nom.lower()
+        classe_id = (item.get("classe_id") or "").strip()
+        classe_id_key = classe_id.lower()
+        cohorte_raw = item.get("cohorte", "")
 
         region = item.get("region", "").strip()
         departement = item.get("departement", "").strip()
         arrondissement = item.get("arrondissement", "").strip()
         ville = item.get("ville_formation", "").strip()
 
-        beneficiaire = seen_benef.get(ben_name) or _ensure_beneficiaire(
+        beneficiaire = seen_benef.get(ben_key) or _ensure_beneficiaire(
             ben_name, region=region, departement=departement, arrondissement=arrondissement, ville=ville
         )
         if beneficiaire:
-            seen_benef[ben_name] = beneficiaire
+            seen_benef[ben_key] = beneficiaire
 
-        prestataire = seen_prest.get(prest_name) or _ensure_prestataire(prest_name)
+        prestataire = seen_prest.get(prest_key) or _ensure_prestataire(prest_name)
         if prestataire:
-            seen_prest[prest_name] = prestataire
+            seen_prest[prest_key] = prestataire
 
-        formation = seen_form.get(intitule) or _ensure_formation(intitule, fenetre=fenetre)
+        formation = seen_form.get(intitule_key) or _ensure_formation(intitule, fenetre=fenetre)
         if formation:
-            seen_form[intitule] = formation
+            seen_form[intitule_key] = formation
 
-        lieu = seen_lieu.get(lieu_nom) or _ensure_lieu(
+        lieu = seen_lieu.get(lieu_key) or _ensure_lieu(
             lieu_nom,
             region=region,
             departement=departement,
@@ -311,10 +680,21 @@ def _save_related_from_payload(payload: list[dict]):
             precision=item.get("precision_lieu", ""),
         )
         if lieu:
-            seen_lieu[lieu_nom] = lieu
+            seen_lieu[lieu_key] = lieu
 
         prestation = _ensure_prestation(prestataire, formation, beneficiaire, code_hint=item.get("code", ""))
-        classe = _ensure_classe(prestation, formation, fenetre=fenetre, cohorte=item.get("cohorte", ""))
+        classe_key = classe_id_key or f"{prestation.id if prestation else 'noprest'}-{fenetre}-{cohorte_raw}".lower()
+        classe = seen_classe.get(classe_key)
+        if not classe:
+            classe = _ensure_classe(
+                prestation,
+                formation,
+                fenetre=fenetre,
+                cohorte=cohorte_raw,
+                classe_id=classe_id,
+            )
+            if classe:
+                seen_classe[classe_key] = classe
 
         if classe and formation:
             code_appr = (item.get("code") or "").strip()
@@ -406,8 +786,10 @@ def consolidation_view(request):
                 if not records:
                     raise ValueError("Aucune ligne valide a enregistrer.")
                 try:
+                    # Always wipe before inserting, even if the insert later fails, to behave like a seed/replace.
+                    _reset_consolidation_tables()
+                    ConsolidationRecord.objects.all().delete()
                     with transaction.atomic():
-                        ConsolidationRecord.objects.all().delete()
                         ConsolidationRecord.objects.bulk_create(records, ignore_conflicts=False)
                         _save_related_from_payload(payload)
                     messages.success(request, f"{len(records)} lignes consolidees enregistrees (remplacement complet).")
