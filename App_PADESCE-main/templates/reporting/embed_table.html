@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ title }}</title>
+  <style>
+    body { margin:0; padding:0; font-family: Arial, sans-serif; background:#0b1020; color:#e5e7eb; }
+    .wrap { width:100%; min-height:100vh; padding:12px; box-sizing:border-box; }
+    .card { width:100%; background:#111827; border:1px solid rgba(255,255,255,0.08); border-radius:12px; padding:12px; box-sizing:border-box; }
+    .title { font-size:1rem; font-weight:600; margin-bottom:10px; color:#e5e7eb; }
+    table { width:100%; border-collapse: collapse; font-size:0.92rem; }
+    th, td { padding:8px; border:1px solid rgba(255,255,255,0.08); text-align:left; }
+    thead { background: rgba(34,211,238,0.12); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <div class="title">{{ title }}</div>
+      <table>
+        <thead>
+          <tr>
+            {% for h in headers %}
+              <th>{{ h }}</th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% if rows %}
+            {% for row in rows %}
+            <tr>
+              {% for cell in row %}
+                <td>{{ cell }}</td>
+              {% endfor %}
+            </tr>
+            {% endfor %}
+          {% else %}
+            <tr><td colspan="{{ headers|length }}" style="text-align:center; color:#94a3b8;">Aucune donnee</td></tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</body>
+</html>

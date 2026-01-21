@@ -1,0 +1,379 @@
+{% extends "base.html" %}
+{% block title %}Import apprenants{% endblock %}
+{% block content %}
+<style>
+  body { background: radial-gradient(circle at 12% 8%, #eef4ff, #fdfbf6 65%); }
+  .import-shell { display: grid; gap: 16px; }
+  .card-neo {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 18px;
+    box-shadow: var(--shadow);
+    position: relative;
+    overflow: hidden;
+  }
+  .card-neo::after {
+    content: "";
+    position: absolute;
+    inset: -1px;
+    border-radius: 20px;
+    background: linear-gradient(120deg, rgba(15,139,141,0.15), rgba(246,196,83,0.22));
+    filter: blur(14px);
+    opacity: 0;
+    transition: opacity .35s ease;
+    z-index: 0;
+  }
+  .card-neo:hover::after { opacity: 1; }
+  .card-neo > * { position: relative; z-index: 1; }
+  .pill { display:inline-flex; gap:6px; align-items:center; padding: 8px 12px; border-radius: 999px; background: var(--accent); color:#fff; font-weight: 700; box-shadow: 0 10px 24px rgba(0,0,0,0.15); }
+  .pill-soft { display:inline-flex; align-items:center; gap:6px; padding:6px 10px; border-radius: 10px; background: rgba(15,139,141,0.12); color: var(--accent); font-weight: 600; }
+  .subtitle { color: var(--muted); letter-spacing: .01em; }
+  .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; align-items: start; }
+  label { font-weight: 600; color: var(--muted); font-size: 0.95rem; }
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    padding: 12px 16px; border-radius: 12px; font-weight: 700; border: none; cursor: pointer;
+    background: linear-gradient(120deg, var(--accent), #18b0ac); color: #fff;
+    box-shadow: 0 12px 26px rgba(0,0,0,0.15);
+    transition: transform .2s ease, box-shadow .2s ease;
+    text-decoration: none;
+  }
+  .btn:hover { transform: translateY(-2px); }
+  .btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--text); box-shadow: none; }
+  .btn[disabled] { opacity: .5; cursor: not-allowed; transform: none; box-shadow: none; }
+  .drop {
+    position: relative; border: 1px dashed var(--border); border-radius: 14px; padding: 16px;
+    background: linear-gradient(135deg, rgba(15,139,141,0.06), rgba(15,139,141,0.02));
+  }
+  .drop input[type="file"] {
+    position: absolute; inset: 0; opacity: 0; cursor: pointer;
+  }
+  .drop h4 { margin: 0; }
+  .tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .tag { padding: 6px 10px; border-radius: 10px; background: rgba(15,139,141,0.1); color: var(--accent); font-weight: 600; font-size: 0.9rem; }
+  .switch { display:flex; align-items:center; gap:8px; cursor:pointer; color: var(--muted); }
+  .switch input { width: 18px; height: 18px; }
+  .table-card { padding: 0; overflow: hidden; }
+  .table-head { display:flex; justify-content: space-between; align-items: center; padding: 16px 18px 10px; }
+  .table-wrapper { max-height: 360px; overflow: auto; border-top: 1px solid var(--border); }
+  table { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
+  th, td { border: 1px solid var(--border); padding: 8px; text-align: left; }
+  thead { background: rgba(15,139,141,0.08); position: sticky; top: 0; z-index: 1; }
+  td[contenteditable="true"] { background: rgba(15,139,141,0.03); }
+  .alert {
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 1px solid rgba(209,67,67,0.35);
+    background: rgba(209,67,67,0.08);
+    color: #b91c1c;
+  }
+  .alert-success {
+    border-color: rgba(22,163,74,0.35);
+    background: rgba(22,163,74,0.08);
+    color: #166534;
+  }
+  .actions { display:flex; gap:10px; flex-wrap:wrap; margin-top:12px; }
+  .note { font-size: 0.9rem; color: var(--muted); margin-top: 6px; }
+</style>
+
+<div class="import-shell">
+  <div class="card-neo">
+    <div style="display:flex; justify-content:space-between; align-items:center; gap:12px;">
+      <div>
+        <div class="pill">Import apprenants</div>
+        <h1 style="margin:8px 0 6px 0;">Classe {{ classe.code }} - {{ classe.intitule_formation }}</h1>
+        <div class="subtitle">
+          Formats autorises : CSV, XLSX, XLSM. La premiere ligne (en-tete) est ignoree automatiquement.
+        </div>
+        <div class="tags" style="margin-top:6px;">
+          <span class="tag">Fenetre {{ classe.fenetre|default:"?" }}</span>
+          <span class="tag">Formation {{ classe.formation.intitule }}</span>
+        </div>
+      </div>
+      <div class="pill-soft">Colonnes dynamiques detectees</div>
+    </div>
+  </div>
+
+  {% if errors %}
+    <div class="alert">
+      <strong>Erreurs detectees :</strong>
+      <ul>
+        {% for err in errors %}<li>{{ err }}</li>{% endfor %}
+      </ul>
+    </div>
+  {% endif %}
+
+  {% if preview_rows %}
+    <div class="alert alert-success">Les enregistrements valides ont ete crees.</div>
+  {% endif %}
+
+  <div class="grid-2">
+    <form method="post" enctype="multipart/form-data" class="card-neo" novalidate>
+      {% csrf_token %}
+      <label>Fichier CSV/XLSX/XLSM</label>
+      <div class="drop">
+        {{ form.fichier }}
+        <div>
+          <h4>Glissez ou cliquez pour choisir votre fichier</h4>
+          <div class="subtitle">Ligne d'en-tete ignoree. UTF-8 conseille pour CSV.</div>
+        </div>
+      </div>
+      <div class="note">Colonnes reperables :</div>
+      <div class="tags">
+        {% for col in column_defs %}<span class="tag">{{ col.label }}</span>{% endfor %}
+      </div>
+      <label class="switch" style="margin-top:10px;">
+        {{ form.generate_codes }} Generer automatiquement les codes (recommande si le fichier n'en contient pas)
+      </label>
+      {{ form.edited_rows }}
+      <div class="actions">
+        <button id="btn-validate" class="btn btn-ghost" type="button" disabled>Verifier les donnees</button>
+        <button class="btn" type="submit" id="btn-submit" disabled>Importer les apprenants</button>
+        <a class="btn btn-ghost" href="{% url 'class_detail' classe.id %}">Retour a la classe</a>
+      </div>
+      <div id="csv-errors" class="subtitle" style="color: #b91c1c; margin-top:8px;"></div>
+    </form>
+
+    <div class="card-neo table-card">
+      <div class="table-head">
+        <div>
+          <div class="pill-soft">Previsualisation</div>
+          <div class="subtitle">Les champs sont editables avant validation.</div>
+        </div>
+        <div class="tag">En-tete ignoree</div>
+      </div>
+      <div class="table-wrapper">
+        <table class="table-preview">
+          <thead>
+            <tr id="csv-head">
+              <th>#</th>
+              {% for col in column_defs %}<th>{{ col.label }}</th>{% endfor %}
+            </tr>
+          </thead>
+          <tbody id="csv-body">
+            <tr class="subtitle"><td colspan="{{ column_defs|length|add:1 }}" style="text-align:center;">Importez un fichier pour previsualiser.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% if existing_tels %}
+  {{ existing_tels|json_script:"existing-tels" }}
+{% endif %}
+{{ column_defs|json_script:"column-defs" }}
+{{ header_aliases|json_script:"header-aliases" }}
+
+<script>
+  (function() {
+    const fileInput = document.getElementById("id_fichier") || document.querySelector('input[type="file"]');
+    const body = document.getElementById("csv-body");
+    const headRow = document.getElementById("csv-head");
+    const btnValidate = document.getElementById("btn-validate");
+    const btnSubmit = document.getElementById("btn-submit");
+    const errorsEl = document.getElementById("csv-errors");
+    const generateCodes = document.getElementById("id_generate_codes");
+    const existingTels = JSON.parse(document.getElementById("existing-tels")?.textContent || "[]");
+    const headerAliases = JSON.parse(document.getElementById("header-aliases")?.textContent || "{}");
+    let columns = JSON.parse(document.getElementById("column-defs")?.textContent || "[]");
+    let rows = [];
+    let isValidated = false;
+    let lastExt = "";
+
+    function renderHead() {
+      if (!headRow) return;
+      headRow.innerHTML = "<th>#</th>" + columns.map(col => `<th>${col.label}</th>`).join("");
+    }
+
+    function syncEditedRows() {
+      const editedEl = document.getElementById("id_edited_rows");
+      if (editedEl) {
+        editedEl.value = rows.length ? JSON.stringify(rows) : "";
+      }
+    }
+
+    function setValidated(state, message = "") {
+      isValidated = state;
+      btnSubmit.disabled = !state;
+      if (message) {
+        errorsEl.textContent = message;
+      } else if (!state && rows.length) {
+        errorsEl.textContent = "Cliquez sur Verifier pour confirmer les donnees.";
+      }
+    }
+
+    function renderRows() {
+      if (!body) return;
+      body.innerHTML = "";
+      if (!rows.length) {
+        body.innerHTML = `<tr class="subtitle"><td colspan="${columns.length + 1}" style="text-align:center;">Importez un fichier pour previsualiser.</td></tr>`;
+        return;
+      }
+      rows.forEach((r, idx) => {
+        const cells = columns.map(col => {
+          const isCode = col.field === "_code";
+          const editable = !(isCode && generateCodes?.checked);
+          const value = isCode && generateCodes?.checked ? "auto" : (r[col.field] ?? "");
+          return `<td ${editable ? 'contenteditable="true"' : ""} data-field="${col.field}">${value}</td>`;
+        }).join("");
+        const tr = document.createElement("tr");
+        tr.innerHTML = `<td>${idx + 1}</td>${cells}`;
+        tr.querySelectorAll("[contenteditable]").forEach(cell => {
+          cell.addEventListener("blur", () => {
+            const field = cell.getAttribute("data-field");
+            rows[idx][field] = cell.textContent.trim();
+            setValidated(false);
+            syncEditedRows();
+          });
+        });
+        body.appendChild(tr);
+      });
+    }
+
+    function normalizeHeader(label) {
+      return label
+        .normalize("NFD")
+        .replace(/[\\u0300-\\u036f]/g, "") // strip combining accents (cross-browser)
+        .toLowerCase()
+        .replace(/&/g, "and")
+        .replace(/[^a-z0-9]+/g, " ")
+        .trim();
+    }
+
+    function mapHeaders(headers) {
+      const mapped = [];
+      const seen = new Set();
+      headers.forEach((h) => {
+        const key = headerAliases[normalizeHeader(h)];
+        if (!key || seen.has(key)) return;
+        mapped.push({ field: key, label: h.trim() || key });
+        seen.add(key);
+      });
+      return mapped.length ? mapped : columns;
+    }
+
+    function parseCsv(text) {
+      const lines = text.split(/\\r?\\n/).filter(l => l.trim());
+      if (!lines.length) return [];
+      const sep = lines[0].includes(";") ? ";" : ",";
+      const headerParts = lines.shift().split(sep).map(c => c.trim());
+      const mapped = mapHeaders(headerParts);
+      if (mapped.length) {
+        columns = mapped;
+        renderHead();
+      }
+      return lines.map(line => {
+        const cols = line.split(sep);
+        const row = {};
+        columns.forEach((col, idx) => {
+          row[col.field] = (cols[idx] || "").trim();
+        });
+        return row;
+      });
+    }
+
+    function duplicateLines(list) {
+      const map = {};
+      list.forEach((val, idx) => {
+        if (!val) return;
+        if (!map[val]) map[val] = [];
+        map[val].push(idx + 1);
+      });
+      return Object.values(map).filter(arr => arr.length > 1);
+    }
+
+    function validateRows() {
+      errorsEl.textContent = "";
+      errorsEl.innerHTML = "";
+      if (!rows.length) {
+        errorsEl.textContent = "Aucune donnee chargee.";
+        return false;
+      }
+      const names = rows.map(r => (r.nom_complet || "").toLowerCase().trim());
+      const tels = rows.map(r => (r.telephone1 || "").trim());
+      const codes = rows.map(r => (r._code || "").trim()).filter(Boolean);
+      const dupNameLines = duplicateLines(names);
+      const dupTelLines = duplicateLines(tels);
+      const dupCodeLines = duplicateLines(codes);
+      const existingMap = new Set(existingTels.map(t => (t || "").trim()));
+      const dupExisting = tels
+        .map((t, idx) => ({ t, idx }))
+        .filter(item => item.t && existingMap.has(item.t))
+        .map(item => item.idx + 1);
+      const messages = [];
+      if (dupNameLines.length) dupNameLines.forEach(group => messages.push("Nom en double aux lignes : " + group.join(", ")));
+      if (dupTelLines.length) dupTelLines.forEach(group => messages.push("Telephone en double aux lignes : " + group.join(", ")));
+      if (dupCodeLines.length && !generateCodes?.checked) dupCodeLines.forEach(group => messages.push("Code en double aux lignes : " + group.join(", ")));
+      if (dupExisting.length) messages.push("Telephone deja en base aux lignes : " + dupExisting.join(", "));
+      if (messages.length) {
+        const ul = document.createElement("ul");
+        messages.forEach(msg => {
+          const li = document.createElement("li");
+          li.textContent = msg;
+          ul.appendChild(li);
+        });
+        errorsEl.innerHTML = "";
+        errorsEl.appendChild(ul);
+        return false;
+      }
+      errorsEl.textContent = "Validation OK. Vous pouvez importer.";
+      syncEditedRows();
+      return true;
+    }
+
+    fileInput?.addEventListener("change", (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const name = (file.name || "").toLowerCase();
+      lastExt = name.split(".").pop();
+      if (name.endsWith(".xlsx") || name.endsWith(".xlsm")) {
+        rows = [];
+        renderRows();
+        btnValidate.disabled = true;
+        setValidated(true, "Validation server-side pour les fichiers Excel.");
+        syncEditedRows();
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = function(evt) {
+        const text = evt.target.result || "";
+        rows = parseCsv(text);
+        renderRows();
+        btnSubmit.disabled = true;
+        btnValidate.disabled = !rows.length;
+        errorsEl.textContent = rows.length ? "" : "Fichier vide ou colonnes non detectees.";
+        setValidated(false);
+        syncEditedRows();
+      };
+      reader.readAsText(file, "UTF-8");
+    });
+
+    btnValidate?.addEventListener("click", () => {
+      const ok = validateRows();
+      setValidated(ok);
+    });
+
+    generateCodes?.addEventListener("change", () => {
+      if (rows.length) renderRows();
+      setValidated(false);
+    });
+
+    document.querySelector("form")?.addEventListener("submit", (e) => {
+      if (lastExt === "xlsx" || lastExt === "xlsm") {
+        btnSubmit.disabled = false;
+        return;
+      }
+      if (!isValidated) {
+        e.preventDefault();
+        errorsEl.textContent = "Veuillez cliquer sur Verifier avant d'importer.";
+        return;
+      }
+      syncEditedRows();
+    });
+
+    renderHead();
+  })();
+</script>
+{% endblock %}

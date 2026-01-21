@@ -1,0 +1,279 @@
+﻿beneficiaire;ligne;colonne;valeur;erreur
+CAPEF;101;N° / No;;Numero manquant
+CAPEF;101;Bénéficiaires / Beneficiary;;Beneficiaire manquant
+CAPEF;101;Genre (H/F) / Gender (M/F);;Genre manquant
+CAPEF;101;Âge / Age;;Age manquant
+CAPEF;101;Fonction (D, C, E, M, B) / Function (D, C, E, M, B);;Fonction manquante
+CAPEF;101;Diplôme (-1,0,1,2,etc.) / Diploma (-1,0,1,2,etc.);;Diplome manquant
+CAPEF;101;Nb d’années d’expérience (0,1,2, etc.) / Years of Experience (0,1,2, etc.);;Experience manquante
+CAPEF;101;Ville de résidence de l’apprenant / Learner’s City of Residence;;Ville residence manquante
+CAPEF;101;Prestataire / Training Provider;;Prestataire manquant
+CAPEF;101;Intitulé de la formation sollicitée / Title of Requested Training: ;;Formation sollicitee manquante
+CAPEF;101;Intitulé de formation dispensée / Title of Training Delivered;;Formation dispensee manquante
+CAPEF;101;Fenêtre / Window;;Fenetre manquante
+CAPEF;101;Ville de la formation / Training City;;Ville formation manquante
+CAPEF;101;Arrondissement de la formation / Training District;;Arrondissement manquant
+CAPEF;101;Département de la formation / Training Division;;Departement manquant
+CAPEF;101;Région de la formation / Training Region;;Region manquante
+CAPEF;101;Dénomination du lieu de la formation / Training Venue Name;;Lieu formation manquant
+CAPEF;101;Précision sur le lieu / quartier de formation / Training Area or Neighborhood Details;;Precision lieu manquante
+CAPEF;101;Coordonnées GPS du lieu de formation – Longitude / Training Venue GPS – Longitude;;Longitude manquante
+CAPEF;101;Coordonnées GPS du lieu de formation – Latitude / Training Venue GPS – Latitude;;Latitude manquante
+CAPEF;101;1er No tél apprenant / Learner’s 1st Phone Number;;Telephone apprenant 1 manquant
+CAPEF;102;1er No tél apprenant / Learner’s 1st Phone Number;;Telephone apprenant 1 manquant
+CAPEF;108;1er No tél apprenant / Learner’s 1st Phone Number;;Telephone apprenant 1 manquant
+CAPEF;110;1er No tél apprenant / Learner’s 1st Phone Number;;Telephone apprenant 1 manquant
+CAPEF;111;1er No tél apprenant / Learner’s 1st Phone Number;;Telephone apprenant 1 manquant
+CAPEF;121;1er No tél apprenant / Learner’s 1st Phone Number;;Telephone apprenant 1 manquant
+CAPEF;123;1er No tél apprenant / Learner’s 1st Phone Number;;Telephone apprenant 1 manquant
+CAPEF;126;1er No tél apprenant / Learner’s 1st Phone Number;;Telephone apprenant 1 manquant
+CAPEF;2;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;3;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;4;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;5;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;6;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;7;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;8;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;9;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;10;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;11;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;12;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;13;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;14;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;15;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;16;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;17;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;18;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;19;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;20;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;21;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;22;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;23;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;24;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;25;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;26;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;27;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;28;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;29;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;30;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;31;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;32;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;33;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;34;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;35;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;36;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;37;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;38;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;39;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;40;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;41;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;42;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;43;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;44;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;45;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;46;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;47;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;48;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;49;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;50;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;51;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;52;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;53;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;54;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;55;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;56;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;57;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;58;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;59;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;60;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;61;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;62;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;63;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;64;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;65;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;66;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;67;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;68;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;69;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;70;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;71;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;72;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;73;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;74;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;75;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;76;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;77;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;78;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;79;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;80;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;81;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;82;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;83;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;84;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;85;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;86;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;87;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;88;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;89;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;90;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;91;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;92;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;93;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;94;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;95;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;96;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;97;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;98;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;99;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;100;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;102;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;103;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;104;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;105;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;106;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;107;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;108;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;109;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;110;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;111;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;112;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;113;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;114;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;115;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;116;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;117;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;118;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;119;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;120;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;121;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;122;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;123;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;124;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;125;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;126;2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available);0.0;Telephone apprenant 2 invalide
+CAPEF;101;Cohorte / Cohort;;Cohorte manquante
+CAPEF;101;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;;Telephone formateur manquant
+CAPEF;2;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;3;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;4;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;5;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;6;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;7;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;8;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;9;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;10;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;11;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;12;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;13;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;14;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;15;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;16;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;17;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;18;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;19;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;20;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;21;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;22;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;23;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;24;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;25;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;26;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;27;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;28;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;29;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;30;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;31;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;32;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;33;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;34;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;35;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;36;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;37;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;38;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;39;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;40;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;41;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;42;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;43;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;44;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;45;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;46;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;47;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;48;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;49;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;50;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;51;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;52;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;53;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;54;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;55;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;56;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;57;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;58;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;59;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;60;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;61;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;62;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;63;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;64;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;65;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;66;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;67;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;68;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;69;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;70;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;71;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;72;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;73;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;74;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;75;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;76;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;77;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;78;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;79;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;80;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;81;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;82;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;83;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;84;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;85;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;86;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;87;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;88;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;89;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;90;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;91;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;92;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;93;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;94;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;95;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;96;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;97;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;98;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;99;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;100;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;102;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;103;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;104;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;105;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;106;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;107;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;108;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;109;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;110;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;111;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;112;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;113;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;114;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;115;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;116;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;117;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;118;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;119;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;120;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;121;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;122;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;123;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;124;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;125;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide
+CAPEF;126;Tél formateur / point focal sur place / Trainer or Local Focal Point Phone Number;Point focal sur place : 693567041/676853778;Telephone formateur invalide

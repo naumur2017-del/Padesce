@@ -1,0 +1,16 @@
+asgiref==3.11.0
+Django==6.0
+sqlparse==0.5.4
+tzdata==2025.3
+pandas
+openpyxl
+numpy
+django-allauth
+djangorestframework
+whitenoise
+environ
+psycopg2-binary
+pillow
+django-widget-tweaks
+gunicorn
+requests

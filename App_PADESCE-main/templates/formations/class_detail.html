@@ -1,0 +1,257 @@
+{% extends "base.html" %}
+{% block title %}Classe {{ classe.code }}{% endblock %}
+{% block content %}
+<style>
+  .header {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 16px;
+    box-shadow: var(--shadow);
+    margin-bottom: 14px;
+  }
+  .header h1 { margin: 0 0 6px 0; }
+  .subtitle { color: var(--muted); }
+  .pill { display: inline-block; padding: 6px 10px; border-radius: 999px; border: 1px solid var(--border); background: rgba(15,139,141,0.08); color: var(--accent); font-weight: 600; font-size: 0.9rem; }
+  .grid { display: grid; gap: 14px; grid-template-columns: 2fr 1fr; }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 14px;
+    box-shadow: var(--shadow);
+  }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { padding: 8px; border: 1px solid var(--border); font-size: 0.92rem; }
+  thead { background: rgba(15,139,141,0.08); }
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    padding: 10px 14px; border-radius: 12px; font-weight: 700; border: 1px solid transparent; cursor: pointer;
+    background: linear-gradient(120deg, var(--accent), #18b0ac); color: #fff;
+    text-decoration: none; box-shadow: 0 10px 24px rgba(0,0,0,0.12);
+    transition: transform .2s ease, box-shadow .2s ease, background .2s ease;
+  }
+  .btn:hover { transform: translateY(-1px); box-shadow: 0 14px 28px rgba(0,0,0,0.16); }
+  .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text); box-shadow: none; }
+  .btn-outline:hover { background: rgba(15,139,141,0.08); }
+  .btn-soft { background: rgba(15,139,141,0.14); color: var(--accent); border: 1px solid rgba(15,139,141,0.2); box-shadow: none; }
+  .btn-danger { background: linear-gradient(120deg, #ef4444, #f97316); border: 1px solid rgba(239,68,68,0.35); }
+  .disabled { opacity: 0.5; pointer-events: none; }
+  .toolbar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+  .table-wrap { max-height: 360px; overflow: auto; border-radius: 12px; border: 1px solid var(--border); }
+  .checkbox-col { width: 32px; text-align: center; }
+  .checkbox-col input { transform: scale(1.05); }
+</style>
+
+<div class="header">
+  <h1>{{ classe.code }} — {{ classe.intitule_formation }}</h1>
+  <div class="subtitle">Prestation : {{ classe.prestation }} | Formation : {{ classe.formation }} | Cohorte : {{ classe.cohorte }} | Lieu : {{ classe.lieu }}</div>
+  <div class="subtitle">Fenêtre : {{ classe.fenetre }} | Statut : <span class="pill">{{ classe.get_statut_display }}</span></div>
+</div>
+
+<div class="grid">
+  <div class="panel">
+    <div class="toolbar">
+      <button class="btn" id="btn-sms">Envoyer SMS</button>
+      <a class="btn btn-soft" href="{% url 'apprenants_import' classe.id %}" id="btn-import">Importer apprenants</a>
+      <button class="btn btn-danger" id="btn-delete">Supprimer apprenant</button>
+      <a class="btn btn-outline" href="/satisfaction-formateurs/" id="btn-sat-form">Enquête satisfaction formateur</a>
+      <a class="btn btn-outline" href="/satisfaction-apprenants/" id="btn-sat-appr">Enquête satisfaction apprenants</a>
+      <a class="btn btn-outline" href="{% url 'environnement_index' %}?classe={{ classe.id }}#environnement-form" id="btn-env">Enquête environnement</a>
+      <a class="btn btn-outline" href="/presences/" id="btn-pres">Enquête présence</a>
+      <a class="btn btn-outline" href="{% url 'class_reports' classe.id %}" id="btn-rapports">Rapports enquetes</a>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th class="checkbox-col"><input type="checkbox" id="check-all" /></th>
+            <th class="checkbox-col">
+              B? <input type="checkbox" id="appartenance-all" />
+            </th>
+            <th>Nom et prénom</th><th>Genre</th><th>Âge</th><th>Fonction</th><th>Qualification</th><th>Années exp.</th><th>Ville</th><th>Téléphone</th><th>Statut SMS</th>
+          </tr>
+        </thead>
+        <tbody id="apprenants-body">
+          {% if apprenants %}
+            {% for apprenant in apprenants.all %}
+              <tr data-apprenant-id="{{ apprenant.id }}">
+                <td class="checkbox-col">
+                  <input type="checkbox" class="row-check" data-apprenant-id="{{ apprenant.id }}" />
+                </td>
+                <td class="checkbox-col">
+                  <input
+                    type="checkbox"
+                    class="appartenance-check"
+                    data-apprenant-id="{{ apprenant.id }}"
+                    {% if apprenant.appartenance_beneficiaire %}checked{% endif %}
+                  />
+                </td>
+                <td>{{ apprenant.nom_complet }}</td>
+                <td>{{ apprenant.genre }}</td>
+                <td>{{ apprenant.age }}</td>
+                <td>{{ apprenant.fonction }}</td>
+                <td>{{ apprenant.qualification }}</td>
+                <td>{{ apprenant.nb_annees_experience }}</td>
+                <td>{{ apprenant.ville_residence }}</td>
+                <td>{{ apprenant.telephone1 }}</td>
+                <td class="sms-status">{{ apprenant.statut_sms|default:"-" }}</td>
+              </tr>
+            {% endfor %}
+          {% else %}
+            <tr><td colspan="11" style="text-align:center; color: var(--muted);">Aucun apprenant</td></tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- <div class="panel">
+    <h4>Enquêtes réalisées</h4>
+    <div class="subtitle" style="margin-bottom:8px;">Filtre simple (placeholder)</div>
+    <div class="table-wrap" style="max-height: 320px;">
+      <table>
+        <thead>
+          <tr><th>Date</th><th>Inspecteur</th><th>Enquêteur</th><th>Présents</th><th>Absents</th><th>Type</th></tr>
+        </thead>
+        <tbody>
+          {% if enquetes %}
+            {% for e in enquetes %}
+              <tr>
+                <td>{{ e.date }}</td>
+                <td>{{ e.inspecteur }}</td>
+                <td>{{ e.enqueteur }}</td>
+                <td>{{ e.presence|default:"-" }}</td>
+                <td>-</td>
+                <td>Présence</td>
+              </tr>
+            {% endfor %}
+          {% else %}
+            <tr><td colspan="6" style="text-align:center; color: var(--muted);">Aucune enquête</td></tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+  </div> -->
+</div>
+
+<script>
+  (function() {
+    const checkAll = document.getElementById("check-all");
+    const rows = () => Array.from(document.querySelectorAll(".row-check"));
+    const appartenanceChecks = () => Array.from(document.querySelectorAll(".appartenance-check"));
+    const appartenanceAll = document.getElementById("appartenance-all");
+    const deleteBtn = document.getElementById("btn-delete");
+    const smsBtn = document.getElementById("btn-sms");
+    const classeId = "{{ classe.id }}";
+    checkAll?.addEventListener("change", (e) => {
+      rows().forEach(chk => chk.checked = e.target.checked);
+    });
+    function getCookie(name) {
+      const value = `; ${document.cookie}`;
+      const parts = value.split(`; ${name}=`);
+      if (parts.length === 2) return parts.pop().split(";").shift();
+      return "";
+    }
+    const csrfToken = getCookie("csrftoken");
+    function getSelectedIds() {
+      return rows()
+        .filter(chk => chk.checked)
+        .map(chk => chk.getAttribute("data-apprenant-id"))
+        .filter(Boolean);
+    }
+    async function postJson(url, payload) {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRFToken": csrfToken,
+        },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) throw new Error("bad status");
+      return res.json();
+    }
+    appartenanceChecks().forEach((chk) => {
+      chk.addEventListener("change", async (e) => {
+        const el = e.target;
+        const apprenantId = el.getAttribute("data-apprenant-id");
+        try {
+          await postJson(`/apprenants/api/appartenance/${apprenantId}/`, { value: el.checked });
+        } catch (err) {
+          el.checked = !el.checked;
+          alert("Impossible de mettre a jour l'appartenance.");
+        }
+      });
+    });
+    appartenanceAll?.addEventListener("change", async (e) => {
+      const value = e.target.checked;
+      const ids = appartenanceChecks()
+        .map(chk => chk.getAttribute("data-apprenant-id"))
+        .filter(Boolean);
+      if (!ids.length) {
+        e.target.checked = false;
+        return;
+      }
+      appartenanceChecks().forEach(chk => { chk.checked = value; });
+      try {
+        await postJson("/apprenants/api/appartenance/bulk/", { ids, value, classe_id: classeId });
+      } catch (err) {
+        appartenanceChecks().forEach(chk => { chk.checked = !value; });
+        e.target.checked = !value;
+        alert("Impossible de mettre a jour l'appartenance.");
+      }
+    });
+    deleteBtn?.addEventListener("click", async () => {
+      const ids = getSelectedIds();
+      if (!ids.length) {
+        alert("Selectionnez au moins un apprenant.");
+        return;
+      }
+      if (!confirm("Confirmer la suppression des apprenants selectionnes ?")) return;
+      try {
+        await postJson("/apprenants/api/delete/", { ids, classe_id: classeId });
+        ids.forEach((id) => {
+          const row = document.querySelector(`.row-check[data-apprenant-id="${id}"]`)?.closest("tr");
+          row?.remove();
+        });
+      } catch (err) {
+        alert("Impossible de supprimer les apprenants selectionnes.");
+      }
+    });
+    smsBtn?.addEventListener("click", async () => {
+      const ids = getSelectedIds();
+      if (!ids.length) {
+        alert("Selectionnez au moins un apprenant.");
+        return;
+      }
+      if (!confirm("Envoyer les SMS aux apprenants selectionnes ?")) return;
+      try {
+        const data = await postJson("/apprenants/api/sms/", { ids, classe_id: classeId });
+        if (!data || data.ok !== true) throw new Error("bad response");
+        if (Array.isArray(data.results)) {
+          data.results.forEach((item) => {
+            const row = document.querySelector(`tr[data-apprenant-id="${item.id}"]`);
+            const cell = row?.querySelector(".sms-status");
+            if (cell) {
+              cell.textContent = item.ok ? "OK" : (item.detail || "Echec");
+            }
+          });
+        }
+        alert(`SMS envoyes: ${data.sent || 0}, echecs: ${data.failed || 0}.`);
+      } catch (err) {
+        alert("Impossible d'envoyer les SMS.");
+      }
+    });
+    // Désactivation si statut "terminé"
+    const isTermine = "{{ classe.statut }}" === "termine";
+    if (isTermine) {
+      ["btn-pres","btn-sms","btn-import"].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) { el.classList.add("disabled"); el.title = "Formation terminée"; }
+      });
+    }
+  })();
+</script>
+{% endblock %}

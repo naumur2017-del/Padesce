@@ -1,0 +1,493 @@
+{% extends "base.html" %}
+{% block title %}Reporting{% endblock %}
+{% block content %}
+<style>
+  .grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 14px; box-shadow: var(--shadow); }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { padding: 8px; border: 1px solid var(--border); font-size: 0.92rem; }
+  thead { background: rgba(15,139,141,0.08); }
+  .panel-head { display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-bottom:8px; }
+  .panel-actions { display:flex; gap:8px; flex-wrap:wrap; }
+  .subhead { margin:12px 0 6px; font-size:0.95rem; }
+  .btn {
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    gap:6px;
+    padding:10px 14px;
+    border-radius:12px;
+    font-weight:600;
+    border:1px solid transparent;
+    cursor:pointer;
+    background: var(--accent);
+    color:#fff;
+    text-decoration:none;
+    transition: transform .2s ease, box-shadow .2s ease, background .2s ease, border-color .2s ease;
+  }
+  .btn-primary { background: var(--accent); color:#fff; border-color: rgba(15,139,141,0.3); box-shadow: 0 8px 18px rgba(15,139,141,0.18); }
+  .btn-ghost { background: transparent; border:1px solid var(--border); color: var(--text); box-shadow:none; }
+  .btn-outline { background: rgba(15,139,141,0.08); border:1px solid rgba(15,139,141,0.3); color: var(--accent); box-shadow:none; }
+  .btn-sm { padding:8px 12px; font-size:0.85rem; border-radius:10px; }
+  .btn:hover { transform: translateY(-1px); box-shadow: 0 10px 22px rgba(15,139,141,0.18); }
+  .btn-ghost:hover { background: rgba(15,139,141,0.08); box-shadow: none; }
+  .btn-outline:hover { background: rgba(15,139,141,0.12); box-shadow: none; }
+  .btn:focus-visible { outline:2px solid rgba(15,139,141,0.3); outline-offset:2px; }
+  @media (max-width: 720px) {
+    .panel-actions { width:100%; }
+    .panel-actions .btn { width:100%; }
+  }
+</style>
+
+<h1 class="h4 mb-2">Reporting</h1>
+<p class="subtitle" style="color:var(--muted);">Compteurs, taux (RES00/RES01...), satisfaction, environnement, repartitions, exports CSV/XLS.</p>
+
+<div class="grid">
+  <div class="panel"><strong>Classes</strong><br>{{ nb_classes }}</div>
+  <div class="panel"><strong>Apprenants</strong><br>{{ nb_apprenants }}</div>
+  <div class="panel"><strong>Formateurs (distinct)</strong><br>{{ nb_formateurs }}</div>
+  <div class="panel"><strong>Enquetes presence</strong><br>{{ nb_enquetes_presence }}</div>
+  <div class="panel"><strong>Sat. apprenants</strong><br>{{ nb_sat_apprenants }}</div>
+  <div class="panel"><strong>Sat. formateurs</strong><br>{{ nb_sat_formateurs }}</div>
+  <div class="panel"><strong>Environnement</strong><br>{{ nb_env }}</div>
+</div>
+
+{% if charts %}
+<div class="grid" style="margin-top:14px;">
+  {% for c in charts %}
+    <div class="panel">
+      <div class="panel-head">
+        <div>
+          <div class="subtitle" style="color:var(--muted);">{{ c.code }}</div>
+          <strong>{{ c.title }}</strong><br>
+          <span style="font-size:1.2rem;">{{ c.value }}</span>
+        </div>
+        <div class="panel-actions">
+          <button class="btn btn-ghost btn-sm js-chart-csv" type="button" data-code="{{ c.code }}">CSV</button>
+          <button class="btn btn-outline btn-sm js-chart-image" type="button" data-code="{{ c.code }}">Image</button>
+          <button class="btn btn-primary btn-sm js-copy-iframe" type="button" data-iframe="/reporting/embed/{{ c.code }}/">Copier iframe</button>
+        </div>
+      </div>
+    </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<div class="panel" style="margin-top:14px;">
+  <div style="display:flex; gap:8px; flex-wrap:wrap;">
+    <a class="btn btn-primary btn-sm" href="{% url 'reporting_export_csv' %}">Export CSV</a>
+    <a class="btn btn-ghost btn-sm" href="{% url 'reporting_export_excel' %}">Export Excel</a>
+  </div>
+</div>
+
+<div class="grid" style="margin-top:14px; grid-template-columns: repeat(auto-fit, minmax(280px,1fr));">
+  <div class="panel">
+    <div class="panel-head">
+      <h5>Top presence (classe)</h5>
+      <div class="panel-actions">
+        <button class="btn btn-ghost btn-sm js-table-csv" type="button" data-table-id="table-presence-classe" data-filename="presence-classe.csv">CSV</button>
+        <button class="btn btn-primary btn-sm js-copy-iframe" type="button" data-iframe="/reporting/embed/table/presence-classe/">Copier iframe</button>
+      </div>
+    </div>
+    <table id="table-presence-classe">
+      <thead><tr><th>Classe</th><th>PR</th><th>Total</th></tr></thead>
+      <tbody>
+        {% for p in presence_rates %}
+        <tr><td>{{ p.classe__code }}</td><td>{{ p.pr }}</td><td>{{ p.total }}</td></tr>
+        {% empty %}<tr><td colspan="3" style="text-align:center; color:var(--muted);">Aucune donnee</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="panel">
+    <div class="panel-head">
+      <h5>Sat. apprenants (Q9)</h5>
+      <div class="panel-actions">
+        <button class="btn btn-ghost btn-sm js-table-csv" type="button" data-table-id="table-sat-appr-q9" data-filename="sat-apprenants-q9.csv">CSV</button>
+        <button class="btn btn-primary btn-sm js-copy-iframe" type="button" data-iframe="/reporting/embed/table/sat-appr-q9/">Copier iframe</button>
+      </div>
+    </div>
+    <table id="table-sat-appr-q9">
+      <thead><tr><th>Classe</th><th>Moyenne</th></tr></thead>
+      <tbody>
+        {% for s in sat_appr_moy %}
+        <tr><td>{{ s.classe__code }}</td><td>{{ s.moy|floatformat:2 }}</td></tr>
+        {% empty %}<tr><td colspan="2" style="text-align:center; color:var(--muted);">Aucune donnee</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="panel">
+    <div class="panel-head">
+      <h5>Sat. formateurs (Q9)</h5>
+      <div class="panel-actions">
+        <button class="btn btn-ghost btn-sm js-table-csv" type="button" data-table-id="table-sat-form-q9" data-filename="sat-formateurs-q9.csv">CSV</button>
+        <button class="btn btn-primary btn-sm js-copy-iframe" type="button" data-iframe="/reporting/embed/table/sat-form-q9/">Copier iframe</button>
+      </div>
+    </div>
+    <table id="table-sat-form-q9">
+      <thead><tr><th>Classe</th><th>Moyenne</th></tr></thead>
+      <tbody>
+        {% for s in sat_form_moy %}
+        <tr><td>{{ s.classe__code }}</td><td>{{ s.moy|floatformat:2 }}</td></tr>
+        {% empty %}<tr><td colspan="2" style="text-align:center; color:var(--muted);">Aucune donnee</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="grid" style="margin-top:14px; grid-template-columns: repeat(auto-fit, minmax(320px,1fr));">
+  <div class="panel">
+    <div class="panel-head">
+      <h5>Présence par prestataire</h5>
+      <div class="panel-actions">
+        <button class="btn btn-ghost btn-sm js-table-csv" type="button" data-table-id="table-presence-prestataire" data-filename="presence-prestataire.csv">CSV</button>
+        <button class="btn btn-primary btn-sm js-copy-iframe" type="button" data-iframe="/reporting/embed/table/presence-prestataire/">Copier iframe</button>
+      </div>
+    </div>
+    <table id="table-presence-prestataire"><thead><tr><th>Prestataire</th><th>PR</th><th>Total</th><th>Taux %</th></tr></thead><tbody>
+      {% for r in taux_presence_prestataire %}
+      <tr><td>{{ r.classe__prestation__prestataire__raison_sociale }}</td><td>{{ r.pr }}</td><td>{{ r.total }}</td><td>{{ r.taux }}</td></tr>
+      {% empty %}<tr><td colspan="4" style="text-align:center; color:var(--muted);">Aucune donnee</td></tr>{% endfor %}
+    </tbody></table>
+  </div>
+  <div class="panel">
+    <div class="panel-head">
+      <h5>Présence par prestation</h5>
+      <div class="panel-actions">
+        <button class="btn btn-ghost btn-sm js-table-csv" type="button" data-table-id="table-presence-prestation" data-filename="presence-prestation.csv">CSV</button>
+        <button class="btn btn-primary btn-sm js-copy-iframe" type="button" data-iframe="/reporting/embed/table/presence-prestation/">Copier iframe</button>
+      </div>
+    </div>
+    <table id="table-presence-prestation"><thead><tr><th>Prestation</th><th>PR</th><th>Total</th><th>Taux %</th></tr></thead><tbody>
+      {% for r in taux_presence_prestation %}
+      <tr><td>{{ r.classe__prestation__code }}</td><td>{{ r.pr }}</td><td>{{ r.total }}</td><td>{{ r.taux }}</td></tr>
+      {% empty %}<tr><td colspan="4" style="text-align:center; color:var(--muted);">Aucune donnee</td></tr>{% endfor %}
+    </tbody></table>
+  </div>
+  <div class="panel">
+    <div class="panel-head">
+      <h5>Présence par bénéficiaire</h5>
+      <div class="panel-actions">
+        <button class="btn btn-ghost btn-sm js-table-csv" type="button" data-table-id="table-presence-beneficiaire" data-filename="presence-beneficiaire.csv">CSV</button>
+        <button class="btn btn-primary btn-sm js-copy-iframe" type="button" data-iframe="/reporting/embed/table/presence-beneficiaire/">Copier iframe</button>
+      </div>
+    </div>
+    <table id="table-presence-beneficiaire"><thead><tr><th>Bénéficiaire</th><th>PR</th><th>Total</th><th>Taux %</th></tr></thead><tbody>
+      {% for r in taux_presence_beneficiaire %}
+      <tr><td>{{ r.classe__prestation__beneficiaire__nom_structure }}</td><td>{{ r.pr }}</td><td>{{ r.total }}</td><td>{{ r.taux }}</td></tr>
+      {% empty %}<tr><td colspan="4" style="text-align:center; color:var(--muted);">Aucune donnee</td></tr>{% endfor %}
+    </tbody></table>
+  </div>
+  <div class="panel">
+    <div class="panel-head">
+      <h5>Présence par formation</h5>
+      <div class="panel-actions">
+        <button class="btn btn-ghost btn-sm js-table-csv" type="button" data-table-id="table-presence-formation" data-filename="presence-formation.csv">CSV</button>
+        <button class="btn btn-primary btn-sm js-copy-iframe" type="button" data-iframe="/reporting/embed/table/presence-formation/">Copier iframe</button>
+      </div>
+    </div>
+    <table id="table-presence-formation"><thead><tr><th>Formation</th><th>PR</th><th>Total</th><th>Taux %</th></tr></thead><tbody>
+      {% for r in taux_presence_formation %}
+      <tr><td>{{ r.classe__formation__nom }}</td><td>{{ r.pr }}</td><td>{{ r.total }}</td><td>{{ r.taux }}</td></tr>
+      {% empty %}<tr><td colspan="4" style="text-align:center; color:var(--muted);">Aucune donnee</td></tr>{% endfor %}
+    </tbody></table>
+  </div>
+  <div class="panel">
+    <div class="panel-head">
+      <h5>Présence par formation harmonisée</h5>
+      <div class="panel-actions">
+        <button class="btn btn-ghost btn-sm js-table-csv" type="button" data-table-id="table-presence-formation-harmo" data-filename="presence-formation-harmonisee.csv">CSV</button>
+        <button class="btn btn-primary btn-sm js-copy-iframe" type="button" data-iframe="/reporting/embed/table/presence-formation-harmo/">Copier iframe</button>
+      </div>
+    </div>
+    <table id="table-presence-formation-harmo"><thead><tr><th>Formation harmo.</th><th>PR</th><th>Total</th><th>Taux %</th></tr></thead><tbody>
+      {% for r in taux_presence_formation_harmo %}
+      <tr><td>{{ r.classe__formation__nom_harmonise }}</td><td>{{ r.pr }}</td><td>{{ r.total }}</td><td>{{ r.taux }}</td></tr>
+      {% empty %}<tr><td colspan="4" style="text-align:center; color:var(--muted);">Aucune donnee</td></tr>{% endfor %}
+    </tbody></table>
+  </div>
+</div>
+
+<div class="grid" style="margin-top:14px; grid-template-columns: repeat(auto-fit, minmax(320px,1fr));">
+  <div class="panel">
+    <div class="panel-head">
+      <h5>Satisfaction apprenants par axes</h5>
+      <div class="panel-actions">
+        <button class="btn btn-ghost btn-sm js-table-csv" type="button" data-table-id="table-sat-appr-prestataire" data-filename="sat-apprenants-axes.csv">CSV</button>
+        <button class="btn btn-primary btn-sm js-copy-iframe" type="button" data-iframe="/reporting/embed/table/sat-appr-prestataire/">Copier iframe</button>
+      </div>
+    </div>
+    <table id="table-sat-appr-prestataire"><thead><tr><th>Groupe</th><th>Moyenne</th></tr></thead><tbody>
+      {% for r in sat_appr_prestataire %}<tr><td>{{ r.classe__prestation__prestataire__raison_sociale }}</td><td>{{ r.moy|floatformat:2 }}</td></tr>{% endfor %}
+    </tbody></table>
+  </div>
+  <div class="panel">
+    <div class="panel-head">
+      <h5>Satisfaction formateurs par axes</h5>
+      <div class="panel-actions">
+        <button class="btn btn-ghost btn-sm js-table-csv" type="button" data-table-id="table-sat-form-prestataire" data-filename="sat-formateurs-axes.csv">CSV</button>
+        <button class="btn btn-primary btn-sm js-copy-iframe" type="button" data-iframe="/reporting/embed/table/sat-form-prestataire/">Copier iframe</button>
+      </div>
+    </div>
+    <table id="table-sat-form-prestataire"><thead><tr><th>Groupe</th><th>Moyenne</th></tr></thead><tbody>
+      {% for r in sat_form_prestataire %}<tr><td>{{ r.classe__prestation__prestataire__raison_sociale }}</td><td>{{ r.moy|floatformat:2 }}</td></tr>{% endfor %}
+    </tbody></table>
+  </div>
+</div>
+
+<div class="grid" style="margin-top:14px; grid-template-columns: repeat(auto-fit, minmax(320px,1fr));">
+  <div class="panel">
+    <div class="panel-head">
+      <h5>Effectifs / Femmes / Appartenance par prestation</h5>
+      <div class="panel-actions">
+        <button class="btn btn-ghost btn-sm js-table-csv" type="button" data-table-id="table-prestations-effectifs" data-filename="prestations-effectifs.csv">CSV</button>
+        <button class="btn btn-primary btn-sm js-copy-iframe" type="button" data-iframe="/reporting/embed/table/prestations-effectifs/">Copier iframe</button>
+      </div>
+    </div>
+    <table id="table-prestations-effectifs"><thead><tr><th>Prestation</th><th>Eff. prévu</th><th>Eff. réel</th><th>Femmes prévues</th><th>Femmes réelles</th><th>Appart.</th></tr></thead><tbody>
+      {% for p in prestations_effectifs %}
+      <tr>
+        <td>{{ p.code }}</td>
+        <td>{{ p.effectif_a_former }}</td>
+        <td>{{ p.appr_total }}</td>
+        <td>{{ p.femmes }}</td>
+        <td>{{ p.appr_femmes }}</td>
+        <td>{{ p.appr_appart }}</td>
+      </tr>
+      {% empty %}<tr><td colspan="6" style="text-align:center; color:var(--muted);">Aucune donnee</td></tr>{% endfor %}
+    </tbody></table>
+  </div>
+  <div class="panel">
+    <div class="panel-head">
+      <h5>Durées par prestation</h5>
+      <div class="panel-actions">
+        <button class="btn btn-ghost btn-sm js-table-csv" type="button" data-table-id="table-prestations-durees" data-filename="prestations-durees.csv">CSV</button>
+        <button class="btn btn-primary btn-sm js-copy-iframe" type="button" data-iframe="/reporting/embed/table/prestations-durees/">Copier iframe</button>
+      </div>
+    </div>
+    <table id="table-prestations-durees"><thead><tr><th>Prestation</th><th>Durée prévue (h)</th><th>Durée réelle (h)</th></tr></thead><tbody>
+      {% for p in prestations_durees %}
+      <tr><td>{{ p.code }}</td><td>{{ p.duree_prevue_heures }}</td><td>{{ p.duree_reelle_heures }}</td></tr>
+      {% empty %}<tr><td colspan="3" style="text-align:center; color:var(--muted);">Aucune donnee</td></tr>{% endfor %}
+    </tbody></table>
+  </div>
+</div>
+
+<div class="grid" style="margin-top:14px; grid-template-columns: repeat(auto-fit, minmax(320px,1fr));">
+  <div class="panel">
+    <div class="panel-head">
+      <h5>Répartition apprenants (villes)</h5>
+      <div class="panel-actions">
+        <button class="btn btn-ghost btn-sm js-table-csv" type="button" data-table-id="table-repart-ville" data-filename="repartition-villes.csv">CSV</button>
+        <button class="btn btn-primary btn-sm js-copy-iframe" type="button" data-iframe="/reporting/embed/table/repart-ville/">Copier iframe</button>
+      </div>
+    </div>
+    <table id="table-repart-ville"><thead><tr><th>Ville</th><th>Total</th></tr></thead><tbody>
+      {% for r in repart_apprenants_ville %}<tr><td>{{ r.ville_residence }}</td><td>{{ r.total }}</td></tr>{% endfor %}
+    </tbody></table>
+    <div class="panel-head" style="margin-top:12px;">
+      <div class="subhead">Répartition apprenants (régions)</div>
+      <div class="panel-actions">
+        <button class="btn btn-ghost btn-sm js-table-csv" type="button" data-table-id="table-repart-region" data-filename="repartition-regions.csv">CSV</button>
+        <button class="btn btn-primary btn-sm js-copy-iframe" type="button" data-iframe="/reporting/embed/table/repart-region/">Copier iframe</button>
+      </div>
+    </div>
+    <table id="table-repart-region"><thead><tr><th>Region</th><th>Total</th></tr></thead><tbody>
+      {% for r in repart_apprenants_region %}<tr><td>{{ r.region }}</td><td>{{ r.total }}</td></tr>{% endfor %}
+    </tbody></table>
+  </div>
+  <div class="panel">
+    <div class="panel-head">
+      <h5>Répartition formations</h5>
+      <div class="panel-actions">
+        <button class="btn btn-ghost btn-sm js-table-csv" type="button" data-table-id="table-repart-formation" data-filename="repartition-formations.csv">CSV</button>
+        <button class="btn btn-primary btn-sm js-copy-iframe" type="button" data-iframe="/reporting/embed/table/repart-formation/">Copier iframe</button>
+      </div>
+    </div>
+    <table id="table-repart-formation"><thead><tr><th>Formation</th><th>Total</th></tr></thead><tbody>
+      {% for r in repart_apprenants_formation %}<tr><td>{{ r.formation__nom }}</td><td>{{ r.total }}</td></tr>{% endfor %}
+    </tbody></table>
+    <div class="panel-head" style="margin-top:12px;">
+      <div class="subhead">Formation harmonisée</div>
+      <div class="panel-actions">
+        <button class="btn btn-ghost btn-sm js-table-csv" type="button" data-table-id="table-repart-formation-harmo" data-filename="repartition-formations-harmonisees.csv">CSV</button>
+        <button class="btn btn-primary btn-sm js-copy-iframe" type="button" data-iframe="/reporting/embed/table/repart-formation-harmo/">Copier iframe</button>
+      </div>
+    </div>
+    <table id="table-repart-formation-harmo"><thead><tr><th>Formation harmonisée</th><th>Total</th></tr></thead><tbody>
+      {% for r in repart_apprenants_formation_harmo %}<tr><td>{{ r.formation__nom_harmonise }}</td><td>{{ r.total }}</td></tr>{% endfor %}
+    </tbody></table>
+  </div>
+  <div class="panel">
+    <div class="panel-head">
+      <h5>Répartition bénéficiaires</h5>
+      <div class="panel-actions">
+        <button class="btn btn-ghost btn-sm js-table-csv" type="button" data-table-id="table-repart-beneficiaire" data-filename="repartition-beneficiaires.csv">CSV</button>
+        <button class="btn btn-primary btn-sm js-copy-iframe" type="button" data-iframe="/reporting/embed/table/repart-beneficiaire/">Copier iframe</button>
+      </div>
+    </div>
+    <table id="table-repart-beneficiaire"><thead><tr><th>Bénéficiaire</th><th>Total</th></tr></thead><tbody>
+      {% for r in repart_apprenants_benef %}<tr><td>{{ r.classe__prestation__beneficiaire__nom_structure }}</td><td>{{ r.total }}</td></tr>{% endfor %}
+    </tbody></table>
+    <div class="panel-head" style="margin-top:12px;">
+      <div class="subhead">Répartition prestataires</div>
+      <div class="panel-actions">
+        <button class="btn btn-ghost btn-sm js-table-csv" type="button" data-table-id="table-repart-prestataire" data-filename="repartition-prestataires.csv">CSV</button>
+        <button class="btn btn-primary btn-sm js-copy-iframe" type="button" data-iframe="/reporting/embed/table/repart-prestataire/">Copier iframe</button>
+      </div>
+    </div>
+    <table id="table-repart-prestataire"><thead><tr><th>Prestataire</th><th>Total</th></tr></thead><tbody>
+      {% for r in repart_apprenants_prestataire %}<tr><td>{{ r.classe__prestation__prestataire__raison_sociale }}</td><td>{{ r.total }}</td></tr>{% endfor %}
+    </tbody></table>
+  </div>
+</div>
+
+<div class="panel" style="margin-top:14px;">
+  <div class="panel-head">
+    <h5>Environnement par lieu</h5>
+    <div class="panel-actions">
+      <button class="btn btn-ghost btn-sm js-table-csv" type="button" data-table-id="table-env-lieu" data-filename="environnement-lieu.csv">CSV</button>
+      <button class="btn btn-primary btn-sm js-copy-iframe" type="button" data-iframe="/reporting/embed/table/env-lieu/">Copier iframe</button>
+    </div>
+  </div>
+  <table id="table-env-lieu"><thead><tr><th>Lieu</th><th>Region</th><th>Nb enquetes</th><th>Score (8 pts)</th></tr></thead><tbody>
+    {% for e in env_par_lieu %}
+    <tr><td>{{ e.lieu }}</td><td>{{ e.region }}</td><td>{{ e.total }}</td><td>{{ e.score|floatformat:2 }}</td></tr>
+    {% empty %}<tr><td colspan="4" style="text-align:center; color:var(--muted);">Aucune donnee</td></tr>{% endfor %}
+  </tbody></table>
+</div>
+<script>
+  (function() {
+    const origin = window.location.origin;
+
+    function escapeCsv(value) {
+      const text = (value ?? "").toString().replace(/"/g, '""');
+      return `"${text}"`;
+    }
+
+    function downloadText(text, filename) {
+      const blob = new Blob([text], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    function objectArrayToCsv(rows) {
+      if (!rows || !rows.length) return "";
+      const headers = Array.from(rows.reduce((set, row) => {
+        Object.keys(row || {}).forEach((key) => set.add(key));
+        return set;
+      }, new Set()));
+      const lines = [
+        headers.map(escapeCsv).join(","),
+        ...rows.map((row) => headers.map((h) => escapeCsv(row?.[h] ?? "")).join(",")),
+      ];
+      return lines.join("\n");
+    }
+
+    function tableToCsv(table) {
+      const rows = Array.from(table.querySelectorAll("tr"));
+      const lines = rows.map((row) => {
+        const cells = Array.from(row.querySelectorAll("th, td"));
+        return cells.map((cell) => escapeCsv(cell.textContent.trim())).join(",");
+      });
+      return lines.join("\n");
+    }
+
+    function copyIframeMarkup(path) {
+      const isTable = path.includes("/embed/table/");
+      const width = isTable ? 900 : 600;
+      const height = isTable ? 600 : 400;
+      const url = new URL(path, origin).href;
+      const iframe = `<iframe src="${url}" width="${width}" height="${height}" style="border:0;" loading="lazy"></iframe>`;
+      if (navigator.clipboard?.writeText) {
+        navigator.clipboard.writeText(iframe).catch(() => {
+          window.prompt("Copiez l'iframe:", iframe);
+        });
+      } else {
+        window.prompt("Copiez l'iframe:", iframe);
+      }
+    }
+
+    function downloadChartCsv(code) {
+      fetch(`/reporting/api/${code}/`)
+        .then((res) => res.json())
+        .then((data) => {
+          let rows = [];
+          if (data.type === "gauge") {
+            rows = [{ code, value: data.value, max: data.max, note: data.note || "" }];
+          } else if (Array.isArray(data.series)) {
+            rows = data.series;
+          } else if (Array.isArray(data.rows)) {
+            rows = data.rows;
+          } else if (Array.isArray(data.points)) {
+            rows = data.points;
+          }
+          const csv = objectArrayToCsv(rows);
+          if (!csv) return;
+          downloadText(csv, `chart-${code}.csv`);
+        })
+        .catch(() => {});
+    }
+
+    function downloadChartImage(code) {
+      const iframe = document.createElement("iframe");
+      iframe.style.position = "fixed";
+      iframe.style.left = "-9999px";
+      iframe.style.top = "0";
+      iframe.style.width = "600px";
+      iframe.style.height = "400px";
+      iframe.src = `/reporting/embed/${code}/`;
+      document.body.appendChild(iframe);
+      iframe.onload = () => {
+        setTimeout(() => {
+          try {
+            const canvas = iframe.contentDocument?.querySelector("canvas");
+            if (!canvas) {
+              alert("Image indisponible pour ce graphique.");
+              iframe.remove();
+              return;
+            }
+            const url = canvas.toDataURL("image/png");
+            const link = document.createElement("a");
+            link.href = url;
+            link.download = `chart-${code}.png`;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+          } catch (err) {
+            alert("Impossible de generer l'image.");
+          } finally {
+            iframe.remove();
+          }
+        }, 800);
+      };
+    }
+
+    document.querySelectorAll(".js-copy-iframe").forEach((btn) => {
+      btn.addEventListener("click", () => copyIframeMarkup(btn.dataset.iframe || ""));
+    });
+
+    document.querySelectorAll(".js-table-csv").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const table = document.getElementById(btn.dataset.tableId || "");
+        if (!table) return;
+        const csv = tableToCsv(table);
+        downloadText(csv, btn.dataset.filename || "table.csv");
+      });
+    });
+
+    document.querySelectorAll(".js-chart-csv").forEach((btn) => {
+      btn.addEventListener("click", () => downloadChartCsv(btn.dataset.code || ""));
+    });
+
+    document.querySelectorAll(".js-chart-image").forEach((btn) => {
+      btn.addEventListener("click", () => downloadChartImage(btn.dataset.code || ""));
+    });
+  })();
+</script>
+{% endblock %}

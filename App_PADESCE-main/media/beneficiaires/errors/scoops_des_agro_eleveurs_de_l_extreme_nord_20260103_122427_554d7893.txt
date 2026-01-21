@@ -1,0 +1,202 @@
+﻿beneficiaire	ligne	colonne	valeur	erreur
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	2	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	3	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	4	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	5	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	6	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	7	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	8	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	9	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	10	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	11	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	12	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	13	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	14	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	15	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	16	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	17	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	18	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	19	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	20	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	21	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	22	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	23	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	24	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	25	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	26	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	27	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	28	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	29	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	30	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	31	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	32	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	33	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	34	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	35	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	36	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	37	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	38	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	39	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	40	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	41	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	42	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	43	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	44	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	45	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	46	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	47	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	48	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	49	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	50	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	51	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	52	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	53	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	54	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	55	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	56	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	57	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	58	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	59	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	60	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	61	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	62	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	63	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	64	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	65	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	66	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	67	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	68	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	69	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	70	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	71	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	72	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	73	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	74	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	75	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	76	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	77	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	78	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	79	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	80	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	81	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	82	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	83	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	84	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	85	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	86	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	87	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	88	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	89	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	90	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	91	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	92	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	93	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	94	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	95	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	96	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	97	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	98	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	99	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	3	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	5	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	6	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	8	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	9	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	10	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	11	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	13	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	15	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	16	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	17	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	18	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	19	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	20	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	22	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	23	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	24	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	25	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	26	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	27	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	28	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	30	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	31	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	32	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	34	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	36	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	37	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	38	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	39	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	40	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	41	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	42	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	43	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	47	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	48	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	49	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	50	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	53	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	54	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	55	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	56	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	59	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	60	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	61	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	62	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	63	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	64	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	65	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	66	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	67	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	68	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	69	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	71	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	72	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	73	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	74	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	75	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	76	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	77	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	80	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	81	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	82	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	83	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	84	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	85	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	86	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	87	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	88	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	89	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	90	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	91	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	92	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	94	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	95	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	97	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	98	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	2	1er No tél apprenant / Learner’s 1st Phone Number	694459076.0	Telephone apprenant 1 invalide
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	4	1er No tél apprenant / Learner’s 1st Phone Number	697672452.0	Telephone apprenant 1 invalide
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	7	1er No tél apprenant / Learner’s 1st Phone Number	690562661.0	Telephone apprenant 1 invalide
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	12	1er No tél apprenant / Learner’s 1st Phone Number	693480753.0	Telephone apprenant 1 invalide
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	14	1er No tél apprenant / Learner’s 1st Phone Number	690812575.0	Telephone apprenant 1 invalide
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	21	1er No tél apprenant / Learner’s 1st Phone Number	697917888.0	Telephone apprenant 1 invalide
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	29	1er No tél apprenant / Learner’s 1st Phone Number	699234840.0	Telephone apprenant 1 invalide
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	33	1er No tél apprenant / Learner’s 1st Phone Number	693595967.0	Telephone apprenant 1 invalide
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	35	1er No tél apprenant / Learner’s 1st Phone Number	693437876.0	Telephone apprenant 1 invalide
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	44	1er No tél apprenant / Learner’s 1st Phone Number	699378109.0	Telephone apprenant 1 invalide
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	45	1er No tél apprenant / Learner’s 1st Phone Number	656251057.0	Telephone apprenant 1 invalide
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	46	1er No tél apprenant / Learner’s 1st Phone Number	656276392.0	Telephone apprenant 1 invalide
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	51	1er No tél apprenant / Learner’s 1st Phone Number	692535357.0	Telephone apprenant 1 invalide
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	52	1er No tél apprenant / Learner’s 1st Phone Number	691608475.0	Telephone apprenant 1 invalide
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	57	1er No tél apprenant / Learner’s 1st Phone Number	690396514.0	Telephone apprenant 1 invalide
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	58	1er No tél apprenant / Learner’s 1st Phone Number	695377631.0	Telephone apprenant 1 invalide
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	70	1er No tél apprenant / Learner’s 1st Phone Number	697657293.0	Telephone apprenant 1 invalide
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	78	1er No tél apprenant / Learner’s 1st Phone Number	699373801.0	Telephone apprenant 1 invalide
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	79	1er No tél apprenant / Learner’s 1st Phone Number	696731649.0	Telephone apprenant 1 invalide
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	93	1er No tél apprenant / Learner’s 1st Phone Number	697757530.0	Telephone apprenant 1 invalide
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	96	1er No tél apprenant / Learner’s 1st Phone Number	697569341.0	Telephone apprenant 1 invalide
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	99	1er No tél apprenant / Learner’s 1st Phone Number	655644641.0	Telephone apprenant 1 invalide
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	4	2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available)	679489260.0	Telephone apprenant 2 invalide
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	70	2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available)	652859074.0	Telephone apprenant 2 invalide
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	78	2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available)	652141695.0	Telephone apprenant 2 invalide
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	79	2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available)	681230904.0	Telephone apprenant 2 invalide
+SCOOPS DES AGRO-ELEVEURS DE L'EXTREME-NORD	94	2e No tél apprenant (si disponible) / Learner’s 2nd Phone Number (if available)	6903654321.0	Telephone apprenant 2 invalide

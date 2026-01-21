@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% block title %}Environnement{% endblock %}
+{% block content %}
+<style>
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 14px; box-shadow: var(--shadow); }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { padding: 8px; border: 1px solid var(--border); font-size: 0.92rem; }
+  thead { background: rgba(15,139,141,0.08); }
+  .grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+</style>
+
+<h1 class="h4 mb-2">Enquete environnement</h1>
+<p class="subtitle" style="color:var(--muted);">Equipements / securite / commodites (checkbox) + commentaires. Audit actif.</p>
+
+<form method="get" class="d-flex" style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px;">
+  <select name="classe">
+    <option value="">Toutes les classes</option>
+    {% for c in classes %}
+      <option value="{{ c.id }}" {% if filter_classe|default:'' == c.id|stringformat:"s" %}selected{% endif %}>{{ c.code }} - {{ c.intitule_formation }}</option>
+    {% endfor %}
+  </select>
+  <button class="btn btn-primary btn-sm" type="submit">Filtrer</button>
+  <a class="btn btn-ghost btn-sm" href="{% url 'environnement_export_csv' %}{% if filter_classe %}?classe={{ filter_classe }}{% endif %}">Export CSV</a>
+</form>
+
+{% if selected_classe %}
+  <div class="panel" style="margin-bottom:12px;">
+    <div style="font-weight:700;">Classe {{ selected_classe.code }} - {{ selected_classe.intitule_formation }}</div>
+    <div class="subtitle" style="margin:4px 0 0 0;">Prestation : {{ selected_classe.prestation }} | Formation : {{ selected_classe.formation }}</div>
+    <div class="subtitle" style="margin:2px 0 0 0;">
+      Lieu : {% if selected_classe.lieu %}{{ selected_classe.lieu }} ({{ selected_classe.lieu.region }} {{ selected_classe.lieu.departement }} {{ selected_classe.lieu.ville }}){% else %}Aucun lieu renseigne{% endif %}
+    </div>
+  </div>
+{% endif %}
+
+<div class="panel" id="environnement-form">
+  <h5>Nouvelle enquete</h5>
+  <form method="post">
+    {% csrf_token %}
+    <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(220px,1fr));">
+      {{ form.classe.label_tag }} {{ form.classe }}
+      {{ form.inspecteur.label_tag }} {{ form.inspecteur }}
+      {{ form.date.label_tag }} {{ form.date }}
+      {{ form.heure_enregistrement.label_tag }} {{ form.heure_enregistrement }}
+    </div>
+    <hr style="border: none; border-top: 1px solid var(--border); margin: 12px 0;">
+    <div class="subtitle" style="margin-bottom:6px;">Cochez uniquement les reponses observees sur site.</div>
+    <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(200px,1fr));">
+      {{ form.tables.label_tag }} {{ form.tables }}
+      {{ form.chaises.label_tag }} {{ form.chaises }}
+      {{ form.ecran.label_tag }} {{ form.ecran }}
+      {{ form.videoprojecteur.label_tag }} {{ form.videoprojecteur }}
+      {{ form.ventilation.label_tag }} {{ form.ventilation }}
+      {{ form.eclairage.label_tag }} {{ form.eclairage }}
+      {{ form.aeration.label_tag }} {{ form.aeration }}
+      {{ form.prises_electriques.label_tag }} {{ form.prises_electriques }}
+      {{ form.salle_propre.label_tag }} {{ form.salle_propre }}
+      {{ form.salle_accessible.label_tag }} {{ form.salle_accessible }}
+      {{ form.salle_securisee.label_tag }} {{ form.salle_securisee }}
+      {{ form.signaletique.label_tag }} {{ form.signaletique }}
+      {{ form.commodite.label_tag }} {{ form.commodite }}
+      {{ form.accessibilite.label_tag }} {{ form.accessibilite }}
+      {{ form.securite.label_tag }} {{ form.securite }}
+      {{ form.acces_eau.label_tag }} {{ form.acces_eau }}
+    </div>
+    <div class="grid" style="margin-top:8px;">
+      {{ form.commentaire_salle.label_tag }} {{ form.commentaire_salle }}
+      {{ form.commentaire_global.label_tag }} {{ form.commentaire_global }}
+    </div>
+    {% if form.errors %}
+      <div class="subtitle" style="color:#d14343;">{{ form.errors }}</div>
+    {% endif %}
+    <button class="btn btn-primary" type="submit" style="margin-top:10px;">Enregistrer</button>
+  </form>
+</div>
+
+<div class="panel" style="margin-top:14px;">
+  <h5>Dernieres enquetes</h5>
+  <div style="max-height:420px; overflow:auto;">
+    <table>
+      <thead>
+        <tr>
+          <th>Date</th><th>Classe</th><th>Inspecteur</th><th>Enqueteur</th><th>Tables</th><th>Chaises</th><th>Ecran</th><th>Ventilation</th><th>Commentaire</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for e in enquetes %}
+        <tr>
+          <td>{{ e.date }}</td>
+          <td>{{ e.classe }}</td>
+          <td>{{ e.inspecteur }}</td>
+          <td>{{ e.enqueteur }}</td>
+          <td>{{ e.tables }}</td>
+          <td>{{ e.chaises }}</td>
+          <td>{{ e.ecran }}</td>
+          <td>{{ e.ventilation }}</td>
+          <td>{{ e.commentaire_global|default:"-" }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="9" style="text-align:center; color:var(--muted);">Aucune enquete</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if page_obj %}
+    <div class="subtitle" style="margin-top:8px;">Page {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</div>
+    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+      {% if page_obj.has_previous %}<a class="btn btn-ghost btn-sm" href="?page={{ page_obj.previous_page_number }}{% if filter_classe %}&classe={{ filter_classe }}{% endif %}">Prec.</a>{% endif %}
+      {% if page_obj.has_next %}<a class="btn btn-ghost btn-sm" href="?page={{ page_obj.next_page_number }}{% if filter_classe %}&classe={{ filter_classe }}{% endif %}">Suiv.</a>{% endif %}
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

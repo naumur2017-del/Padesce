@@ -1,0 +1,196 @@
+{% extends "base.html" %}
+{% block title %}Consolidation{% endblock %}
+{% block content %}
+<style>
+  body { background: radial-gradient(circle at 12% 8%, #eef4ff, #fdfbf6 65%); }
+  .wrap { display: grid; gap: 16px; }
+  .card-neo { background: var(--panel); border:1px solid var(--border); border-radius:18px; padding:18px; box-shadow: var(--shadow); position:relative; overflow:hidden; }
+  .card-neo::after { content:""; position:absolute; inset:-1px; border-radius:20px; background:linear-gradient(120deg, rgba(15,139,141,0.15), rgba(246,196,83,0.2)); filter:blur(14px); opacity:0; transition:opacity .35s ease; z-index:0; }
+  .card-neo:hover::after { opacity:1; }
+  .card-neo > * { position:relative; z-index:1; }
+  .pill { display:inline-flex; align-items:center; gap:6px; padding:8px 12px; border-radius:999px; background:var(--accent); color:#fff; font-weight:700; box-shadow:0 10px 24px rgba(0,0,0,0.15); }
+  .pill-soft { display:inline-flex; align-items:center; gap:6px; padding:6px 10px; border-radius:10px; background:rgba(15,139,141,0.12); color:var(--accent); font-weight:600; }
+  .subtitle { color: var(--muted); letter-spacing:.01em; }
+  .drop { position: relative; border: 1px dashed var(--border); border-radius: 14px; padding: 16px; background: linear-gradient(135deg, rgba(15,139,141,0.06), rgba(15,139,141,0.02)); }
+  .drop input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+  .btn { display:inline-flex; align-items:center; justify-content:center; padding:12px 16px; border-radius:12px; font-weight:700; border:none; cursor:pointer; background:linear-gradient(120deg, var(--accent), #18b0ac); color:#fff; box-shadow:0 12px 26px rgba(0,0,0,0.15); transition: transform .2s ease, box-shadow .2s ease; text-decoration:none; }
+  .btn:hover { transform: translateY(-2px); }
+  .btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--text); box-shadow:none; }
+  .tags { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+  .tag { padding:6px 10px; border-radius:10px; background:rgba(15,139,141,0.1); color:var(--accent); font-weight:600; font-size:0.9rem; }
+  .alert { padding:10px 12px; border-radius:12px; border:1px solid rgba(209,67,67,0.35); background:rgba(209,67,67,0.08); color:#b91c1c; }
+  .table-wrap { overflow:auto; border:1px solid var(--border); border-radius:12px; max-height:420px; }
+  table { width:100%; border-collapse:collapse; font-size:0.95rem; }
+  th, td { border:1px solid var(--border); padding:8px; text-align:left; }
+  thead { background:rgba(15,139,141,0.08); position:sticky; top:0; z-index:1; }
+  .file-chip { display:inline-flex; align-items:center; gap:8px; padding:8px 12px; border-radius:12px; background:rgba(15,139,141,0.08); border:1px solid var(--border); }
+  .chip-x { background:transparent; border:none; color:var(--muted); font-weight:700; cursor:pointer; font-size:1.1rem; }
+  .loader-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.35);
+    display: none; align-items: center; justify-content: center; z-index: 1000;
+  }
+  .loader-box {
+    background: var(--panel); padding: 18px 20px; border-radius: 14px;
+    border: 1px solid var(--border); box-shadow: var(--shadow); display:flex; align-items:center; gap:12px;
+  }
+  .spinner {
+    width: 28px; height: 28px; border-radius: 50%;
+    border: 3px solid rgba(15,139,141,0.25); border-top-color: var(--accent);
+    animation: spin 1s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+
+<div class="wrap">
+  <div class="card-neo">
+    <div style="display:flex; justify-content:space-between; gap:12px; align-items:center;">
+      <div>
+        <div class="pill">Consolidation</div>
+        <h1 style="margin:8px 0 6px 0;">Analyse du fichier consolide</h1>
+        <div class="subtitle">Chargez le fichier Excel consolide (feuille "Consolidation") pour previsualiser et verifier les colonnes par rapport aux modeles.</div>
+      </div>
+      <div class="pill-soft">XLSX / XLSM</div>
+    </div>
+  </div>
+
+  {% if errors %}
+    <div class="alert">
+      <strong>Erreurs :</strong>
+      <ul>{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul>
+    </div>
+  {% endif %}
+
+  <div class="card-neo">
+    <form id="conso-form" method="post" enctype="multipart/form-data" style="display:grid; gap:12px;">
+      {% csrf_token %}
+      <label>Fichier consolide</label>
+      <div class="drop" id="dropzone">
+        {{ form.fichier }}
+        <div id="file-placeholder" {% if file_meta %}style="display:none;"{% endif %}>
+          <h4 style="margin:0;">Glissez ou cliquez pour selectionner</h4>
+          <div class="subtitle">La premiere ligne est consideree comme entete et la feuille cible est "Consolidation".</div>
+        </div>
+        <div id="file-meta" {% if not file_meta %}style="display:none;"{% endif %}>
+          <div class="file-chip">
+            <span id="file-name">{{ file_meta.name|default:"" }}</span>
+            <span class="subtitle" id="file-size">
+              {% if file_meta.size %}{{ file_meta.size|filesizeformat }}{% endif %}
+            </span>
+            <button type="button" class="chip-x" id="file-clear" aria-label="Supprimer le fichier">×</button>
+          </div>
+        </div>
+      </div>
+      <div class="tags">
+        <span class="tag">Entete detectee : {{ headers|length }} colonnes</span>
+        <span class="tag">Lignes previsualisees : {{ preview_rows|length }}</span>
+      </div>
+      <div class="tags">
+        <span class="tag">Champs reconnus : {{ analysis.mapped|length }}</span>
+        <span class="tag">Champs manquants : {{ analysis.missing|length }}</span>
+      </div>
+      <div class="subtitle">Champs attendus (modeles) absents : {% if analysis.missing %}{{ analysis.missing|join:", " }}{% else %}aucun{% endif %}</div>
+      {% if analysis.extras %}
+        <div class="subtitle">Colonnes non mappees : {{ analysis.extras|join:", " }}</div>
+      {% endif %}
+      <div class="tags">
+        <span class="tag" style="background: rgba(209,67,67,0.08); color:#b91c1c;">Valider remplace totalement les donnees en base.</span>
+      </div>
+      <div style="display:flex; gap:10px; flex-wrap:wrap;">
+        <button class="btn" type="submit">Analyser</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="card-neo">
+    <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:10px;">
+      <div>
+        <div class="pill-soft">Previsualisation</div>
+        <div class="subtitle">Apercu des 60 premieres lignes non vides de la feuille "Consolidation".</div>
+      </div>
+      {% if headers %}<div class="tag">En-tete ignoree en import</div>{% endif %}
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            {% if headers %}
+              {% for h in headers %}<th>{{ h }}</th>{% endfor %}
+            {% else %}
+              <th>Aucune entete detectee</th>
+            {% endif %}
+          </tr>
+        </thead>
+        <tbody>
+          {% if preview_rows %}
+            {% for row in preview_rows %}
+              <tr>{% for cell in row %}<td>{{ cell }}</td>{% endfor %}</tr>
+            {% endfor %}
+          {% else %}
+            <tr><td class="subtitle">Chargez un fichier pour voir les donnees.</td></tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+    {% if headers %}
+      <div style="margin-top:12px; display:flex; justify-content:flex-end;">
+        <button class="btn btn-ghost" form="conso-form" type="submit" name="save" value="1" id="btn-save">Valider et enregistrer</button>
+      </div>
+    {% endif %}
+  </div>
+</div>
+<div class="loader-overlay" id="save-loader">
+  <div class="loader-box">
+    <div class="spinner"></div>
+    <div>
+      <div style="font-weight:700;">Enregistrement en cours...</div>
+      <div class="subtitle">Merci de patienter pendant l'ecrasement des donnees.</div>
+    </div>
+  </div>
+</div>
+<script>
+  (function() {
+    const fileInput = document.getElementById("id_fichier");
+    const placeholder = document.getElementById("file-placeholder");
+    const meta = document.getElementById("file-meta");
+    const fileNameEl = document.getElementById("file-name");
+    const fileSizeEl = document.getElementById("file-size");
+    const clearBtn = document.getElementById("file-clear");
+    const saveBtn = document.getElementById("btn-save");
+    const loader = document.getElementById("save-loader");
+
+    function showMeta(file) {
+      if (!file || !meta || !placeholder) return;
+      fileNameEl.textContent = file.name || "";
+      const size = file.size || 0;
+      const kb = size / 1024;
+      fileSizeEl.textContent = size ? (kb >= 1024 ? (kb/1024).toFixed(2) + " Mo" : kb.toFixed(0) + " Ko") : "";
+      meta.style.display = "block";
+      placeholder.style.display = "none";
+    }
+
+    function resetFile() {
+      if (!fileInput) return;
+      fileInput.value = "";
+      if (meta) meta.style.display = "none";
+      if (placeholder) placeholder.style.display = "block";
+    }
+
+    fileInput?.addEventListener("change", (e) => {
+      const file = e.target.files[0];
+      if (!file) {
+        resetFile();
+        return;
+      }
+      showMeta(file);
+    });
+
+    clearBtn?.addEventListener("click", () => {
+      resetFile();
+    });
+
+    saveBtn?.addEventListener("click", () => {
+      if (loader) loader.style.display = "flex";
+    });
+  })();
+</script>
+{% endblock %}

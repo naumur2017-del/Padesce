@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Campagnes{% endblock %}
+{% block content %}
+<style>
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 14px; box-shadow: var(--shadow); }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { padding: 8px; border: 1px solid var(--border); font-size: 0.92rem; }
+  thead { background: rgba(15,139,141,0.08); }
+</style>
+
+<h1 class="h4 mb-2">Campagnes de messages</h1>
+<p class="subtitle" style="color:var(--muted);">Historique et preparation des campagnes (stockage JSON, pas d'envoi effectif).</p>
+
+<div class="panel">
+  <h5>Nouvelle campagne</h5>
+  <form method="post">
+    {% csrf_token %}
+    {{ campagne_form.date_heure.label_tag }} {{ campagne_form.date_heure }}
+    {{ campagne_form.texte.label_tag }} {{ campagne_form.texte }}
+    {{ campagne_form.cible_description.label_tag }} {{ campagne_form.cible_description }}
+    {{ campagne_form.message_envoye_json.label_tag }} {{ campagne_form.message_envoye_json }}
+    {{ campagne_form.message_rejete_json.label_tag }} {{ campagne_form.message_rejete_json }}
+    {{ campagne_form.motif_rejet.label_tag }} {{ campagne_form.motif_rejet }}
+    <button class="btn btn-primary" type="submit" name="campagne_submit" style="margin-top:10px;">Enregistrer</button>
+  </form>
+</div>
+
+<div class="panel" style="margin-top:14px;">
+  <h5>Campagnes recentes</h5>
+  <div style="max-height:420px; overflow:auto;">
+    <table>
+      <thead><tr><th>Date/heure</th><th>Texte</th><th>Cible</th><th>Enqueteur</th></tr></thead>
+      <tbody>
+        {% for c in campagnes %}
+        <tr>
+          <td>{{ c.date_heure }}</td>
+          <td>{{ c.texte|truncatewords:12 }}</td>
+          <td>{{ c.cible_description }}</td>
+          <td>{{ c.enqueteur }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="4" style="text-align:center; color:var(--muted);">Aucune campagne</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

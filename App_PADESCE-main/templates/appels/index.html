@@ -1,0 +1,472 @@
+{% extends "base.html" %}
+{% block title %}Appels{% endblock %}
+{% block content %}
+<style>
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 14px; box-shadow: var(--shadow); margin-bottom: 12px; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { padding: 8px; border: 1px solid var(--border); font-size: 0.92rem; }
+  thead { background: rgba(15,139,141,0.08); }
+  .actions { display: flex; gap: 6px; flex-wrap: wrap; }
+  .btn-small { padding: 6px 10px; border-radius: 10px; border: 1px solid var(--border); background: linear-gradient(120deg, rgba(15,139,141,0.1), rgba(24,176,172,0.18)); cursor: pointer; transition: transform .15s ease, box-shadow .15s ease; }
+  .btn-small:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(0,0,0,0.08); }
+  .btn-small.primary { background: linear-gradient(120deg, var(--accent), #18b0ac); color: #fff; border: none; }
+  .input-file { display: inline-flex; align-items: center; gap: 10px; padding: 12px 16px; border-radius: 14px; border: 1px dashed var(--border); background: rgba(15,139,141,0.08); box-shadow: var(--shadow); }
+  .input-file input { border: none; background: transparent; }
+  .input, select { padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border); background: #fff; box-shadow: inset 0 1px 2px rgba(0,0,0,0.04); }
+  .search-bar { flex: 1; min-width: 180px; }
+  .progress { position: relative; height: 8px; background: #eef2f7; border-radius: 999px; overflow: hidden; width: 140px; }
+  .progress-fill { position: absolute; top:0; left:0; height:100%; background: linear-gradient(120deg, var(--accent), #18b0ac); width:0%; transition: width .1s linear; }
+  .time-label { font-size: 0.82rem; color: var(--muted); min-width: 72px; text-align: right; }
+  .badge { padding: 6px 10px; border-radius: 999px; font-weight: 700; font-size: 0.9rem; border: 1px solid var(--border); }
+  .badge.wait { background: rgba(234,179,8,0.18); color: #92400e; }
+  .badge.run { background: rgba(34,197,94,0.15); color: #15803d; }
+  .badge.pause { background: rgba(59,130,246,0.15); color: #1d4ed8; }
+  .badge.done { background: rgba(107,114,128,0.18); color: #374151; }
+  .table-wrap { max-height: 540px; overflow: auto; }
+  .form-inline { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .pill { display: inline-block; padding: 6px 10px; border-radius: 999px; border: 1px solid var(--border); }
+  .modal-backdrop { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(15,23,42,0.55); z-index: 1200; }
+  .modal-panel { background: var(--panel); border-radius: 18px; padding: 26px 28px; width: min(460px, 90%); box-shadow: 0 20px 60px rgba(15,23,42,0.35); border: 1px solid var(--border); }
+  .modal-panel h2 { margin: 0 0 12px; font-size: 1.1rem; }
+  .modal-field { margin-bottom: 10px; display: flex; flex-direction: column; gap: 6px; font-size: 0.95rem; }
+  .modal-field input[type="datetime-local"] { padding: 8px 10px; border-radius: 10px; border: 1px solid var(--border); background: #fff; }
+  .modal-detail { display: flex; gap: 6px; font-size: 0.95rem; margin-bottom: 8px; }
+  .modal-detail .modal-label { font-weight: 700; }
+  .modal-hint { font-size: 0.8rem; color: var(--muted); }
+  .modal-backdrop[hidden] { display: none; }
+  .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px; }
+</style>
+
+<h1 class="h4 mb-2">Appels</h1>
+<p class="subtitle" style="color:var(--muted);">Uploader un fichier xlsx/xlsm (Feuil2) pour charger les contacts (Nom, Prestataire, Beneficiaire, Lieux, Classe, Tel). Le taux de presence est utilise comme seuil.</p>
+
+  <div class="panel">
+    <!-- <form method="post" enctype="multipart/form-data" class="form-inline" style="gap:12px; flex-wrap:wrap;">
+      {% csrf_token %}
+      <input type="hidden" name="update_mode" value="replace">
+      <div class="input-file">
+        <span style="font-weight:700;">Choisir fichier (Feuil2)</span>
+        <input type="file" name="file" accept=".xlsx,.xlsm" required />
+      </div>
+      <button type="submit" class="btn btn-primary btn-sm" style="padding:10px 16px;">Uploader (ecrase l'existant)</button>
+    </form> -->
+  </div>
+  <div class="panel">
+    <p class="subtitle" style="color:var(--muted); margin-bottom:8px;">Importer un fichier qui met uniquement à jour les colonnes "Type formation déclarée" et "Formation Padesce" pour les apprenants déjà présents sans modifier les autres informations.</p>
+    <!-- <form method="post" enctype="multipart/form-data" class="form-inline" style="gap:12px; flex-wrap:wrap;">
+      {% csrf_token %}
+      <input type="hidden" name="update_mode" value="formation_meta">
+      <div class="input-file">
+        <span style="font-weight:700;">Choisir fichier (Feuil2)</span>
+        <input type="file" name="file" accept=".xlsx,.xlsm" required />
+      </div>
+      <button type="submit" class="btn btn-secondary btn-sm" style="padding:10px 16px;">Mettre à jour les formations</button>
+    </form> -->
+  </div>
+
+<div class="panel">
+  <form method="get" class="form-inline" style="gap:8px; margin-bottom:10px; flex-wrap:wrap;">
+    <input type="text" name="q" class="input search-bar" placeholder="Recherche nom..." value="{{ filters.q }}">
+    <input type="number" name="taux_min" class="input" min="0" max="100" step="0.5" placeholder="Taux présence ≥" value="{{ filters.taux_min }}">
+    <select name="status" class="input">
+      <option value="">Statut</option>
+      <option value="en_attente" {% if filters.status == "en_attente" %}selected{% endif %}>En attente</option>
+      <option value="en_cours" {% if filters.status == "en_cours" %}selected{% endif %}>En cours</option>
+      <option value="pause" {% if filters.status == "pause" %}selected{% endif %}>Pause</option>
+      <option value="a_rappeler" {% if filters.status == "a_rappeler" %}selected{% endif %}>A rappeler</option>
+      <option value="termine" {% if filters.status == "termine" %}selected{% endif %}>Termine</option>
+    </select>
+    <select name="prestataire" class="input">
+      <option value="">Prestataire</option>
+      {% for p in filters.prestataires %}
+        <option value="{{ p }}" {% if filters.prestataire == p %}selected{% endif %}>{{ p }}</option>
+      {% endfor %}
+    </select>
+    <select name="beneficiaire" class="input">
+      <option value="">Beneficiaire</option>
+      {% for p in filters.beneficiaires %}
+        <option value="{{ p }}" {% if filters.beneficiaire == p %}selected{% endif %}>{{ p }}</option>
+      {% endfor %}
+    </select>
+    <select name="classe" class="input">
+      <option value="">Classe</option>
+      {% for p in filters.classes %}
+        <option value="{{ p }}" {% if filters.classe == p %}selected{% endif %}>{{ p }}</option>
+      {% endfor %}
+    </select>
+    <button type="submit" class="btn btn-primary btn-sm" style="padding:10px 14px;">Filtrer</button>
+    <a class="btn btn-ghost btn-sm" style="padding:10px 14px;" href="/appels/">Reset</a>
+  </form>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Nom</th><th>Code</th><th>Prestataire</th><th>Beneficiaire</th><th>Lieu</th><th>Classe</th><th>Type formation déclarée</th><th>Formation Padesce</th><th>Tel</th><th>Taux presence</th><th>Statut</th><th>Action</th><th>Audio</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for a in appels %}
+        <tr data-id="{{ a.id }}" data-status="{{ a.status }}" data-locked-by="{{ a.locked_by.username|default:'' }}" data-name="{{ a.nom }}" data-phone="{{ a.telephone1|default:a.telephone2|default:"" }}">
+          <td>{{ a.nom }}</td>
+          <td>{{ a.code }}</td>
+          <td>{{ a.prestataire }}</td>
+          <td>{{ a.beneficiaire }}</td>
+          <td>{{ a.lieu }}</td>
+          <td>{{ a.classe_label }}</td>
+          <td>{{ a.type_formation_declaree|default:"-" }}</td>
+          <td>{{ a.formation_padesce|default:"-" }}</td>
+          <td>{{ a.telephone1|default:a.telephone2|default:"-" }}</td>
+          <td>{{ a.taux_presence_display|default:a.taux_presence }}%</td>
+          <td>
+            <span class="badge {% if a.status == 'en_cours' %}run{% elif a.status == 'pause' %}pause{% elif a.status == 'termine' %}done{% else %}wait{% endif %}" data-badge>{{ a.get_status_display }}</span>
+            {% if a.locked_by %}<div class="subtitle">Par {{ a.locked_by.username }}</div>{% endif %}
+          </td>
+          <td>
+            <div class="actions js-actions">
+              <button type="button" class="btn-small primary js-start">Demarrer</button>
+              <button type="button" class="btn-small js-pause" hidden>Pause</button>
+              <button type="button" class="btn-small js-resume" hidden>Reprendre</button>
+              <button type="button" class="btn-small js-terminer" hidden>Terminer</button>
+            </div>
+          </td>
+          <td>
+            <div class="actions">
+              <div class="visual" style="width:120px; height:32px; border:1px solid var(--border); border-radius:8px; overflow:hidden;">
+                <canvas width="120" height="32" class="js-visual"></canvas>
+              </div>
+              <div style="display:flex; align-items:center; gap:6px;">
+                <button type="button" class="btn-small js-play" {% if a.status != 'termine' or not a.audio_file %}disabled{% endif %}>Play</button>
+                {% if a.audio_file %}
+                  <a class="btn-small" href="{{ a.audio_file.url }}" download="appel-{{ a.code }}.mp3" style="font-size:0.85rem;" title="Télécharger l'audio en MP3">Télécharger</a>
+                {% endif %}
+                <div class="progress"><div class="progress-fill"></div></div>
+                <span class="time-label">0:00</span>
+              </div>
+              <audio class="js-audio" style="display:none;" {% if a.audio_file %}src="{{ a.audio_file.url }}"{% endif %}></audio>
+            </div>
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="13" style="text-align:center; color:var(--muted);">Aucun appel.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div id="js-termination-modal" class="modal-backdrop" hidden>
+  <div class="modal-panel">
+    <h2>Clôturer l'appel</h2>
+    <div class="modal-detail">
+      <span class="modal-label">Nom :</span>
+      <span id="js-modal-nom">-</span>
+    </div>
+    <div class="modal-detail">
+      <span class="modal-label">Téléphone :</span>
+      <span id="js-modal-phone">-</span>
+    </div>
+    <label class="modal-field">
+      <input type="checkbox" id="js-modal-rappel" />
+      A rappeler
+    </label>
+    <label class="modal-field">
+      <span>Quand :</span>
+      <input type="datetime-local" id="js-modal-rappel-at" disabled placeholder="mm/dd/yyyy --:-- --">
+      <span class="modal-hint">mm/dd/yyyy --:-- --</span>
+    </label>
+    <label class="modal-field">
+      <input type="checkbox" id="js-modal-deja-forme" />
+      Déjà formé
+    </label>
+    <div class="modal-actions">
+      <button type="button" class="btn btn-ghost btn-sm" data-modal-action="cancel">Annuler</button>
+      <button type="button" class="btn btn-primary btn-sm" data-modal-action="confirm">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function() {
+    function getCookie(name) {
+      const value = `; ${document.cookie}`;
+      const parts = value.split(`; ${name}=`);
+      if (parts.length === 2) return parts.pop().split(";").shift();
+      return "";
+    }
+    const csrfToken = getCookie("csrftoken");
+
+    const terminationModal = document.getElementById("js-termination-modal");
+    const modalRappelCheckbox = document.getElementById("js-modal-rappel");
+    const modalRappelAt = document.getElementById("js-modal-rappel-at");
+    const modalDejaForme = document.getElementById("js-modal-deja-forme");
+    const modalConfirmBtn = document.querySelector("[data-modal-action=\"confirm\"]");
+    const modalCancelBtn = document.querySelector("[data-modal-action=\"cancel\"]");
+    const modalName = document.getElementById("js-modal-nom");
+    const modalPhone = document.getElementById("js-modal-phone");
+    let modalResolve = null;
+    let currentRow = null;
+
+    function toggleRappelInput() {
+      if (!modalRappelCheckbox || !modalRappelAt) return;
+      if (modalRappelCheckbox.checked) {
+        modalRappelAt.disabled = false;
+      } else {
+        modalRappelAt.disabled = true;
+        modalRappelAt.value = "";
+      }
+    }
+
+    function resetTerminationModal() {
+      modalRappelCheckbox && (modalRappelCheckbox.checked = false);
+      modalDejaForme && (modalDejaForme.checked = false);
+      if (modalRappelAt) {
+        modalRappelAt.value = "";
+        modalRappelAt.disabled = true;
+      }
+    }
+
+    function closeTerminationModal(result) {
+      if (terminationModal) terminationModal.hidden = true;
+      modalResolve?.(result);
+      modalResolve = null;
+      currentRow = null;
+      if (modalName) modalName.textContent = "-";
+      if (modalPhone) modalPhone.textContent = "-";
+    }
+
+    function askTermination(row) {
+      if (!terminationModal) return Promise.resolve(null);
+      resetTerminationModal();
+      currentRow = row;
+      modalName && (modalName.textContent = row?.dataset?.name || "-");
+      modalPhone && (modalPhone.textContent = row?.dataset?.phone || "-");
+      terminationModal.hidden = false;
+      return new Promise((resolve) => {
+        modalResolve = resolve;
+      });
+    }
+
+    modalRappelCheckbox?.addEventListener("change", toggleRappelInput);
+    modalConfirmBtn?.addEventListener("click", () => {
+      const shouldRappeler = !!modalRappelCheckbox?.checked;
+      if (shouldRappeler && modalRappelAt && !modalRappelAt.value) {
+        alert("Merci de préciser la date et l'heure du rappel.");
+        return;
+      }
+      closeTerminationModal({
+        action: shouldRappeler ? "rappeler" : "terminer",
+        rappel_at: shouldRappeler ? modalRappelAt?.value : "",
+        deja_forme: !!modalDejaForme?.checked,
+      });
+    });
+    modalCancelBtn?.addEventListener("click", () => closeTerminationModal(null));
+    terminationModal?.addEventListener("click", (event) => {
+      if (event.target === terminationModal) closeTerminationModal(null);
+    });
+
+    async function sendAction(row, action, extra = {}) {
+      const id = row.dataset.id;
+      const url = `/appels/${id}/action/`;
+      const form = new FormData();
+      form.append("action", action);
+      if (extra.rappel_at) form.append("rappel_at", extra.rappel_at);
+      if (extra.deja_forme !== undefined) form.append("deja_forme", extra.deja_forme ? "1" : "0");
+      const res = await fetch(url, { method: "POST", headers: { "X-CSRFToken": csrfToken }, body: form });
+      if (!res.ok) throw new Error("action failed");
+      return res.json();
+    }
+
+    function updateRow(row, data) {
+      if (!data) return;
+      row.dataset.status = data.status || row.dataset.status;
+      const badge = row.querySelector("[data-badge]");
+      if (badge && data.status_label) badge.textContent = data.status_label;
+      badge?.classList.toggle("run", data.status === "en_cours");
+      badge?.classList.toggle("pause", data.status === "pause");
+      badge?.classList.toggle("done", data.status === "termine");
+      badge?.classList.toggle("wait", !["en_cours","pause","termine"].includes(data.status));
+      const actions = row.querySelector(".js-actions");
+      if (actions) {
+        const start = actions.querySelector(".js-start");
+        const pause = actions.querySelector(".js-pause");
+        const resume = actions.querySelector(".js-resume");
+        const terminer = actions.querySelector(".js-terminer");
+        const canStart = ["en_attente", "a_rappeler"].includes(data.status);
+        if (canStart) {
+          start.hidden = false; pause.hidden = true; resume.hidden = true; terminer.hidden = true;
+        } else if (data.status === "en_cours") {
+          start.hidden = true; pause.hidden = false; resume.hidden = true; terminer.hidden = false;
+        } else if (data.status === "pause") {
+          start.hidden = true; pause.hidden = true; resume.hidden = false; terminer.hidden = false;
+        } else {
+          start.hidden = true; pause.hidden = true; resume.hidden = true; terminer.hidden = true;
+        }
+      }
+      const playBtn = row.querySelector(".js-play");
+      if (playBtn) {
+        const audio = row.querySelector(".js-audio");
+        playBtn.disabled = !(data.status === "termine" && audio?.src);
+      }
+    }
+
+    document.querySelectorAll(".js-actions").forEach((wrap) => {
+      const row = wrap.closest("tr[data-id]");
+      const start = wrap.querySelector(".js-start");
+      const pause = wrap.querySelector(".js-pause");
+      const resume = wrap.querySelector(".js-resume");
+      const terminer = wrap.querySelector(".js-terminer");
+
+      start?.addEventListener("click", async () => {
+        try {
+          const data = await sendAction(row, "start");
+          updateRow(row, data);
+        } catch (err) { alert("Action impossible."); }
+      });
+      pause?.addEventListener("click", async () => {
+        try { const data = await sendAction(row, "pause"); updateRow(row, data); } catch (err) { alert("Action impossible."); }
+      });
+      resume?.addEventListener("click", async () => {
+        try { const data = await sendAction(row, "resume"); updateRow(row, data); } catch (err) { alert("Action impossible."); }
+      });
+      terminer?.addEventListener("click", async () => {
+        const modalResult = await askTermination(row);
+        if (!modalResult) return;
+        try {
+          const data = await sendAction(row, modalResult.action, {
+            rappel_at: modalResult.rappel_at,
+            deja_forme: modalResult.deja_forme,
+          });
+          updateRow(row, data);
+        } catch (err) { alert("Action impossible."); }
+      });
+    });
+    document.querySelectorAll("tr[data-id]").forEach((row) => {
+      const badge = row.querySelector("[data-badge]");
+      updateRow(row, { status: row.dataset.status, status_label: badge ? badge.textContent : "" });
+      // auto-record when Demarrer est affiche
+      const startBtn = row.querySelector(".js-start");
+      if (row.dataset.status === "en_attente" && startBtn) {
+        startBtn.addEventListener("click", async () => {
+          await startRecording(row, startBtn);
+        }, { once: true });
+      }
+      const terminerBtn = row.querySelector(".js-terminer");
+      if (terminerBtn) {
+        terminerBtn.addEventListener("click", () => {
+          const state = recordState.get(row.dataset.id);
+          if (state?.recorder) {
+            state.recorder.stop();
+            state.stream?.getTracks().forEach(t => t.stop());
+          }
+        });
+      }
+    });
+
+    const recordState = new Map();
+
+    async function startRecording(row, btn) {
+      const id = row.dataset.id;
+      let stream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      } catch (err) {
+        const reason = (err && err.message) ? `(${err.message})` : "";
+        const insecure = location.protocol !== "https:" && location.hostname !== "localhost";
+        const hint = insecure ? "\\nActivez HTTPS ou utilisez http://localhost pour autoriser le micro." : "\\nVerifiez les permissions micro dans le navigateur.";
+        alert(`Micro non accessible ${reason}. ${hint}`);
+        return;
+      }
+      const audioCtx = new AudioContext();
+      const source = audioCtx.createMediaStreamSource(stream);
+      const analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 256;
+      source.connect(analyser);
+      const canvas = row.querySelector(".js-visual");
+      const ctx = canvas.getContext("2d");
+      const bufferLength = analyser.frequencyBinCount;
+      const dataArray = new Uint8Array(bufferLength);
+      let raf;
+      function draw() {
+        raf = requestAnimationFrame(draw);
+        analyser.getByteFrequencyData(dataArray);
+        ctx.fillStyle = "#f8fafc";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        const barWidth = (canvas.width / bufferLength) * 2.5;
+        let x = 0;
+        for (let i = 0; i < bufferLength; i++) {
+          const barHeight = dataArray[i] / 3;
+          ctx.fillStyle = "rgba(24,176,172,0.8)";
+          ctx.fillRect(x, canvas.height - barHeight, barWidth, barHeight);
+          x += barWidth + 1;
+        }
+      }
+      draw();
+      const mimeType = MediaRecorder.isTypeSupported("audio/mpeg") ? "audio/mpeg" : "audio/webm";
+      const recorder = new MediaRecorder(stream, { mimeType });
+      const chunks = [];
+      recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
+      recorder.onstop = async () => {
+        const blob = new Blob(chunks, { type: mimeType });
+        const audio = row.querySelector(".js-audio");
+        audio.src = URL.createObjectURL(blob);
+        row.querySelector(".js-play").disabled = false;
+        recordState.set(id, { recorder: null, chunks: [], blob });
+        await uploadAudio(row, blob);
+        cancelAnimationFrame(raf);
+        ctx.clearRect(0,0,canvas.width, canvas.height);
+        audioCtx.close();
+      };
+      recorder.start();
+      recordState.set(id, { recorder, chunks, stream, raf, ctx, canvas, audioCtx });
+    }
+
+    async function uploadAudio(row, blob) {
+      const id = row.dataset.id;
+      const form = new FormData();
+      form.append("audio", blob, `appel-${id}.mp3`);
+      try {
+        const res = await fetch(`/appels/${id}/upload/`, {
+          method: "POST",
+          headers: { "X-CSRFToken": csrfToken },
+          body: form,
+        });
+        if (!res.ok) throw new Error();
+      } catch (err) {
+        alert("Upload audio echoue.");
+      }
+    }
+
+    document.querySelectorAll(".js-play").forEach((btn) => {
+      const row = btn.closest("tr[data-id]");
+      const audio = row.querySelector(".js-audio");
+      const fill = row.querySelector(".progress-fill");
+      const label = row.querySelector(".time-label");
+      function updateLabel() {
+        if (!audio.duration || isNaN(audio.duration)) {
+          label.textContent = "0:00";
+          fill.style.width = "0%";
+          return;
+        }
+        const remaining = Math.max(audio.duration - audio.currentTime, 0);
+        const mins = Math.floor(remaining / 60);
+        const secs = Math.floor(remaining % 60).toString().padStart(2, "0");
+        label.textContent = `${mins}:${secs}`;
+        fill.style.width = `${(audio.currentTime / audio.duration) * 100}%`;
+      }
+      audio.addEventListener("timeupdate", updateLabel);
+      audio.addEventListener("ended", () => { btn.textContent = "Play"; updateLabel(); });
+      btn.addEventListener("click", () => {
+        if (!audio.src) return;
+        if (audio.paused) {
+          audio.play();
+          btn.textContent = "Pause";
+        } else {
+          audio.pause();
+          btn.textContent = "Play";
+        }
+      });
+    });
+  })();
+</script>
+{% endblock %}

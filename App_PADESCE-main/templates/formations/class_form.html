@@ -1,0 +1,210 @@
+{% extends "base.html" %}
+{% block title %}Créer une classe{% endblock %}
+{% block content %}
+<style>
+  body { background: radial-gradient(circle at 10% 10%, #eef4ff, #fdfbf6 65%); }
+  .wrap { display: grid; grid-template-columns: 1fr 0.9fr; gap: 16px; align-items: start; }
+  .card-neo {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 18px;
+    box-shadow: var(--shadow);
+    position: relative;
+    overflow: hidden;
+  }
+  .card-neo::after {
+    content: "";
+    position: absolute;
+    inset: -1px;
+    border-radius: 20px;
+    background: linear-gradient(120deg, rgba(15,139,141,0.15), rgba(246,196,83,0.25));
+    filter: blur(14px);
+    opacity: 0;
+    transition: opacity .35s ease;
+    z-index: 0;
+  }
+  .card-neo:hover::after { opacity: 1; }
+  .card-neo > * { position: relative; z-index: 1; }
+  .pill { display:inline-block; padding: 8px 12px; border-radius: 999px; background: var(--accent); color:#fff; font-weight: 700; box-shadow: 0 10px 24px rgba(0,0,0,0.15); }
+  .subtitle { color: var(--muted); letter-spacing: .02em; }
+  .fade { opacity:0; transform: translateY(8px); animation: fadeIn .6s ease forwards; }
+  @keyframes fadeIn { to { opacity:1; transform: translateY(0);} }
+  .grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(240px,1fr)); }
+  label { font-weight: 600; color: var(--muted); font-size: 0.95rem; }
+  input, select {
+    width: 100%; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--border);
+    background: var(--panel); color: var(--text); transition: border .2s ease, box-shadow .2s ease;
+  }
+  input:focus, select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(15,139,141,0.15); }
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    padding: 12px 16px; border-radius: 12px; font-weight: 700; border: none; cursor: pointer;
+    background: linear-gradient(120deg, var(--accent), #18b0ac); color: #fff;
+    box-shadow: 0 12px 26px rgba(0,0,0,0.15);
+    transition: transform .2s ease, box-shadow .2s ease;
+    text-decoration: none;
+  }
+  .btn:hover { transform: translateY(-2px); }
+  .btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--text); box-shadow: none; }
+  .badge-soft { background: rgba(15,139,141,0.1); color: var(--accent); padding: 6px 10px; border-radius: 12px; font-weight: 600; }
+</style>
+
+<div class="fade" style="animation-delay: 50ms;">
+  <div class="d-flex" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+    <div>
+      <div class="pill mb-2">Creation de classe</div>
+      <h1 style="margin:0;">References de la classe</h1>
+      <p class="subtitle">Saisissez les informations de la classe puis enregistrez.</p>
+    </div>
+    <div class="badge-soft">ID auto / Cohorte auto</div>
+  </div>
+</div>
+
+  <form method="post" novalidate class="wrap">
+    {% csrf_token %}
+    {% if form.errors %}
+      <div class="card-neo" style="grid-column: 1 / -1; border:1px solid #d14343; color:#d14343;">
+        <strong>Veuillez corriger les erreurs.</strong>
+        <ul>
+          {% for field in form %}
+            {% for error in field.errors %}
+              <li>{{ field.label }}: {{ error }}</li>
+            {% endfor %}
+          {% endfor %}
+          {% for error in form.non_field_errors %}
+            <li>{{ error }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+    {% endif %}
+  <div class="card-neo fade" style="animation-delay: 100ms;">
+    <div class="d-flex" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+      <div>
+        <h3 style="margin:0;">Etape unique - References</h3>
+        <p class="subtitle">Champs obligatoires pour la classe.</p>
+      </div>
+      <span class="badge-soft">Formulaire</span>
+    </div>
+    <div class="grid">
+      <div>
+        <label>ID Classe (auto)</label>
+        {{ form.code }}
+      </div>
+      <div>
+        <label>Cohorte (auto)</label>
+        {{ form.cohorte }}
+      </div>
+      <div>
+        <label>Prestation (prestataire + bénéficiaire)</label>
+        {{ form.prestation }}
+      </div>
+      <div>
+        <label>Formation (auto depuis prestation)</label>
+        <div class="badge-soft" id="formation-display">Sélectionnez une prestation</div>
+        <small class="subtitle">Affiche la formation liée à la prestation sélectionnée.</small>
+      </div>
+      <div style="grid-column: 1 / -1;">
+        <label>Intitulé de la formation (prestataire)</label>
+        {{ form.intitule_formation }}
+      </div>
+      <div>
+        <label>Formateur</label>
+        {{ form.formateur }}
+      </div>
+      <div>
+        <label>Fenêtre</label>
+        {{ form.fenetre }}
+      </div>
+      <div>
+        <label>Statut</label>
+        {{ form.statut }}
+      </div>
+    </div>
+    <div class="grid" style="margin-top: 12px;">
+      <div style="grid-column: 1 / -1;">
+        {{ form.lieu_precision.label_tag }}
+        {{ form.lieu_precision }}
+      </div>
+      <div>
+        {{ form.lieu_nom.label_tag }}
+        {{ form.lieu_nom }}
+      </div>
+      <div>
+        {{ form.lieu_arrondissement.label_tag }}
+        {{ form.lieu_arrondissement }}
+      </div>
+      <div>
+        {{ form.lieu_departement.label_tag }}
+        {{ form.lieu_departement }}
+      </div>
+      <div>
+        {{ form.lieu_ville.label_tag }}
+        {{ form.lieu_ville }}
+      </div>
+      <div>
+        {{ form.lieu_region.label_tag }}
+        {{ form.lieu_region }}
+      </div>
+      <div>
+        {{ form.lieu_longitude.label_tag }}
+        {{ form.lieu_longitude }}
+      </div>
+      <div>
+        {{ form.lieu_latitude.label_tag }}
+        {{ form.lieu_latitude }}
+      </div>
+    </div>
+    <div class="d-flex" style="display:flex; gap:10px; margin-top:16px;">
+      <button class="btn" type="submit">Enregistrer la classe</button>
+      <a class="btn btn-ghost" href="{% url 'class_list' %}">Annuler</a>
+    </div>
+  </div>
+</form>
+
+{% if prestation_map %}
+  {{ prestation_map|json_script:"prestation-map" }}
+{% endif %}
+
+<script>
+  (function() {
+    const prestationSelect = document.querySelector('select[name="prestation"]');
+    const prestationMapEl = document.getElementById("prestation-map");
+    const prestationMap = prestationMapEl ? JSON.parse(prestationMapEl.textContent) : {};
+    const formationDisplay = document.getElementById("formation-display");
+
+    function updateFormationDisplay() {
+      const val = prestationSelect?.value;
+      const formationName = val && prestationMap[val] ? prestationMap[val] : "";
+      if (formationDisplay) formationDisplay.textContent = formationName || "Selectionnez une prestation";
+    }
+
+    async function updateCohorte() {
+      const cohorteInput = document.querySelector('input[name="cohorte"]');
+      const prestationId = prestationSelect?.value;
+      if (!cohorteInput) return;
+      if (!prestationId) {
+        cohorteInput.value = "1";
+        return;
+      }
+      try {
+        const res = await fetch(`/formations/classes/api/cohorte/?prestation_id=${encodeURIComponent(prestationId)}`);
+        if (!res.ok) throw new Error("bad status");
+        const data = await res.json();
+        if (data && data.cohorte) {
+          cohorteInput.value = data.cohorte;
+        }
+      } catch (err) {
+        cohorteInput.value = cohorteInput.value || "1";
+      }
+    }
+
+    prestationSelect?.addEventListener("change", () => {
+      updateFormationDisplay();
+      updateCohorte();
+    });
+    updateFormationDisplay();
+    updateCohorte();
+  })();
+</script>
+{% endblock %}

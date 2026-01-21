@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %}Contacts{% endblock %}
+{% block content %}
+<style>
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 14px; box-shadow: var(--shadow); }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { padding: 8px; border: 1px solid var(--border); font-size: 0.92rem; }
+  thead { background: rgba(15,139,141,0.08); }
+  .grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+</style>
+
+<h1 class="h4 mb-2">Contacts / diffusion</h1>
+<p class="subtitle" style="color:var(--muted);">Centralisation TEL, filtres, export CSV, saisie simple.</p>
+
+<form method="get" class="d-flex" style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px;">
+  <select name="prestataire">
+    <option value="">Prestataire</option>
+    {% for p in prestataires %}
+      <option value="{{ p.id }}" {% if filters.prestataire_id == p.id|stringformat:"s" %}selected{% endif %}>{{ p.raison_sociale }}</option>
+    {% endfor %}
+  </select>
+  <input type="text" name="ville" placeholder="Ville" value="{{ filters.ville_residence }}">
+  <input type="text" name="fenetre" placeholder="Fenetre" value="{{ filters.fenetre }}">
+  <button class="btn btn-primary btn-sm" type="submit">Filtrer</button>
+  <a class="btn btn-ghost btn-sm" href="{% url 'messaging_contacts_export' %}">Export CSV</a>
+</form>
+
+<div class="panel">
+  <h5>Nouveau contact</h5>
+  <form method="post">
+    {% csrf_token %}
+    <div class="grid">
+      {{ contact_form.nom_complet.label_tag }} {{ contact_form.nom_complet }}
+      {{ contact_form.telephone.label_tag }} {{ contact_form.telephone }}
+      {{ contact_form.prestataire.label_tag }} {{ contact_form.prestataire }}
+      {{ contact_form.formation.label_tag }} {{ contact_form.formation }}
+      {{ contact_form.fenetre.label_tag }} {{ contact_form.fenetre }}
+      {{ contact_form.ville_residence.label_tag }} {{ contact_form.ville_residence }}
+      {{ contact_form.fonction.label_tag }} {{ contact_form.fonction }}
+      {{ contact_form.type_formation.label_tag }} {{ contact_form.type_formation }}
+      {{ contact_form.intitule_formation.label_tag }} {{ contact_form.intitule_formation }}
+      {{ contact_form.genre.label_tag }} {{ contact_form.genre }}
+      {{ contact_form.age.label_tag }} {{ contact_form.age }}
+      {{ contact_form.nb_annees_experience.label_tag }} {{ contact_form.nb_annees_experience }}
+      {{ contact_form.actif.label_tag }} {{ contact_form.actif }}
+    </div>
+    <button class="btn btn-primary" type="submit" name="contact_submit" style="margin-top:10px;">Enregistrer le contact</button>
+  </form>
+</div>
+
+<div class="panel" style="margin-top:14px;">
+  <h5>Contacts (paginés)</h5>
+  <div style="max-height:420px; overflow:auto;">
+    <table>
+      <thead>
+        <tr>
+          <th>Nom</th><th>Telephone</th><th>Prestataire</th><th>Formation</th><th>Fenetre</th><th>Ville</th><th>Actif</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in contacts %}
+        <tr>
+          <td>{{ c.nom_complet }}</td>
+          <td>{{ c.telephone }}</td>
+          <td>{{ c.prestataire }}</td>
+          <td>{{ c.formation }}</td>
+          <td>{{ c.fenetre }}</td>
+          <td>{{ c.ville_residence }}</td>
+          <td>{{ c.actif }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="7" style="text-align:center; color:var(--muted);">Aucun contact</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if page_obj %}
+    <div class="subtitle" style="margin-top:8px;">Page {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</div>
+    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+      {% if page_obj.has_previous %}<a class="btn btn-ghost btn-sm" href="?page={{ page_obj.previous_page_number }}{% if filters.prestataire_id %}&prestataire={{ filters.prestataire_id }}{% endif %}{% if filters.ville_residence %}&ville={{ filters.ville_residence }}{% endif %}{% if filters.fenetre %}&fenetre={{ filters.fenetre }}{% endif %}">Prec.</a>{% endif %}
+      {% if page_obj.has_next %}<a class="btn btn-ghost btn-sm" href="?page={{ page_obj.next_page_number }}{% if filters.prestataire_id %}&prestataire={{ filters.prestataire_id }}{% endif %}{% if filters.ville_residence %}&ville={{ filters.ville_residence }}{% endif %}{% if filters.fenetre %}&fenetre={{ filters.fenetre }}{% endif %}">Suiv.</a>{% endif %}
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

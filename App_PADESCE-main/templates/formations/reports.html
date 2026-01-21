@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}Rapports - {{ classe.code }}{% endblock %}
+{% block content %}
+<style>
+  .grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 14px; box-shadow: var(--shadow); }
+  .subtitle { color: var(--muted); }
+  .pill { display: inline-block; padding: 6px 10px; border-radius: 999px; border: 1px solid var(--border); }
+  .list { display: flex; flex-direction: column; gap: 8px; }
+  .item { padding: 10px; border: 1px solid var(--border); border-radius: 12px; background: rgba(15,139,141,0.05); }
+  .link { text-decoration: none; color: inherit; display: block; }
+</style>
+
+<h1 class="h4 mb-2">Rapports - {{ classe.code }} - {{ classe.intitule_formation }}</h1>
+<p class="subtitle">Synthese des enquetes (satisfaction apprenants, satisfaction formateurs, presence, environnement).</p>
+
+<div class="grid">
+  <div class="card">
+    <h5>Presence</h5>
+    <div class="list">
+      {% for p in presence_dates %}
+        <a class="link" href="{% url 'presence_report_detail' classe.id p.date %}">
+          <div class="item">
+            <div style="font-weight:700;">{{ p.date }}</div>
+            <div class="subtitle">Total: {{ p.total }} | Present: {{ p.presents }} | Absent: {{ p.absents }}</div>
+          </div>
+        </a>
+      {% empty %}
+        <div class="subtitle">Aucune presence.</div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="card">
+    <h5>Satisfaction apprenants</h5>
+    <div class="list">
+      {% for s in sat_appr %}
+        <div class="item">
+          <div style="font-weight:700;">{{ s.date }}</div>
+          <div class="subtitle">Inspecteur : {{ s.inspecteur|default:"-" }} | Enqueteur : {{ s.enqueteur|default:"-" }}</div>
+          <div class="subtitle">Q9 globale : {{ s.q9_satisfaction_globale }}</div>
+        </div>
+      {% empty %}
+        <div class="subtitle">Aucune enquete.</div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="card">
+    <h5>Satisfaction formateurs</h5>
+    <div class="list">
+      {% for s in sat_form %}
+        <div class="item">
+          <div style="font-weight:700;">{{ s.date }}</div>
+          <div class="subtitle">Inspecteur : {{ s.inspecteur|default:"-" }} | Enqueteur : {{ s.enqueteur|default:"-" }}</div>
+          <div class="subtitle">Q9 globale prestataire : {{ s.q9_satisfaction_globale_prestataire }}</div>
+        </div>
+      {% empty %}
+        <div class="subtitle">Aucune enquete.</div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="card">
+    <h5>Environnement</h5>
+    <div class="list">
+      {% for e in envs %}
+        <div class="item">
+          <div style="font-weight:700;">{{ e.date }}</div>
+          <div class="subtitle">Inspecteur : {{ e.inspecteur|default:"-" }} | Enqueteur : {{ e.enqueteur|default:"-" }}</div>
+          <div class="subtitle">Commentaires : {{ e.commentaire_global|default:"-" }}</div>
+        </div>
+      {% empty %}
+        <div class="subtitle">Aucune enquete.</div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endblock %}

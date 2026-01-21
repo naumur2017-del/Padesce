@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% block title %}Presences{% endblock %}
+{% block content %}
+<style>
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 14px; box-shadow: var(--shadow); }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { padding: 8px; border: 1px solid var(--border); font-size: 0.92rem; }
+  thead { background: rgba(15,139,141,0.08); }
+  .grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+  .toolbar { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:10px; }
+</style>
+
+<h1 class="h4 mb-2">Enquete de presence</h1>
+<p class="subtitle" style="color:var(--muted);">Saisie PR/AB (code ou papier), filtre par classe, export CSV, audit automatique.</p>
+
+<div class="toolbar">
+  <form method="get" class="d-flex" style="display:flex; gap:8px; flex-wrap:wrap;">
+    <select name="classe">
+      <option value="">Toutes les classes</option>
+      {% for c in classes %}
+        <option value="{{ c.id }}" {% if filter_classe|default:'' == c.id|stringformat:"s" %}selected{% endif %}>{{ c.code }} - {{ c.intitule_formation }}</option>
+      {% endfor %}
+    </select>
+    <button class="btn btn-primary btn-sm" type="submit">Filtrer</button>
+    <a class="btn btn-ghost btn-sm" href="{% url 'presences_export_csv' %}{% if filter_classe %}?classe={{ filter_classe }}{% endif %}">Export CSV</a>
+  </form>
+  <a class="btn btn-outline btn-sm" href="{% url 'appels_index' %}">Module d'appel</a>
+</div>
+
+<div class="grid">
+  <div class="panel">
+    <h5>Nouvelle presence</h5>
+    <form method="post">
+      {% csrf_token %}
+      <div class="grid" style="grid-template-columns: 1fr 1fr;">
+        {{ form.classe.label_tag }} {{ form.classe }}
+        {{ form.apprenant.label_tag }} {{ form.apprenant }}
+        {{ form.inspecteur.label_tag }} {{ form.inspecteur }}
+        {{ form.date.label_tag }} {{ form.date }}
+        {{ form.heure_debut.label_tag }} {{ form.heure_debut }}
+        {{ form.heure_fin.label_tag }} {{ form.heure_fin }}
+        {{ form.presence.label_tag }} {{ form.presence }}
+        {{ form.statut.label_tag }} {{ form.statut }}
+        {{ form.moyen_enregistrement.label_tag }} {{ form.moyen_enregistrement }}
+      </div>
+      <div style="margin-top:8px;">
+        {{ form.remarques.label_tag }} {{ form.remarques }}
+      </div>
+      {% if form.errors %}
+        <div class="subtitle" style="color:#d14343;">{{ form.errors }}</div>
+      {% endif %}
+      <button class="btn btn-primary" type="submit" style="margin-top:10px;">Enregistrer</button>
+    </form>
+  </div>
+
+  <div class="panel">
+    <h5>Stats rapides (par classe)</h5>
+    <table>
+      <thead><tr><th>Classe</th><th>Total</th><th>PR</th><th>AB</th></tr></thead>
+      <tbody>
+        {% if stats %}
+          {% for s in stats %}
+          <tr>
+            <td>{{ s.classe__code }}</td>
+            <td>{{ s.total }}</td>
+            <td>{{ s.presents }}</td>
+            <td>{{ s.absents }}</td>
+          </tr>
+          {% endfor %}
+        {% else %}
+          <tr><td colspan="4" style="text-align:center; color:var(--muted);">Aucune donnee</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="panel" style="margin-top:14px;">
+  <h5>Dernieres presences</h5>
+  <div style="max-height:420px; overflow:auto;">
+    <table>
+      <thead>
+        <tr>
+          <th>Date</th><th>Classe</th><th>Apprenant</th><th>Inspecteur</th><th>Enqueteur</th><th>Presence</th><th>Statut</th><th>Moyen</th><th>Enregistre a</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in presences %}
+        <tr>
+          <td>{{ p.date }}</td>
+          <td>{{ p.classe }}</td>
+          <td>{{ p.apprenant }}</td>
+          <td>{{ p.inspecteur }}</td>
+          <td>{{ p.enqueteur }}</td>
+          <td>{{ p.get_presence_display }}</td>
+          <td>{{ p.get_statut_display }}</td>
+          <td>{{ p.get_moyen_enregistrement_display }}</td>
+          <td>{{ p.heure_enregistrement }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="9" style="text-align:center; color:var(--muted);">Aucune presence</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if page_obj %}
+    <div class="subtitle" style="margin-top:8px;">Page {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</div>
+    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+      {% if page_obj.has_previous %}<a class="btn btn-ghost btn-sm" href="?page={{ page_obj.previous_page_number }}{% if filter_classe %}&classe={{ filter_classe }}{% endif %}">Prec.</a>{% endif %}
+      {% if page_obj.has_next %}<a class="btn btn-ghost btn-sm" href="?page={{ page_obj.next_page_number }}{% if filter_classe %}&classe={{ filter_classe }}{% endif %}">Suiv.</a>{% endif %}
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Embed {{ code }}</title>
+  <style>
+    body { margin:0; padding:0; font-family: Arial, sans-serif; background:#0b1020; color:#e5e7eb; }
+    #chart-wrap { width:100%; height:100vh; display:flex; align-items:center; justify-content:center; padding:10px; box-sizing:border-box; }
+    .card { width:100%; height:100%; background:#111827; border:1px solid rgba(255,255,255,0.08); border-radius:12px; padding:12px; box-sizing:border-box; }
+    canvas { width:100% !important; height:100% !important; }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+</head>
+<body>
+  <div id="chart-wrap">
+    <div class="card">
+      <canvas id="chart"></canvas>
+      <div id="map" style="width:100%; height:100%; display:none; border-radius:12px; overflow:hidden;"></div>
+    </div>
+  </div>
+  <script>
+    (async () => {
+      const code = "{{ code }}";
+      const res = await fetch(`/reporting/api/${code}/`);
+      if (!res.ok) return;
+      const data = await res.json();
+      const ctx = document.getElementById("chart").getContext("2d");
+      const mapEl = document.getElementById("map");
+
+      if (data.type === "gauge") {
+        const val = data.value || 0;
+        const max = data.max || 100;
+        new Chart(ctx, {
+          type: "doughnut",
+          data: {
+            labels: ["Valeur", "Reste"],
+            datasets: [{ data: [val, Math.max(0, max - val)], backgroundColor: ["#22d3ee", "#1f2937"], borderWidth: 0 }]
+          },
+          options: {
+            circumference: 180,
+            rotation: 270,
+            responsive: true,
+            plugins: {
+              legend: { display: false },
+              tooltip: { enabled: false },
+            }
+          }
+        });
+      } else if (data.type === "bar") {
+        new Chart(ctx, {
+          type: "bar",
+          data: {
+            labels: data.series.map(s => s.label || "-"),
+            datasets: [{
+              label: code,
+              data: data.series.map(s => s.taux || s.moy || s.total || 0),
+              backgroundColor: "#22d3ee"
+            }]
+          },
+          options: {
+            indexAxis: "y",
+            responsive: true,
+            plugins: { legend: { display: false } },
+            scales: { x: { beginAtZero: true } }
+          }
+        });
+      } else if (data.type === "map") {
+        mapEl.style.display = "block";
+        document.getElementById("chart").style.display = "none";
+        const map = L.map('map').setView([4.05, 9.7], 6);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18 }).addTo(map);
+        (data.points || []).forEach(p => {
+          L.marker([p.lat, p.lon]).addTo(map).bindPopup(p.label || code);
+        });
+      } else if (data.type === "table") {
+        // Simple fallback: display totals as a bar
+        new Chart(ctx, {
+          type: "bar",
+          data: {
+            labels: data.rows.map(r => r["classe__lieu__nom_lieu"] || "-"),
+            datasets: [{
+              label: "Total",
+              data: data.rows.map(r => r.total || 0),
+              backgroundColor: "#22d3ee"
+            }]
+          },
+          options: {
+            indexAxis: "y",
+            responsive: true,
+            plugins: { legend: { display: false } },
+            scales: { x: { beginAtZero: true } }
+          }
+        });
+      }
+    })();
+  </script>
+</body>
+</html>

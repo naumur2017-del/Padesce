@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.log
+logs/
+*.sqlite3-journal
+*.sqlite3-wal
+*.sqlite3-shm

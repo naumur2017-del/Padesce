@@ -1,0 +1,268 @@
+{% extends "base.html" %}
+{% block title %}Accueil PADESCE{% endblock %}
+{% block content %}
+<style>
+  .hero {
+    position: relative;
+    overflow: hidden;
+    border-radius: 18px;
+    padding: 28px;
+    background: linear-gradient(120deg, var(--accent), #18b0ac, var(--accent-2));
+    color: #fff;
+    box-shadow: var(--shadow);
+  }
+  .hero:before, .hero:after {
+    content: ""; position: absolute; border-radius: 50%; filter: blur(12px); opacity: .25;
+    animation: float 8s ease-in-out infinite;
+  }
+  .hero:before { width: 200px; height: 200px; background: #fff; top: -60px; right: 12%; }
+  .hero:after { width: 260px; height: 260px; background: #fff8e1; bottom: -80px; left: 8%; animation-delay: 1.5s; }
+  @keyframes float { 0%,100% { transform: translateY(0);} 50% { transform: translateY(-12px);} }
+  .hero-content { position: relative; z-index: 1; display: grid; grid-template-columns: 1.3fr 1fr; gap: 16px; align-items: center; }
+  .hero-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    padding: 12px 16px; border-radius: 12px; font-weight: 600; border: none; cursor: pointer;
+    transition: transform .2s ease, box-shadow .2s ease;
+  }
+  .btn-primary { background: #fff; color: var(--accent); box-shadow: 0 8px 20px rgba(0,0,0,0.15); }
+  .btn-ghost { border: 1px solid rgba(255,255,255,0.6); color: #fff; background: rgba(255,255,255,0.1); }
+  .btn:hover { transform: translateY(-2px); }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 18px;
+    box-shadow: var(--shadow);
+  }
+  table { width:100%; border-collapse: collapse; }
+  th, td { padding: 8px; border: 1px solid var(--border); font-size: 0.92rem; text-align: left; }
+  thead { background: rgba(15,139,141,0.08); }
+  .status-pill {
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    padding:4px 10px;
+    border-radius:999px;
+    font-size:0.85rem;
+    border:1px solid transparent;
+  }
+  .status-pill.ok { background: rgba(34,197,94,0.15); color: #166534; border-color: rgba(34,197,94,0.3); }
+  .status-pill.off { background: rgba(107,114,128,0.18); color: #374151; border-color: rgba(107,114,128,0.35); }
+  .grid { display: grid; gap: 14px; }
+  .grid.stats { grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
+  .card-stat { display: flex; gap: 12px; align-items: center; }
+  .last-seen { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .ampm {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    border: 1px solid transparent;
+  }
+  .ampm.am { background: rgba(59,130,246,0.15); color: #1d4ed8; border-color: rgba(59,130,246,0.35); }
+  .ampm.pm { background: rgba(249,115,22,0.15); color: #9a3412; border-color: rgba(249,115,22,0.35); }
+  .dot {
+    width: 44px; height: 44px; border-radius: 12px;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: var(--accent); color: #fff; font-weight: 700;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.12);
+  }
+  .progress-track { background: rgba(255,255,255,0.4); height: 10px; border-radius: 999px; overflow: hidden; }
+  .progress-bar { height: 100%; background: linear-gradient(90deg, var(--accent-2), #f97316); animation: shimmer 2.5s ease-in-out infinite; }
+  @keyframes shimmer { 0% { filter: brightness(1);} 50% { filter: brightness(1.2);} 100% { filter: brightness(1);} }
+  .countdown {
+    display: grid; grid-template-columns: repeat(4, minmax(80px,1fr)); gap: 10px;
+  }
+  .count-cell { text-align: center; padding: 10px; border-radius: 12px; background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.25); }
+  .count-val { font-size: 1.3rem; font-weight: 700; }
+  .count-label { font-size: 0.8rem; opacity: 0.85; }
+  .actions-grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(220px,1fr)); margin-top: 14px; }
+  .action-card { border-left: 5px solid var(--accent); }
+</style>
+
+<div class="hero">
+  <div class="hero-content">
+    <div>
+      <div class="pill-step mb-2" style="background: rgba(255,255,255,0.2); border-radius: 999px; padding: 8px 12px; display:inline-block;">Dashboard</div>
+      <h1 style="margin: 6px 0;">PADESCE</h1>
+      <p class="subtitle" style="color:#e5f6f7;">Suivi centralisé des classes, présences, enquêtes et reporting.</p>
+      <div class="hero-actions">
+        <a class="btn btn-primary" href="{% url 'class_list' %}">Classes</a>
+        <a class="btn btn-ghost" href="/reporting/">Données traitées</a>
+        <a class="btn btn-ghost" href="/formations/">Formations</a>
+        <a class="btn btn-ghost" href="/reporting/export/csv/">Export CSV/Excel</a>
+      </div>
+    </div>
+    <div class="panel" style="color: var(--text); background: rgba(255,255,255,0.9);">
+      <div class="d-flex" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+        <span class="subtitle" style="color:var(--muted);">Progression 26 sept. 2025 → 26 août 2026</span>
+        <strong>{{ progress_pct }}%</strong>
+      </div>
+      <div class="progress-track">
+        <div class="progress-bar" style="width: {{ progress_pct }}%;"></div>
+      </div>
+      <small style="color:var(--muted);">Mise à jour quotidienne.</small>
+      <div style="margin-top:12px;">
+        <div class="d-flex" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+          <span class="subtitle" style="color:var(--muted);">Compte à rebours jusqu'au 26/08/2026</span>
+          <span id="countdown-label" style="font-weight:600;">--</span>
+        </div>
+        <div class="countdown" data-deadline="{{ deadline_iso }}">
+          <div class="count-cell"><div class="count-val" data-unit="days">--</div><div class="count-label">Jours</div></div>
+          <div class="count-cell"><div class="count-val" data-unit="hours">--</div><div class="count-label">Heures</div></div>
+          <div class="count-cell"><div class="count-val" data-unit="minutes">--</div><div class="count-label">Minutes</div></div>
+          <div class="count-cell"><div class="count-val" data-unit="seconds">--</div><div class="count-label">Secondes</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="grid stats" style="margin-top: 16px;">
+  {% for card in stat_cards %}
+  <div class="panel fade-up" style="animation-delay: {{ forloop.counter0|add:1 }}0ms;">
+    <div class="card-stat">
+      <div class="dot">{{ forloop.counter }}</div>
+      <div>
+        <div class="subtitle" style="color:var(--muted); font-size: 0.9rem;">{{ card.label }}</div>
+        <div style="font-size: 1.8rem; font-weight: 700;">{{ card.value }}</div>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="panel" style="margin-top: 16px;">
+  <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;">
+    <div>
+      <h4 style="margin:0;">Appels terminés</h4>
+      <p class="subtitle" style="color:var(--muted); margin:0;">Nombre d'appels marqués comme terminés</p>
+    </div>
+    <div style="font-size: 2rem; font-weight: 700;">{{ nb_appels_termine }}</div>
+  </div>
+  <div style="margin-top: 18px; overflow:auto;">
+    <table>
+      <thead>
+        <tr>
+          <th>Prestataire</th>
+          <th>Appels terminés</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in prestataire_appels %}
+          <tr>
+            <td>{{ item.prestataire|default:"(Sans prestataire)" }}</td>
+            <td>{{ item.total }}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="2" style="text-align:center; color:var(--muted);">Aucun appel terminé enregistré.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% if user.is_superuser %}
+  <div class="panel" style="margin-top: 16px;">
+    <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;">
+      <h4 style="margin:0;">Activite des utilisateurs</h4>
+      <span class="subtitle" style="color:var(--muted);">En ligne si actif depuis moins de 10 min.</span>
+    </div>
+    <div style="margin-top:10px; overflow:auto;">
+      <table>
+        <thead>
+          <tr>
+            <th>Utilisateur</th>
+            <th>Statut</th>
+            <th>Derniere activite</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in user_activity_rows %}
+            <tr>
+              <td>{{ row.username }}</td>
+              <td>
+                <span class="status-pill {% if row.is_online %}ok{% else %}off{% endif %}">
+                  {% if row.is_online %}En ligne{% else %}Hors ligne{% endif %}
+                </span>
+              </td>
+              <td>
+                {% if row.last_seen %}
+                  <span class="last-seen">
+                    <span>{{ row.last_seen|date:"l d/m/Y h:i" }}</span>
+                    {% with ampm=row.last_seen|date:"A" %}
+                      <span class="ampm {% if ampm == "AM" %}am{% else %}pm{% endif %}">
+                        {% if ampm == "AM" %}a.m.{% else %}p.m.{% endif %}
+                      </span>
+                    {% endwith %}
+                  </span>
+                {% else %}
+                  Jamais
+                {% endif %}
+              </td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="3" style="text-align:center; color:var(--muted);">Aucun utilisateur trouve.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+{% endif %}
+
+<div class="actions-grid">
+  <div class="panel action-card fade-up" style="animation-delay: 40ms;">
+    <h4>Classes</h4>
+    <p class="subtitle">Accès aux classes, cohorte, prestataire, lieu.</p>
+    <a class="btn btn-primary" href="{% url 'class_list' %}">Voir les classes</a>
+  </div>
+  <div class="panel action-card fade-up" style="animation-delay: 80ms;">
+    <h4>Données traitées</h4>
+    <p class="subtitle">Graphes du TDB PADESCE.</p>
+    <a class="btn btn-primary" href="/reporting/">Ouvrir</a>
+  </div>
+  <div class="panel action-card fade-up" style="animation-delay: 120ms;">
+    <h4>Formations</h4>
+    <p class="subtitle">Statuts, prestataires, bénéficiaires.</p>
+    <a class="btn btn-primary" href="/formations/">Voir les formations</a>
+  </div>
+  <div class="panel action-card fade-up" style="animation-delay: 160ms;">
+    <h4>Export</h4>
+    <p class="subtitle">Exporter toutes les enquêtes.</p>
+    <div style="display:flex; gap:8px; flex-wrap: wrap;">
+      <a class="btn btn-ghost" href="/reporting/export/csv/">CSV</a>
+      <a class="btn btn-ghost" href="/reporting/export/excel/">Excel</a>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function() {
+    const grid = document.querySelector(".countdown");
+    if (!grid) return;
+    const deadlineStr = grid.getAttribute("data-deadline");
+    const deadline = new Date(deadlineStr + "T23:59:59");
+    const start = new Date("2025-09-26T00:00:00");
+    const label = document.getElementById("countdown-label");
+
+    function updateCountdown() {
+      const now = new Date();
+      const remaining = Math.max(0, deadline - now);
+      const days = Math.floor(remaining / (1000 * 60 * 60 * 24));
+      const hours = Math.floor((remaining / (1000 * 60 * 60)) % 24);
+      const minutes = Math.floor((remaining / (1000 * 60)) % 60);
+      const seconds = Math.floor((remaining / 1000) % 60);
+      grid.querySelector('[data-unit="days"]').textContent = days.toString().padStart(2, "0");
+      grid.querySelector('[data-unit="hours"]').textContent = hours.toString().padStart(2, "0");
+      grid.querySelector('[data-unit="minutes"]').textContent = minutes.toString().padStart(2, "0");
+      grid.querySelector('[data-unit="seconds"]').textContent = seconds.toString().padStart(2, "0");
+      if (label) label.textContent = `${days}j ${hours}h ${minutes}m ${seconds}s`;
+    }
+    updateCountdown();
+    setInterval(updateCountdown, 1000);
+  })();
+</script>
+{% endblock %}

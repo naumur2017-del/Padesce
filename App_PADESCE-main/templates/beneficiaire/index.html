@@ -1,0 +1,1082 @@
+{% extends "base.html" %}
+{% block title %}Portail Beneficiaire{% endblock %}
+{% block content %}
+<style>
+  .portal-shell { display:flex; flex-direction:column; gap:16px; }
+  .hero {
+    background: linear-gradient(135deg, rgba(15,139,141,0.18), rgba(246,196,83,0.2));
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 18px;
+    box-shadow: var(--shadow);
+  }
+  .hero h1 { margin: 0 0 6px; }
+  .hero p { margin: 0; color: var(--muted); }
+  .layout { display:grid; gap:16px; grid-template-columns: 1.1fr 0.9fr; }
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 14px; box-shadow: var(--shadow); }
+  .panel-head { display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-bottom:10px; }
+  .form-grid { display:grid; gap:12px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+  .field { display:flex; flex-direction:column; gap:6px; }
+  label { font-size:0.9rem; color: var(--muted); }
+  input[type="text"], input[type="file"], input[type="date"], select {
+    width:100%;
+    padding:11px 14px;
+    border-radius:14px;
+    border:1px solid rgba(15,139,141,0.25);
+    background: linear-gradient(180deg, rgba(255,255,255,0.95), rgba(255,255,255,0.75));
+    color: var(--text);
+    box-shadow: inset 0 1px 2px rgba(15,139,141,0.08), 0 6px 14px rgba(15,139,141,0.08);
+    transition: border .2s ease, box-shadow .2s ease, transform .2s ease;
+  }
+  input[type="text"]::placeholder { color: rgba(107,114,128,0.8); }
+  input[type="file"] { border-style: dashed; }
+  input[type="file"]::file-selector-button {
+    margin-right: 10px;
+    border: 1px solid rgba(15,139,141,0.25);
+    border-radius: 10px;
+    padding: 6px 10px;
+    background: rgba(15,139,141,0.12);
+    color: var(--text);
+    font-weight: 600;
+    cursor: pointer;
+  }
+  input:focus, select:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(15,139,141,0.2), 0 12px 24px rgba(15,139,141,0.18);
+    transform: translateY(-1px);
+  }
+  .btn {
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    gap:6px;
+    padding:12px 16px;
+    border-radius:14px;
+    font-weight:700;
+    border:1px solid rgba(15,139,141,0.35);
+    cursor:pointer;
+    background: linear-gradient(135deg, var(--accent), #18b0ac);
+    color:#fff;
+    text-decoration:none;
+    box-shadow: 0 12px 24px rgba(15,139,141,0.2);
+    transition: transform .2s ease, box-shadow .2s ease, background .2s ease, border-color .2s ease;
+  }
+  .btn-ghost { background: transparent; border:1px solid rgba(15,139,141,0.35); color: var(--text); box-shadow: none; }
+  .btn:hover { transform: translateY(-2px); box-shadow: 0 14px 26px rgba(15,139,141,0.22); }
+  .btn-ghost:hover { background: rgba(15,139,141,0.08); }
+  .btn:active { transform: translateY(0); box-shadow: 0 8px 18px rgba(15,139,141,0.18); }
+  .btn[disabled] { opacity: 0.55; cursor: not-allowed; box-shadow: none; transform: none; }
+  .pill { display:inline-flex; align-items:center; gap:6px; padding:6px 10px; border-radius:999px; font-size:0.85rem; }
+  .pill.ok { background: rgba(34,197,94,0.15); color: #166534; border:1px solid rgba(34,197,94,0.3); }
+  .pill.bad { background: rgba(239,68,68,0.15); color: #991b1b; border:1px solid rgba(239,68,68,0.3); }
+  .alert { padding:10px 12px; border-radius:12px; border:1px solid var(--border); background: rgba(239,68,68,0.08); color:#b91c1c; }
+  .alert ul { margin: 6px 0 0; padding-left: 18px; }
+  .success { padding:10px 12px; border-radius:12px; border:1px solid rgba(34,197,94,0.3); background: rgba(34,197,94,0.12); color:#166534; }
+  .progress-wrap { display:none; flex-direction:column; gap:8px; padding:10px 12px; border-radius:12px; border:1px solid rgba(15,139,141,0.2); background: rgba(15,139,141,0.05); }
+  .progress-head { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+  .progress-label { font-weight: 700; color: var(--text); }
+  .progress-track { height:10px; border-radius:999px; overflow:hidden; background: rgba(15,139,141,0.12); border:1px solid rgba(15,139,141,0.2); }
+  .progress-bar { height:100%; width:0%; background: linear-gradient(90deg, #18b0ac, #f6c453); transition: width .2s ease; }
+  .table-wrap { overflow:auto; border-radius:12px; border:1px solid var(--border); }
+  table { width:100%; border-collapse: collapse; font-size:0.9rem; }
+  th, td { padding:8px; border:1px solid var(--border); text-align:left; }
+  thead { background: rgba(15,139,141,0.08); }
+  tr.error { background: rgba(239,68,68,0.08); }
+  td.cell-error { background: rgba(239,68,68,0.18); color: #991b1b; }
+  .hint { font-size:0.85rem; color: var(--muted); }
+  .history-filters { display:grid; gap:12px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); align-items:end; }
+  .history-filter-actions { display:flex; gap:8px; justify-content:flex-end; }
+  .history-footer { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:12px; flex-wrap:wrap; }
+  .pager { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .history-actions { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .history-table th:first-child, .history-table td:first-child { text-align:center; }
+  .history-table td { white-space: nowrap; }
+  .history-table td.wrap { white-space: normal; }
+  @media (max-width: 980px) {
+    .layout { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 640px) {
+    .panel-head { flex-direction:column; align-items:flex-start; }
+  }
+</style>
+
+<div class="portal-shell">
+  <div class="hero">
+    <h1>Portail Beneficiaire</h1>
+    <p>Chargez votre fichier, verifiez les doublons et la qualite des donnees.</p>
+  </div>
+
+  <div class="layout">
+    <div class="panel">
+      <div class="panel-head">
+        <h3>Upload des donnees</h3>
+        <span class="pill ok">CSV / Excel</span>
+      </div>
+      <form id="beneficiaire-form" method="post" enctype="multipart/form-data" novalidate>
+        {% csrf_token %}
+        <input type="hidden" name="action" value="submit">
+        <input type="hidden" name="validation_id" id="validation-id" value="{{ validation_id }}">
+        <div class="field">
+          <label for="dataset">Fichier a analyser</label>
+          <input id="dataset" type="file" name="dataset" accept=".csv,.xls,.xlsx">
+          <div class="hint">Excel: feuille "Liste des apprenants". Colonnes: No, Nom et prenom, Beneficiaire, Genre, Age, Fonction, Diplome, Experience, Ville residence, Prestataire, Formation sollicitee, Formation dispensee, Fenetre, Ville formation, Arrondissement, Departement, Region, Lieu formation, Precision lieu, GPS Longitude, GPS Latitude, Tel apprenant 1, Tel apprenant 2, Cohorte, Tel formateur.</div>
+        </div>
+        <div id="progress-wrap" class="progress-wrap" aria-live="polite">
+          <div class="progress-head">
+            <span>Traitement du fichier</span>
+            <span id="progress-label" class="progress-label">0%</span>
+          </div>
+          <div class="progress-track">
+            <div id="progress-bar" class="progress-bar"></div>
+          </div>
+          <div id="progress-sub" class="hint">En attente de fichier.</div>
+        </div>
+        <div style="margin-top:12px; display:flex; gap:10px; flex-wrap:wrap;">
+          <button class="btn btn-ghost" type="submit" id="btn-verify">Verifier le fichier</button>
+          <button class="btn" type="button" id="btn-submit" disabled>Soumettre le fichier</button>
+          <a class="btn btn-ghost" href="/beneficiaire/">Nouveau test</a>
+        </div>
+      </form>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <h3>Resultat des verifications</h3>
+        <span
+          id="status-pill"
+          class="pill {% if validation_ok %}ok{% else %}bad{% endif %}"
+          {% if not validation_done %}style="display:none;"{% endif %}
+        >
+          {% if validation_ok %}OK{% else %}Erreurs{% endif %}
+        </span>
+      </div>
+      <div id="errors-box" class="alert" {% if not errors %}style="display:none;"{% endif %}>
+        <strong>Erreurs detectees</strong>
+        <ul id="errors-list">
+          {% for err in errors %}
+            <li>{{ err }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+      <div
+        id="errors-csv-wrap"
+        class="hint"
+        style="margin-top:6px; display:flex; gap:8px; flex-wrap:wrap; {% if not errors_csv_url and not errors_txt_url and not errors_xlsx_url %}display:none;{% endif %}"
+      >
+        <a
+          id="errors-csv-link"
+          class="btn btn-ghost"
+          href="{{ errors_csv_url }}"
+          download
+          {% if not errors_csv_url %}style="display:none;"{% endif %}
+        >
+          Telecharger CSV des erreurs
+        </a>
+        <a
+          id="errors-txt-link"
+          class="btn btn-ghost"
+          href="{{ errors_txt_url }}"
+          download
+          {% if not errors_txt_url %}style="display:none;"{% endif %}
+        >
+          Telecharger TXT des erreurs
+        </a>
+        <a
+          id="errors-xlsx-link"
+          class="btn btn-ghost"
+          href="{{ errors_xlsx_url }}"
+          download
+          {% if not errors_xlsx_url %}style="display:none;"{% endif %}
+        >
+          Telecharger XLSX des erreurs
+        </a>
+      </div>
+      <div id="success-box" class="success" {% if not validation_ok or errors %}style="display:none;"{% endif %}>
+        <span id="success-text">{{ success_message|default:"Verification terminee. Aucune erreur critique detectee." }}</span>
+      </div>
+      <div id="empty-hint" class="hint" {% if validation_done %}style="display:none;"{% endif %}>
+        Les resultats s'affichent apres le chargement.
+      </div>
+
+      <div id="metrics" style="margin-top:12px; {% if not validation_done %}display:none;{% endif %}">
+        <div class="hint">Lignes analysees: <strong id="row-count">{{ row_count }}</strong></div>
+        <div id="error-types-wrap" class="hint" style="margin-top:6px; {% if not error_types %}display:none;{% endif %}">
+          Types d'erreurs: <span id="error-types">{{ error_types|join:", " }}</span>
+        </div>
+        <div class="hint" style="margin-top:6px;">
+          Prestataire detecte: <strong id="prestataire-nom">{{ prestataire_nom|default:"-" }}</strong>
+        </div>
+        <div class="hint">
+          Beneficiaire detecte: <strong id="beneficiaire-nom">{{ beneficiaire_nom|default:"-" }}</strong>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head">
+      <h3>Previsualisation instantanee</h3>
+      <span class="hint">Apercu des 20 premieres lignes</span>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>No</th>
+            <th>Nom et prenom</th>
+            <th>Beneficiaire</th>
+            <th>Genre</th>
+            <th>Age</th>
+            <th>Fonction</th>
+            <th>Diplome</th>
+            <th>Experience</th>
+            <th>Ville residence</th>
+            <th>Prestataire</th>
+            <th>Formation sollicitee</th>
+            <th>Formation dispensee</th>
+            <th>Fenetre</th>
+            <th>Ville formation</th>
+            <th>Arrondissement</th>
+            <th>Departement</th>
+            <th>Region</th>
+            <th>Lieu formation</th>
+            <th>Precision lieu</th>
+            <th>GPS Long</th>
+            <th>GPS Lat</th>
+            <th>Tel apprenant 1</th>
+            <th>Tel apprenant 2</th>
+            <th>Cohorte</th>
+            <th>Tel formateur</th>
+            <th>Statut</th>
+            <th>Erreurs</th>
+          </tr>
+        </thead>
+        <tbody id="preview-body">
+          {% if preview_rows %}
+            {% for row in preview_rows %}
+              <tr class="{% if row.statut == 'Erreur' %}error{% endif %}">
+                <td class="{% if row.numero_error %}cell-error{% endif %}">{{ row.numero }}</td>
+                <td class="{% if row.nom_complet_error %}cell-error{% endif %}">{{ row.nom_complet }}</td>
+                <td class="{% if row.beneficiaire_error %}cell-error{% endif %}">{{ row.beneficiaire }}</td>
+                <td class="{% if row.genre_error %}cell-error{% endif %}">{{ row.genre }}</td>
+                <td class="{% if row.age_error %}cell-error{% endif %}">{{ row.age }}</td>
+                <td class="{% if row.fonction_error %}cell-error{% endif %}">{{ row.fonction }}</td>
+                <td class="{% if row.diplome_error %}cell-error{% endif %}">{{ row.diplome }}</td>
+                <td class="{% if row.experience_error %}cell-error{% endif %}">{{ row.experience }}</td>
+                <td class="{% if row.ville_residence_error %}cell-error{% endif %}">{{ row.ville_residence }}</td>
+                <td class="{% if row.prestataire_error %}cell-error{% endif %}">{{ row.prestataire }}</td>
+                <td class="{% if row.formation_solicitee_error %}cell-error{% endif %}">{{ row.formation_solicitee }}</td>
+                <td class="{% if row.formation_dispensee_error %}cell-error{% endif %}">{{ row.formation_dispensee }}</td>
+                <td class="{% if row.fenetre_error %}cell-error{% endif %}">{{ row.fenetre }}</td>
+                <td class="{% if row.ville_formation_error %}cell-error{% endif %}">{{ row.ville_formation }}</td>
+                <td class="{% if row.arrondissement_error %}cell-error{% endif %}">{{ row.arrondissement }}</td>
+                <td class="{% if row.departement_error %}cell-error{% endif %}">{{ row.departement }}</td>
+                <td class="{% if row.region_error %}cell-error{% endif %}">{{ row.region }}</td>
+                <td class="{% if row.lieu_formation_error %}cell-error{% endif %}">{{ row.lieu_formation }}</td>
+                <td class="{% if row.precision_lieu_error %}cell-error{% endif %}">{{ row.precision_lieu }}</td>
+                <td class="{% if row.gps_longitude_error %}cell-error{% endif %}">{{ row.gps_longitude }}</td>
+                <td class="{% if row.gps_latitude_error %}cell-error{% endif %}">{{ row.gps_latitude }}</td>
+                <td class="{% if row.telephone1_error %}cell-error{% endif %}">{{ row.telephone1 }}</td>
+                <td class="{% if row.telephone2_error %}cell-error{% endif %}">{{ row.telephone2 }}</td>
+                <td class="{% if row.cohorte_error %}cell-error{% endif %}">{{ row.cohorte }}</td>
+                <td class="{% if row.telephone_formateur_error %}cell-error{% endif %}">{{ row.telephone_formateur }}</td>
+                <td>{{ row.statut }}</td>
+                <td>{{ row.erreurs|default:"-" }}</td>
+              </tr>
+            {% endfor %}
+          {% else %}
+            <tr class="hint">
+              <td colspan="26" style="text-align:center;">Aucune previsualisation disponible.</td>
+            </tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head">
+      <h3>Historique des fichiers</h3>
+      <span class="hint">Selectionnez des fichiers pour generer un recapitulatif Excel.</span>
+    </div>
+    <div class="history-filters" style="margin-top:6px;">
+      <div class="field">
+        <label for="history-prestataire">Prestataire</label>
+        <select id="history-prestataire">
+          <option value="">Tous les prestataires</option>
+          {% for value in history_choices.prestataires %}
+            <option value="{{ value }}" {% if value == history_filters.prestataire %}selected{% endif %}>{{ value }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label for="history-beneficiaire">Beneficiaire</label>
+        <select id="history-beneficiaire">
+          <option value="">Tous les beneficiaires</option>
+          {% for value in history_choices.beneficiaires %}
+            <option value="{{ value }}" {% if value == history_filters.beneficiaire %}selected{% endif %}>{{ value }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label for="history-date-from">Date debut</label>
+        <input id="history-date-from" type="date" value="{{ history_filters.date_from }}">
+      </div>
+      <div class="field">
+        <label for="history-date-to">Date fin</label>
+        <input id="history-date-to" type="date" value="{{ history_filters.date_to }}">
+      </div>
+      <div class="history-filter-actions">
+        <button class="btn btn-ghost" type="button" id="history-apply">Filtrer</button>
+        <button class="btn btn-ghost" type="button" id="history-reset">Reinitialiser</button>
+      </div>
+    </div>
+    <form id="recap-form" method="post" action="{% url 'beneficiaire_recap' %}">
+      {% csrf_token %}
+      <div class="history-actions" style="margin-top:12px;">
+        <button class="btn" type="submit" id="btn-recap" disabled>Generer recap Excel</button>
+        <a
+          id="recap-selection-link"
+          class="btn btn-ghost"
+          href="#"
+          download
+          style="display:none;"
+        >
+          Telecharger recap selection
+        </a>
+        <a
+          id="recap-global-link"
+          class="btn btn-ghost"
+          href="{{ recap_global_url }}"
+          download
+          {% if not recap_global_url %}style="display:none;"{% endif %}
+        >
+          Telecharger recap global
+        </a>
+        <span id="selected-count" class="hint"></span>
+        <span id="recap-feedback" class="hint"></span>
+      </div>
+      <div class="table-wrap" style="margin-top:12px;">
+        <table class="history-table">
+          <thead>
+            <tr>
+              <th>Sel.</th>
+              <th>Fichier</th>
+              <th>Beneficiaire</th>
+              <th>Prestataire</th>
+              <th>Date</th>
+              <th>Statut</th>
+              <th>Anom. Tel</th>
+              <th>Anom. Sexe</th>
+              <th>Anom. Cohorte</th>
+              <th>Colonnes KO</th>
+            </tr>
+          </thead>
+          <tbody id="history-body">
+            {% if history_items %}
+              {% for item in history_items %}
+                <tr class="{% if item.est_rejete %}error{% endif %}">
+                  <td>
+                    <input type="checkbox" name="history_ids" value="{{ item.id }}" class="history-check">
+                  </td>
+                  <td class="wrap">{{ item.fichier_nom|default:"-" }}</td>
+                  <td class="wrap">{{ item.beneficiaire_nom|default:"-" }}</td>
+                  <td class="wrap">{{ item.prestataire_nom|default:"-" }}</td>
+                  <td>{{ item.created_at }}</td>
+                  <td>
+                    <span class="pill {% if item.est_rejete %}bad{% else %}ok{% endif %}">
+                      {% if item.est_rejete %}KO{% else %}OK{% endif %}
+                    </span>
+                  </td>
+                  <td>{{ item.telephone_anomalies }}</td>
+                  <td>{{ item.genre_anomalies }}</td>
+                  <td>{{ item.cohorte_anomalies }}</td>
+                  <td>{{ item.columns_with_issues }}</td>
+                </tr>
+              {% endfor %}
+            {% else %}
+              <tr class="hint">
+                <td colspan="10" style="text-align:center;">Aucun historique disponible.</td>
+              </tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+      <div class="history-footer">
+        <span id="history-count" class="hint"></span>
+        <div class="pager">
+          <button class="btn btn-ghost" type="button" id="history-prev">Precedent</button>
+          <span id="history-page-label" class="hint"></span>
+          <button class="btn btn-ghost" type="button" id="history-next">Suivant</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+<script>
+  (function () {
+    const form = document.getElementById("beneficiaire-form");
+    if (!form) return;
+    const input = document.getElementById("dataset");
+    const verifyBtn = document.getElementById("btn-verify");
+    const submitBtn = document.getElementById("btn-submit");
+    const statusPill = document.getElementById("status-pill");
+    const errorsBox = document.getElementById("errors-box");
+    const errorsList = document.getElementById("errors-list");
+    const errorsCsvWrap = document.getElementById("errors-csv-wrap");
+    const errorsCsvLink = document.getElementById("errors-csv-link");
+    const errorsTxtLink = document.getElementById("errors-txt-link");
+    const errorsXlsxLink = document.getElementById("errors-xlsx-link");
+    const successBox = document.getElementById("success-box");
+    const successText = document.getElementById("success-text");
+    const emptyHint = document.getElementById("empty-hint");
+    const metrics = document.getElementById("metrics");
+    const rowCount = document.getElementById("row-count");
+    const errorTypesWrap = document.getElementById("error-types-wrap");
+    const errorTypes = document.getElementById("error-types");
+    const prestataireNom = document.getElementById("prestataire-nom");
+    const beneficiaireNom = document.getElementById("beneficiaire-nom");
+    const previewBody = document.getElementById("preview-body");
+    const progressWrap = document.getElementById("progress-wrap");
+    const progressBar = document.getElementById("progress-bar");
+    const progressLabel = document.getElementById("progress-label");
+    const progressSub = document.getElementById("progress-sub");
+    const validationIdInput = document.getElementById("validation-id");
+    const recapForm = document.getElementById("recap-form");
+    const recapBtn = document.getElementById("btn-recap");
+    const recapSelectionLink = document.getElementById("recap-selection-link");
+    const recapGlobalLink = document.getElementById("recap-global-link");
+    const recapFeedback = document.getElementById("recap-feedback");
+    const selectedCount = document.getElementById("selected-count");
+    const historyBody = document.getElementById("history-body");
+    const historyPrestataire = document.getElementById("history-prestataire");
+    const historyBeneficiaire = document.getElementById("history-beneficiaire");
+    const historyDateFrom = document.getElementById("history-date-from");
+    const historyDateTo = document.getElementById("history-date-to");
+    const historyApply = document.getElementById("history-apply");
+    const historyReset = document.getElementById("history-reset");
+    const historyPrev = document.getElementById("history-prev");
+    const historyNext = document.getElementById("history-next");
+    const historyPageLabel = document.getElementById("history-page-label");
+    const historyCount = document.getElementById("history-count");
+    const historyUrl = "{% url 'beneficiaire_history' %}";
+
+    let progressTimer = null;
+    let lastProgress = 0;
+    let lastValidationOk = false;
+    const selectedIds = new Set();
+    const historyState = {
+      page: 1,
+      pages: 1,
+      total: 0,
+      pageSize: 10,
+    };
+
+    function hasFile() {
+      return !!(input && input.files && input.files.length);
+    }
+
+    function setProgress(pct, label) {
+      const clamped = Math.max(0, Math.min(100, pct));
+      lastProgress = clamped;
+      if (progressBar) progressBar.style.width = clamped + "%";
+      if (progressLabel) progressLabel.textContent = clamped + "%";
+      if (progressSub && label) progressSub.textContent = label;
+    }
+
+    function startProgress() {
+      if (progressTimer) {
+        clearInterval(progressTimer);
+        progressTimer = null;
+      }
+      lastProgress = 0;
+      if (progressWrap) progressWrap.style.display = "flex";
+      setProgress(0, "Chargement du fichier...");
+    }
+
+    function startProcessingRamp() {
+      if (progressTimer) return;
+      progressTimer = setInterval(() => {
+        if (lastProgress >= 95) {
+          clearInterval(progressTimer);
+          progressTimer = null;
+          return;
+        }
+        setProgress(lastProgress + 1, "Analyse des donnees...");
+      }, 140);
+    }
+
+    function finishProgress() {
+      setProgress(100, "Traitement termine.");
+      if (progressTimer) {
+        clearInterval(progressTimer);
+        progressTimer = null;
+      }
+      setTimeout(() => {
+        if (progressWrap) progressWrap.style.display = "none";
+      }, 400);
+    }
+
+    function setBusy(isBusy) {
+      if (verifyBtn) verifyBtn.disabled = isBusy || !hasFile();
+      if (submitBtn) submitBtn.disabled = isBusy || !lastValidationOk || !hasFile();
+    }
+
+    function updateStatus(validationDone, validationOk) {
+      if (!statusPill) return;
+      if (!validationDone) {
+        statusPill.style.display = "none";
+        return;
+      }
+      statusPill.style.display = "inline-flex";
+      statusPill.classList.remove("ok", "bad");
+      statusPill.classList.add(validationOk ? "ok" : "bad");
+      statusPill.textContent = validationOk ? "OK" : "Erreurs";
+    }
+
+    function renderErrors(errors) {
+      if (!errorsBox || !errorsList) return;
+      errorsList.innerHTML = "";
+      if (errors && errors.length) {
+        errors.forEach((err) => {
+          const li = document.createElement("li");
+          li.textContent = err;
+          errorsList.appendChild(li);
+        });
+        errorsBox.style.display = "block";
+      } else {
+        errorsBox.style.display = "none";
+      }
+    }
+
+    function renderErrorsExports(payload) {
+      if (!errorsCsvWrap) return;
+      const csvUrl = payload.errors_csv_url || "";
+      const txtUrl = payload.errors_txt_url || "";
+      const xlsxUrl = payload.errors_xlsx_url || "";
+      let hasAny = false;
+
+      if (errorsCsvLink) {
+        errorsCsvLink.href = csvUrl || "#";
+        errorsCsvLink.style.display = csvUrl ? "inline-flex" : "none";
+        hasAny = hasAny || !!csvUrl;
+      }
+      if (errorsTxtLink) {
+        errorsTxtLink.href = txtUrl || "#";
+        errorsTxtLink.style.display = txtUrl ? "inline-flex" : "none";
+        hasAny = hasAny || !!txtUrl;
+      }
+      if (errorsXlsxLink) {
+        errorsXlsxLink.href = xlsxUrl || "#";
+        errorsXlsxLink.style.display = xlsxUrl ? "inline-flex" : "none";
+        hasAny = hasAny || !!xlsxUrl;
+      }
+
+      errorsCsvWrap.style.display = hasAny ? "flex" : "none";
+    }
+
+    function renderSuccess(text, show) {
+      if (!successBox || !successText) return;
+      successText.textContent = text || "Verification terminee. Aucune erreur critique detectee.";
+      successBox.style.display = show ? "block" : "none";
+    }
+
+    function renderMetrics(data, validationDone) {
+      if (!metrics) return;
+      metrics.style.display = validationDone ? "block" : "none";
+      if (!validationDone) return;
+      if (rowCount) rowCount.textContent = data.row_count ?? 0;
+      const types = (data.error_types || []).filter(Boolean);
+      if (errorTypesWrap) errorTypesWrap.style.display = types.length ? "block" : "none";
+      if (errorTypes) errorTypes.textContent = types.join(", ");
+      if (prestataireNom) prestataireNom.textContent = data.prestataire_nom || "-";
+      if (beneficiaireNom) beneficiaireNom.textContent = data.beneficiaire_nom || "-";
+    }
+
+    function renderPreview(rows) {
+      if (!previewBody) return;
+      previewBody.innerHTML = "";
+      if (!rows || !rows.length) {
+        const tr = document.createElement("tr");
+        tr.className = "hint";
+        const td = document.createElement("td");
+        td.colSpan = 26;
+        td.style.textAlign = "center";
+        td.textContent = "Aucune previsualisation disponible.";
+        tr.appendChild(td);
+        previewBody.appendChild(tr);
+        return;
+      }
+      rows.forEach((row) => {
+        const tr = document.createElement("tr");
+        if (row.statut === "Erreur") {
+          tr.classList.add("error");
+        }
+        function addCell(value, isError) {
+          const td = document.createElement("td");
+          if (isError) td.classList.add("cell-error");
+          td.textContent = value == null ? "" : String(value);
+          tr.appendChild(td);
+        }
+        addCell(row.numero, row.numero_error);
+        addCell(row.nom_complet, row.nom_complet_error);
+        addCell(row.beneficiaire, row.beneficiaire_error);
+        addCell(row.genre, row.genre_error);
+        addCell(row.age, row.age_error);
+        addCell(row.fonction, row.fonction_error);
+        addCell(row.diplome, row.diplome_error);
+        addCell(row.experience, row.experience_error);
+        addCell(row.ville_residence, row.ville_residence_error);
+        addCell(row.prestataire, row.prestataire_error);
+        addCell(row.formation_solicitee, row.formation_solicitee_error);
+        addCell(row.formation_dispensee, row.formation_dispensee_error);
+        addCell(row.fenetre, row.fenetre_error);
+        addCell(row.ville_formation, row.ville_formation_error);
+        addCell(row.arrondissement, row.arrondissement_error);
+        addCell(row.departement, row.departement_error);
+        addCell(row.region, row.region_error);
+        addCell(row.lieu_formation, row.lieu_formation_error);
+        addCell(row.precision_lieu, row.precision_lieu_error);
+        addCell(row.gps_longitude, row.gps_longitude_error);
+        addCell(row.gps_latitude, row.gps_latitude_error);
+        addCell(row.telephone1, row.telephone1_error);
+        addCell(row.telephone2, row.telephone2_error);
+        addCell(row.cohorte, row.cohorte_error);
+        addCell(row.telephone_formateur, row.telephone_formateur_error);
+        addCell(row.statut, false);
+        addCell(row.erreurs || "-", false);
+        previewBody.appendChild(tr);
+      });
+    }
+
+    function updateRecapButton() {
+      if (!recapBtn) return;
+      recapBtn.disabled = selectedIds.size === 0;
+    }
+
+    function updateSelectionCount() {
+      if (!selectedCount) return;
+      selectedCount.textContent = selectedIds.size
+        ? selectedIds.size + " fichier(s) selectionne(s)"
+        : "";
+    }
+
+    function clearSelection() {
+      selectedIds.clear();
+      updateRecapButton();
+      updateSelectionCount();
+      if (recapSelectionLink) recapSelectionLink.style.display = "none";
+      if (recapFeedback) recapFeedback.textContent = "";
+    }
+
+    function renderHistory(items) {
+      if (!historyBody) return;
+      historyBody.innerHTML = "";
+      if (!items || !items.length) {
+        const tr = document.createElement("tr");
+        tr.className = "hint";
+        const td = document.createElement("td");
+        td.colSpan = 10;
+        td.style.textAlign = "center";
+        td.textContent = "Aucun historique disponible.";
+        tr.appendChild(td);
+        historyBody.appendChild(tr);
+        updateRecapButton();
+        updateSelectionCount();
+        return;
+      }
+      items.forEach((item) => {
+        const tr = document.createElement("tr");
+        if (item.est_rejete) tr.classList.add("error");
+
+        const tdCheck = document.createElement("td");
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.name = "history_ids";
+        checkbox.value = item.id;
+        checkbox.className = "history-check";
+        checkbox.checked = selectedIds.has(String(item.id));
+        tdCheck.appendChild(checkbox);
+        tr.appendChild(tdCheck);
+
+        function addCell(value, className) {
+          const td = document.createElement("td");
+          if (className) td.className = className;
+          td.textContent = value == null || value === "" ? "-" : String(value);
+          tr.appendChild(td);
+        }
+
+        addCell(item.fichier_nom, "wrap");
+        addCell(item.beneficiaire_nom, "wrap");
+        addCell(item.prestataire_nom, "wrap");
+        addCell(item.created_at);
+
+        const statusTd = document.createElement("td");
+        const status = document.createElement("span");
+        status.className = "pill " + (item.est_rejete ? "bad" : "ok");
+        status.textContent = item.est_rejete ? "KO" : "OK";
+        statusTd.appendChild(status);
+        tr.appendChild(statusTd);
+
+        addCell(item.telephone_anomalies);
+        addCell(item.genre_anomalies);
+        addCell(item.cohorte_anomalies);
+        addCell(item.columns_with_issues);
+
+        historyBody.appendChild(tr);
+      });
+      updateRecapButton();
+      updateSelectionCount();
+    }
+
+    function renderHistoryLoading() {
+      if (!historyBody) return;
+      historyBody.innerHTML = "";
+      const tr = document.createElement("tr");
+      tr.className = "hint";
+      const td = document.createElement("td");
+      td.colSpan = 10;
+      td.style.textAlign = "center";
+      td.textContent = "Chargement de l'historique...";
+      tr.appendChild(td);
+      historyBody.appendChild(tr);
+    }
+
+    function getHistoryFilters() {
+      return {
+        prestataire: historyPrestataire ? historyPrestataire.value.trim() : "",
+        beneficiaire: historyBeneficiaire ? historyBeneficiaire.value.trim() : "",
+        date_from: historyDateFrom ? historyDateFrom.value : "",
+        date_to: historyDateTo ? historyDateTo.value : "",
+      };
+    }
+
+    function renderPagination(meta) {
+      if (!meta) return;
+      const page = Number(meta.page || 1);
+      const pages = Math.max(1, Number(meta.pages || 1));
+      const total = Number(meta.total || 0);
+      const pageSize = Number(meta.page_size || historyState.pageSize || 10);
+      historyState.page = page;
+      historyState.pages = pages;
+      historyState.total = total;
+      historyState.pageSize = pageSize;
+
+      if (historyPrev) historyPrev.disabled = page <= 1;
+      if (historyNext) historyNext.disabled = page >= pages;
+      if (historyPageLabel) historyPageLabel.textContent = "Page " + page + " / " + (pages || 1);
+      if (historyCount) {
+        if (!total) {
+          historyCount.textContent = "Aucun fichier";
+        } else {
+          const start = (page - 1) * pageSize + 1;
+          const end = Math.min(page * pageSize, total);
+          historyCount.textContent = "Affichage " + start + "-" + end + " sur " + total;
+        }
+      }
+    }
+
+    function fetchHistory(targetPage) {
+      if (!historyUrl) return;
+      const filters = getHistoryFilters();
+      const page = targetPage || historyState.page || 1;
+      const params = new URLSearchParams();
+      params.set("page", page);
+      if (filters.prestataire) params.set("prestataire", filters.prestataire);
+      if (filters.beneficiaire) params.set("beneficiaire", filters.beneficiaire);
+      if (filters.date_from) params.set("date_from", filters.date_from);
+      if (filters.date_to) params.set("date_to", filters.date_to);
+
+      historyState.page = page;
+      renderHistoryLoading();
+      const xhr = new XMLHttpRequest();
+      xhr.open("GET", historyUrl + "?" + params.toString());
+      xhr.setRequestHeader("X-Requested-With", "XMLHttpRequest");
+      xhr.onload = function () {
+        let payload = null;
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            payload = JSON.parse(xhr.responseText);
+          } catch (err) {
+            payload = { history: [], meta: {} };
+          }
+        } else {
+          payload = { history: [], meta: {} };
+        }
+        renderHistory(payload.history || []);
+        renderPagination(payload.meta || {});
+      };
+      xhr.onerror = function () {
+        renderHistory([]);
+        renderPagination({ page: 1, pages: 1, total: 0, page_size: historyState.pageSize });
+      };
+      xhr.send();
+    }
+
+    function renderHistoryChoices(choices) {
+      if (!choices) return;
+      function updateSelect(select, items, placeholder) {
+        if (!select) return;
+        const current = select.value;
+        select.innerHTML = "";
+        const option = document.createElement("option");
+        option.value = "";
+        option.textContent = placeholder;
+        select.appendChild(option);
+        (items || []).forEach((item) => {
+          const opt = document.createElement("option");
+          opt.value = item;
+          opt.textContent = item;
+          select.appendChild(opt);
+        });
+        if (current) select.value = current;
+      }
+      updateSelect(historyPrestataire, choices.prestataires, "Tous les prestataires");
+      updateSelect(historyBeneficiaire, choices.beneficiaires, "Tous les beneficiaires");
+    }
+
+    function updateRecapGlobalLink(url) {
+      if (!recapGlobalLink) return;
+      if (url) {
+        recapGlobalLink.href = url;
+        recapGlobalLink.style.display = "inline-flex";
+      } else {
+        recapGlobalLink.style.display = "none";
+      }
+    }
+
+    function resetResults() {
+      lastValidationOk = false;
+      updateStatus(false, false);
+      renderErrors([]);
+      renderErrorsExports({});
+      renderSuccess("", false);
+      if (emptyHint) emptyHint.style.display = "block";
+      renderMetrics({}, false);
+      renderPreview([]);
+      if (validationIdInput) validationIdInput.value = "";
+      if (recapSelectionLink) recapSelectionLink.style.display = "none";
+      if (recapFeedback) recapFeedback.textContent = "";
+      if (progressWrap) progressWrap.style.display = "none";
+      if (progressBar) progressBar.style.width = "0%";
+      if (progressLabel) progressLabel.textContent = "0%";
+      if (progressSub) progressSub.textContent = "En attente de fichier.";
+      setBusy(false);
+    }
+
+    function handleResponse(data, action) {
+      const errors = data.errors || [];
+      const validationOk = !!data.validation_ok;
+      const validationDone = !!data.validation_done || errors.length > 0;
+      lastValidationOk = validationOk;
+      updateStatus(validationDone, validationOk);
+      renderErrors(errors);
+      renderErrorsExports(data);
+      renderSuccess(data.success_message, validationOk);
+      if (emptyHint) emptyHint.style.display = validationDone ? "none" : "block";
+      renderMetrics(data, validationDone);
+      renderPreview(data.preview_rows || []);
+      if (Object.prototype.hasOwnProperty.call(data, "history")) {
+        renderHistory(data.history || []);
+        renderPagination(data.history_meta || {});
+      }
+      if (Object.prototype.hasOwnProperty.call(data, "history_choices")) {
+        renderHistoryChoices(data.history_choices || {});
+      }
+      updateRecapGlobalLink(data.recap_global_url || "");
+      if (validationIdInput) validationIdInput.value = data.validation_id || "";
+      if (historyUrl && (action === "verify" || action === "submit")) {
+        fetchHistory(historyState.page);
+      }
+    }
+
+    function send(action) {
+      if (!hasFile()) {
+        handleResponse({ errors: ["Veuillez charger un fichier CSV ou Excel."], validation_done: true }, action);
+        setBusy(false);
+        return;
+      }
+      setBusy(true);
+      startProgress();
+      const formData = new FormData(form);
+      formData.set("action", action);
+      const xhr = new XMLHttpRequest();
+      const target = form.getAttribute("action") || window.location.href;
+      xhr.open("POST", target);
+      xhr.setRequestHeader("X-Requested-With", "XMLHttpRequest");
+
+      xhr.upload.onprogress = function (event) {
+        if (!event.lengthComputable) return;
+        const pct = Math.round((event.loaded / event.total) * 80);
+        if (pct > lastProgress) {
+          setProgress(pct, "Upload du fichier...");
+        }
+        if (pct >= 80) startProcessingRamp();
+      };
+
+      xhr.upload.onload = function () {
+        if (lastProgress < 80) setProgress(80, "Analyse des donnees...");
+        startProcessingRamp();
+      };
+
+      xhr.onload = function () {
+        let payload = null;
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            payload = JSON.parse(xhr.responseText);
+          } catch (err) {
+            payload = { errors: ["Reponse serveur invalide."], validation_done: true };
+          }
+        } else {
+          payload = { errors: ["Erreur serveur lors du traitement."], validation_done: true };
+        }
+        finishProgress();
+        handleResponse(payload, action);
+        setBusy(false);
+      };
+
+      xhr.onerror = function () {
+        finishProgress();
+        handleResponse({ errors: ["Impossible de contacter le serveur."], validation_done: true }, action);
+        setBusy(false);
+      };
+
+      xhr.send(formData);
+    }
+
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      send("verify");
+    });
+
+    if (submitBtn) {
+      submitBtn.addEventListener("click", (event) => {
+        event.preventDefault();
+        send("submit");
+      });
+    }
+
+    if (input) {
+      input.addEventListener("change", () => {
+        resetResults();
+      });
+    }
+
+    if (historyBody) {
+      historyBody.addEventListener("change", (event) => {
+        if (event.target && event.target.classList.contains("history-check")) {
+          const id = String(event.target.value || "");
+          if (event.target.checked) {
+            selectedIds.add(id);
+          } else {
+            selectedIds.delete(id);
+          }
+          updateRecapButton();
+          updateSelectionCount();
+        }
+      });
+    }
+
+    if (historyApply) {
+      historyApply.addEventListener("click", () => {
+        clearSelection();
+        fetchHistory(1);
+      });
+    }
+
+    if (historyReset) {
+      historyReset.addEventListener("click", () => {
+        if (historyPrestataire) historyPrestataire.value = "";
+        if (historyBeneficiaire) historyBeneficiaire.value = "";
+        if (historyDateFrom) historyDateFrom.value = "";
+        if (historyDateTo) historyDateTo.value = "";
+        clearSelection();
+        fetchHistory(1);
+      });
+    }
+
+    if (historyPrev) {
+      historyPrev.addEventListener("click", () => {
+        if (historyState.page > 1) {
+          fetchHistory(historyState.page - 1);
+        }
+      });
+    }
+
+    if (historyNext) {
+      historyNext.addEventListener("click", () => {
+        if (historyState.page < historyState.pages) {
+          fetchHistory(historyState.page + 1);
+        }
+      });
+    }
+
+    if (recapForm) {
+      recapForm.addEventListener("submit", (event) => {
+        event.preventDefault();
+        if (recapBtn) recapBtn.disabled = true;
+        if (recapFeedback) recapFeedback.textContent = "Generation du recap...";
+        if (recapSelectionLink) recapSelectionLink.style.display = "none";
+        if (!selectedIds.size) {
+          if (recapFeedback) recapFeedback.textContent = "Selectionnez au moins un fichier.";
+          updateRecapButton();
+          return;
+        }
+        const formData = new FormData(recapForm);
+        formData.delete("history_ids");
+        selectedIds.forEach((id) => {
+          formData.append("history_ids", id);
+        });
+        const xhr = new XMLHttpRequest();
+        const target = recapForm.getAttribute("action") || window.location.href;
+        xhr.open("POST", target);
+        xhr.setRequestHeader("X-Requested-With", "XMLHttpRequest");
+        xhr.onload = function () {
+          let payload = null;
+          if (xhr.status >= 200 && xhr.status < 300) {
+            try {
+              payload = JSON.parse(xhr.responseText);
+            } catch (err) {
+              payload = { errors: ["Reponse serveur invalide."] };
+            }
+          } else {
+            payload = { errors: ["Erreur serveur lors de la generation du recap."] };
+          }
+          const errors = payload.errors || [];
+          if (errors.length) {
+            if (recapFeedback) recapFeedback.textContent = errors.join(" ");
+          } else if (payload.recap_xlsx_url) {
+            if (recapSelectionLink) {
+              recapSelectionLink.href = payload.recap_xlsx_url;
+              recapSelectionLink.style.display = "inline-flex";
+            }
+            if (recapFeedback) recapFeedback.textContent = "Recap genere.";
+          } else if (recapFeedback) {
+            recapFeedback.textContent = "Recap indisponible.";
+          }
+          updateRecapButton();
+        };
+        xhr.onerror = function () {
+          if (recapFeedback) recapFeedback.textContent = "Impossible de contacter le serveur.";
+          updateRecapButton();
+        };
+        xhr.send(formData);
+      });
+    }
+
+    if (statusPill && statusPill.classList.contains("ok") && statusPill.offsetParent !== null) {
+      lastValidationOk = true;
+    }
+    renderPagination({
+      page: {{ history_meta.page|default:1 }},
+      pages: {{ history_meta.pages|default:1 }},
+      total: {{ history_meta.total|default:0 }},
+      page_size: {{ history_meta.page_size|default:10 }},
+    });
+    updateRecapButton();
+    updateSelectionCount();
+    setBusy(false);
+  })();
+</script>
+{% endblock %}

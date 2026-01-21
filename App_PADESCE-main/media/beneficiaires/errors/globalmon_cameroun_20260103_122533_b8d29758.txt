@@ -1,0 +1,361 @@
+﻿beneficiaire	ligne	colonne	valeur	erreur
+Globalmon Cameroun	2	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+Globalmon Cameroun	3	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+Globalmon Cameroun	4	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+Globalmon Cameroun	5	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+Globalmon Cameroun	6	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+Globalmon Cameroun	7	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+Globalmon Cameroun	8	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+Globalmon Cameroun	9	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+Globalmon Cameroun	10	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+Globalmon Cameroun	11	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+Globalmon Cameroun	12	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+Globalmon Cameroun	13	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+Globalmon Cameroun	14	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+Globalmon Cameroun	15	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+Globalmon Cameroun	16	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+Globalmon Cameroun	17	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+Globalmon Cameroun	18	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+Globalmon Cameroun	19	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+Globalmon Cameroun	20	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+Globalmon Cameroun	21	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+Globalmon Cameroun	22	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+Globalmon Cameroun	23	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+Globalmon Cameroun	24	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+Globalmon Cameroun	25	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+Globalmon Cameroun	26	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+Globalmon Cameroun	27	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+Globalmon Cameroun	28	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+Globalmon Cameroun	29	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+Globalmon Cameroun	30	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+Globalmon Cameroun	31	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+Globalmon Cameroun	32	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+Globalmon Cameroun	33	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+Globalmon Cameroun	34	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+Globalmon Cameroun	35	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+Globalmon Cameroun	36	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+Globalmon Cameroun	37	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+Globalmon Cameroun	38	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+Globalmon Cameroun	39	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+Globalmon Cameroun	40	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+Globalmon Cameroun	41	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+Globalmon Cameroun	42	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+Globalmon Cameroun	43	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+Globalmon Cameroun	44	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+Globalmon Cameroun	45	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+Globalmon Cameroun	46	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+Globalmon Cameroun	47	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+Globalmon Cameroun	48	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+Globalmon Cameroun	49	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+Globalmon Cameroun	50	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+Globalmon Cameroun	51	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+Globalmon Cameroun	52	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+Globalmon Cameroun	53	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+Globalmon Cameroun	54	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+Globalmon Cameroun	55	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+Globalmon Cameroun	56	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+Globalmon Cameroun	57	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+Globalmon Cameroun	58	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+Globalmon Cameroun	59	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+Globalmon Cameroun	60	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+Globalmon Cameroun	61	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+Globalmon Cameroun	62	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+Globalmon Cameroun	63	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+Globalmon Cameroun	64	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+Globalmon Cameroun	65	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+Globalmon Cameroun	66	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+Globalmon Cameroun	67	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+Globalmon Cameroun	68	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+Globalmon Cameroun	69	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+Globalmon Cameroun	70	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+Globalmon Cameroun	71	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+Globalmon Cameroun	72	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+Globalmon Cameroun	73	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+Globalmon Cameroun	74	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+Globalmon Cameroun	75	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+Globalmon Cameroun	76	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+Globalmon Cameroun	77	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+Globalmon Cameroun	78	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+Globalmon Cameroun	79	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+Globalmon Cameroun	80	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+Globalmon Cameroun	81	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+Globalmon Cameroun	82	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+Globalmon Cameroun	83	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+Globalmon Cameroun	84	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+Globalmon Cameroun	85	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+Globalmon Cameroun	86	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+Globalmon Cameroun	87	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+Globalmon Cameroun	88	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+Globalmon Cameroun	89	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+Globalmon Cameroun	90	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+Globalmon Cameroun	91	Intitulé de la formation sollicitée / Title of Requested Training		Formation sollicitee manquante
+Globalmon Cameroun	2	Coordonnées GPS du lieu de formation – Longitude / Training Venue GPS – Longitude		Longitude manquante
+Globalmon Cameroun	3	Coordonnées GPS du lieu de formation – Longitude / Training Venue GPS – Longitude		Longitude manquante
+Globalmon Cameroun	4	Coordonnées GPS du lieu de formation – Longitude / Training Venue GPS – Longitude		Longitude manquante
+Globalmon Cameroun	5	Coordonnées GPS du lieu de formation – Longitude / Training Venue GPS – Longitude		Longitude manquante
+Globalmon Cameroun	6	Coordonnées GPS du lieu de formation – Longitude / Training Venue GPS – Longitude		Longitude manquante
+Globalmon Cameroun	7	Coordonnées GPS du lieu de formation – Longitude / Training Venue GPS – Longitude		Longitude manquante
+Globalmon Cameroun	8	Coordonnées GPS du lieu de formation – Longitude / Training Venue GPS – Longitude		Longitude manquante
+Globalmon Cameroun	9	Coordonnées GPS du lieu de formation – Longitude / Training Venue GPS – Longitude		Longitude manquante
+Globalmon Cameroun	10	Coordonnées GPS du lieu de formation – Longitude / Training Venue GPS – Longitude		Longitude manquante
+Globalmon Cameroun	11	Coordonnées GPS du lieu de formation – Longitude / Training Venue GPS – Longitude		Longitude manquante
+Globalmon Cameroun	12	Coordonnées GPS du lieu de formation – Longitude / Training Venue GPS – Longitude		Longitude manquante
+Globalmon Cameroun	13	Coordonnées GPS du lieu de formation – Longitude / Training Venue GPS – Longitude		Longitude manquante
+Globalmon Cameroun	14	Coordonnées GPS du lieu de formation – Longitude / Training Venue GPS – Longitude		Longitude manquante
+Globalmon Cameroun	15	Coordonnées GPS du lieu de formation – Longitude / Training Venue GPS – Longitude		Longitude manquante
+Globalmon Cameroun	16	Coordonnées GPS du lieu de formation – Longitude / Training Venue GPS – Longitude		Longitude manquante
+Globalmon Cameroun	17	Coordonnées GPS du lieu de formation – Longitude / Training Venue GPS – Longitude		Longitude manquante
+Globalmon Cameroun	18	Coordonnées GPS du lieu de formation – Longitude / Training Venue GPS – Longitude		Longitude manquante
+Globalmon Cameroun	19	Coordonnées GPS du lieu de formation – Longitude / Training Venue GPS – Longitude		Longitude manquante
+Globalmon Cameroun	20	Coordonnées GPS du lieu de formation – Longitude / Training Venue GPS – Longitude		Longitude manquante
+Globalmon Cameroun	21	Coordonnées GPS du lieu de formation – Longitude / Training Venue GPS – Longitude		Longitude manquante
+Globalmon Cameroun	22	Coordonnées GPS du lieu de formation – Longitude / Training Venue GPS – Longitude		Longitude manquante
+Globalmon Cameroun	23	Coordonnées GPS du lieu de formation – Longitude / Training Venue GPS – Longitude		Longitude manquante
+Globalmon Cameroun	24	Coordonnées GPS du lieu de formation – Longitude / Training Venue GPS – Longitude		Longitude manquante
+Globalmon Cameroun	25	Coordonnées GPS du lieu de formation – Longitude / Training Venue GPS – Longitude		Longitude manquante
+Globalmon Cameroun	26	Coordonnées GPS du lieu de formation – Longitude / Training Venue GPS – Longitude		Longitude manquante
+Globalmon Cameroun	27	Coordonnées GPS du lieu de formation – Longitude / Training Venue GPS – Longitude		Longitude manquante
+Globalmon Cameroun	28	Coordonnées GPS du lieu de formation – Longitude / Training Venue GPS – Longitude		Longitude manquante
+Globalmon Cameroun	29	Coordonnées GPS du lieu de formation – Longitude / Training Venue GPS – Longitude		Longitude manquante
+Globalmon Cameroun	30	Coordonnées GPS du lieu de formation – Longitude / Training Venue GPS – Longitude		Longitude manquante
+Globalmon Cameroun	31	Coordonnées GPS du lieu de formation – Longitude / Training Venue GPS – Longitude		Longitude manquante
+Globalmon Cameroun	32	Coordonnées GPS du lieu de formation – Longitude / Training Venue GPS – Longitude		Longitude manquante
+Globalmon Cameroun	33	Coordonnées GPS du lieu de formation – Longitude / Training Venue GPS – Longitude		Longitude manquante
+Globalmon Cameroun	34	Coordonnées GPS du lieu de formation – Longitude / Training Venue GPS – Longitude		Longitude manquante
+Globalmon Cameroun	35	Coordonnées GPS du lieu de formation – Longitude / Training Venue GPS – Longitude		Longitude manquante
+Globalmon Cameroun	36	Coordonnées GPS du lieu de formation – Longitude / Training Venue GPS – Longitude		Longitude manquante
+Globalmon Cameroun	37	Coordonnées GPS du lieu de formation – Longitude / Training Venue GPS – Longitude		Longitude manquante
+Globalmon Cameroun	38	Coordonnées GPS du lieu de formation – Longitude / Training Venue GPS – Longitude		Longitude manquante
+Globalmon Cameroun	39	Coordonnées GPS du lieu de formation – Longitude / Training Venue GPS – Longitude		Longitude manquante
+Globalmon Cameroun	40	Coordonnées GPS du lieu de formation – Longitude / Training Venue GPS – Longitude		Longitude manquante
+Globalmon Cameroun	41	Coordonnées GPS du lieu de formation – Longitude / Training Venue GPS – Longitude		Longitude manquante
+Globalmon Cameroun	42	Coordonnées GPS du lieu de formation – Longitude / Training Venue GPS – Longitude		Longitude manquante
+Globalmon Cameroun	43	Coordonnées GPS du lieu de formation – Longitude / Training Venue GPS – Longitude		Longitude manquante
+Globalmon Cameroun	44	Coordonnées GPS du lieu de formation – Longitude / Training Venue GPS – Longitude		Longitude manquante
+Globalmon Cameroun	45	Coordonnées GPS du lieu de formation – Longitude / Training Venue GPS – Longitude		Longitude manquante
+Globalmon Cameroun	46	Coordonnées GPS du lieu de formation – Longitude / Training Venue GPS – Longitude		Longitude manquante
+Globalmon Cameroun	47	Coordonnées GPS du lieu de formation – Longitude / Training Venue GPS – Longitude		Longitude manquante
+Globalmon Cameroun	48	Coordonnées GPS du lieu de formation – Longitude / Training Venue GPS – Longitude		Longitude manquante
+Globalmon Cameroun	49	Coordonnées GPS du lieu de formation – Longitude / Training Venue GPS – Longitude		Longitude manquante
+Globalmon Cameroun	50	Coordonnées GPS du lieu de formation – Longitude / Training Venue GPS – Longitude		Longitude manquante
+Globalmon Cameroun	51	Coordonnées GPS du lieu de formation – Longitude / Training Venue GPS – Longitude		Longitude manquante
+Globalmon Cameroun	52	Coordonnées GPS du lieu de formation – Longitude / Training Venue GPS – Longitude		Longitude manquante
+Globalmon Cameroun	53	Coordonnées GPS du lieu de formation – Longitude / Training Venue GPS – Longitude		Longitude manquante
+Globalmon Cameroun	54	Coordonnées GPS du lieu de formation – Longitude / Training Venue GPS – Longitude		Longitude manquante
+Globalmon Cameroun	55	Coordonnées GPS du lieu de formation – Longitude / Training Venue GPS – Longitude		Longitude manquante
+Globalmon Cameroun	56	Coordonnées GPS du lieu de formation – Longitude / Training Venue GPS – Longitude		Longitude manquante
+Globalmon Cameroun	57	Coordonnées GPS du lieu de formation – Longitude / Training Venue GPS – Longitude		Longitude manquante
+Globalmon Cameroun	58	Coordonnées GPS du lieu de formation – Longitude / Training Venue GPS – Longitude		Longitude manquante
+Globalmon Cameroun	59	Coordonnées GPS du lieu de formation – Longitude / Training Venue GPS – Longitude		Longitude manquante
+Globalmon Cameroun	60	Coordonnées GPS du lieu de formation – Longitude / Training Venue GPS – Longitude		Longitude manquante
+Globalmon Cameroun	61	Coordonnées GPS du lieu de formation – Longitude / Training Venue GPS – Longitude		Longitude manquante
+Globalmon Cameroun	62	Coordonnées GPS du lieu de formation – Longitude / Training Venue GPS – Longitude		Longitude manquante
+Globalmon Cameroun	63	Coordonnées GPS du lieu de formation – Longitude / Training Venue GPS – Longitude		Longitude manquante
+Globalmon Cameroun	64	Coordonnées GPS du lieu de formation – Longitude / Training Venue GPS – Longitude		Longitude manquante
+Globalmon Cameroun	65	Coordonnées GPS du lieu de formation – Longitude / Training Venue GPS – Longitude		Longitude manquante
+Globalmon Cameroun	66	Coordonnées GPS du lieu de formation – Longitude / Training Venue GPS – Longitude		Longitude manquante
+Globalmon Cameroun	67	Coordonnées GPS du lieu de formation – Longitude / Training Venue GPS – Longitude		Longitude manquante
+Globalmon Cameroun	68	Coordonnées GPS du lieu de formation – Longitude / Training Venue GPS – Longitude		Longitude manquante
+Globalmon Cameroun	69	Coordonnées GPS du lieu de formation – Longitude / Training Venue GPS – Longitude		Longitude manquante
+Globalmon Cameroun	70	Coordonnées GPS du lieu de formation – Longitude / Training Venue GPS – Longitude		Longitude manquante
+Globalmon Cameroun	71	Coordonnées GPS du lieu de formation – Longitude / Training Venue GPS – Longitude		Longitude manquante
+Globalmon Cameroun	72	Coordonnées GPS du lieu de formation – Longitude / Training Venue GPS – Longitude		Longitude manquante
+Globalmon Cameroun	73	Coordonnées GPS du lieu de formation – Longitude / Training Venue GPS – Longitude		Longitude manquante
+Globalmon Cameroun	74	Coordonnées GPS du lieu de formation – Longitude / Training Venue GPS – Longitude		Longitude manquante
+Globalmon Cameroun	75	Coordonnées GPS du lieu de formation – Longitude / Training Venue GPS – Longitude		Longitude manquante
+Globalmon Cameroun	76	Coordonnées GPS du lieu de formation – Longitude / Training Venue GPS – Longitude		Longitude manquante
+Globalmon Cameroun	77	Coordonnées GPS du lieu de formation – Longitude / Training Venue GPS – Longitude		Longitude manquante
+Globalmon Cameroun	78	Coordonnées GPS du lieu de formation – Longitude / Training Venue GPS – Longitude		Longitude manquante
+Globalmon Cameroun	79	Coordonnées GPS du lieu de formation – Longitude / Training Venue GPS – Longitude		Longitude manquante
+Globalmon Cameroun	80	Coordonnées GPS du lieu de formation – Longitude / Training Venue GPS – Longitude		Longitude manquante
+Globalmon Cameroun	81	Coordonnées GPS du lieu de formation – Longitude / Training Venue GPS – Longitude		Longitude manquante
+Globalmon Cameroun	82	Coordonnées GPS du lieu de formation – Longitude / Training Venue GPS – Longitude		Longitude manquante
+Globalmon Cameroun	83	Coordonnées GPS du lieu de formation – Longitude / Training Venue GPS – Longitude		Longitude manquante
+Globalmon Cameroun	84	Coordonnées GPS du lieu de formation – Longitude / Training Venue GPS – Longitude		Longitude manquante
+Globalmon Cameroun	85	Coordonnées GPS du lieu de formation – Longitude / Training Venue GPS – Longitude		Longitude manquante
+Globalmon Cameroun	86	Coordonnées GPS du lieu de formation – Longitude / Training Venue GPS – Longitude		Longitude manquante
+Globalmon Cameroun	87	Coordonnées GPS du lieu de formation – Longitude / Training Venue GPS – Longitude		Longitude manquante
+Globalmon Cameroun	88	Coordonnées GPS du lieu de formation – Longitude / Training Venue GPS – Longitude		Longitude manquante
+Globalmon Cameroun	89	Coordonnées GPS du lieu de formation – Longitude / Training Venue GPS – Longitude		Longitude manquante
+Globalmon Cameroun	90	Coordonnées GPS du lieu de formation – Longitude / Training Venue GPS – Longitude		Longitude manquante
+Globalmon Cameroun	91	Coordonnées GPS du lieu de formation – Longitude / Training Venue GPS – Longitude		Longitude manquante
+Globalmon Cameroun	2	Coordonnées GPS du lieu de formation – Latitude / Training Venue GPS – Latitude		Latitude manquante
+Globalmon Cameroun	3	Coordonnées GPS du lieu de formation – Latitude / Training Venue GPS – Latitude		Latitude manquante
+Globalmon Cameroun	4	Coordonnées GPS du lieu de formation – Latitude / Training Venue GPS – Latitude		Latitude manquante
+Globalmon Cameroun	5	Coordonnées GPS du lieu de formation – Latitude / Training Venue GPS – Latitude		Latitude manquante
+Globalmon Cameroun	6	Coordonnées GPS du lieu de formation – Latitude / Training Venue GPS – Latitude		Latitude manquante
+Globalmon Cameroun	7	Coordonnées GPS du lieu de formation – Latitude / Training Venue GPS – Latitude		Latitude manquante
+Globalmon Cameroun	8	Coordonnées GPS du lieu de formation – Latitude / Training Venue GPS – Latitude		Latitude manquante
+Globalmon Cameroun	9	Coordonnées GPS du lieu de formation – Latitude / Training Venue GPS – Latitude		Latitude manquante
+Globalmon Cameroun	10	Coordonnées GPS du lieu de formation – Latitude / Training Venue GPS – Latitude		Latitude manquante
+Globalmon Cameroun	11	Coordonnées GPS du lieu de formation – Latitude / Training Venue GPS – Latitude		Latitude manquante
+Globalmon Cameroun	12	Coordonnées GPS du lieu de formation – Latitude / Training Venue GPS – Latitude		Latitude manquante
+Globalmon Cameroun	13	Coordonnées GPS du lieu de formation – Latitude / Training Venue GPS – Latitude		Latitude manquante
+Globalmon Cameroun	14	Coordonnées GPS du lieu de formation – Latitude / Training Venue GPS – Latitude		Latitude manquante
+Globalmon Cameroun	15	Coordonnées GPS du lieu de formation – Latitude / Training Venue GPS – Latitude		Latitude manquante
+Globalmon Cameroun	16	Coordonnées GPS du lieu de formation – Latitude / Training Venue GPS – Latitude		Latitude manquante
+Globalmon Cameroun	17	Coordonnées GPS du lieu de formation – Latitude / Training Venue GPS – Latitude		Latitude manquante
+Globalmon Cameroun	18	Coordonnées GPS du lieu de formation – Latitude / Training Venue GPS – Latitude		Latitude manquante
+Globalmon Cameroun	19	Coordonnées GPS du lieu de formation – Latitude / Training Venue GPS – Latitude		Latitude manquante
+Globalmon Cameroun	20	Coordonnées GPS du lieu de formation – Latitude / Training Venue GPS – Latitude		Latitude manquante
+Globalmon Cameroun	21	Coordonnées GPS du lieu de formation – Latitude / Training Venue GPS – Latitude		Latitude manquante
+Globalmon Cameroun	22	Coordonnées GPS du lieu de formation – Latitude / Training Venue GPS – Latitude		Latitude manquante
+Globalmon Cameroun	23	Coordonnées GPS du lieu de formation – Latitude / Training Venue GPS – Latitude		Latitude manquante
+Globalmon Cameroun	24	Coordonnées GPS du lieu de formation – Latitude / Training Venue GPS – Latitude		Latitude manquante
+Globalmon Cameroun	25	Coordonnées GPS du lieu de formation – Latitude / Training Venue GPS – Latitude		Latitude manquante
+Globalmon Cameroun	26	Coordonnées GPS du lieu de formation – Latitude / Training Venue GPS – Latitude		Latitude manquante
+Globalmon Cameroun	27	Coordonnées GPS du lieu de formation – Latitude / Training Venue GPS – Latitude		Latitude manquante
+Globalmon Cameroun	28	Coordonnées GPS du lieu de formation – Latitude / Training Venue GPS – Latitude		Latitude manquante
+Globalmon Cameroun	29	Coordonnées GPS du lieu de formation – Latitude / Training Venue GPS – Latitude		Latitude manquante
+Globalmon Cameroun	30	Coordonnées GPS du lieu de formation – Latitude / Training Venue GPS – Latitude		Latitude manquante
+Globalmon Cameroun	31	Coordonnées GPS du lieu de formation – Latitude / Training Venue GPS – Latitude		Latitude manquante
+Globalmon Cameroun	32	Coordonnées GPS du lieu de formation – Latitude / Training Venue GPS – Latitude		Latitude manquante
+Globalmon Cameroun	33	Coordonnées GPS du lieu de formation – Latitude / Training Venue GPS – Latitude		Latitude manquante
+Globalmon Cameroun	34	Coordonnées GPS du lieu de formation – Latitude / Training Venue GPS – Latitude		Latitude manquante
+Globalmon Cameroun	35	Coordonnées GPS du lieu de formation – Latitude / Training Venue GPS – Latitude		Latitude manquante
+Globalmon Cameroun	36	Coordonnées GPS du lieu de formation – Latitude / Training Venue GPS – Latitude		Latitude manquante
+Globalmon Cameroun	37	Coordonnées GPS du lieu de formation – Latitude / Training Venue GPS – Latitude		Latitude manquante
+Globalmon Cameroun	38	Coordonnées GPS du lieu de formation – Latitude / Training Venue GPS – Latitude		Latitude manquante
+Globalmon Cameroun	39	Coordonnées GPS du lieu de formation – Latitude / Training Venue GPS – Latitude		Latitude manquante
+Globalmon Cameroun	40	Coordonnées GPS du lieu de formation – Latitude / Training Venue GPS – Latitude		Latitude manquante
+Globalmon Cameroun	41	Coordonnées GPS du lieu de formation – Latitude / Training Venue GPS – Latitude		Latitude manquante
+Globalmon Cameroun	42	Coordonnées GPS du lieu de formation – Latitude / Training Venue GPS – Latitude		Latitude manquante
+Globalmon Cameroun	43	Coordonnées GPS du lieu de formation – Latitude / Training Venue GPS – Latitude		Latitude manquante
+Globalmon Cameroun	44	Coordonnées GPS du lieu de formation – Latitude / Training Venue GPS – Latitude		Latitude manquante
+Globalmon Cameroun	45	Coordonnées GPS du lieu de formation – Latitude / Training Venue GPS – Latitude		Latitude manquante
+Globalmon Cameroun	46	Coordonnées GPS du lieu de formation – Latitude / Training Venue GPS – Latitude		Latitude manquante
+Globalmon Cameroun	47	Coordonnées GPS du lieu de formation – Latitude / Training Venue GPS – Latitude		Latitude manquante
+Globalmon Cameroun	48	Coordonnées GPS du lieu de formation – Latitude / Training Venue GPS – Latitude		Latitude manquante
+Globalmon Cameroun	49	Coordonnées GPS du lieu de formation – Latitude / Training Venue GPS – Latitude		Latitude manquante
+Globalmon Cameroun	50	Coordonnées GPS du lieu de formation – Latitude / Training Venue GPS – Latitude		Latitude manquante
+Globalmon Cameroun	51	Coordonnées GPS du lieu de formation – Latitude / Training Venue GPS – Latitude		Latitude manquante
+Globalmon Cameroun	52	Coordonnées GPS du lieu de formation – Latitude / Training Venue GPS – Latitude		Latitude manquante
+Globalmon Cameroun	53	Coordonnées GPS du lieu de formation – Latitude / Training Venue GPS – Latitude		Latitude manquante
+Globalmon Cameroun	54	Coordonnées GPS du lieu de formation – Latitude / Training Venue GPS – Latitude		Latitude manquante
+Globalmon Cameroun	55	Coordonnées GPS du lieu de formation – Latitude / Training Venue GPS – Latitude		Latitude manquante
+Globalmon Cameroun	56	Coordonnées GPS du lieu de formation – Latitude / Training Venue GPS – Latitude		Latitude manquante
+Globalmon Cameroun	57	Coordonnées GPS du lieu de formation – Latitude / Training Venue GPS – Latitude		Latitude manquante
+Globalmon Cameroun	58	Coordonnées GPS du lieu de formation – Latitude / Training Venue GPS – Latitude		Latitude manquante
+Globalmon Cameroun	59	Coordonnées GPS du lieu de formation – Latitude / Training Venue GPS – Latitude		Latitude manquante
+Globalmon Cameroun	60	Coordonnées GPS du lieu de formation – Latitude / Training Venue GPS – Latitude		Latitude manquante
+Globalmon Cameroun	61	Coordonnées GPS du lieu de formation – Latitude / Training Venue GPS – Latitude		Latitude manquante
+Globalmon Cameroun	62	Coordonnées GPS du lieu de formation – Latitude / Training Venue GPS – Latitude		Latitude manquante
+Globalmon Cameroun	63	Coordonnées GPS du lieu de formation – Latitude / Training Venue GPS – Latitude		Latitude manquante
+Globalmon Cameroun	64	Coordonnées GPS du lieu de formation – Latitude / Training Venue GPS – Latitude		Latitude manquante
+Globalmon Cameroun	65	Coordonnées GPS du lieu de formation – Latitude / Training Venue GPS – Latitude		Latitude manquante
+Globalmon Cameroun	66	Coordonnées GPS du lieu de formation – Latitude / Training Venue GPS – Latitude		Latitude manquante
+Globalmon Cameroun	67	Coordonnées GPS du lieu de formation – Latitude / Training Venue GPS – Latitude		Latitude manquante
+Globalmon Cameroun	68	Coordonnées GPS du lieu de formation – Latitude / Training Venue GPS – Latitude		Latitude manquante
+Globalmon Cameroun	69	Coordonnées GPS du lieu de formation – Latitude / Training Venue GPS – Latitude		Latitude manquante
+Globalmon Cameroun	70	Coordonnées GPS du lieu de formation – Latitude / Training Venue GPS – Latitude		Latitude manquante
+Globalmon Cameroun	71	Coordonnées GPS du lieu de formation – Latitude / Training Venue GPS – Latitude		Latitude manquante
+Globalmon Cameroun	72	Coordonnées GPS du lieu de formation – Latitude / Training Venue GPS – Latitude		Latitude manquante
+Globalmon Cameroun	73	Coordonnées GPS du lieu de formation – Latitude / Training Venue GPS – Latitude		Latitude manquante
+Globalmon Cameroun	74	Coordonnées GPS du lieu de formation – Latitude / Training Venue GPS – Latitude		Latitude manquante
+Globalmon Cameroun	75	Coordonnées GPS du lieu de formation – Latitude / Training Venue GPS – Latitude		Latitude manquante
+Globalmon Cameroun	76	Coordonnées GPS du lieu de formation – Latitude / Training Venue GPS – Latitude		Latitude manquante
+Globalmon Cameroun	77	Coordonnées GPS du lieu de formation – Latitude / Training Venue GPS – Latitude		Latitude manquante
+Globalmon Cameroun	78	Coordonnées GPS du lieu de formation – Latitude / Training Venue GPS – Latitude		Latitude manquante
+Globalmon Cameroun	79	Coordonnées GPS du lieu de formation – Latitude / Training Venue GPS – Latitude		Latitude manquante
+Globalmon Cameroun	80	Coordonnées GPS du lieu de formation – Latitude / Training Venue GPS – Latitude		Latitude manquante
+Globalmon Cameroun	81	Coordonnées GPS du lieu de formation – Latitude / Training Venue GPS – Latitude		Latitude manquante
+Globalmon Cameroun	82	Coordonnées GPS du lieu de formation – Latitude / Training Venue GPS – Latitude		Latitude manquante
+Globalmon Cameroun	83	Coordonnées GPS du lieu de formation – Latitude / Training Venue GPS – Latitude		Latitude manquante
+Globalmon Cameroun	84	Coordonnées GPS du lieu de formation – Latitude / Training Venue GPS – Latitude		Latitude manquante
+Globalmon Cameroun	85	Coordonnées GPS du lieu de formation – Latitude / Training Venue GPS – Latitude		Latitude manquante
+Globalmon Cameroun	86	Coordonnées GPS du lieu de formation – Latitude / Training Venue GPS – Latitude		Latitude manquante
+Globalmon Cameroun	87	Coordonnées GPS du lieu de formation – Latitude / Training Venue GPS – Latitude		Latitude manquante
+Globalmon Cameroun	88	Coordonnées GPS du lieu de formation – Latitude / Training Venue GPS – Latitude		Latitude manquante
+Globalmon Cameroun	89	Coordonnées GPS du lieu de formation – Latitude / Training Venue GPS – Latitude		Latitude manquante
+Globalmon Cameroun	90	Coordonnées GPS du lieu de formation – Latitude / Training Venue GPS – Latitude		Latitude manquante
+Globalmon Cameroun	91	Coordonnées GPS du lieu de formation – Latitude / Training Venue GPS – Latitude		Latitude manquante
+Globalmon Cameroun	7	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+Globalmon Cameroun	8	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+Globalmon Cameroun	15	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+Globalmon Cameroun	16	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+Globalmon Cameroun	17	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+Globalmon Cameroun	18	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+Globalmon Cameroun	19	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+Globalmon Cameroun	20	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+Globalmon Cameroun	21	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+Globalmon Cameroun	23	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+Globalmon Cameroun	25	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+Globalmon Cameroun	36	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+Globalmon Cameroun	38	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+Globalmon Cameroun	42	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+Globalmon Cameroun	43	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+Globalmon Cameroun	44	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+Globalmon Cameroun	45	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+Globalmon Cameroun	52	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+Globalmon Cameroun	53	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+Globalmon Cameroun	54	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+Globalmon Cameroun	55	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+Globalmon Cameroun	56	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+Globalmon Cameroun	57	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+Globalmon Cameroun	69	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+Globalmon Cameroun	76	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+Globalmon Cameroun	77	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+Globalmon Cameroun	78	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+Globalmon Cameroun	81	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+Globalmon Cameroun	89	1er No tél apprenant / Learner’s 1st Phone Number		Telephone apprenant 1 manquant
+Globalmon Cameroun	2	1er No tél apprenant / Learner’s 1st Phone Number	696812652.0	Telephone apprenant 1 invalide
+Globalmon Cameroun	3	1er No tél apprenant / Learner’s 1st Phone Number	699498981.0	Telephone apprenant 1 invalide
+Globalmon Cameroun	4	1er No tél apprenant / Learner’s 1st Phone Number	693089087.0	Telephone apprenant 1 invalide
+Globalmon Cameroun	5	1er No tél apprenant / Learner’s 1st Phone Number	696180672.0	Telephone apprenant 1 invalide
+Globalmon Cameroun	6	1er No tél apprenant / Learner’s 1st Phone Number	690417527.0	Telephone apprenant 1 invalide
+Globalmon Cameroun	9	1er No tél apprenant / Learner’s 1st Phone Number	687562396.0	Telephone apprenant 1 invalide
+Globalmon Cameroun	10	1er No tél apprenant / Learner’s 1st Phone Number	695768672.0	Telephone apprenant 1 invalide
+Globalmon Cameroun	11	1er No tél apprenant / Learner’s 1st Phone Number	699237838.0	Telephone apprenant 1 invalide
+Globalmon Cameroun	12	1er No tél apprenant / Learner’s 1st Phone Number	697554411.0	Telephone apprenant 1 invalide
+Globalmon Cameroun	13	1er No tél apprenant / Learner’s 1st Phone Number	658252569.0	Telephone apprenant 1 invalide
+Globalmon Cameroun	14	1er No tél apprenant / Learner’s 1st Phone Number	694727277.0	Telephone apprenant 1 invalide
+Globalmon Cameroun	22	1er No tél apprenant / Learner’s 1st Phone Number	657949242.0	Telephone apprenant 1 invalide
+Globalmon Cameroun	24	1er No tél apprenant / Learner’s 1st Phone Number	696812652.0	Telephone apprenant 1 invalide
+Globalmon Cameroun	26	1er No tél apprenant / Learner’s 1st Phone Number	657158130.0	Telephone apprenant 1 invalide
+Globalmon Cameroun	27	1er No tél apprenant / Learner’s 1st Phone Number	652292515.0	Telephone apprenant 1 invalide
+Globalmon Cameroun	28	1er No tél apprenant / Learner’s 1st Phone Number	698572717.0	Telephone apprenant 1 invalide
+Globalmon Cameroun	29	1er No tél apprenant / Learner’s 1st Phone Number	699641263.0	Telephone apprenant 1 invalide
+Globalmon Cameroun	30	1er No tél apprenant / Learner’s 1st Phone Number	699641263.0	Telephone apprenant 1 invalide
+Globalmon Cameroun	31	1er No tél apprenant / Learner’s 1st Phone Number	690543691.0	Telephone apprenant 1 invalide
+Globalmon Cameroun	32	1er No tél apprenant / Learner’s 1st Phone Number	658789401.0	Telephone apprenant 1 invalide
+Globalmon Cameroun	33	1er No tél apprenant / Learner’s 1st Phone Number	656788181.0	Telephone apprenant 1 invalide
+Globalmon Cameroun	34	1er No tél apprenant / Learner’s 1st Phone Number	655877211.0	Telephone apprenant 1 invalide
+Globalmon Cameroun	35	1er No tél apprenant / Learner’s 1st Phone Number	657166255.0	Telephone apprenant 1 invalide
+Globalmon Cameroun	37	1er No tél apprenant / Learner’s 1st Phone Number	694137677.0	Telephone apprenant 1 invalide
+Globalmon Cameroun	39	1er No tél apprenant / Learner’s 1st Phone Number	655910364.0	Telephone apprenant 1 invalide
+Globalmon Cameroun	40	1er No tél apprenant / Learner’s 1st Phone Number	691447805.0	Telephone apprenant 1 invalide
+Globalmon Cameroun	41	1er No tél apprenant / Learner’s 1st Phone Number	691447805.0	Telephone apprenant 1 invalide
+Globalmon Cameroun	46	1er No tél apprenant / Learner’s 1st Phone Number	659992075.0	Telephone apprenant 1 invalide
+Globalmon Cameroun	47	1er No tél apprenant / Learner’s 1st Phone Number	695864022.0	Telephone apprenant 1 invalide
+Globalmon Cameroun	48	1er No tél apprenant / Learner’s 1st Phone Number	655379695.0	Telephone apprenant 1 invalide
+Globalmon Cameroun	49	1er No tél apprenant / Learner’s 1st Phone Number	656509804.0	Telephone apprenant 1 invalide
+Globalmon Cameroun	50	1er No tél apprenant / Learner’s 1st Phone Number	655637492.0	Telephone apprenant 1 invalide
+Globalmon Cameroun	51	1er No tél apprenant / Learner’s 1st Phone Number	693359041.0	Telephone apprenant 1 invalide
+Globalmon Cameroun	58	1er No tél apprenant / Learner’s 1st Phone Number	657482544.0	Telephone apprenant 1 invalide
+Globalmon Cameroun	59	1er No tél apprenant / Learner’s 1st Phone Number	698604639.0	Telephone apprenant 1 invalide
+Globalmon Cameroun	60	1er No tél apprenant / Learner’s 1st Phone Number	693444237.0	Telephone apprenant 1 invalide
+Globalmon Cameroun	61	1er No tél apprenant / Learner’s 1st Phone Number	658957873.0	Telephone apprenant 1 invalide
+Globalmon Cameroun	62	1er No tél apprenant / Learner’s 1st Phone Number	695825077.0	Telephone apprenant 1 invalide
+Globalmon Cameroun	63	1er No tél apprenant / Learner’s 1st Phone Number	640602070.0	Telephone apprenant 1 invalide
+Globalmon Cameroun	64	1er No tél apprenant / Learner’s 1st Phone Number	690466561.0	Telephone apprenant 1 invalide
+Globalmon Cameroun	65	1er No tél apprenant / Learner’s 1st Phone Number	655239632.0	Telephone apprenant 1 invalide
+Globalmon Cameroun	66	1er No tél apprenant / Learner’s 1st Phone Number	640453559.0	Telephone apprenant 1 invalide
+Globalmon Cameroun	67	1er No tél apprenant / Learner’s 1st Phone Number	695724270.0	Telephone apprenant 1 invalide
+Globalmon Cameroun	68	1er No tél apprenant / Learner’s 1st Phone Number	692962670.0	Telephone apprenant 1 invalide
+Globalmon Cameroun	70	1er No tél apprenant / Learner’s 1st Phone Number	687690703.0	Telephone apprenant 1 invalide
+Globalmon Cameroun	71	1er No tél apprenant / Learner’s 1st Phone Number	687124928.0	Telephone apprenant 1 invalide
+Globalmon Cameroun	72	1er No tél apprenant / Learner’s 1st Phone Number	656507947.0	Telephone apprenant 1 invalide
+Globalmon Cameroun	73	1er No tél apprenant / Learner’s 1st Phone Number	658466107.0	Telephone apprenant 1 invalide
+Globalmon Cameroun	74	1er No tél apprenant / Learner’s 1st Phone Number	695554692.0	Telephone apprenant 1 invalide
+Globalmon Cameroun	75	1er No tél apprenant / Learner’s 1st Phone Number	696897774.0	Telephone apprenant 1 invalide
+Globalmon Cameroun	79	1er No tél apprenant / Learner’s 1st Phone Number	699494900.0	Telephone apprenant 1 invalide
+Globalmon Cameroun	80	1er No tél apprenant / Learner’s 1st Phone Number	697026197.0	Telephone apprenant 1 invalide
+Globalmon Cameroun	82	1er No tél apprenant / Learner’s 1st Phone Number	657647085.0	Telephone apprenant 1 invalide
+Globalmon Cameroun	83	1er No tél apprenant / Learner’s 1st Phone Number	698803064.0	Telephone apprenant 1 invalide
+Globalmon Cameroun	84	1er No tél apprenant / Learner’s 1st Phone Number	691216171.0	Telephone apprenant 1 invalide
+Globalmon Cameroun	85	1er No tél apprenant / Learner’s 1st Phone Number	694664635.0	Telephone apprenant 1 invalide
+Globalmon Cameroun	86	1er No tél apprenant / Learner’s 1st Phone Number	656222621.0	Telephone apprenant 1 invalide
+Globalmon Cameroun	87	1er No tél apprenant / Learner’s 1st Phone Number	696632929.0	Telephone apprenant 1 invalide
+Globalmon Cameroun	88	1er No tél apprenant / Learner’s 1st Phone Number	695428488.0	Telephone apprenant 1 invalide
+Globalmon Cameroun	90	1er No tél apprenant / Learner’s 1st Phone Number	658879635.0	Telephone apprenant 1 invalide
+Globalmon Cameroun	91	1er No tél apprenant / Learner’s 1st Phone Number	690543691.0	Telephone apprenant 1 invalide

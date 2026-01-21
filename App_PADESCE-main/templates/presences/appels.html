@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+{% block title %}Module d'appel{% endblock %}
+{% block content %}
+<style>
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 14px; box-shadow: var(--shadow); }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { padding: 8px; border: 1px solid var(--border); font-size: 0.92rem; }
+  thead { background: rgba(15,139,141,0.08); }
+  .slider-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .actions { display: flex; gap: 6px; flex-wrap: wrap; }
+  .btn-small { padding: 6px 10px; border-radius: 10px; border: 1px solid var(--border); background: rgba(15,139,141,0.12); color: var(--text); cursor: pointer; }
+  .btn-small.primary { background: linear-gradient(120deg, var(--accent), #18b0ac); color: #fff; border: none; }
+  .btn-small.danger { background: #fce8e6; color: #d14343; border-color: #f5c4c0; }
+  .audio-status { font-size: 0.85rem; color: var(--muted); }
+</style>
+
+<h1 class="h4 mb-2">Module d'appel</h1>
+<p class="subtitle" style="color:var(--muted);">Filtrer par seuil de presence, enregistrer et ecouter les appels par apprenant (stockage navigateur, pas encore sauvegarde serveur).</p>
+
+<div class="panel" style="margin-bottom:12px;">
+  <form method="get" class="slider-row">
+    <label for="seuil">Seuil de presence (<= %) :</label>
+    <input type="range" min="0" max="100" id="seuil" name="seuil" value="{{ seuil }}" oninput="document.getElementById('seuil-val').textContent=this.value;">
+    <span id="seuil-val" style="font-weight:700;">{{ seuil }}</span>%
+    <button type="submit" class="btn-small primary">Appliquer</button>
+  </form>
+</div>
+
+<div class="panel">
+  <h5>Apprenants (classes terminees)</h5>
+  <div style="max-height:520px; overflow:auto;">
+    <table>
+      <thead>
+        <tr>
+          <th>Apprenant</th>
+          <th>Classe</th>
+          <th>Prestation</th>
+          <th>Taux presence</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for apprenant in apprenants %}
+        <tr data-apprenant-id="{{ apprenant.id }}">
+          <td>{{ apprenant.nom_complet }}</td>
+          <td>{{ apprenant.classe.code }}</td>
+          <td>{{ apprenant.classe.prestation.code }}</td>
+          <td>{{ apprenant.taux_presence|floatformat:1 }}%</td>
+          <td>
+            <div class="actions">
+              <button type="button" class="btn-small primary js-record" data-state="idle">Enregistrer</button>
+              <button type="button" class="btn-small js-play" disabled>Play/Pause</button>
+              <audio class="js-audio" style="display:none;"></audio>
+              <span class="audio-status">Prêt</span>
+            </div>
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="5" style="text-align:center; color:var(--muted);">Aucun apprenant pour ce seuil.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+  (function() {
+    const recordState = new Map(); // apprenantId -> {recorder, chunks, url}
+
+    async function startRecording(row, btn) {
+      const apprenantId = row.dataset.apprenantId;
+      let stream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      } catch (err) {
+        alert("Impossible d'acceder au micro.");
+        return;
+      }
+      const recorder = new MediaRecorder(stream);
+      const chunks = [];
+      recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
+      recorder.onstop = () => {
+        const blob = new Blob(chunks, { type: "audio/webm" });
+        const url = URL.createObjectURL(blob);
+        const audio = row.querySelector(".js-audio");
+        audio.src = url;
+        audio.style.display = "none";
+        row.querySelector(".js-play").disabled = false;
+        recordState.set(apprenantId, { recorder: null, chunks: [], url, blob });
+        row.querySelector(".audio-status").textContent = "Enregistrement prêt (local)";
+      };
+      recorder.start();
+      recordState.set(apprenantId, { recorder, chunks, url: null });
+      btn.textContent = "Stop";
+      btn.dataset.state = "recording";
+      row.querySelector(".audio-status").textContent = "Enregistrement en cours...";
+    }
+
+    function stopRecording(row, btn) {
+      const apprenantId = row.dataset.apprenantId;
+      const state = recordState.get(apprenantId);
+      if (state?.recorder) {
+        state.recorder.stop();
+        state.recorder.stream.getTracks().forEach(t => t.stop());
+      }
+      btn.textContent = "Enregistrer";
+      btn.dataset.state = "idle";
+    }
+
+    function togglePlay(row) {
+      const audio = row.querySelector(".js-audio");
+      if (!audio.src) return;
+      if (audio.paused) {
+        audio.play();
+        row.querySelector(".audio-status").textContent = "Lecture...";
+      } else {
+        audio.pause();
+        row.querySelector(".audio-status").textContent = "Pause";
+      }
+    }
+
+    document.querySelectorAll(".js-record").forEach((btn) => {
+      btn.addEventListener("click", async (e) => {
+        const row = e.target.closest("tr[data-apprenant-id]");
+        if (!row) return;
+        const state = e.target.dataset.state;
+        if (state === "idle") {
+          await startRecording(row, e.target);
+        } else {
+          stopRecording(row, e.target);
+        }
+      });
+    });
+
+    document.querySelectorAll(".js-play").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        const row = e.target.closest("tr[data-apprenant-id]");
+        if (!row) return;
+        togglePlay(row);
+      });
+    });
+  })();
+</script>
+{% endblock %}

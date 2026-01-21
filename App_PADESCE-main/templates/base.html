@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}PADESCE{% endblock %}</title>
+  <style>
+    :root {
+      --bg: radial-gradient(circle at 12% 8%, #2b2ae8 0%, #1b0f3a 20%, #0b001c 60%);
+      --panel: rgba(255,255,255,0.98);
+      --text: #0c1020;
+      --muted: #5d6280;
+      --accent: #9e26ff;
+      --accent-2: #2b7bff;
+      --border: rgba(255,255,255,0.12);
+      --shadow: 0 16px 40px rgba(12,10,43,0.25);
+      --nav: linear-gradient(90deg, #2512a8, #6414ff, #c621ff);
+    }
+    body.dark {
+      --bg: radial-gradient(circle at 20% 12%, #0d0c2a 0%, #05010f 60%);
+      --panel: rgba(18,22,40,0.96);
+      --text: #e8ecff;
+      --muted: #9fa7cc;
+      --accent: #c864ff;
+      --accent-2: #4a8dff;
+      --border: rgba(255,255,255,0.12);
+      --shadow: 0 16px 40px rgba(0,0,0,0.5);
+      --nav: linear-gradient(90deg, #0f0b45, #3a128e, #7e1bcc);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Poppins", "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      transition: background .3s ease, color .3s ease;
+      min-height: 100vh;
+    }
+    a { color: inherit; text-decoration: none; }
+    .nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 24px;
+      background: var(--nav);
+      color: #fff;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      box-shadow: var(--shadow);
+    }
+    .nav-brand { display: flex; align-items: center; gap: 10px; font-weight: 800; letter-spacing: .06em; }
+    .nav-logo {
+      width: 42px;
+      height: 42px;
+      border-radius: 12px;
+      border: 3px solid #fff;
+      object-fit: cover;
+      background: #fff;
+      box-shadow: 0 6px 18px rgba(0,0,0,0.2);
+    }
+    .nav-links { display: flex; gap: 14px; flex-wrap: wrap; }
+    .nav-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .nav-link { padding: 8px 12px; border-radius: 12px; transition: background .2s ease, transform .2s ease; font-weight: 600; }
+    .nav-link:hover { background: rgba(255,255,255,0.14); transform: translateY(-1px); }
+    .nav-link.active { background: rgba(0,0,0,0.18); box-shadow: 0 4px 14px rgba(0,0,0,0.25); }
+    .shell { max-width: 1200px; margin: 0 auto; padding: 22px 18px 40px; }
+    .message-stack { margin-bottom: 12px; }
+    .msg { padding: 10px 12px; border-radius: 12px; border: 1px solid var(--border); background: var(--panel); box-shadow: var(--shadow); }
+    .theme-toggle { border: 1px solid rgba(255,255,255,0.35); background: rgba(255,255,255,0.12); color: #fff; border-radius: 12px; padding: 8px 12px; cursor: pointer; }
+    .user-pill { padding: 6px 12px; border-radius: 999px; border: 1px solid rgba(255,255,255,0.35); background: rgba(255,255,255,0.18); font-size: 0.9rem; }
+    .logout-form { margin: 0; }
+    .nav-btn {
+      padding: 8px 12px;
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,0.35);
+      background: rgba(255,255,255,0.12);
+      color: #fff;
+      cursor: pointer;
+      transition: background .2s ease, transform .2s ease;
+      font-weight: 600;
+    }
+    .nav-btn:hover { background: rgba(255,255,255,0.2); transform: translateY(-1px); }
+  </style>
+</head>
+<body class="">
+  {% if user.is_authenticated %}
+    <nav class="nav">
+      {% with current_url=request.resolver_match.url_name|default:'' current_path=request.path|default:'' %}
+        <div class="nav-brand">
+          <img class="nav-logo" src="/media/img/image.png" alt="Naumur logo">
+          <a href="/dashboard/" style="color:#fff;">NAUMUR</a>
+        </div>
+        <div class="nav-links">
+          <a class="nav-link{% if current_path|slice:':12' == '/formations/' %} active{% endif %}" href="/formations/">Formations</a>
+          <a class="nav-link{% if current_path|slice:':12' == '/apprenants/' %} active{% endif %}" href="/apprenants/">Apprenants</a>
+          <a class="nav-link{% if current_path|slice:':11' == '/reporting/' and current_url != 'consolidation_index' %} active{% endif %}" href="/reporting/">Reporting</a>
+          <a class="nav-link{% if current_url == 'consolidation_index' %} active{% endif %}" href="{% url 'consolidation_index' %}">Consolidation</a>
+          <a class="nav-link{% if current_path|slice:':8' == '/appels/' %} active{% endif %}" href="/appels/">Appels</a>
+        </div>
+      {% endwith %}
+      <div class="nav-right">
+        <div class="user-pill">Bienvenue {{ user.get_username }}</div>
+        <form class="logout-form" method="post" action="{% url 'logout' %}">
+          {% csrf_token %}
+          <button class="nav-btn" type="submit">Se deconnecter</button>
+        </form>
+        <button id="theme-toggle" class="theme-toggle" type="button">Theme</button>
+      </div>
+    </nav>
+  {% else %}
+    <nav class="nav">
+      <div class="nav-brand">
+        <img class="nav-logo" src="/media/img/image.png" alt="Naumur logo">
+        <a href="/" style="color:#fff;">NAUMUR</a>
+      </div>
+      <div class="nav-links">
+        <a class="nav-link" href="/beneficiaire/">Portail beneficiaire</a>
+      </div>
+    </nav>
+  {% endif %}
+  <main class="shell">
+    {% if messages %}
+      <div class="message-stack">
+        {% for message in messages %}
+          <div class="msg">{{ message }}</div>
+        {% endfor %}
+      </div>
+    {% endif %}
+    {% block content %}{% endblock %}
+  </main>
+  <script>
+    (function() {
+      const btn = document.getElementById("theme-toggle");
+      const saved = localStorage.getItem("theme");
+      if (saved === "dark") document.body.classList.add("dark");
+      btn?.addEventListener("click", () => {
+        document.body.classList.toggle("dark");
+        const mode = document.body.classList.contains("dark") ? "dark" : "light";
+        localStorage.setItem("theme", mode);
+      });
+    })();
+  </script>
+</body>
+</html>

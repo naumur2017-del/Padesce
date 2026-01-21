@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% block title %}Classes{% endblock %}
+{% block content %}
+<style>
+  .hero {
+    background: linear-gradient(135deg, rgba(15,139,141,0.1), rgba(15,139,141,0.04));
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 18px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 18px;
+  }
+  .hero h1 { margin: 0 0 6px 0; }
+  .hero p { margin: 0; color: var(--muted); }
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    padding: 10px 14px; border-radius: 12px; font-weight: 700; border: none; cursor: pointer;
+    background: linear-gradient(120deg, var(--accent), #18b0ac); color: #fff;
+    box-shadow: 0 10px 24px rgba(0,0,0,0.15);
+    transition: transform .2s ease, box-shadow .2s ease;
+    text-decoration: none;
+  }
+  .btn:hover { transform: translateY(-2px); }
+  .btn-ghost {
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid var(--border);
+    box-shadow: none;
+  }
+  .grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 14px;
+    box-shadow: var(--shadow);
+    transition: transform .2s ease, box-shadow .2s ease;
+  }
+  .card:hover { transform: translateY(-3px); box-shadow: 0 14px 26px rgba(0,0,0,0.12); }
+  .card-head { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; margin-bottom: 8px; }
+  .title { font-weight: 700; margin: 0; font-size: 1.05rem; }
+  .meta { color: var(--muted); font-size: 0.9rem; margin: 2px 0; }
+  .pill { display: inline-block; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--border); background: rgba(15,139,141,0.08); color: var(--accent); font-weight: 600; font-size: 0.9rem; white-space: nowrap; }
+  .badges { display: flex; gap: 8px; flex-wrap: wrap; }
+  .card-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+  .link {
+    padding: 8px 12px; border-radius: 10px; border: 1px solid var(--border);
+    color: var(--text); background: transparent; text-decoration: none; font-weight: 600; display: inline-flex; align-items: center; gap: 6px;
+    transition: background .2s ease, transform .2s ease;
+  }
+  .link:hover { background: rgba(15,139,141,0.06); transform: translateY(-1px); }
+  .danger { color: #b42318; border-color: rgba(180,35,24,0.16); }
+  .empty {
+    padding: 16px; border: 1px dashed var(--border); border-radius: 12px;
+    color: var(--muted); text-align: center;
+  }
+  .card-link { display: block; color: inherit; text-decoration: none; }
+</style>
+
+<div class="hero">
+  <div>
+    <h1>Classes</h1>
+    <p>Vue synthetique des classes : prestation, lieu, cohorte et statut.</p>
+  </div>
+  <a class="btn" href="{% url 'class_create' %}">Creer une classe</a>
+</div>
+
+{% if classes %}
+<div class="grid">
+  {% for classe in classes %}
+  <div class="card">
+    <a class="card-link" href="{% url 'class_detail' classe.id %}">
+      <div class="card-head">
+        <div>
+          <div class="title">{{ classe.code }} &ndash; {{ classe.intitule_formation }}</div>
+          <div class="meta">{{ classe.formation }}</div>
+        </div>
+        <div class="badges">
+          <span class="pill">{{ classe.get_statut_display }}</span>
+          {% if classe.fenetre %}<span class="pill">Fenetre {{ classe.fenetre }}</span>{% endif %}
+        </div>
+      </div>
+      <div class="meta"><strong>Prestation :</strong> {{ classe.prestation }}</div>
+      <div class="meta"><strong>Lieu :</strong> {{ classe.lieu|default:"Non renseigne" }}</div>
+      <div class="meta"><strong>Formateur :</strong> {{ classe.formateur|default:"Non assigne" }}</div>
+      <div class="meta"><strong>Cohorte :</strong> {{ classe.cohorte }}</div>
+    </a>
+    <div class="card-actions">
+      <form action="{% url 'class_delete' classe.id %}" method="post" onsubmit="return confirm('Supprimer {{ classe.code }} ?');">
+        {% csrf_token %}
+        <button type="submit" class="link danger">&#128465; Supprimer</button>
+      </form>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+  <div class="empty">Aucune classe pour le moment.</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,242 @@
+{% extends "base.html" %}
+{% block title %}Satisfaction Apprenants{% endblock %}
+{% block content %}
+<style>
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 14px; box-shadow: var(--shadow); }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { padding: 8px; border: 1px solid var(--border); font-size: 0.92rem; }
+  thead { background: rgba(15,139,141,0.08); }
+  .filter-bar { display:flex; gap:10px; flex-wrap:wrap; align-items:end; margin-bottom:12px; }
+  .filter-field { min-width:240px; flex:1; display:flex; flex-direction:column; gap:6px; }
+  .filter-actions { display:flex; gap:8px; flex-wrap:wrap; }
+  .survey-form { display:flex; flex-direction:column; gap:14px; }
+  .form-section { padding:12px; border:1px solid var(--border); border-radius:12px; background: rgba(15,139,141,0.05); }
+  .section-title { display:flex; flex-direction:column; gap:2px; margin-bottom:8px; }
+  .section-title h6 { margin:0; font-size:1rem; }
+  .form-row { display:grid; gap:12px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); align-items:end; }
+  .form-row.compact { grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
+  .field { display:flex; flex-direction:column; gap:6px; min-width:0; }
+  .field.actions { justify-content:flex-end; }
+  .survey-form label, .filter-bar label { font-size:0.9rem; color: var(--muted); }
+  .survey-form input[type="text"],
+  .survey-form input[type="date"],
+  .survey-form input[type="time"],
+  .survey-form select,
+  .survey-form textarea,
+  .filter-bar select {
+    width:100%;
+    padding:10px 12px;
+    border:1px solid var(--border);
+    border-radius:12px;
+    background: var(--panel);
+    color: var(--text);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.4);
+  }
+  .survey-form input[type="file"] {
+    width:100%;
+    padding:8px 10px;
+    border:1px dashed var(--border);
+    border-radius:12px;
+    background: var(--panel);
+    color: var(--text);
+  }
+  .survey-form input[type="file"]::file-selector-button {
+    margin-right:8px;
+    border:1px solid var(--border);
+    border-radius:10px;
+    padding:6px 10px;
+    background: rgba(15,139,141,0.08);
+    color: var(--text);
+  }
+  .survey-form input:focus,
+  .survey-form select:focus,
+  .survey-form textarea:focus {
+    outline:2px solid rgba(15,139,141,0.2);
+    border-color: var(--accent);
+  }
+  .btn {
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    gap:6px;
+    padding:10px 14px;
+    border-radius:12px;
+    font-weight:600;
+    border:1px solid transparent;
+    cursor:pointer;
+    background: var(--accent);
+    color:#fff;
+    text-decoration:none;
+    transition: transform .2s ease, box-shadow .2s ease, background .2s ease, border-color .2s ease;
+  }
+  .btn-primary { background: var(--accent); color:#fff; border-color: rgba(15,139,141,0.3); box-shadow: 0 8px 18px rgba(15,139,141,0.18); }
+  .btn-ghost { background: transparent; border:1px solid var(--border); color: var(--text); box-shadow:none; }
+  .btn-outline { background: rgba(15,139,141,0.08); border:1px solid rgba(15,139,141,0.3); color: var(--accent); box-shadow:none; }
+  .btn-sm { padding:8px 12px; font-size:0.85rem; border-radius:10px; }
+  .btn:hover { transform: translateY(-1px); box-shadow: 0 10px 22px rgba(15,139,141,0.18); }
+  .btn-ghost:hover { background: rgba(15,139,141,0.08); box-shadow: none; }
+  .btn-outline:hover { background: rgba(15,139,141,0.12); box-shadow: none; }
+  .btn:disabled { opacity:0.55; cursor:not-allowed; box-shadow:none; transform:none; }
+  .btn:focus-visible { outline:2px solid rgba(15,139,141,0.3); outline-offset:2px; }
+  .pill { display:inline-flex; align-items:center; gap:6px; padding:6px 10px; border-radius:999px; background: rgba(15,139,141,0.08); border:1px solid var(--border); font-size:0.9rem; margin-top:8px; }
+  .hint { font-size:0.85rem; color: var(--muted); }
+  .ai-grid { display:grid; gap:10px; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
+  .ai-card, .ai-text { padding:8px 10px; border-radius:10px; background: var(--panel); border:1px solid var(--border); }
+  .ai-text { white-space: pre-wrap; }
+  .ai-card strong, .ai-text strong { display:block; font-size:0.8rem; color: var(--muted); margin-bottom:2px; }
+  .form-actions { display:flex; gap:10px; flex-wrap:wrap; justify-content:flex-end; }
+  @media (max-width: 720px) {
+    .filter-bar { flex-direction:column; align-items:stretch; }
+    .filter-actions { width:100%; }
+    .form-actions { justify-content:stretch; }
+    .form-actions .btn { width:100%; }
+  }
+</style>
+
+<h1 class="h4 mb-2">Satisfaction des apprenants</h1>
+<p class="subtitle" style="color:var(--muted);">Q1-Q9 (1-5), commentaires et recommandations. Audit actif.</p>
+
+<form method="get" class="filter-bar">
+  <div class="filter-field">
+    <label for="filter-classe">Filtrer par classe</label>
+    <select id="filter-classe" name="classe">
+      <option value="">Toutes les classes</option>
+      {% for c in classes %}
+        <option value="{{ c.id }}" {% if filter_classe|default:'' == c.id|stringformat:"s" %}selected{% endif %}>{{ c.code }} - {{ c.intitule_formation }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="filter-actions">
+    <button class="btn btn-primary btn-sm" type="submit">Filtrer</button>
+    <a class="btn btn-ghost btn-sm" href="{% url 'satisfaction_apprenants_export_csv' %}{% if filter_classe %}?classe={{ filter_classe }}{% endif %}">Export CSV</a>
+  </div>
+</form>
+
+<div class="panel">
+  <h5>Nouvelle enquete</h5>
+  <form method="post" enctype="multipart/form-data" class="survey-form">
+    {% csrf_token %}
+    <div class="form-section">
+      <div class="section-title">
+        <h6>Identification</h6>
+        <div class="hint">Saisir le code ou telephone, puis identifier l'apprenant.</div>
+      </div>
+      <div class="form-row">
+        <div class="field">
+          {{ form.classe.label_tag }} {{ form.classe }}
+        </div>
+        <div class="field">
+          <label for="id_identifiant">Code ou telephone apprenant</label>
+          <input type="text" id="id_identifiant" name="identifiant" value="{{ identifiant|default:'' }}" placeholder="APP001 ou 6xxxxxxxx">
+          <div class="hint">Ex: APP001 ou 6xxxxxxxx</div>
+        </div>
+        <div class="field actions">
+          <button class="btn btn-outline" type="submit" name="action" value="identify">Identifier</button>
+        </div>
+      </div>
+      {% if identified_apprenant %}
+        <div class="pill">Apprenant identifie: {{ identified_apprenant }}</div>
+      {% endif %}
+    </div>
+
+    <div class="form-section">
+      <div class="section-title">
+        <h6>Infos enquete</h6>
+      </div>
+      <div class="form-row compact">
+        <div class="field">{{ form.inspecteur.label_tag }} {{ form.inspecteur }}</div>
+        <div class="field">{{ form.date.label_tag }} {{ form.date }}</div>
+        <div class="field">{{ form.heure.label_tag }} {{ form.heure }}</div>
+      </div>
+    </div>
+
+    <div class="form-section">
+      <div class="section-title">
+        <h6>Audio & traitement</h6>
+      </div>
+      <div class="form-row">
+        <div class="field">
+          <label for="id_audio_appel">Audio appel</label>
+          <input type="file" id="id_audio_appel" name="audio_appel" accept="audio/*">
+          {% if audio_name %}
+            <div class="hint">Fichier: {{ audio_name }}</div>
+          {% endif %}
+        </div>
+        <div class="field actions">
+          <button class="btn btn-ghost" type="submit" name="action" value="process_audio" {% if not identified_apprenant %}disabled{% endif %}>Actualiser traitement vocal</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="form-section">
+      <div class="section-title">
+        <h6>Reponses IA (lecture seule)</h6>
+      </div>
+      {% if ai_results %}
+        <div class="ai-grid">
+          <div class="ai-card"><strong>Q1</strong>{{ ai_results.q1_clarte_exposes }}</div>
+          <div class="ai-card"><strong>Q2</strong>{{ ai_results.q2_interaction_formateur }}</div>
+          <div class="ai-card"><strong>Q3</strong>{{ ai_results.q3_rythme_formation }}</div>
+          <div class="ai-card"><strong>Q4</strong>{{ ai_results.q4_qualite_supports }}</div>
+          <div class="ai-card"><strong>Q5</strong>{{ ai_results.q5_applicabilite_contenu }}</div>
+          <div class="ai-card"><strong>Q6</strong>{{ ai_results.q6_organisation_logistique }}</div>
+          <div class="ai-card"><strong>Q7</strong>{{ ai_results.q7_respect_programme }}</div>
+          <div class="ai-card"><strong>Q8</strong>{{ ai_results.q8_adequation_besoins }}</div>
+          <div class="ai-card"><strong>Q9</strong>{{ ai_results.q9_satisfaction_globale }}</div>
+        </div>
+        <div class="ai-grid" style="margin-top:8px;">
+          <div class="ai-text"><strong>Commentaire</strong>{{ ai_results.commentaire|default:"-" }}</div>
+          <div class="ai-text"><strong>Recommandations</strong>{{ ai_results.recommandations|default:"-" }}</div>
+        </div>
+        {% if transcription %}
+          <div class="ai-text" style="margin-top:8px;"><strong>Transcription</strong>{{ transcription }}</div>
+        {% endif %}
+      {% else %}
+        <div class="hint">Aucune reponse IA pour le moment.</div>
+      {% endif %}
+    </div>
+
+    {% if save_errors %}
+      <div class="subtitle" style="color:#d14343;">{{ save_errors }}</div>
+    {% endif %}
+    <div class="form-actions">
+      <button class="btn btn-primary" type="submit" name="action" value="save" {% if not ai_results or not identified_apprenant %}disabled{% endif %}>Enregistrer et suivant</button>
+    </div>
+  </form>
+</div>
+
+<div class="panel" style="margin-top:14px;">
+  <h5>Dernieres enquetes</h5>
+  <div style="max-height:420px; overflow:auto;">
+    <table>
+      <thead>
+        <tr>
+          <th>Date</th><th>Classe</th><th>Apprenant</th><th>Inspecteur</th><th>Enqueteur</th><th>Q9</th><th>Commentaire</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for e in enquetes %}
+        <tr>
+          <td>{{ e.date }}</td>
+          <td>{{ e.classe }}</td>
+          <td>{{ e.apprenant }}</td>
+          <td>{{ e.inspecteur }}</td>
+          <td>{{ e.enqueteur }}</td>
+          <td>{{ e.q9_satisfaction_globale }}</td>
+          <td>{{ e.commentaire|default:"-" }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="7" style="text-align:center; color:var(--muted);">Aucune enquete</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if page_obj %}
+    <div class="subtitle" style="margin-top:8px;">Page {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</div>
+    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+      {% if page_obj.has_previous %}<a class="btn btn-ghost btn-sm" href="?page={{ page_obj.previous_page_number }}{% if filter_classe %}&classe={{ filter_classe }}{% endif %}">Prec.</a>{% endif %}
+      {% if page_obj.has_next %}<a class="btn btn-ghost btn-sm" href="?page={{ page_obj.next_page_number }}{% if filter_classe %}&classe={{ filter_classe }}{% endif %}">Suiv.</a>{% endif %}
+    </div>
+  {% endif %}
+</div>
+{% endblock %}
