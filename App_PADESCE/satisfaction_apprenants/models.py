@@ -10,7 +10,13 @@ NOTE_VALIDATORS = [MinValueValidator(1), MaxValueValidator(5)]
 
 
 class SatisfactionApprenant(TimeStampedModel):
-    classe = models.ForeignKey(Classe, on_delete=models.CASCADE, related_name="satisfactions_apprenants")
+    classe = models.ForeignKey(
+        Classe,
+        on_delete=models.CASCADE,
+        related_name="satisfactions_apprenants",
+        null=True,
+        blank=True,
+    )
     apprenant = models.ForeignKey(
         Apprenant, on_delete=models.SET_NULL, null=True, blank=True, related_name="satisfactions"
     )
@@ -39,4 +45,5 @@ class SatisfactionApprenant(TimeStampedModel):
         indexes = [models.Index(fields=["classe"])]
 
     def __str__(self) -> str:
-        return f"Satisfaction apprenant {self.classe} - {self.date}"
+        target = self.classe or "Sans classe"
+        return f"Satisfaction apprenant {target} - {self.date}"

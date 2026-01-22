@@ -85,6 +85,15 @@
   .ai-text { white-space: pre-wrap; }
   .ai-card strong, .ai-text strong { display:block; font-size:0.8rem; color: var(--muted); margin-bottom:2px; }
   .form-actions { display:flex; gap:10px; flex-wrap:wrap; justify-content:flex-end; }
+  .chart-grid { display:grid; gap:12px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+  .chart-card { padding:16px; border-radius:12px; border:1px solid var(--border); background: var(--panel); display:flex; flex-direction:column; min-height:260px; }
+  .chart-card canvas { width:100% !important; }
+  .chart-card .chart-wrapper { width:100%; flex:1; }
+  .chart-card.donut .chart-wrapper { position:relative; width:100%; padding-top:100%; }
+  .chart-card.donut canvas { position:absolute; top:0; left:0; width:100% !important; height:100% !important; }
+  .reason-table th, .reason-table td { padding:8px; border:1px solid var(--border); font-size:0.85rem; }
+  .reason-table thead { background: rgba(15,139,141,0.08); }
+  .reason-samples { font-size:0.8rem; color: var(--muted); }
   @media (max-width: 720px) {
     .filter-bar { flex-direction:column; align-items:stretch; }
     .filter-actions { width:100%; }
@@ -111,6 +120,48 @@
     <a class="btn btn-ghost btn-sm" href="{% url 'satisfaction_apprenants_export_csv' %}{% if filter_classe %}?classe={{ filter_classe }}{% endif %}">Export CSV</a>
   </div>
 </form>
+
+<div class="panel" style="margin-top:12px;">
+  <h5>Synthèse des enquêtes</h5>
+  <div class="chart-grid" style="margin-bottom:12px;">
+    <div class="chart-card donut">
+      <div style="font-weight:600; margin-bottom:6px;">Participation</div>
+      <div class="chart-wrapper">
+        <canvas id="participation-chart"></canvas>
+      </div>
+    </div>
+    <div class="chart-card">
+      <div style="font-weight:600; margin-bottom:6px;">Raisons d'absence</div>
+      <canvas id="reason-chart"></canvas>
+    </div>
+  </div>
+  <table class="reason-table">
+    <thead>
+      <tr>
+        <th>Catégorie</th>
+        <th>Count</th>
+        <th>Extraits</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in reason_distribution %}
+        <tr>
+          <td>{{ item.label }}</td>
+          <td>{{ item.count }}</td>
+          <td class="reason-samples">
+            {% if item.samples %}
+              {% for sample in item.samples %}
+                {{ sample|truncatechars:90 }}{% if not forloop.last %}<br>{% endif %}
+              {% endfor %}
+            {% else %}
+              -
+            {% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
 
 <div class="panel">
   <h5>Nouvelle enquete</h5>
@@ -230,13 +281,76 @@
         {% endfor %}
       </tbody>
     </table>
-  </div>
-  {% if page_obj %}
-    <div class="subtitle" style="margin-top:8px;">Page {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</div>
-    <div style="display:flex; gap:8px; flex-wrap:wrap;">
-      {% if page_obj.has_previous %}<a class="btn btn-ghost btn-sm" href="?page={{ page_obj.previous_page_number }}{% if filter_classe %}&classe={{ filter_classe }}{% endif %}">Prec.</a>{% endif %}
-      {% if page_obj.has_next %}<a class="btn btn-ghost btn-sm" href="?page={{ page_obj.next_page_number }}{% if filter_classe %}&classe={{ filter_classe }}{% endif %}">Suiv.</a>{% endif %}
     </div>
-  {% endif %}
-</div>
+    {% if page_obj %}
+      <div class="subtitle" style="margin-top:8px;">Page {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</div>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        {% if page_obj.has_previous %}<a class="btn btn-ghost btn-sm" href="?page={{ page_obj.previous_page_number }}{% if filter_classe %}&classe={{ filter_classe }}{% endif %}">Prec.</a>{% endif %}
+        {% if page_obj.has_next %}<a class="btn btn-ghost btn-sm" href="?page={{ page_obj.next_page_number }}{% if filter_classe %}&classe={{ filter_classe }}{% endif %}">Suiv.</a>{% endif %}
+      </div>
+    {% endif %}
+  </div>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script>
+    (function() {
+      const participationData = {{ participation_chart|safe }};
+      const reasonData = {{ reason_chart|safe }};
+
+      function renderChart(ctxId, config) {
+        const canvas = document.getElementById(ctxId);
+        if (!canvas) return;
+        new Chart(canvas, config);
+      }
+
+      if (participationData.values.reduce((acc, value) => acc + value, 0) > 0) {
+        renderChart("participation-chart", {
+          type: "doughnut",
+          data: {
+            labels: participationData.labels,
+            datasets: [{
+              data: participationData.values,
+              backgroundColor: ["#22c55e", "#ef4444", "#fcd34d"],
+              borderWidth: 0,
+            }],
+          },
+          options: {
+            responsive: false,
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: { legend: { position: "bottom" } },
+          },
+        });
+      } else {
+        const chartCard = document.getElementById("participation-chart")?.closest(".chart-card");
+        if (chartCard) chartCard.innerHTML = "<div class='hint' style='text-align:center;'>Aucune donnée pour le moment.</div>";
+      }
+
+      if (reasonData.values.length) {
+        renderChart("reason-chart", {
+          type: "bar",
+          data: {
+            labels: reasonData.labels,
+            datasets: [{
+              label: "Absences",
+              data: reasonData.values,
+              backgroundColor: reasonData.labels.map(() => "rgba(79,70,229,0.7)"),
+            }],
+          },
+          options: {
+            responsive: false,
+            maintainAspectRatio: false,
+            layout: { padding: 8 },
+            plugins: { legend: { display: false } },
+            scales: {
+              x: { ticks: { autoSkip: false }, grid: { display: false } },
+              y: { beginAtZero: true, grid: { color: "rgba(15,15,15,0.08)" } },
+            },
+          },
+        });
+      } else {
+        const chartCard = document.getElementById("reason-chart")?.closest(".chart-card");
+        if (chartCard) chartCard.innerHTML = "<div class='hint' style='text-align:center;'>Pas d'absences enregistrées.</div>";
+      }
+    })();
+  </script>
 {% endblock %}

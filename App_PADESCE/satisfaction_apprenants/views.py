@@ -1,10 +1,12 @@
 import base64
 import csv
 import hashlib
+import json
 import logging
 import os
 import re
 import uuid
+from collections import Counter, defaultdict
 from datetime import date as date_cls
 
 import requests
@@ -20,6 +22,32 @@ from App_PADESCE.satisfaction_apprenants.forms import SatisfactionApprenantForm
 from App_PADESCE.satisfaction_apprenants.models import SatisfactionApprenant
 
 SESSION_KEY = "sat_appr_workflow"
+REASON_KEYWORDS = [
+    ("Problèmes de transport", ["transport", "véhicule", "route", "panne", "déplacement"]),
+    ("Disponibilité / santé", ["malade", "santé", "disponibilité", "maladie", "absent", "repos"]),
+    ("Pas au courant / notification", ["pas au courant", "notification", "notifié", "ignoré", "erreur"]),
+    ("Conditions / éligibilité", ["diplôme", "condition", "éligibilité", "inscription"]),
+    ("Pas intéressé", ["intéressé", "ne souhaite pas", "désintéressé", "pas de formation"]),
+]
+
+
+def _categorize_reason(text: str) -> str:
+    if not text:
+        return "Sans réponse"
+    for label, keywords in REASON_KEYWORDS:
+        if any(keyword in text for keyword in keywords):
+            return label
+    return "Autres raisons"
+
+
+def _detect_participation(text: str) -> str:
+    if not text:
+        return "Indéterminé"
+    if re.search(r"\b(?:pas|n['’]?a)\b.*\b(particip|assist|présent|venu)\b", text):
+        return "Absents"
+    if any(kw in text for kw in ["participé", "assisté", "présent", "été là", "présente", "participant"]):
+        return "Présents"
+    return "Indéterminé"
 
 OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
 DEFAULT_TRANSCRIBE_MODEL = "google/gemini-2.5-flash"
@@ -332,6 +360,45 @@ def satisfaction_apprenants(request):
     paginator = Paginator(qs, 50)
     page_obj = paginator.get_page(request.GET.get("page"))
 
+    summary_rows = qs.values_list("commentaire", "transcription", "recommandations")
+    reason_counts = Counter({label: 0 for label, _ in REASON_KEYWORDS})
+    reason_counts.update({"Autres raisons": 0, "Sans réponse": 0})
+    participation_counts = Counter({"Présents": 0, "Absents": 0, "Indéterminé": 0})
+    reason_samples = defaultdict(list)
+    for comment, transcript, reco in summary_rows:
+        text = " ".join(filter(None, [comment, transcript, reco])).strip()
+        if not text:
+            continue
+        lower_text = text.lower()
+        label = _categorize_reason(lower_text)
+        reason_counts[label] += 1
+        if len(reason_samples[label]) < 2:
+            reason_samples[label].append(text)
+        participation_counts[_detect_participation(lower_text)] += 1
+
+    reason_distribution = []
+    for label, _ in list(REASON_KEYWORDS) + [("Autres raisons", []), ("Sans réponse", [])]:
+        reason_distribution.append(
+            {
+                "label": label,
+                "count": reason_counts.get(label, 0),
+                "samples": reason_samples.get(label, []),
+            }
+        )
+
+    reason_chart = {
+        "labels": [item["label"] for item in reason_distribution if item["count"]],
+        "values": [item["count"] for item in reason_distribution if item["count"]],
+    }
+    participation_chart = {
+        "labels": ["Présents", "Absents", "Indéterminé"],
+        "values": [
+            participation_counts.get("Présents", 0),
+            participation_counts.get("Absents", 0),
+            participation_counts.get("Indéterminé", 0),
+        ],
+    }
+
     context = {
         "form": form,
         "identified_apprenant": identified_apprenant,
@@ -344,6 +411,9 @@ def satisfaction_apprenants(request):
         "page_obj": page_obj,
         "classes": Classe.objects.all().order_by("code"),
         "filter_classe": filter_classe,
+        "reason_distribution": reason_distribution,
+        "participation_chart": json.dumps(participation_chart),
+        "reason_chart": json.dumps(reason_chart),
     }
     return render(request, "satisfaction_apprenants/index.html", context)
 
