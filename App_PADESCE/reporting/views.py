@@ -9,6 +9,7 @@ from openpyxl import load_workbook
 from django.db.models import Avg, Count, Q, Sum
 from django.http import Http404, HttpResponse
 from django.shortcuts import render
+from contextlib import contextmanager
 from django.db import connection, transaction, OperationalError
 from django.contrib import messages
 from django.utils.text import slugify
@@ -127,11 +128,21 @@ def _reset_consolidation_tables():
         Beneficiaire,
         Lieu,
     )
-    with transaction.atomic():
-        with connection.cursor() as cursor:
-            for model in tables:
-                table_name = connection.ops.quote_name(model._meta.db_table)
-                cursor.execute(f"DELETE FROM {table_name}")
+    with connection.cursor() as cursor:
+        needs_toggle = connection.vendor in {"sqlite", "mysql"}
+        if needs_toggle:
+            if connection.vendor == "sqlite":
+                cursor.execute("PRAGMA foreign_keys = OFF")
+            else:
+                cursor.execute("SET FOREIGN_KEY_CHECKS = 0")
+        for model in tables:
+            table_name = connection.ops.quote_name(model._meta.db_table)
+            cursor.execute(f"DELETE FROM {table_name}")
+        if needs_toggle:
+            if connection.vendor == "sqlite":
+                cursor.execute("PRAGMA foreign_keys = ON")
+            else:
+                cursor.execute("SET FOREIGN_KEY_CHECKS = 1")
 
 
 def _ensure_formation(intitule: str, fenetre: str = "") -> Formation | None:
@@ -234,8 +245,7 @@ def _ensure_classe(
         defaults={
             "prestation": prestation,
             "formation": formation,
-            "intitule_formation": formation_nom,          # champ existant
-            "nom": classe_nom,                            # ← nouveau champ ou remplace intitule si tu veux
+            "intitule_formation": formation_nom,
             "fenetre": fenetre or "",
             "cohorte": cohorte_int if cohorte_int else 1,
         },
@@ -244,14 +254,11 @@ def _ensure_classe(
     # Mise à jour si déjà existant mais nom différent
     if not created:
         updated = False
-        if obj.nom != classe_nom:
-            obj.nom = classe_nom
-            updated = True
         if obj.intitule_formation != formation_nom:
             obj.intitule_formation = formation_nom
             updated = True
         if updated:
-            obj.save(update_fields=["nom", "intitule_formation"])
+            obj.save(update_fields=["intitule_formation"])
 
     return obj
 
@@ -358,6 +365,11 @@ def _rows_to_records(header, rows):
         related_payload.append(data)
     
     return records, related_payload
+
+
+def _extract_unique_classe_ids(payload: list[dict]) -> list[str]:
+    classes = {(item.get("classe_id") or "").strip() for item in payload}
+    return sorted(code for code in classes if code)
 
 
 def _save_related_from_payload(payload: list[dict]):
@@ -484,6 +496,8 @@ def consolidation_view(request):
     errors = []
     file_meta = request.session.get(SESSION_KEY_CONSO, {}).get("meta", {})
     save_requested = bool(request.POST.get("save"))
+    extract_requested = bool(request.POST.get("extract_classes"))
+    unique_classe_ids: list[str] = []
 
     if request.method == "POST" and form.is_valid():
         fichier = form.cleaned_data.get("fichier")
@@ -512,21 +526,23 @@ def consolidation_view(request):
             buffer_preview = io.BytesIO(content)
             headers, preview_rows = _read_consolidation_sheet(buffer_preview, max_rows=60)
             analysis = _analyze_headers(headers)
-            if save_requested:
+            if save_requested or extract_requested:
                 buffer_full = io.BytesIO(content)
                 full_headers, all_rows = _read_consolidation_sheet(buffer_full, max_rows=None)
                 records, payload = _rows_to_records(full_headers, all_rows)
                 if not records:
                     raise ValueError("Aucune ligne valide à enregistrer.")
-                try:
-                    _reset_consolidation_tables()
-                    ConsolidationRecord.objects.all().delete()
-                    with transaction.atomic():
-                        ConsolidationRecord.objects.bulk_create(records, ignore_conflicts=False)
-                        created = _save_related_from_payload(payload)
-                    messages.success(request, f"{len(records)} lignes importées → {created} apprenants créés/mis à jour (remplacement complet).")
-                except OperationalError:
-                    errors.append("Base de données occupée (database locked). Réessayez dans un instant.")
+                unique_classe_ids = _extract_unique_classe_ids(payload)
+                if save_requested:
+                    try:
+                        _reset_consolidation_tables()
+                        ConsolidationRecord.objects.all().delete()
+                        with transaction.atomic():
+                            ConsolidationRecord.objects.bulk_create(records, ignore_conflicts=False)
+                            created = _save_related_from_payload(payload)
+                        messages.success(request, f"{len(records)} lignes importées → {created} apprenants créés/mis à jour (remplacement complet).")
+                    except OperationalError:
+                        errors.append("Base de données occupée (database locked). Réessayez dans un instant.")
         except Exception as exc:
             errors.append(str(exc))
             preview_rows = []
@@ -539,8 +555,9 @@ def consolidation_view(request):
             "headers": headers,
             "preview_rows": preview_rows,
             "analysis": analysis,
-            "errors": errors,
-            "file_meta": file_meta,
+        "errors": errors,
+        "file_meta": file_meta,
+        "unique_classe_ids": unique_classe_ids,
         },
     )
 
