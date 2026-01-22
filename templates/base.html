@@ -8,7 +8,7 @@
     :root {
       --bg: radial-gradient(circle at 12% 8%, #2b2ae8 0%, #1b0f3a 20%, #0b001c 60%);
       --panel: rgba(255,255,255,0.98);
-      --text: #0c1020;
+    
       --muted: #5d6280;
       --accent: #9e26ff;
       --accent-2: #2b7bff;
@@ -36,7 +36,7 @@
       transition: background .3s ease, color .3s ease;
       min-height: 100vh;
     }
-    a { color: inherit; text-decoration: none; }
+    a { color: #fff; text-decoration: none; }
     .nav {
       display: flex;
       align-items: center;
@@ -81,16 +81,174 @@
       font-weight: 600;
     }
     .nav-btn:hover { background: rgba(255,255,255,0.2); transform: translateY(-1px); }
+  .nav {
+    background: linear-gradient(135deg, rgba(158, 38, 255, 0.95), rgba(158, 38, 255, 0.25));
+    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+    display: flex;
+    flex-direction: column;
+    color: #fff;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 22px;
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+    max-height: 5cm;
+    overflow: hidden;
+    backdrop-filter: blur(10px);
+  }
+  .nav-brand {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+  }
+  .nav-logo {
+    width: 56px;
+    height: 56px;
+    object-fit: contain;
+    border-radius: 12px;
+    border: 1px solid rgba(15, 23, 42, 0.3);
+    padding: 8px;
+    background: rgba(255, 255, 255, 0.05);
+  }
+  .nav-title {
+    font-size: 1rem;
+    font-weight: 700;
+    letter-spacing: 0.25em;
+    color: var(--text);
+  }
+  .nav-links {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    max-width: 720px;
+  }
+  .nav-link {
+    color: rgba(245, 246, 249, 0.85);
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: rgba(15, 23, 42, 0.06);
+  }
+  .nav-link.active {
+    color: #fff;
+    border-color: rgba(255, 255, 255, 0.6);
+    background: rgba(158, 38, 255, 0.3);
+  }
+  .nav-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .nav-btn {
+    width: 36px;
+    height: 36px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+    border: 1px solid rgba(15, 23, 42, 0.25);
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text);
+    cursor: pointer;
+    transition: background 0.2s ease;
+  }
+  .nav-btn:hover {
+    background: rgba(255, 255, 255, 0.18);
+  }
+  .nav-top {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .nav-left {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .welcome-pill {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #fff;
+    letter-spacing: 0.1em;
+  }
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    border: 0;
+  }
+  .user-pill {
+    padding: 6px 12px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    background: rgba(255, 255, 255, 0.18);
+    font-size: 0.9rem;
+  }
+  .logout-form {
+    margin: 0;
+  }
+  .theme-toggle i {
+    font-size: 1rem;
+  }
+  .nav-actions > form,
+  .nav-actions > .theme-toggle {
+    position: relative;
+  }
+  .theme-toggle {
+    background: none;
+    border: none;
+    padding: 0;
+    margin: 0;
+  }
+  @media (min-width: 900px) {
+    .nav {
+      flex-direction: column;
+      padding: 18px 40px;
+    }
+  }
   </style>
+  <link
+    rel="stylesheet"
+    href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    crossorigin="anonymous"
+    referrerpolicy="no-referrer"
+  />
 </head>
 <body class="">
   {% if user.is_authenticated %}
     <nav class="nav">
-      {% with current_url=request.resolver_match.url_name|default:'' current_path=request.path|default:'' %}
-        <div class="nav-brand">
-          <img class="nav-logo" src="/media/img/image.png" alt="Naumur logo">
-          <a href="/dashboard/" style="color:#fff;">NAUMUR</a>
+      <div class="nav-top">
+        <div class="nav-left">
+          <form class="logout-form" method="post" action="{% url 'logout' %}">
+            {% csrf_token %}
+            <button class="nav-btn" type="submit" aria-label="Se déconnecter">
+              <i class="fas fa-sign-out-alt" aria-hidden="true"></i>
+            </button>
+          </form>
+          <button id="theme-toggle" class="nav-btn theme-toggle" type="button" aria-label="Changer de thème">
+            <i class="fas fa-moon" aria-hidden="true"></i>
+          </button>
         </div>
+        <div class="welcome-pill">Welcome {{ user.get_username }}</div>
+      </div>
+      {% with current_url=request.resolver_match.url_name|default:'' current_path=request.path|default:'' %}
+        <a class="nav-brand" href="/dashboard/">
+          <img class="nav-logo" src="/media/img/image.png" alt="Naumur logo">
+          <span class="nav-title">NAUMUR</span>
+        </a>
         <div class="nav-links">
           <a class="nav-link{% if current_path|slice:':12' == '/formations/' %} active{% endif %}" href="/formations/">Formations</a>
           <a class="nav-link{% if current_path|slice:':12' == '/apprenants/' %} active{% endif %}" href="/apprenants/">Apprenants</a>
@@ -99,21 +257,21 @@
           <a class="nav-link{% if current_path|slice:':8' == '/appels/' %} active{% endif %}" href="/appels/">Appels</a>
         </div>
       {% endwith %}
-      <div class="nav-right">
-        <div class="user-pill">Bienvenue {{ user.get_username }}</div>
-        <form class="logout-form" method="post" action="{% url 'logout' %}">
-          {% csrf_token %}
-          <button class="nav-btn" type="submit">Se deconnecter</button>
-        </form>
-        <button id="theme-toggle" class="theme-toggle" type="button">Theme</button>
-      </div>
     </nav>
   {% else %}
     <nav class="nav">
-      <div class="nav-brand">
-        <img class="nav-logo" src="/media/img/image.png" alt="Naumur logo">
-        <a href="/" style="color:#fff;">NAUMUR</a>
+      <div class="nav-top">
+        <div class="nav-left">
+          <button class="nav-btn theme-toggle" type="button" aria-label="Changer de thème">
+            <i class="fas fa-moon" aria-hidden="true"></i>
+          </button>
+        </div>
+        <div class="welcome-pill">Welcome guest</div>
       </div>
+      <a class="nav-brand" href="/dashboard/">
+        <img class="nav-logo" src="/media/img/image.png" alt="Naumur logo">
+        <span class="nav-title">NAUMUR</span>
+      </a>
       <div class="nav-links">
         <a class="nav-link" href="/beneficiaire/">Portail beneficiaire</a>
       </div>
@@ -132,12 +290,24 @@
   <script>
     (function() {
       const btn = document.getElementById("theme-toggle");
+      const icon = btn?.querySelector("i");
       const saved = localStorage.getItem("theme");
-      if (saved === "dark") document.body.classList.add("dark");
+      const updateIcon = (mode) => {
+        if (!icon) return;
+        icon.classList.toggle("fa-moon", mode === "light");
+        icon.classList.toggle("fa-sun", mode === "dark");
+      };
+      if (saved === "dark") {
+        document.body.classList.add("dark");
+        updateIcon("dark");
+      } else {
+        updateIcon("light");
+      }
       btn?.addEventListener("click", () => {
         document.body.classList.toggle("dark");
         const mode = document.body.classList.contains("dark") ? "dark" : "light";
         localStorage.setItem("theme", mode);
+        updateIcon(mode);
       });
     })();
   </script>

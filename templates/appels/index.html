@@ -72,6 +72,8 @@
   <form method="get" class="form-inline" style="gap:8px; margin-bottom:10px; flex-wrap:wrap;">
     <input type="text" name="q" class="input search-bar" placeholder="Recherche nom..." value="{{ filters.q }}">
     <input type="number" name="taux_min" class="input" min="0" max="100" step="0.5" placeholder="Taux présence ≥" value="{{ filters.taux_min }}">
+    <input type="datetime-local" name="date_from" class="input" placeholder="Du (date/heure)" value="{{ filters.date_from }}">
+    <input type="datetime-local" name="date_to" class="input" placeholder="Au (date/heure)" value="{{ filters.date_to }}">
     <select name="status" class="input">
       <option value="">Statut</option>
       <option value="en_attente" {% if filters.status == "en_attente" %}selected{% endif %}>En attente</option>

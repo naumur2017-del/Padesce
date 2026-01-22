@@ -20,8 +20,8 @@
 <p class="subtitle" style="color:var(--muted);">Classes groupees par prestation avec objectifs (effectif / femmes) et bouton ON/OFF pour basculer le statut des classes.</p>
 
 {% if prestations %}
-  {% for p in prestations %}
-    {% with done=p.classes_terminees == p.total_classes and p.total_apprenants|default:0 >= p.effectif_a_former %}
+{% for p in prestations %}
+    {% with total_apprenants=p.total_apprenants|default:0 %}
     <div class="panel" data-prestation-id="{{ p.id }}">
       <div class="panel-header">
         <div>
@@ -32,7 +32,11 @@
           </div>
         </div>
         <div>
-          <span class="badge {% if done %}badge-done{% else %}badge-pending{% endif %}" data-prestation-state>{{ done|yesno:"Terminee,En cours" }}</span>
+          {% if p.classes_terminees == p.total_classes and total_apprenants >= p.effectif_a_former %}
+            <span class="badge badge-done" data-prestation-state>Terminee</span>
+          {% else %}
+            <span class="badge badge-pending" data-prestation-state>En cours</span>
+          {% endif %}
           <div class="subtitle" style="text-align:right;">Classes terminees : {{ p.classes_terminees }} / {{ p.total_classes }}</div>
         </div>
       </div>

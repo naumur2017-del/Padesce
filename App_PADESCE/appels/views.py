@@ -138,6 +138,8 @@ def appels_index(request):
     beneficiaire_filter = request.GET.get("beneficiaire") or ""
     classe_filter = request.GET.get("classe") or ""
     taux_filter = request.GET.get("taux_min", "").strip()
+    date_from_str = request.GET.get("date_from", "").strip()
+    date_to_str = request.GET.get("date_to", "").strip()
     search = request.GET.get("q", "").strip()
 
     if status_filter:
@@ -156,6 +158,18 @@ def appels_index(request):
             pass
     if search:
         appels_qs = appels_qs.filter(nom__icontains=search)
+    if date_from_str:
+        try:
+            date_from = datetime.datetime.fromisoformat(date_from_str)
+            appels_qs = appels_qs.filter(created_at__gte=date_from)
+        except ValueError:
+            pass
+    if date_to_str:
+        try:
+            date_to = datetime.datetime.fromisoformat(date_to_str)
+            appels_qs = appels_qs.filter(created_at__lte=date_to)
+        except ValueError:
+            pass
 
     appels_qs = appels_qs.annotate(
         taux_presence_display=Case(
@@ -184,6 +198,8 @@ def appels_index(request):
         ),
         "classes": Appel.objects.exclude(classe_label="").values_list("classe_label", flat=True).distinct(),
         "taux_min": taux_filter,
+        "date_from": date_from_str,
+        "date_to": date_to_str,
     }
     return render(request, "appels/index.html", {"appels": appels, "filters": filters, "appels_count": appels_count})
 
