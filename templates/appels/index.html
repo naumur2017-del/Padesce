@@ -10,10 +10,14 @@
   .btn-small { padding: 6px 10px; border-radius: 10px; border: 1px solid var(--border); background: linear-gradient(120deg, rgba(15,139,141,0.1), rgba(24,176,172,0.18)); cursor: pointer; transition: transform .15s ease, box-shadow .15s ease; }
   .btn-small:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(0,0,0,0.08); }
   .btn-small.primary { background: linear-gradient(120deg, var(--accent), #18b0ac); color: #fff; border: none; }
+  .checkbox-cell { text-align: center; }
+  .checkbox-cell input { width: 18px; height: 18px; }
   .input-file { display: inline-flex; align-items: center; gap: 10px; padding: 12px 16px; border-radius: 14px; border: 1px dashed var(--border); background: rgba(15,139,141,0.08); box-shadow: var(--shadow); }
   .input-file input { border: none; background: transparent; }
   .input, select { padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border); background: #fff; box-shadow: inset 0 1px 2px rgba(0,0,0,0.04); }
   .search-bar { flex: 1; min-width: 180px; }
+  .selection-bar { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
+  .selection-bar .subtitle { margin: 0; }
   .progress { position: relative; height: 8px; background: #eef2f7; border-radius: 999px; overflow: hidden; width: 140px; }
   .progress-fill { position: absolute; top:0; left:0; height:100%; background: linear-gradient(120deg, var(--accent), #18b0ac); width:0%; transition: width .1s linear; }
   .time-label { font-size: 0.82rem; color: var(--muted); min-width: 72px; text-align: right; }
@@ -98,16 +102,37 @@
     <a class="btn btn-ghost btn-sm" style="padding:10px 14px;" href="/appels/">Reset</a>
   </form>
 
+  <div class="selection-bar">
+    <p class="subtitle" style="color:var(--muted); margin:0;">
+      Apprenants affichés : <strong>{{ appels_count }}</strong>
+    </p>
+    <button type="button" id="js-download-audios" class="btn btn-primary btn-sm" disabled>
+      Télécharger les audios sélectionnés
+    </button>
+  </div>
+
   <div class="table-wrap">
     <table>
       <thead>
         <tr>
+          <th class="checkbox-cell">
+            <input type="checkbox" id="js-select-all" aria-label="Sélectionner tous les audios">
+          </th>
           <th>Nom</th><th>Code</th><th>Prestataire</th><th>Beneficiaire</th><th>Lieu</th><th>Classe</th><th>Type formation déclarée</th><th>Formation Padesce</th><th>Tel</th><th>Taux presence</th><th>Statut</th><th>Action</th><th>Audio</th>
         </tr>
       </thead>
       <tbody>
         {% for a in appels %}
         <tr data-id="{{ a.id }}" data-status="{{ a.status }}" data-locked-by="{{ a.locked_by.username|default:'' }}" data-name="{{ a.nom }}" data-phone="{{ a.telephone1|default:a.telephone2|default:"" }}">
+          <td class="checkbox-cell">
+            <input
+              type="checkbox"
+              class="js-audio-select"
+              value="{{ a.id }}"
+              aria-label="Sélection audio pour {{ a.nom }}"
+              {% if not a.audio_file %}disabled title="Pas d'audio disponible"{% endif %}
+            />
+          </td>
           <td>{{ a.nom }}</td>
           <td>{{ a.code }}</td>
           <td>{{ a.prestataire }}</td>
@@ -148,7 +173,7 @@
           </td>
         </tr>
         {% empty %}
-        <tr><td colspan="13" style="text-align:center; color:var(--muted);">Aucun appel.</td></tr>
+        <tr><td colspan="14" style="text-align:center; color:var(--muted);">Aucun appel.</td></tr>
         {% endfor %}
       </tbody>
     </table>
@@ -467,6 +492,87 @@
         }
       });
     });
+    const downloadBtn = document.getElementById("js-download-audios");
+    const audioCheckboxes = Array.from(document.querySelectorAll(".js-audio-select"));
+    const selectAllCheckbox = document.getElementById("js-select-all");
+    const downloadUrl = "/appels/audio-download/";
+
+    function refreshSelectAllState() {
+      if (!selectAllCheckbox) return;
+      const available = audioCheckboxes.filter((cb) => !cb.disabled);
+      if (!available.length) {
+        selectAllCheckbox.checked = false;
+        selectAllCheckbox.indeterminate = false;
+        selectAllCheckbox.disabled = true;
+        return;
+      }
+      selectAllCheckbox.disabled = false;
+      const allChecked = available.every((cb) => cb.checked);
+      const anyChecked = available.some((cb) => cb.checked);
+      selectAllCheckbox.checked = allChecked;
+      selectAllCheckbox.indeterminate = !allChecked && anyChecked;
+    }
+
+    function updateDownloadButtonState() {
+      const hasSelection = audioCheckboxes.some((cb) => cb.checked);
+      if (downloadBtn) downloadBtn.disabled = !hasSelection;
+      refreshSelectAllState();
+    }
+
+    audioCheckboxes.forEach((checkbox) => {
+      checkbox.addEventListener("change", updateDownloadButtonState);
+    });
+    if (selectAllCheckbox) {
+      selectAllCheckbox.addEventListener("change", (event) => {
+        const shouldCheck = event.target.checked;
+        audioCheckboxes.forEach((cb) => {
+          if (!cb.disabled) cb.checked = shouldCheck;
+        });
+        updateDownloadButtonState();
+      });
+    }
+
+    async function downloadSelectedAudios() {
+      const selectedIds = audioCheckboxes.filter((cb) => cb.checked).map((cb) => cb.value);
+      if (!selectedIds.length) {
+        alert("Sélectionnez au moins un audio avant de lancer le téléchargement.");
+        return;
+      }
+      const formData = new FormData();
+      selectedIds.forEach((id) => formData.append("ids", id));
+      try {
+        const response = await fetch(downloadUrl, {
+          method: "POST",
+          headers: { "X-CSRFToken": csrfToken },
+          body: formData,
+        });
+        if (!response.ok) {
+          let errorText = "Téléchargement impossible.";
+          try {
+            const payload = await response.json();
+            if (payload?.error) errorText = payload.error;
+          } catch (err) {
+            // ignore parse errors
+          }
+          throw new Error(errorText);
+        }
+        const blob = await response.blob();
+        const disposition = response.headers.get("Content-Disposition") || "";
+        const nameMatch = /filename="?([^";]+)"?/.exec(disposition);
+        const filename = nameMatch?.[1] || (selectedIds.length === 1 ? `appel-${selectedIds[0]}.mp3` : "appels-audios.zip");
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+      } catch (err) {
+        alert(err.message || "Impossible de télécharger les audios sélectionnés.");
+      }
+    }
+
+    downloadBtn?.addEventListener("click", downloadSelectedAudios);
+    updateDownloadButtonState();
   })();
 </script>
 {% endblock %}

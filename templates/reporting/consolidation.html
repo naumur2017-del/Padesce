@@ -95,8 +95,17 @@
       <div class="tags">
         <span class="tag" style="background: rgba(209,67,67,0.08); color:#b91c1c;">Valider remplace totalement les donnees en base.</span>
       </div>
+      <label>Classes uniques extraites</label>
+      <textarea
+        id="unique-classes"
+        readonly
+        rows="3"
+        placeholder="Aucune classe extraite."
+        style="width:100%; border-radius:12px; border:1px solid var(--border); padding:10px; background:#f8fafc; font-size:0.9rem;"
+        >{% if unique_classe_ids %}{{ unique_classe_ids|join:"\n" }}{% endif %}</textarea>
       <div style="display:flex; gap:10px; flex-wrap:wrap;">
         <button class="btn" type="submit">Analyser</button>
+        <button class="btn btn-ghost" type="submit" name="extract_classes" value="1">Extraire les classes uniques</button>
       </div>
     </form>
   </div>

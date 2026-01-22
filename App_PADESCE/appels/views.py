@@ -1,15 +1,18 @@
 import datetime
 import io
+import zipfile
 from decimal import Decimal
+from pathlib import Path
 
 import openpyxl
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db.models import Case, DecimalField, ExpressionWrapper, F, When
 from django.db import transaction
-from django.http import JsonResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
+from django.utils.text import slugify
 from django.views.decorators.http import require_POST
 
 from App_PADESCE.appels.models import Appel
@@ -165,6 +168,7 @@ def appels_index(request):
         )
     )
 
+    appels_count = appels_qs.count()
     appels = appels_qs.order_by("status", "nom")
     filters = {
         "status": status_filter,
@@ -181,7 +185,7 @@ def appels_index(request):
         "classes": Appel.objects.exclude(classe_label="").values_list("classe_label", flat=True).distinct(),
         "taux_min": taux_filter,
     }
-    return render(request, "appels/index.html", {"appels": appels, "filters": filters})
+    return render(request, "appels/index.html", {"appels": appels, "filters": filters, "appels_count": appels_count})
 
 
 @login_required
@@ -245,3 +249,44 @@ def appel_upload_audio(request, pk: int):
     appel.audio_file = file_obj
     appel.save(update_fields=["audio_file", "updated_at"])
     return JsonResponse({"ok": True, "audio_url": appel.audio_file.url if appel.audio_file else ""})
+
+
+@login_required
+@require_POST
+def download_appel_audios(request):
+    ids = request.POST.getlist("ids")
+    if not ids:
+        return JsonResponse({"ok": False, "error": "Aucun appel sélectionné."}, status=400)
+    try:
+        ids = [int(val) for val in ids]
+    except ValueError:
+        return JsonResponse({"ok": False, "error": "Identifiants invalides."}, status=400)
+
+    appels = list(
+        Appel.objects.filter(pk__in=ids, audio_file__isnull=False)
+        .order_by("nom")
+    )
+    if not appels:
+        return JsonResponse({"ok": False, "error": "Aucun audio disponible pour les appels sélectionnés."}, status=404)
+
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+        written = 0
+        for appel in appels:
+            if not appel.audio_file:
+                continue
+            try:
+                with appel.audio_file.open("rb") as audio:
+                    suffix = Path(appel.audio_file.name).suffix or ".mp3"
+                    safe_name = f"{slugify(appel.code) or 'code'}-{slugify(appel.nom) or 'appel'}{suffix}"
+                    archive.writestr(safe_name, audio.read())
+                    written += 1
+            except Exception:
+                continue
+        if written == 0:
+            return JsonResponse({"ok": False, "error": "Pas d'audio récupérable."}, status=404)
+
+    buffer.seek(0)
+    response = HttpResponse(buffer.read(), content_type="application/zip")
+    response["Content-Disposition"] = 'attachment; filename="appels-audios.zip"'
+    return response
