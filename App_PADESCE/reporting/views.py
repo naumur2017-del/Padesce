@@ -9,7 +9,7 @@ from openpyxl import load_workbook
 from django.db.models import Avg, Count, Q, Sum
 from django.http import Http404, HttpResponse
 from django.shortcuts import render
-from django.db import transaction, OperationalError
+from django.db import connection, transaction, OperationalError
 from django.contrib import messages
 from django.utils.text import slugify
 
@@ -110,7 +110,11 @@ def _ensure_prestataire(name: str) -> Prestataire | None:
 
 
 def _reset_consolidation_tables():
-    for model in (
+    """
+    Empty the tables that are rebuilt from consolidation imports using raw SQL to avoid
+    instantiating large querysets and keep the request from timing out.
+    """
+    tables = (
         SatisfactionApprenant,
         SatisfactionFormateur,
         Presence,
@@ -122,8 +126,12 @@ def _reset_consolidation_tables():
         Prestataire,
         Beneficiaire,
         Lieu,
-    ):
-        model.objects.all().delete()
+    )
+    with transaction.atomic():
+        with connection.cursor() as cursor:
+            for model in tables:
+                table_name = connection.ops.quote_name(model._meta.db_table)
+                cursor.execute(f"DELETE FROM {table_name}")
 
 
 def _ensure_formation(intitule: str, fenetre: str = "") -> Formation | None:
