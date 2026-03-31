@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+{% block title %}Guide Operateur{% endblock %}
+{% block content %}
+<style>
+  .guide-hero {
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: #faf7ff;
+    padding: 20px;
+    box-shadow: var(--shadow);
+  }
+  .guide-hero h1 {
+    margin: 0 0 8px;
+    color: var(--accent-strong);
+  }
+  .guide-hero p {
+    margin: 0;
+    color: var(--muted);
+  }
+  .guide-grid {
+    margin-top: 14px;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 14px;
+  }
+  .guide-card {
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: #fff;
+    padding: 14px;
+    box-shadow: var(--shadow);
+  }
+  .guide-card h3 {
+    margin: 0 0 8px;
+    color: var(--accent-strong);
+    font-size: 1.08rem;
+  }
+  .guide-card p {
+    margin: 0;
+    color: #3f2b5f;
+    font-size: 0.95rem;
+    line-height: 1.45;
+  }
+  .guide-section {
+    margin-top: 14px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: #fff;
+    padding: 14px;
+    box-shadow: var(--shadow);
+  }
+  .guide-section h2 {
+    margin: 0 0 10px;
+    color: var(--accent-strong);
+    font-size: 1.1rem;
+  }
+  .steps {
+    margin: 0;
+    padding-left: 20px;
+    color: #3f2b5f;
+    line-height: 1.55;
+  }
+  .steps li { margin: 6px 0; }
+  .tips {
+    margin: 0;
+    padding-left: 18px;
+    color: #3f2b5f;
+  }
+  .tips li { margin: 5px 0; }
+  .mini-tag {
+    display: inline-block;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 4px 9px;
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: var(--accent-strong);
+    background: #faf7ff;
+    margin-bottom: 8px;
+  }
+</style>
+
+<section class="guide-hero">
+  <h1>Guide Operateur</h1>
+  <p>Ce guide explique le flux de travail complet pour traiter les appels PADESCE et CGA de maniere simple, rapide et fiable.</p>
+</section>
+
+<section class="guide-grid">
+  <article class="guide-card">
+    <span class="mini-tag">Objectif</span>
+    <h3>Ce que doit faire un operateur</h3>
+    <p>Prendre en charge les lignes en attente, lancer l'appel, enregistrer le resultat (termine ou a rappeler), et verifier la qualite des donnees en fin de session.</p>
+  </article>
+  <article class="guide-card">
+    <span class="mini-tag">Acces</span>
+    <h3>Par ou commencer</h3>
+    <p>Depuis le dashboard, cliquer sur <strong>PADESCE</strong> ou <strong>CGA</strong>. La pastille a cote du logo dans la navbar affiche la page active.</p>
+  </article>
+  <article class="guide-card">
+    <span class="mini-tag">Regle</span>
+    <h3>Priorite de traitement</h3>
+    <p>Traiter d'abord les lignes <strong>En attente</strong>, puis les lignes <strong>A rappeler</strong> selon la date/heure prevue.</p>
+  </article>
+</section>
+
+<section class="guide-section">
+  <h2>Procedure PADESCE (operateur)</h2>
+  <ol class="steps">
+    <li>Ouvrir la page <strong>PADESCE</strong>.</li>
+    <li>Utiliser les filtres (prestataire, beneficiaire, statut, fenetre) pour cibler votre lot.</li>
+    <li>Cliquer <strong>Demarrer</strong> sur une ligne disponible.</li>
+    <li>Effectuer l'appel et ajouter l'audio si necessaire.</li>
+    <li>Choisir <strong>Terminer</strong> si l'appel est boucle, sinon <strong>A rappeler</strong> avec date/heure.</li>
+    <li>Verifier que le statut et l'utilisateur verrouillant la ligne sont bien mis a jour.</li>
+  </ol>
+</section>
+
+<section class="guide-section">
+  <h2>Procedure CGA (operateur)</h2>
+  <ol class="steps">
+    <li>Ouvrir la page <strong>CGA</strong>.</li>
+    <li>Filtrer par <strong>Regime</strong>, <strong>CRI</strong>, <strong>Centre</strong> ou <strong>Ville</strong>.</li>
+    <li>Cliquer <strong>Demarrer</strong>, traiter l'appel, puis terminer ou planifier un rappel.</li>
+    <li>Renseigner proprement le statut pour garantir des classements fiables.</li>
+    <li>Utiliser l'export CSV/XLSX si un controle externe est demande.</li>
+  </ol>
+</section>
+
+<section class="guide-section">
+  <h2>Lecture du Dashboard (superviseur / superuser)</h2>
+  <ul class="tips">
+    <li>Cartes PADESCE/CGA: progression globale <strong>effectues / total</strong>.</li>
+    <li>Classements PADESCE: prestataires, prestations, utilisateurs, fenetres (camembert).</li>
+    <li>Classements CGA: regime, CRI, centre, utilisateurs.</li>
+    <li>Table utilisateurs: statut en ligne, derniere activite, derniere connexion.</li>
+  </ul>
+</section>
+
+<section class="guide-section">
+  <h2>Bonnes pratiques qualite</h2>
+  <ul class="tips">
+    <li>Ne laissez pas une ligne en <strong>En cours</strong> sans action finale.</li>
+    <li>Si un rappel est requis, toujours saisir la date/heure pour eviter les oublis.</li>
+    <li>Verifier les donnees critiques: nom, telephone, prestataire/centre.</li>
+    <li>En fin de plage horaire, controler les lignes traitees avec les filtres de statut.</li>
+  </ul>
+</section>
+{% endblock %}

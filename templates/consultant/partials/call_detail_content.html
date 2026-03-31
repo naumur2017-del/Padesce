@@ -1,0 +1,91 @@
+<style>
+  .hero { border:1px solid var(--border); border-radius:16px; padding:16px; background:linear-gradient(135deg,#faf7ff,#fff); box-shadow: var(--shadow); margin-bottom:14px; }
+  .hero h2 { margin:0 0 6px; color: var(--accent-strong); }
+  .hero p { margin:0; color: var(--muted); }
+  .summary-cards { display:grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap:12px; margin-bottom:14px; }
+  .summary-card { background:#fff; border:1px solid var(--border); border-radius:14px; padding:14px; box-shadow: var(--shadow); }
+  .summary-card .label { color: var(--muted); font-size:0.9rem; }
+  .summary-card .value { color: var(--accent-strong); font-size:1.2rem; font-weight:800; margin-top:4px; }
+  .detail-grid { display:grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap:12px; margin-bottom:14px; }
+  .panel { background:#fff; border:1px solid var(--border); border-radius:14px; padding:14px; box-shadow: var(--shadow); }
+  .panel h3 { margin:0 0 10px; color: var(--accent-strong); }
+  .meta { margin:4px 0; color: var(--text); }
+  table { width:100%; border-collapse:collapse; }
+  th, td { border:1px solid var(--border); padding:8px; text-align:left; }
+  thead { background:#faf7ff; }
+  .muted { color: var(--muted); }
+  .audio-shell { border:1px solid var(--border); border-radius:16px; background:linear-gradient(135deg, rgba(111,60,195,0.08), #3262bcfa); padding:16px; }
+  .audio-shell audio { width:100%; height:42px; margin-top:10px; }
+  .audio-title { margin:0; color:var(--accent-strong); font-weight:800; }
+  .audio-subtitle { margin:6px 0 0; color:var(--muted); font-size:0.92rem; }
+</style>
+
+<section class="hero">
+  <h2>{{ appel.nom }}</h2>
+  <p>Consultation complete de l'appel termine, du formulaire saisi et de l'audio associe si disponible.</p>
+</section>
+
+<section class="summary-cards">
+  <article class="summary-card"><div class="label">Code</div><div class="value">{{ appel.code }}</div></article>
+  <article class="summary-card"><div class="label">Classe</div><div class="value">{{ appel.classe_label|default:"-" }}</div></article>
+  <article class="summary-card"><div class="label">Questions renseignees</div><div class="value">{{ filled_questions_count }}/9</div></article>
+  <article class="summary-card"><div class="label">Operateur</div><div class="value">{{ appel.locked_by.username|default:"-" }}</div></article>
+</section>
+
+<div class="detail-grid">
+  <section class="panel">
+    <h3>Infos apprenant</h3>
+    <div class="meta"><strong>Nom :</strong> {{ appel.nom }}</div>
+    <div class="meta"><strong>Code :</strong> {{ appel.code }}</div>
+    <div class="meta"><strong>Telephone :</strong> {{ appel.telephone1|default:appel.telephone2|default:"-" }}</div>
+    <div class="meta"><strong>Classe :</strong> {{ appel.classe_label|default:"-" }}</div>
+    <div class="meta"><strong>Prestataire :</strong> {{ appel.prestataire|default:"-" }}</div>
+    <div class="meta"><strong>Beneficiaire :</strong> {{ appel.beneficiaire|default:"-" }}</div>
+    <div class="meta"><strong>Lieu :</strong> {{ appel.lieu|default:"-" }}</div>
+    <div class="meta"><strong>Formation :</strong> {{ appel.formation_padesce|default:"-" }}</div>
+    <div class="meta"><strong>Type formation declaree :</strong> {{ appel.type_formation_declaree|default:"-" }}</div>
+    <div class="meta"><strong>Operateur :</strong> {{ appel.locked_by.username|default:"-" }}</div>
+  </section>
+  <section class="panel">
+    <h3>Audio</h3>
+    {% if has_audio and audio_url %}
+      <div class="audio-shell">
+        <p class="audio-title">Lecture de l'appel</p>
+        <p class="audio-subtitle">Utilise le lecteur ci-dessous pour suivre l'audio de la conversation.</p>
+        <audio controls preload="none">
+          <source src="{{ audio_url }}">
+        </audio>
+      </div>
+    {% else %}
+      <p class="muted">Aucun audio disponible pour cet appel. Les autres informations restent consultables.</p>
+    {% endif %}
+  </section>
+</div>
+
+<section class="panel">
+  <h3>Formulaire rempli</h3>
+  {% if consultant_answers_simulated %}
+    <p class="muted" style="margin-top:0;">Les notes manquantes ont ete completees automatiquement pour la consultation.</p>
+  {% endif %}
+  <table>
+    <thead>
+      <tr><th>Question</th><th>Note</th></tr>
+    </thead>
+    <tbody>
+      {% for label, value in question_rows %}
+        <tr>
+          <td>{{ label }}</td>
+          <td>{{ value }}/5</td>
+        </tr>
+      {% endfor %}
+      <tr>
+        <td>Commentaire</td>
+        <td>{{ answers.commentaire }}</td>
+      </tr>
+      <tr>
+        <td>Recommandations</td>
+        <td>{{ answers.recommandations }}</td>
+      </tr>
+    </tbody>
+  </table>
+</section>

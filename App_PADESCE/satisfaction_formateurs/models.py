@@ -17,15 +17,17 @@ class SatisfactionFormateur(TimeStampedModel):
     )
     date = models.DateField()
     heure = models.TimeField(null=True, blank=True)
-    q1_motivation_apprenants = models.PositiveSmallIntegerField(validators=NOTE_VALIDATORS)
-    q2_niveau_prerequis = models.PositiveSmallIntegerField(validators=NOTE_VALIDATORS)
-    q3 = models.PositiveSmallIntegerField(validators=NOTE_VALIDATORS)
-    q4 = models.PositiveSmallIntegerField(validators=NOTE_VALIDATORS)
-    q5 = models.PositiveSmallIntegerField(validators=NOTE_VALIDATORS)
-    q6 = models.PositiveSmallIntegerField(validators=NOTE_VALIDATORS)
-    q7 = models.PositiveSmallIntegerField(validators=NOTE_VALIDATORS)
-    q8 = models.PositiveSmallIntegerField(validators=NOTE_VALIDATORS)
-    q9_satisfaction_globale_prestataire = models.PositiveSmallIntegerField(validators=NOTE_VALIDATORS)
+
+    # Q1-Q3 : notation 1-5
+    q1_prerequis_apprenants = models.PositiveSmallIntegerField(validators=NOTE_VALIDATORS)
+    q2_interaction_apprenants = models.PositiveSmallIntegerField(validators=NOTE_VALIDATORS)
+    q3_competences_acquises = models.PositiveSmallIntegerField(validators=NOTE_VALIDATORS)
+
+    # Q4-Q6 : questions ouvertes
+    q4_gestion_administrative = models.TextField(blank=True)
+    q5_gestion_financiere = models.TextField(blank=True)
+    q6_communication = models.TextField(blank=True)
+
     audio_appel = models.FileField(upload_to="enquetes/satisfaction_formateurs/", null=True, blank=True)
     transcription = models.TextField(blank=True)
     commentaires = models.TextField(blank=True)

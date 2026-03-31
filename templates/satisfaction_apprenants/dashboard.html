@@ -1,0 +1,844 @@
+{% extends "base.html" %}
+{% load filters %}
+{% block title %}Analyse Satisfaction Apprenants{% endblock %}
+{% block content %}
+<style>
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 18px; box-shadow: var(--shadow); margin-bottom: 16px; }
+  .dash-header { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:16px; }
+  .dash-header h1 { margin:0; font-size:1.3rem; }
+  .kpi-row { display:grid; gap:12px; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); margin-bottom:16px; }
+  .kpi-card { padding:16px; border-radius:12px; border:1px solid var(--border); background:var(--panel); text-align:center; box-shadow: var(--shadow); }
+  .kpi-card .kpi-value { font-size:1.8rem; font-weight:800; color:var(--accent-strong); }
+  .kpi-card .kpi-label { font-size:0.82rem; color:var(--muted); margin-top:4px; }
+  .filter-bar { display:flex; gap:10px; flex-wrap:wrap; align-items:end; margin-bottom:16px; }
+  .filter-field { min-width:180px; flex:1; display:flex; flex-direction:column; gap:4px; }
+  .filter-field label { font-size:0.85rem; color:var(--muted); }
+  .filter-field select { width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:10px; background:var(--panel); color:var(--text); }
+  .filter-actions { display:flex; gap:8px; align-items:end; flex-wrap:wrap; }
+  .btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; padding:10px 14px; border-radius:12px; font-weight:600; border:1px solid transparent; cursor:pointer; background:var(--accent); color:#fff; text-decoration:none; transition: transform .15s, box-shadow .15s; }
+  .btn:hover { transform:translateY(-1px); box-shadow:0 6px 16px rgba(76,29,149,0.15); }
+  .btn-primary { background:var(--accent); border-color:rgba(111,60,195,0.3); }
+  .btn-ghost { background:transparent; border:1px solid var(--border); color:var(--text); box-shadow:none; }
+  .btn-ghost:hover { background:rgba(111,60,195,0.06); }
+  .btn-sm { padding:8px 12px; font-size:0.85rem; border-radius:10px; }
+  table { width:100%; border-collapse:collapse; }
+  th, td { padding:8px 10px; border:1px solid var(--border); font-size:0.85rem; text-align:left; }
+  thead { background:rgba(111,60,195,0.06); }
+  th { font-weight:700; color:var(--accent-strong); font-size:0.82rem; text-transform:uppercase; letter-spacing:0.04em; }
+  .table-scroll { max-height:420px; overflow:auto; border-radius:10px; border:1px solid var(--border); }
+  .section-title { font-size:1.05rem; font-weight:700; margin-bottom:10px; display:flex; align-items:center; gap:8px; }
+  .tab-bar { display:flex; gap:4px; margin-bottom:12px; border-bottom:2px solid var(--border); flex-wrap:wrap; }
+  .tab-btn { padding:8px 14px; cursor:pointer; font-weight:600; font-size:0.85rem; border:none; background:none; color:var(--muted); border-bottom:2px solid transparent; margin-bottom:-2px; transition:color .15s, border-color .15s; }
+  .tab-btn.active { color:var(--accent-strong); border-bottom-color:var(--accent); }
+  .tab-btn:hover { color:var(--accent); }
+  .tab-panel { display:none; }
+  .tab-panel.active { display:block; }
+  .analysis-grid { display:grid; gap:12px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); margin-bottom:16px; }
+  .analysis-card { border:1px solid var(--border); border-radius:12px; background:var(--panel); padding:14px; box-shadow: var(--shadow); }
+  .analysis-card h3 { margin:0 0 6px; font-size:0.95rem; }
+  .analysis-card .count { font-size:1.6rem; font-weight:800; color:var(--accent-strong); margin-bottom:10px; }
+  .analysis-list { max-height:220px; overflow:auto; display:flex; flex-direction:column; gap:8px; }
+  .analysis-item { display:flex; justify-content:space-between; gap:8px; font-size:0.84rem; padding:8px 10px; border-radius:10px; background:rgba(111,60,195,0.05); }
+  .analysis-item strong { color:var(--accent-strong); }
+  .source-grid { display:grid; gap:12px; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); margin-bottom:14px; }
+  .source-card { border:1px solid var(--border); border-radius:12px; background:rgba(111,60,195,0.04); padding:14px; }
+  .source-card .label { font-size:0.8rem; color:var(--muted); text-transform:uppercase; letter-spacing:0.04em; }
+  .source-card .value { margin-top:8px; font-size:1.4rem; font-weight:800; color:var(--accent-strong); }
+  .source-card .meta { margin-top:6px; font-size:0.82rem; color:var(--muted); line-height:1.45; }
+  .source-note { margin-bottom:14px; padding:12px 14px; border-radius:12px; border:1px solid var(--border); background:rgba(111,60,195,0.05); color:var(--text); }
+  .source-pill { display:inline-flex; align-items:center; padding:6px 10px; border-radius:999px; font-size:0.75rem; font-weight:700; white-space:nowrap; }
+  .source-pill-success { background:rgba(34,197,94,0.14); color:#166534; }
+  .source-pill-warning { background:rgba(245,158,11,0.16); color:#92400e; }
+  .source-pill-danger { background:rgba(239,68,68,0.14); color:#991b1b; }
+  .source-pill-muted { background:rgba(107,114,128,0.14); color:#4b5563; }
+  .table-detail-panel { margin-top:16px; margin-bottom:16px; padding:18px; border-radius:14px; border:1px solid rgba(111,60,195,0.16); background:rgba(111,60,195,0.04); }
+  .detail-grid { display:grid; gap:12px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); margin-bottom:14px; }
+  .detail-card { border:1px solid var(--border); border-radius:12px; background:rgba(255,255,255,0.88); padding:14px; }
+  .detail-card .label { font-size:0.8rem; color:var(--muted); text-transform:uppercase; letter-spacing:0.04em; }
+  .detail-card .value { margin-top:8px; font-size:1.2rem; font-weight:800; color:var(--accent-strong); }
+  .detail-card .meta { margin-top:6px; font-size:0.84rem; color:var(--muted); line-height:1.45; }
+  .detail-block { margin-top:12px; }
+  .detail-heading { font-size:0.86rem; font-weight:700; color:var(--accent-strong); margin-bottom:8px; }
+  .detail-pills { display:flex; flex-wrap:wrap; gap:8px; }
+  .detail-pill { display:inline-flex; align-items:center; gap:6px; padding:8px 12px; border-radius:999px; border:1px solid rgba(111,60,195,0.16); background:rgba(255,255,255,0.88); font-size:0.82rem; }
+  .detail-pill strong { color:var(--accent-strong); }
+  .rag-panel { margin-bottom:16px; padding:18px; border-radius:14px; border:1px solid rgba(111,60,195,0.18); background:linear-gradient(180deg, rgba(111,60,195,0.08), rgba(111,60,195,0.03)); }
+  .rag-layout { display:grid; gap:14px; grid-template-columns: minmax(280px, 1.1fr) minmax(280px, 1fr); align-items:start; }
+  .rag-form textarea { width:100%; min-height:118px; resize:vertical; padding:12px 14px; border-radius:12px; border:1px solid var(--border); background:#fff; color:var(--text); font:inherit; box-sizing:border-box; }
+  .rag-help { margin-top:8px; font-size:0.84rem; color:var(--muted); line-height:1.45; }
+  .rag-suggestions { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
+  .suggestion-chip { border:1px solid rgba(111,60,195,0.18); background:rgba(255,255,255,0.85); color:var(--accent-strong); border-radius:999px; padding:8px 12px; font-size:0.82rem; font-weight:700; cursor:pointer; }
+  .suggestion-chip:hover { background:rgba(111,60,195,0.08); }
+  .rag-answer-box { min-height:118px; padding:14px; border-radius:12px; border:1px solid var(--border); background:rgba(255,255,255,0.88); white-space:pre-wrap; line-height:1.55; }
+  .rag-empty { color:var(--muted); }
+  .rag-meta { margin-bottom:8px; font-size:0.82rem; color:var(--muted); }
+  .rag-result-wrap { margin-top:12px; }
+  .rag-result-wrap table th { text-transform:none; letter-spacing:0; font-size:0.8rem; }
+  .rag-result-wrap table td { vertical-align:top; }
+  .rag-inline-note { margin-top:10px; padding:10px 12px; border-radius:10px; border:1px solid rgba(245,158,11,0.22); background:rgba(245,158,11,0.08); color:#92400e; font-size:0.84rem; }
+  @media (max-width:720px) {
+    .filter-bar { flex-direction:column; align-items:stretch; }
+    .kpi-row { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width:960px) {
+    .rag-layout { grid-template-columns: 1fr; }
+  }
+</style>
+
+<div class="dash-header">
+  <div>
+    <h1>Analyse de Satisfaction - Apprenants</h1>
+    <p style="color:var(--muted); margin:4px 0 0; font-size:0.9rem;">Cartes et tableaux basés sur les questionnaires d'appels sauvegardés.</p>
+  </div>
+  <div class="filter-actions">
+    <a class="btn btn-primary btn-sm" href="{% url 'satisfaction_dashboard_daily_report_xlsx' %}?source={{ filter_source|urlencode }}">Télécharger le rapport quotidien (Excel)</a>
+    <a class="btn btn-ghost btn-sm" href="{% url 'satisfaction_apprenants_index' %}">Retour enquêtes</a>
+  </div>
+</div>
+
+<form method="get" class="filter-bar">
+  <input type="hidden" name="tab" id="js-active-tab-input" value="{{ active_tab }}">
+  <div class="filter-field">
+    <label for="f-source">Classeur source</label>
+    <select id="f-source" name="source">
+      {% for source in source_options %}
+        <option value="{{ source.value }}" {% if filter_source == source.value %}selected{% endif %}>{{ source.label }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="filter-field">
+    <label for="f-prestation">Prestation</label>
+    <select id="f-prestation" name="prestation">
+      <option value="">Toutes</option>
+      {% for p in prestations %}
+        <option value="{{ p }}" {% if filter_prestation == p %}selected{% endif %}>{{ p }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="filter-field">
+    <label for="f-fenetre">Fenêtre</label>
+    <select id="f-fenetre" name="fenetre">
+      <option value="">Toutes</option>
+      {% for f in fenetres %}
+        <option value="{{ f }}" {% if filter_fenetre == f %}selected{% endif %}>{{ f }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="filter-field">
+    <label for="f-classe">Classe</label>
+    <select id="f-classe" name="classe">
+      <option value="">Toutes</option>
+      {% for c in class_options %}
+        <option value="{{ c.value }}" {% if filter_classe == c.value %}selected{% endif %}>{{ c.label }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="filter-field">
+    <label for="f-prestataire">Prestataire</label>
+    <select id="f-prestataire" name="prestataire">
+      <option value="">Tous</option>
+      {% for p in prestataires %}
+        <option value="{{ p }}" {% if filter_prestataire == p %}selected{% endif %}>{{ p }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="filter-field">
+    <label for="f-beneficiaire">Bénéficiaire</label>
+    <select id="f-beneficiaire" name="beneficiaire">
+      <option value="">Tous</option>
+      {% for b in beneficiaires %}
+        <option value="{{ b }}" {% if filter_beneficiaire == b %}selected{% endif %}>{{ b }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="filter-field">
+    <label for="f-cohorte">Cohorte</label>
+    <select id="f-cohorte" name="cohorte">
+      <option value="">Toutes</option>
+      {% for c in cohortes %}
+        <option value="{{ c }}" {% if filter_cohorte == c %}selected{% endif %}>{{ c }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="filter-field">
+    <label for="f-ville">Ville</label>
+    <select id="f-ville" name="ville">
+      <option value="">Toutes</option>
+      {% for v in villes %}
+        <option value="{{ v }}" {% if filter_ville == v %}selected{% endif %}>{{ v }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="filter-field">
+    <label for="f-user">Utilisateur</label>
+    <select id="f-user" name="user">
+      <option value="">Tous</option>
+      {% for u in users %}
+        <option value="{{ u }}" {% if filter_user == u %}selected{% endif %}>{{ u }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="filter-actions">
+    <button class="btn btn-primary btn-sm" type="submit">Filtrer</button>
+    <a class="btn btn-ghost btn-sm" href="{% url 'satisfaction_dashboard_export_xlsx' %}?source={{ filter_source|urlencode }}">Exporter tout (XLSX)</a>
+    <a class="btn btn-ghost btn-sm" href="{% url 'satisfaction_dashboard_export_xlsx' %}{% if request.GET.urlencode %}?{{ request.GET.urlencode }}{% endif %}">Exporter le filtre (XLSX)</a>
+    <a class="btn btn-ghost btn-sm" href="{% url 'satisfaction_dashboard_export_chapeau' %}{% if request.GET.urlencode %}?{{ request.GET.urlencode }}{% endif %}">Exporter le chapeau (DOCX)</a>
+    <a class="btn btn-ghost btn-sm" href="{% url 'satisfaction_dashboard' %}?source={{ filter_source|urlencode }}">Réinitialiser</a>
+  </div>
+</form>
+
+<div class="analysis-grid" id="js-analysis-grid">
+  <div class="analysis-card">
+    <h3>Classes analysées</h3>
+    <div class="count">{{ analyzed_classes_count }}</div>
+    <div class="analysis-list">
+      {% for item in analyzed_classes %}
+      <div class="analysis-item"><span>{{ item.label }}</span><strong>{{ item.nb }}</strong></div>
+      {% empty %}
+      <div class="analysis-item"><span>Aucune classe analysée</span><strong>0</strong></div>
+      {% endfor %}
+    </div>
+  </div>
+  <div class="analysis-card">
+    <h3>Prestations analysées</h3>
+    <div class="count">{{ analyzed_prestations_ratio }}</div>
+    <div style="font-size:0.78rem; color:var(--muted); margin-bottom:10px;">Prestations terminées analysées sur le total des prestations terminées dans la source choisie.</div>
+    <div class="analysis-list">
+      {% for item in analyzed_prestations %}
+      <div class="analysis-item"><span>{{ item.label }}</span><strong>{{ item.nb }}</strong></div>
+      {% empty %}
+      <div class="analysis-item"><span>Aucune prestation analysée</span><strong>0</strong></div>
+      {% endfor %}
+    </div>
+  </div>
+  <div class="analysis-card">
+    <h3>Fenêtres analysées</h3>
+    <div class="count">{{ analyzed_fenetres_count }}</div>
+    <div class="analysis-list">
+      {% for item in analyzed_fenetres %}
+      <div class="analysis-item"><span>{{ item.label }}</span><strong>{{ item.nb }}</strong></div>
+      {% empty %}
+      <div class="analysis-item"><span>Aucune fenêtre analysée</span><strong>0</strong></div>
+      {% endfor %}
+    </div>
+  </div>
+  <div class="analysis-card">
+    <h3>Prestataires analysés</h3>
+    <div class="count">{{ analyzed_prestataires_count }}</div>
+    <div class="analysis-list">
+      {% for item in analyzed_prestataires %}
+      <div class="analysis-item"><span>{{ item.label }}</span><strong>{{ item.nb }}</strong></div>
+      {% empty %}
+      <div class="analysis-item"><span>Aucun prestataire analysé</span><strong>0</strong></div>
+      {% endfor %}
+    </div>
+  </div>
+  <div class="analysis-card">
+    <h3>Bénéficiaires analysés</h3>
+    <div class="count">{{ analyzed_beneficiaires_count }}</div>
+    <div class="analysis-list">
+      {% for item in analyzed_beneficiaires %}
+      <div class="analysis-item"><span>{{ item.label }}</span><strong>{{ item.nb }}</strong></div>
+      {% empty %}
+      <div class="analysis-item"><span>Aucun bénéficiaire analysé</span><strong>0</strong></div>
+      {% endfor %}
+    </div>
+  </div>
+  <div class="analysis-card">
+    <h3>Cohortes analysées</h3>
+    <div class="count">{{ analyzed_cohortes_count }}</div>
+    <div class="analysis-list">
+      {% for item in analyzed_cohortes %}
+      <div class="analysis-item"><span>{{ item.label }}</span><strong>{{ item.nb }}</strong></div>
+      {% empty %}
+      <div class="analysis-item"><span>Aucune cohorte analysée</span><strong>0</strong></div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<div class="kpi-row">
+  <div class="kpi-card">
+    <div class="kpi-value">{{ total }}</div>
+    <div class="kpi-label">Enquêtes</div>
+  </div>
+  {% for label, avg in global_avgs.items %}
+  <div class="kpi-card">
+    <div class="kpi-value">{{ avg }}<span style="font-size:0.7rem; color:var(--muted);">/5</span></div>
+    <div class="kpi-label">{{ label }}</div>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="panel" id="js-dashboard-panel">
+  <div class="dash-header" style="margin-bottom:12px;">
+    <div>
+      <div class="section-title" style="margin-bottom:4px;">Table active de l'analyse</div>
+      <p style="margin:0; color:var(--muted); font-size:0.9rem;">Seules les classes dont l'objectif est atteint sont affichées. Les prestations analysées sont limitées à celles dont toutes les classes de la source choisie sont terminées et ont atteint le seuil de 50%.</p>
+    </div>
+    <div class="filter-actions">
+      <a
+        class="btn btn-ghost btn-sm"
+        id="js-export-active-csv"
+        data-base-url="{% url 'satisfaction_dashboard_export_csv' %}"
+        href="{% url 'satisfaction_dashboard_export_csv' %}{% if request.GET.urlencode %}?{{ request.GET.urlencode }}{% endif %}"
+      >Exporter la table active (CSV)</a>
+      <a class="btn btn-ghost btn-sm" href="{% url 'satisfaction_dashboard_export_chapeau' %}{% if request.GET.urlencode %}?{{ request.GET.urlencode }}{% endif %}">Exporter le chapeau (DOCX)</a>
+    </div>
+  </div>
+  {% if source_summary.available %}
+  <div class="source-grid">
+    <div class="source-card">
+      <div class="label">Source réseau</div>
+      <div class="value">{{ source_summary.name }}</div>
+      <div class="meta">Mise à jour {{ source_summary.modified_label }}</div>
+    </div>
+    <div class="source-card">
+      <div class="label">ApprenantID trouvés</div>
+      <div class="value">{{ source_summary.apprenant_id_count }}</div>
+      <div class="meta">{{ source_summary.matched_count }} ligne(s) reliée(s) au classeur source</div>
+    </div>
+    <div class="source-card">
+      <div class="label">Cohérentes</div>
+      <div class="value">{{ source_summary.consistent_count }}</div>
+      <div class="meta">Lignes sans écart détecté</div>
+    </div>
+    <div class="source-card">
+      <div class="label">À vérifier</div>
+      <div class="value">{{ source_summary.mismatch_count }}</div>
+      <div class="meta">Écart sur le nom, la classe, le prestataire ou le bénéficiaire</div>
+    </div>
+    <div class="source-card">
+      <div class="label">Absentes de la source</div>
+      <div class="value">{{ source_summary.missing_count }}</div>
+      <div class="meta">Codes d'appels introuvables dans la feuille Apprenants</div>
+    </div>
+    <div class="source-card">
+      <div class="label">Codes source</div>
+      <div class="value">{{ source_summary.source_apprenant_count }}</div>
+      <div class="meta">{{ source_summary.duplicate_code_count }} doublon(s) détecté(s) dans le classeur</div>
+    </div>
+  </div>
+  {% if source_summary.mismatch_rows %}
+  <div class="source-note">
+    <strong>Contrôle de cohérence :</strong> voici les premières lignes à vérifier entre le classeur réseau et la table des appels PADESCE.
+    <div class="analysis-list" style="margin-top:10px; max-height:180px;">
+      {% for item in source_summary.mismatch_rows %}
+      <div class="analysis-item" title="{{ item.alerts_label }}">
+        <span>{{ item.code }} | {{ item.apprenant_id|default:"-" }} | {{ item.nom }}</span>
+        <strong>À vérifier</strong>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+  {% else %}
+  <div class="source-note">
+    <strong>Source réseau indisponible :</strong> {{ source_summary.message }}
+  </div>
+  {% endif %}
+  <div class="tab-bar">
+    <button class="tab-btn {% if active_tab == 'tab-apprenants' %}active{% endif %}" data-tab="tab-apprenants" type="button">Liste enquêtes</button>
+    <button class="tab-btn {% if active_tab == 'tab-classe' %}active{% endif %}" data-tab="tab-classe" type="button">Par classe</button>
+    <button class="tab-btn {% if active_tab == 'tab-prestation' %}active{% endif %}" data-tab="tab-prestation" type="button">Par prestation</button>
+    <button class="tab-btn {% if active_tab == 'tab-cohorte' %}active{% endif %}" data-tab="tab-cohorte" type="button">Par cohorte</button>
+    <button class="tab-btn {% if active_tab == 'tab-ville' %}active{% endif %}" data-tab="tab-ville" type="button">Par ville</button>
+    <button class="tab-btn {% if active_tab == 'tab-user' %}active{% endif %}" data-tab="tab-user" type="button">Par utilisateur</button>
+  </div>
+
+  <div class="tab-panel {% if active_tab == 'tab-apprenants' %}active{% endif %}" id="tab-apprenants">
+    <div class="table-scroll" style="max-height:520px;">
+      <table>
+        <thead>
+          <tr>
+            <th>Code</th>
+            <th>ApprenantID réseau</th>
+            <th>Apprenant</th>
+            <th>Source</th>
+            <th>Classe</th>
+            <th>Intitulé de la formation</th>
+            <th>Prestataire</th>
+            <th>Bénéficiaire</th>
+            <th>Cohorte</th>
+            {% for label in q_labels %}<th>{{ label }}</th>{% endfor %}
+            <th>Commentaire</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in rows %}
+          <tr>
+            <td>{{ row.apprenant_code }}</td>
+            <td title="Classe source : {{ row.source_classe_id|default:'-' }} | Prestation source : {{ row.source_prestation_id|default:'-' }} | Fenêtre source : {{ row.source_fenetre|default:'-' }}">{{ row.source_apprenant_id|default:"-" }}</td>
+            <td>{{ row.apprenant_nom }}</td>
+            <td>
+              <span class="source-pill source-pill-{{ row.source_status_tone }}" title="{{ row.source_alerts_label }}">{{ row.source_status_label }}</span>
+            </td>
+            <td>{{ row.classe_code }}</td>
+            <td>{{ row.formation_intitule }}</td>
+            <td>{{ row.prestataire }}</td>
+            <td>{{ row.beneficiaire }}</td>
+            <td>{{ row.cohorte }}</td>
+            {% for v in row.q_values %}<td style="text-align:center;">{{ v|default:"-" }}</td>{% endfor %}
+            <td style="max-width:180px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="{{ row.commentaire }}">{{ row.commentaire }}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="19" style="text-align:center; color:var(--muted); padding:20px;">Aucune donnée. Appliquez un filtre ou vérifiez les réponses saisies.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="tab-panel {% if active_tab == 'tab-classe' %}active{% endif %}" id="tab-classe">
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>Classe</th>
+            <th>Intitulé de la formation</th>
+            <th>Cohorte</th>
+            <th>Nombre d'enquêtes</th>
+            {% for label in q_labels %}<th>{{ label }}</th>{% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for c in classe_stats %}
+          <tr>
+            <td>{{ c.code }}</td>
+            <td>{{ c.intitule }}</td>
+            <td>{{ c.cohorte }}</td>
+            <td><strong>{{ c.nb }}</strong></td>
+            {% for avg in c.avgs %}<td>{{ avg }}</td>{% endfor %}
+          </tr>
+          {% empty %}
+          <tr><td colspan="13" style="text-align:center; color:var(--muted);">Aucune donnée</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="tab-panel {% if active_tab == 'tab-prestation' %}active{% endif %}" id="tab-prestation">
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>Code prestation</th>
+            <th>Prestataire</th>
+            <th>Bénéficiaire</th>
+            <th>Nombre d'enquêtes</th>
+            {% for label in q_labels %}<th>{{ label }}</th>{% endfor %}
+            <th>Global (Q9)</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in prestation_stats %}
+          <tr>
+            <td>{{ p.code }}</td>
+            <td>{{ p.prestataire }}</td>
+            <td>{{ p.beneficiaire }}</td>
+            <td><strong>{{ p.nb }}</strong></td>
+            {% for avg in p.avgs %}<td>{{ avg }}</td>{% endfor %}
+            <td><strong>{{ p.avg }} / 5</strong></td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="15" style="text-align:center; color:var(--muted);">Aucune donnée</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="tab-panel {% if active_tab == 'tab-cohorte' %}active{% endif %}" id="tab-cohorte">
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>Cohorte</th>
+            <th>Nombre d'enquêtes</th>
+            {% for label in q_labels %}<th>{{ label }}</th>{% endfor %}
+            <th>Global (Q9)</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for c in cohorte_stats %}
+          <tr>
+            <td>{{ c.label }}</td>
+            <td><strong>{{ c.nb }}</strong></td>
+            {% for avg in c.avgs %}<td>{{ avg }}</td>{% endfor %}
+            <td><strong>{{ c.avg }} / 5</strong></td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="15" style="text-align:center; color:var(--muted);">Aucune donnée</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="tab-panel {% if active_tab == 'tab-ville' %}active{% endif %}" id="tab-ville">
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Ville</th><th>Nombre d'enquêtes</th><th>Moyenne de satisfaction globale (Q9)</th></tr></thead>
+        <tbody>
+          {% for v in ville_stats %}
+          <tr><td>{{ v.ville }}</td><td>{{ v.nb }}</td><td><strong>{{ v.avg }} / 5</strong></td></tr>
+          {% empty %}
+          <tr><td colspan="3" style="text-align:center; color:var(--muted);">Aucune donnée</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="tab-panel {% if active_tab == 'tab-user' %}active{% endif %}" id="tab-user">
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Utilisateur</th><th>Nombre d'enquêtes</th><th>Moyenne de satisfaction globale (Q9)</th></tr></thead>
+        <tbody>
+          {% for u in user_stats %}
+          <tr><td>{{ u.username }}</td><td>{{ u.nb }}</td><td><strong>{{ u.avg }} / 5</strong></td></tr>
+          {% empty %}
+          <tr><td colspan="3" style="text-align:center; color:var(--muted);">Aucune donnée</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="panel">
+  <div class="section-title">Moyennes générales</div>
+  <div class="table-scroll" style="max-height:none;">
+    <table style="text-align:center;">
+      <thead>
+        <tr>
+          {% for label in q_labels %}<th>{{ label }}</th>{% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        <tr style="font-size:1.2rem; font-weight:800; color:var(--accent-strong);">
+          {% for label in q_labels %}
+            <td>{{ global_avgs|get_item:label|default:"0" }} <span style="font-size:0.7rem; color:var(--muted);">/5</span></td>
+          {% endfor %}
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="panel" id="js-rag-footer-panel">
+  <div class="dash-header" style="margin-bottom:12px;">
+    <div>
+      <div class="section-title" style="margin-bottom:4px;">Assistant RAG et détails de la table</div>
+      <p style="margin:0; color:var(--muted); font-size:0.9rem;">Le pied de page résume l'onglet affiché et permet d'interroger uniquement les données visibles issues de la source réseau et de la table active.</p>
+    </div>
+  </div>
+
+  <div class="table-detail-panel">
+    <div class="detail-grid">
+      <div class="detail-card">
+        <div class="label">Vue active</div>
+        <div class="value" id="js-table-detail-label">{{ active_table_details.label }}</div>
+        <div class="meta" id="js-table-detail-description">{{ active_table_details.description }}</div>
+      </div>
+      <div class="detail-card">
+        <div class="label">Lignes affichées</div>
+        <div class="value" id="js-table-detail-rows">{{ active_table_details.row_count }}</div>
+        <div class="meta">Résultats actuellement visibles pour l'onglet actif.</div>
+      </div>
+      <div class="detail-card">
+        <div class="label">Colonnes affichées</div>
+        <div class="value" id="js-table-detail-columns">{{ active_table_details.column_count }}</div>
+        <div class="meta">Nombre d'en-têtes disponibles dans la table affichée.</div>
+      </div>
+      <div class="detail-card">
+        <div class="label">Source réseau</div>
+        <div class="value">{{ source_summary.name|default:"Source indisponible" }}</div>
+        <div class="meta">
+          {% if source_summary.available %}
+            Mise à jour {{ source_summary.modified_label }}
+          {% else %}
+            {{ source_summary.message }}
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="detail-block">
+      <div class="detail-heading">Filtres appliqués</div>
+      <div class="detail-pills">
+        {% if active_filters_summary %}
+          {% for item in active_filters_summary %}
+            <span class="detail-pill"><strong>{{ item.label }} :</strong> {{ item.value }}</span>
+          {% endfor %}
+        {% else %}
+          <span class="detail-pill">Aucun filtre manuel. Seules les classes au seuil atteint sont affichées.</span>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="detail-block">
+      <div class="detail-heading">En-têtes de la table active</div>
+      <div class="detail-pills" id="js-table-detail-headers">
+        {% for header in active_table_details.headers %}
+          <span class="detail-pill">{{ header }}</span>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <div class="rag-panel">
+    <div class="dash-header" style="margin-bottom:12px;">
+      <div>
+        <div class="section-title" style="margin-bottom:4px;">Assistant RAG</div>
+        <p style="margin:0; color:var(--muted); font-size:0.9rem;">Posez une question en langage naturel sur la table active. La recherche s'appuie sur les lignes visibles et sur le classeur réseau consolidé.</p>
+      </div>
+    </div>
+    <div class="rag-layout">
+      <form id="js-rag-form" class="rag-form" data-rag-url="{% url 'satisfaction_dashboard_rag' %}">
+        {% csrf_token %}
+        <label for="js-rag-prompt" style="display:block; margin-bottom:8px; font-weight:700; color:var(--accent-strong);">Question analytique</label>
+        <textarea id="js-rag-prompt" name="prompt" placeholder="Exemple : affiche les apprenants dont la prestation est terminée et que la cohorte est 1"></textarea>
+        <div class="rag-help">Le RAG reste aligné sur l'onglet actif, sur les filtres actuels et sur les données de cohérence récupérées depuis le fichier réseau.</div>
+        <div class="rag-suggestions">
+          <button class="suggestion-chip" type="button" data-prompt="Affiche les apprenants dont la prestation est terminée et que la cohorte est 1">Prestations terminées cohorte 1</button>
+          <button class="suggestion-chip" type="button" data-prompt="Liste les apprenants de la classe active avec leur ID apprenant, leur inspecteur et leur numéro d'enquête">Classe active avec identifiants</button>
+          <button class="suggestion-chip" type="button" data-prompt="Résume les bénéficiaires les plus satisfaits dans la table active">Synthèse bénéficiaires</button>
+        </div>
+        <div class="filter-actions" style="margin-top:12px;">
+          <button class="btn btn-primary btn-sm" id="js-rag-submit" type="submit">Interroger la table</button>
+        </div>
+      </form>
+      <div>
+        <div class="rag-meta" id="js-rag-meta"></div>
+        <div class="rag-answer-box rag-empty" id="js-rag-answer"></div>
+        <div class="rag-result-wrap" id="js-rag-results"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{{ tab_details|json_script:"js-tab-details-data" }}
+
+<script>
+(function() {
+  const activeTabInput = document.getElementById('js-active-tab-input');
+  const exportActiveCsv = document.getElementById('js-export-active-csv');
+  const analysisGrid = document.getElementById('js-analysis-grid');
+  const dashboardPanel = document.getElementById('js-dashboard-panel');
+  const exportBaseUrl = exportActiveCsv?.dataset.baseUrl || '';
+  const ragForm = document.getElementById('js-rag-form');
+  const ragPrompt = document.getElementById('js-rag-prompt');
+  const ragSubmit = document.getElementById('js-rag-submit');
+  const ragAnswer = document.getElementById('js-rag-answer');
+  const ragMeta = document.getElementById('js-rag-meta');
+  const ragResults = document.getElementById('js-rag-results');
+  const tableDetailLabel = document.getElementById('js-table-detail-label');
+  const tableDetailDescription = document.getElementById('js-table-detail-description');
+  const tableDetailRows = document.getElementById('js-table-detail-rows');
+  const tableDetailColumns = document.getElementById('js-table-detail-columns');
+  const tableDetailHeaders = document.getElementById('js-table-detail-headers');
+  const tabDetails = JSON.parse(document.getElementById('js-tab-details-data')?.textContent || '{}');
+  const ragUrl = ragForm?.dataset.ragUrl || '';
+  const ragToken = ragForm?.querySelector('input[name="csrfmiddlewaretoken"]')?.value || '';
+
+  if (analysisGrid && dashboardPanel && analysisGrid.parentNode === dashboardPanel.parentNode) {
+    dashboardPanel.parentNode.insertBefore(dashboardPanel, analysisGrid);
+  }
+
+  function activeTabLabel() {
+    return document.querySelector('.tab-btn.active')?.textContent?.trim() || 'Table active';
+  }
+
+  function currentTabDetails(tabId = activeTabInput?.value || 'tab-apprenants') {
+    return tabDetails?.[tabId] || {
+      label: activeTabLabel(),
+      description: 'Table active de l analyse.',
+      row_count: 0,
+      column_count: 0,
+      headers: [],
+    };
+  }
+
+  function escapeHtml(value) {
+    return String(value ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function renderTableDetails(tabId) {
+    const details = currentTabDetails(tabId);
+    if (tableDetailLabel) tableDetailLabel.textContent = details.label || activeTabLabel();
+    if (tableDetailDescription) tableDetailDescription.textContent = details.description || '';
+    if (tableDetailRows) tableDetailRows.textContent = String(details.row_count ?? 0);
+    if (tableDetailColumns) tableDetailColumns.textContent = String(details.column_count ?? 0);
+    if (tableDetailHeaders) {
+      const headers = Array.isArray(details.headers) ? details.headers : [];
+      tableDetailHeaders.innerHTML = headers
+        .map((header) => `<span class="detail-pill">${escapeHtml(header)}</span>`)
+        .join('');
+    }
+    return details;
+  }
+
+  function renderRagPlaceholder() {
+    if (!ragAnswer || !ragMeta || !ragResults) return;
+    const details = currentTabDetails();
+    ragMeta.textContent = `Table active : ${details.label || activeTabLabel()} | Lignes visibles : ${details.row_count ?? 0} | Les filtres affichés seront pris en compte.`;
+    ragAnswer.classList.add('rag-empty');
+    ragAnswer.textContent = `Posez une question sur "${details.label || activeTabLabel()}" pour retrouver rapidement les lignes utiles depuis la source réseau et la table visible.`;
+    ragResults.innerHTML = '';
+  }
+
+  function renderMatchedRows(rows) {
+    if (!ragResults) return;
+    if (!rows.length) {
+      ragResults.innerHTML = "<div class=\"rag-inline-note\">Aucune ligne explicite n'a ete renvoyee. La reponse reste basee sur les donnees recuperees.</div>";
+      return;
+    }
+
+    const columnLabels = {
+      numero: 'N°',
+      id_apprenant: 'ID Apprenant',
+      nom_apprenant: 'Nom apprenant',
+      beneficiaire: 'Bénéficiaire',
+      prestataire: 'Prestataire',
+      formation: 'Formation',
+      inspecteur: 'Inspecteur',
+      classe: 'Classe',
+      cohorte: 'Cohorte',
+      statut_prestation: 'Statut prestation',
+      enquete: 'N°Enquête',
+      nb: "Nombre d'enquetes",
+      prestation: 'Prestation',
+      ville: 'Ville',
+      user: 'Utilisateur',
+    };
+    const columns = Object.keys(rows[0]).filter((key) => key !== 'doc_id');
+    const headerHtml = columns
+      .map((column) => `<th>${escapeHtml(columnLabels[column] || column)}</th>`)
+      .join('');
+    const bodyHtml = rows
+      .map((row) => {
+        const cells = columns
+          .map((column) => `<td>${escapeHtml(row[column] ?? '')}</td>`)
+          .join('');
+        return `<tr>${cells}</tr>`;
+      })
+      .join('');
+
+    ragResults.innerHTML = `
+      <div class="section-title" style="margin:0 0 8px;">Lignes retrouvées</div>
+      <div class="table-scroll" style="max-height:280px;">
+        <table>
+          <thead><tr>${headerHtml}</tr></thead>
+          <tbody>${bodyHtml}</tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  async function submitRagPrompt(promptValue) {
+    if (!ragUrl || !ragAnswer || !ragMeta || !ragResults) return;
+    const prompt = String(promptValue || '').trim();
+    if (!prompt) {
+      renderRagPlaceholder();
+      return;
+    }
+
+    if (ragSubmit) ragSubmit.disabled = true;
+    ragAnswer.classList.remove('rag-empty');
+    ragMeta.textContent = `Table active : ${activeTabLabel()} | Analyse en cours...`;
+    ragAnswer.textContent = 'Analyse RAG en cours...';
+    ragResults.innerHTML = '';
+
+    try {
+      const response = await fetch(ragUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': ragToken,
+        },
+        body: JSON.stringify({
+          prompt,
+          tab: activeTabInput?.value || 'tab-apprenants',
+          filter_query: window.location.search.replace(/^\?/, ''),
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'La reponse RAG est indisponible.');
+      }
+
+      ragAnswer.textContent = data.answer_markdown || 'Aucune reponse generee.';
+      const metaParts = [
+        `Table : ${data.active_tab_label || activeTabLabel()}`,
+        `Lignes filtrees : ${data.row_count ?? 0}`,
+        `Documents consultes : ${data.retrieved_count ?? 0}`,
+      ];
+      if (data.matched_count) metaParts.push(`Lignes retrouvees : ${data.matched_count}`);
+      if (data.model) metaParts.push(`Modele : ${data.model}`);
+      if (data.insufficient_context) metaParts.push('Contexte partiel');
+      ragMeta.textContent = metaParts.join(' | ');
+      renderMatchedRows(data.matched_rows || []);
+    } catch (error) {
+      ragAnswer.classList.remove('rag-empty');
+      ragAnswer.textContent = error.message || 'Une erreur est survenue pendant l analyse.';
+      ragMeta.textContent = `Table active : ${activeTabLabel()} | Requete interrompue`;
+      ragResults.innerHTML = '';
+    } finally {
+      if (ragSubmit) ragSubmit.disabled = false;
+    }
+  }
+
+  function updateExportLink(tabId) {
+    if (!exportActiveCsv || !exportBaseUrl) return;
+    const url = new URL(window.location.href);
+    url.searchParams.set('tab', tabId);
+    exportActiveCsv.href = `${exportBaseUrl}?${url.searchParams.toString()}`;
+  }
+
+  function activateTab(tabId, syncHistory = true) {
+    document.querySelectorAll('.tab-btn').forEach((btn) => {
+      btn.classList.toggle('active', btn.dataset.tab === tabId);
+    });
+    document.querySelectorAll('.tab-panel').forEach((panel) => {
+      panel.classList.toggle('active', panel.id === tabId);
+    });
+    if (activeTabInput) activeTabInput.value = tabId;
+    updateExportLink(tabId);
+    renderTableDetails(tabId);
+    renderRagPlaceholder();
+    if (syncHistory) {
+      const url = new URL(window.location.href);
+      url.searchParams.set('tab', tabId);
+      window.history.replaceState({}, '', url.toString());
+    }
+  }
+
+  document.querySelectorAll('.tab-btn').forEach((btn) => {
+    btn.addEventListener('click', () => activateTab(btn.dataset.tab || 'tab-apprenants'));
+  });
+
+  document.querySelectorAll('.suggestion-chip').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      if (ragPrompt) ragPrompt.value = btn.dataset.prompt || '';
+      submitRagPrompt(btn.dataset.prompt || '');
+    });
+  });
+
+  if (ragForm) {
+    ragForm.addEventListener('submit', (event) => {
+      event.preventDefault();
+      submitRagPrompt(ragPrompt?.value || '');
+    });
+  }
+
+  activateTab(activeTabInput?.value || 'tab-apprenants', false);
+})();
+</script>
+{% endblock %}

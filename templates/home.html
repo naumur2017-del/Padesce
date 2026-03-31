@@ -1,268 +1,845 @@
 {% extends "base.html" %}
-{% block title %}Accueil PADESCE{% endblock %}
+{% block title %}Dashboard NAUMUR CALL APP{% endblock %}
 {% block content %}
 <style>
-  .hero {
-    position: relative;
-    overflow: hidden;
-    border-radius: 18px;
-    padding: 28px;
-    background: linear-gradient(120deg, var(--accent), #18b0ac, var(--accent-2));
-    color: #fff;
-    box-shadow: var(--shadow);
-  }
-  .hero:before, .hero:after {
-    content: ""; position: absolute; border-radius: 50%; filter: blur(12px); opacity: .25;
-    animation: float 8s ease-in-out infinite;
-  }
-  .hero:before { width: 200px; height: 200px; background: #fff; top: -60px; right: 12%; }
-  .hero:after { width: 260px; height: 260px; background: #fff8e1; bottom: -80px; left: 8%; animation-delay: 1.5s; }
-  @keyframes float { 0%,100% { transform: translateY(0);} 50% { transform: translateY(-12px);} }
-  .hero-content { position: relative; z-index: 1; display: grid; grid-template-columns: 1.3fr 1fr; gap: 16px; align-items: center; }
-  .hero-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
-  .btn {
-    display: inline-flex; align-items: center; justify-content: center;
-    padding: 12px 16px; border-radius: 12px; font-weight: 600; border: none; cursor: pointer;
-    transition: transform .2s ease, box-shadow .2s ease;
-  }
-  .btn-primary { background: #fff; color: var(--accent); box-shadow: 0 8px 20px rgba(0,0,0,0.15); }
-  .btn-ghost { border: 1px solid rgba(255,255,255,0.6); color: #fff; background: rgba(255,255,255,0.1); }
-  .btn:hover { transform: translateY(-2px); }
-  .panel {
-    background: var(--panel);
+  .dashboard-header {
     border: 1px solid var(--border);
-    border-radius: 16px;
-    padding: 18px;
+    border-radius: 14px;
+    background: #faf7ff;
+    padding: 20px;
     box-shadow: var(--shadow);
   }
-  table { width:100%; border-collapse: collapse; }
-  th, td { padding: 8px; border: 1px solid var(--border); font-size: 0.92rem; text-align: left; }
-  thead { background: rgba(15,139,141,0.08); }
-  .status-pill {
-    display:inline-flex;
-    align-items:center;
-    gap:6px;
-    padding:4px 10px;
-    border-radius:999px;
-    font-size:0.85rem;
-    border:1px solid transparent;
+  .dashboard-title {
+    margin: 0 0 8px;
+    color: var(--accent-strong);
+    font-size: 1.8rem;
   }
-  .status-pill.ok { background: rgba(34,197,94,0.15); color: #166534; border-color: rgba(34,197,94,0.3); }
-  .status-pill.off { background: rgba(107,114,128,0.18); color: #374151; border-color: rgba(107,114,128,0.35); }
-  .grid { display: grid; gap: 14px; }
-  .grid.stats { grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
-  .card-stat { display: flex; gap: 12px; align-items: center; }
-  .last-seen { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-  .ampm {
+  .dashboard-subtitle {
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.96rem;
+  }
+  .cards-grid {
+    margin-top: 18px;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 14px;
+  }
+  .card {
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: #fff;
+    padding: 16px;
+    box-shadow: var(--shadow);
+  }
+  .card h2, .card h3 {
+    margin: 0 0 8px;
+    color: var(--accent-strong);
+  }
+  .card .big {
+    font-size: 1.35rem;
+    font-weight: 700;
+  }
+  .card .muted {
+    color: var(--muted);
+    font-size: 0.95rem;
+  }
+  .btn {
     display: inline-flex;
     align-items: center;
-    padding: 2px 8px;
+    justify-content: center;
+    border: 1px solid var(--accent);
+    background: var(--accent);
+    color: #fff;
+    border-radius: 10px;
+    padding: 10px 14px;
+    font-weight: 700;
+    margin-top: 8px;
+  }
+  .btn:hover { background: var(--accent-strong); border-color: var(--accent-strong); color: #fff; }
+  .section {
+    margin-top: 16px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: #fff;
+    box-shadow: var(--shadow);
+    padding: 14px;
+  }
+  .section h3 {
+    margin: 0 0 10px;
+    color: var(--accent-strong);
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  th, td {
+    border: 1px solid var(--border);
+    padding: 8px;
+    font-size: 0.92rem;
+    text-align: left;
+  }
+  thead {
+    background: #faf7ff;
+  }
+  .status-pill {
+    display: inline-flex;
+    align-items: center;
     border-radius: 999px;
-    font-size: 0.75rem;
+    padding: 4px 10px;
+    border: 1px solid var(--border);
     font-weight: 600;
-    border: 1px solid transparent;
   }
-  .ampm.am { background: rgba(59,130,246,0.15); color: #1d4ed8; border-color: rgba(59,130,246,0.35); }
-  .ampm.pm { background: rgba(249,115,22,0.15); color: #9a3412; border-color: rgba(249,115,22,0.35); }
-  .dot {
-    width: 44px; height: 44px; border-radius: 12px;
-    display: inline-flex; align-items: center; justify-content: center;
-    background: var(--accent); color: #fff; font-weight: 700;
-    box-shadow: 0 6px 18px rgba(0,0,0,0.12);
+  .status-pill.online {
+    color: #0f766e;
+    background: #ecfdf5;
+    border-color: #a7f3d0;
   }
-  .progress-track { background: rgba(255,255,255,0.4); height: 10px; border-radius: 999px; overflow: hidden; }
-  .progress-bar { height: 100%; background: linear-gradient(90deg, var(--accent-2), #f97316); animation: shimmer 2.5s ease-in-out infinite; }
-  @keyframes shimmer { 0% { filter: brightness(1);} 50% { filter: brightness(1.2);} 100% { filter: brightness(1);} }
-  .countdown {
-    display: grid; grid-template-columns: repeat(4, minmax(80px,1fr)); gap: 10px;
+  .status-pill.offline {
+    color: #6b7280;
+    background: #f8fafc;
+    border-color: #e2e8f0;
   }
-  .count-cell { text-align: center; padding: 10px; border-radius: 12px; background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.25); }
-  .count-val { font-size: 1.3rem; font-weight: 700; }
-  .count-label { font-size: 0.8rem; opacity: 0.85; }
-  .actions-grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(220px,1fr)); margin-top: 14px; }
-  .action-card { border-left: 5px solid var(--accent); }
+  .chart-wrap {
+    display: grid;
+    grid-template-columns: 260px 1fr;
+    gap: 14px;
+    align-items: center;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+    font-size: 0.92rem;
+  }
+  .legend-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 999px;
+  }
+  .scroll-table {
+    max-height: 360px;
+    overflow: auto;
+  }
+  .section-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 10px;
+  }
+  .search-form {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .search-input {
+    min-width: 260px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: #fff;
+    color: var(--text);
+  }
+  .drill-link {
+    color: var(--accent-strong);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    font-weight: 600;
+  }
+  .progress-wrap { display:none; flex-direction:column; gap:8px; margin-top:12px; padding:10px 12px; border-radius:12px; border:1px solid rgba(15,139,141,0.2); background: rgba(15,139,141,0.05); }
+  .progress-head { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+  .progress-label { font-weight:700; color: var(--text); }
+  .progress-track { height:10px; border-radius:999px; overflow:hidden; background: rgba(15,139,141,0.12); border:1px solid rgba(15,139,141,0.2); }
+  .progress-bar { height:100%; width:0%; background: linear-gradient(90deg, #18b0ac, #f6c453); transition: width .2s ease; }
 </style>
 
-<div class="hero">
-  <div class="hero-content">
-    <div>
-      <div class="pill-step mb-2" style="background: rgba(255,255,255,0.2); border-radius: 999px; padding: 8px 12px; display:inline-block;">Dashboard</div>
-      <h1 style="margin: 6px 0;">PADESCE</h1>
-      <p class="subtitle" style="color:#e5f6f7;">Suivi centralisé des classes, présences, enquêtes et reporting.</p>
-      <div class="hero-actions">
-        <a class="btn btn-primary" href="{% url 'class_list' %}">Classes</a>
-        <a class="btn btn-ghost" href="/reporting/">Données traitées</a>
-        <a class="btn btn-ghost" href="/formations/">Formations</a>
-        <a class="btn btn-ghost" href="/reporting/export/csv/">Export CSV/Excel</a>
-      </div>
-    </div>
-    <div class="panel" style="color: var(--text); background: rgba(255,255,255,0.9);">
-      <div class="d-flex" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-        <span class="subtitle" style="color:var(--muted);">Progression 26 sept. 2025 → 26 août 2026</span>
-        <strong>{{ progress_pct }}%</strong>
-      </div>
-      <div class="progress-track">
-        <div class="progress-bar" style="width: {{ progress_pct }}%;"></div>
-      </div>
-      <small style="color:var(--muted);">Mise à jour quotidienne.</small>
-      <div style="margin-top:12px;">
-        <div class="d-flex" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-          <span class="subtitle" style="color:var(--muted);">Compte à rebours jusqu'au 26/08/2026</span>
-          <span id="countdown-label" style="font-weight:600;">--</span>
-        </div>
-        <div class="countdown" data-deadline="{{ deadline_iso }}">
-          <div class="count-cell"><div class="count-val" data-unit="days">--</div><div class="count-label">Jours</div></div>
-          <div class="count-cell"><div class="count-val" data-unit="hours">--</div><div class="count-label">Heures</div></div>
-          <div class="count-cell"><div class="count-val" data-unit="minutes">--</div><div class="count-label">Minutes</div></div>
-          <div class="count-cell"><div class="count-val" data-unit="seconds">--</div><div class="count-label">Secondes</div></div>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
+<section class="dashboard-header">
+  <h1 class="dashboard-title">Dashboard NAUMUR CALL APP</h1>
+  <p class="dashboard-subtitle">Acces rapide et suivi des appels PADESCE / CGA.</p>
+</section>
 
-<div class="grid stats" style="margin-top: 16px;">
-  {% for card in stat_cards %}
-  <div class="panel fade-up" style="animation-delay: {{ forloop.counter0|add:1 }}0ms;">
-    <div class="card-stat">
-      <div class="dot">{{ forloop.counter }}</div>
-      <div>
-        <div class="subtitle" style="color:var(--muted); font-size: 0.9rem;">{{ card.label }}</div>
-        <div style="font-size: 1.8rem; font-weight: 700;">{{ card.value }}</div>
-      </div>
-    </div>
-  </div>
-  {% endfor %}
-</div>
-
-<div class="panel" style="margin-top: 16px;">
-  <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;">
-    <div>
-      <h4 style="margin:0;">Appels terminés</h4>
-      <p class="subtitle" style="color:var(--muted); margin:0;">Nombre d'appels marqués comme terminés</p>
-    </div>
-    <div style="font-size: 2rem; font-weight: 700;">{{ nb_appels_termine }}</div>
-  </div>
-  <div style="margin-top: 18px; overflow:auto;">
-    <table>
-      <thead>
-        <tr>
-          <th>Prestataire</th>
-          <th>Appels terminés</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for item in prestataire_appels %}
-          <tr>
-            <td>{{ item.prestataire|default:"(Sans prestataire)" }}</td>
-            <td>{{ item.total }}</td>
-          </tr>
-        {% empty %}
-          <tr><td colspan="2" style="text-align:center; color:var(--muted);">Aucun appel terminé enregistré.</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-</div>
+<section class="cards-grid">
+  {% if can_view_call_cards %}
+    <article class="card">
+      <h2>PADESCE</h2>
+      <div class="big">{{ padesce_effectues }} / {{ padesce_total }} appels effectues</div>
+      <div class="muted">Statut effectue = hors "En attente".</div>
+      <a class="btn" href="{% url 'appels_index' %}">Ouvrir PADESCE</a>
+    </article>
+  {% endif %}
+  {% if can_view_call_cards %}
+    <article class="card">
+      <h2>CGA</h2>
+      <div class="big">{{ cga_effectues }} / {{ cga_total }} appels effectues</div>
+      <div class="muted">Statut effectue = hors "En attente".</div>
+      <a class="btn" href="{% url 'cga_index' %}">Ouvrir CGA</a>
+    </article>
+  {% endif %}
+  {% if can_view_call_cards %}
+    <article class="card">
+      <h2>Formateurs</h2>
+      <div class="big">{{ formateurs_effectues }} / {{ formateurs_total }} appels effectues</div>
+      <div class="muted">Import depuis la feuille "Calendrier" avec decoupage des numeros formateurs.</div>
+      <a class="btn" href="{% url 'formateurs_index' %}">Ouvrir appels formateurs</a>
+    </article>
+  {% endif %}
+  {% if can_view_analysis_pages %}
+  <article class="card" style="border-top: 4px solid var(--accent);">
+    <h2>Analyses Satisfaction</h2>
+    <div class="big">Tableaux & Graphiques</div>
+    <div class="muted">Suivi des indicateurs Q1 à Q9 par classe, prestataire et utilisateur.</div>
+    <a class="btn" href="{% url 'satisfaction_dashboard' %}">Voir les analyses</a>
+  </article>
+  {% if user.is_staff %}
+  <article class="card" style="border-top: 4px solid #6f3cc3;">
+    <h2>Rapport Quotidien</h2>
+    <div class="big">Etat de l'application</div>
+    <div class="muted">Stats d'appels, bugs et anomalies classe (ANO).</div>
+    <a class="btn" href="{% url 'application_report_view' %}">Ouvrir le rapport</a>
+  </article>
+  {% endif %}
+  {% if user.is_superuser %}
+  <article class="card" style="border-top: 4px solid #0f766e;">
+    <h2>Deploiement Gandi</h2>
+    <div class="big">Ajouts, modifs, suppressions</div>
+    <div class="muted">Pipeline de deploiement avec progression, journal horodate et verification distante.</div>
+    <a class="btn" href="{% url 'deployment_dashboard' %}">Ouvrir le deploiement</a>
+  </article>
+  {% endif %}
+  {% if can_view_consultant_space %}
+  <article class="card" style="border-top: 4px solid #0f766e;">
+    <h2>Consultant</h2>
+    <div class="big">Lecture uniquement</div>
+    <div class="muted">Consulter les appels termines, les formulaires remplis et les audios disponibles.</div>
+    <a class="btn" href="{% url 'consultant_dashboard' %}">Ouvrir l'espace consultant</a>
+  </article>
+  {% endif %}
+  {% endif %}
+</section>
 
 {% if user.is_superuser %}
-  <div class="panel" style="margin-top: 16px;">
-    <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;">
-      <h4 style="margin:0;">Activite des utilisateurs</h4>
-      <span class="subtitle" style="color:var(--muted);">En ligne si actif depuis moins de 10 min.</span>
+  <section class="section">
+    <h3>Maintenance</h3>
+    <p class="dashboard-subtitle">Detection globale des doublons de numeros sur PADESCE, CGA et Formateurs. Les doublons sont desactives, pas supprimes physiquement.</p>
+    <form method="post" action="{% url 'deduplicate_all_call_tables' %}" style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;">
+      {% csrf_token %}
+      <button type="submit" class="btn">Detecter et supprimer les doublons numeros</button>
+    </form>
+  </section>
+{% endif %}
+
+{% if can_view_padesce_dashboard %}
+  <section class="section">
+    <h3>PADESCE - KPIs Dernieres 24h (Appels termines)</h3>
+    <div class="card" style="margin-top:10px; margin-bottom:10px; padding:12px 14px;">
+      <div class="muted">Total des appels terminés sur les dernières 24 heures</div>
+      <div class="big" style="margin-top:6px;">{{ kpi_24h_total_termines }}</div>
     </div>
-    <div style="margin-top:10px; overflow:auto;">
+    <div class="cards-grid" style="grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); margin-top:10px;">
+      
+      <div class="card" style="padding:10px;">
+        <h4 style="margin:0 0 8px; color:var(--accent-strong);">Par Utilisateur</h4>
+        <div class="scroll-table" style="max-height: 200px;">
+          <table>
+            <thead><tr><th>Utilisateur</th><th>Termines (24h)</th></tr></thead>
+            <tbody>
+              {% for row in kpi_24h_users %}
+                <tr>
+                  <td><a class="drill-link" href="{% url 'appels_index' %}?agent={{ row.username|urlencode }}">{{ row.username }}</a></td>
+                  <td><strong>{{ row.termines_24h }}</strong></td>
+                </tr>
+              {% empty %}
+                <tr><td colspan="2">Aucun appel termine ces dernieres 24h.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card" style="padding:10px;">
+        <h4 style="margin:0 0 8px; color:var(--accent-strong);">Par Classe + Prestation</h4>
+        <div class="scroll-table" style="max-height: 200px;">
+          <table>
+            <thead><tr><th>Classe - Prestation</th><th>Termines (24h)</th></tr></thead>
+            <tbody>
+              {% for row in kpi_24h_classe_prestation %}
+                <tr>
+                  <td>
+                    <a class="drill-link" href="{% url 'appels_index' %}?classe={{ row.classe_label|urlencode }}&prestataire={{ row.prestataire|urlencode }}&beneficiaire={{ row.beneficiaire|urlencode }}">
+                      {{ row.label }}
+                    </a>
+                  </td>
+                  <td><strong>{{ row.termines_24h }}</strong></td>
+                </tr>
+              {% empty %}
+                <tr><td colspan="2">Aucun appel termine ces dernieres 24h.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card" style="padding:10px;">
+        <h4 style="margin:0 0 8px; color:var(--accent-strong);">Par Prestation</h4>
+        <div class="scroll-table" style="max-height: 200px;">
+          <table>
+            <thead><tr><th>Prestation</th><th>Termines (24h)</th></tr></thead>
+            <tbody>
+              {% for row in kpi_24h_prestation %}
+                <tr>
+                  <td>
+                    <a class="drill-link" href="{% url 'appels_index' %}?prestataire={{ row.prestataire|urlencode }}&beneficiaire={{ row.beneficiaire|urlencode }}">
+                      {{ row.label }}
+                    </a>
+                  </td>
+                  <td><strong>{{ row.termines_24h }}</strong></td>
+                </tr>
+              {% empty %}
+                <tr><td colspan="2">Aucun appel termine ces dernieres 24h.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <section class="section">
+    <h3>PADESCE - Classement Prestataires (appels termines)</h3>
+    <div class="scroll-table">
+      <table>
+        <thead>
+          <tr><th>#</th><th>Prestataire</th><th>Appeles</th><th>Termines</th></tr>
+        </thead>
+        <tbody>
+          {% for row in padesce_prestataire_ranking %}
+            <tr>
+              <td>{{ forloop.counter }}</td>
+              <td>
+                <a class="drill-link" href="{% url 'appels_index' %}?prestataire={{ row.prestataire|urlencode }}">
+                  {{ row.prestataire }}
+                </a>
+              </td>
+              <td><a class="drill-link" href="{% url 'appels_index' %}?prestataire={{ row.prestataire|urlencode }}">{{ row.total_appeles }}</a></td>
+              <td><a class="drill-link" href="{% url 'appels_index' %}?prestataire={{ row.prestataire|urlencode }}&status=termine">{{ row.total_termines }}</a></td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="4">Aucune donnee.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="section">
+    <h3>PADESCE - Camembert des fenetres (appels effectues)</h3>
+    {% if padesce_fenetre_rows %}
+      <div class="chart-wrap">
+        <canvas id="js-fenetre-pie" width="240" height="240" role="img" aria-label="Camembert des fenetres"></canvas>
+        <div id="js-fenetre-legend">
+          {% for row in padesce_fenetre_rows %}
+            <div class="legend-item" data-index="{{ forloop.counter0 }}">
+              <span class="legend-dot"></span>
+              <a class="drill-link" href="{% url 'appels_index' %}?fenetre={{ row.fenetre|urlencode }}">{{ row.fenetre }}</a>
+              <strong style="margin-left:auto;"><a class="drill-link" href="{% url 'appels_index' %}?fenetre={{ row.fenetre|urlencode }}">{{ row.total }}</a></strong>
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+      {{ padesce_fenetre_rows|json_script:"padesce-fenetre-data" }}
+    {% else %}
+      <p class="muted">Aucune donnee.</p>
+    {% endif %}
+  </section>
+{% endif %}
+
+{% if is_superuser_dashboard %}
+  <section class="section">
+    <h3>Suivi des utilisateurs PADESCE</h3>
+    <div class="section-toolbar">
+      <div class="muted">Trié du plus grand nombre d'appels terminés au plus faible.</div>
+      <form method="get" class="search-form">
+        <input
+          id="user-search"
+          class="search-input"
+          type="search"
+          name="user_search"
+          value="{{ user_search|default:'' }}"
+          placeholder="Rechercher un nom d'utilisateur"
+          aria-label="Rechercher un utilisateur PADESCE"
+        >
+        <button type="submit" class="btn" style="margin-top:0;">Rechercher</button>
+        {% if user_search %}
+          <a class="btn" style="margin-top:0; background:#fff; color:var(--accent-strong);" href="{% url 'home' %}">Effacer</a>
+        {% endif %}
+      </form>
+    </div>
+    <div class="scroll-table">
       <table>
         <thead>
           <tr>
             <th>Utilisateur</th>
             <th>Statut</th>
+            <th>Nombre d'appels</th>
+            <th>A rappeler</th>
+            <th>Formulaires remplis</th>
+            <th>Formulaires modifies</th>
+            <th>Termines</th>
+            <th>En cours</th>
+            <th>Appels en cours</th>
             <th>Derniere activite</th>
+            <th>Derniere connexion</th>
           </tr>
         </thead>
         <tbody>
           {% for row in user_activity_rows %}
             <tr>
-              <td>{{ row.username }}</td>
+              <td><a class="drill-link" href="{{ row.total_url }}">{{ row.username }}</a></td>
               <td>
-                <span class="status-pill {% if row.is_online %}ok{% else %}off{% endif %}">
+                <span class="status-pill {% if row.is_online %}online{% else %}offline{% endif %}">
                   {% if row.is_online %}En ligne{% else %}Hors ligne{% endif %}
                 </span>
               </td>
+              <td><a class="drill-link" href="{{ row.total_url }}">{{ row.total_appels }}</a></td>
+              <td><a class="drill-link" href="{{ row.rappel_url }}">{{ row.a_rappeler }}</a></td>
+              <td><a class="drill-link" href="{{ row.formulaires_url }}">{{ row.formulaires_remplis }}</a></td>
+              <td><a class="drill-link" href="{{ row.modifies_url }}">{{ row.formulaires_modifies }}</a></td>
+              <td><a class="drill-link" href="{{ row.termines_url }}">{{ row.termines }}</a></td>
+              <td><a class="drill-link" href="{{ row.en_cours_url }}">{{ row.en_cours }}</a></td>
               <td>
-                {% if row.last_seen %}
-                  <span class="last-seen">
-                    <span>{{ row.last_seen|date:"l d/m/Y h:i" }}</span>
-                    {% with ampm=row.last_seen|date:"A" %}
-                      <span class="ampm {% if ampm == "AM" %}am{% else %}pm{% endif %}">
-                        {% if ampm == "AM" %}a.m.{% else %}p.m.{% endif %}
-                      </span>
-                    {% endwith %}
-                  </span>
-                {% else %}
-                  Jamais
-                {% endif %}
+                {% for current_call in row.current_calls %}
+                  <div><a class="drill-link" href="{{ current_call.url }}">{{ current_call.code }} - {{ current_call.nom }}</a></div>
+                {% empty %}
+                  -
+                {% endfor %}
               </td>
+              <td>{% if row.last_seen %}{{ row.last_seen|date:"d/m/Y H:i:s" }}{% else %}-{% endif %}</td>
+              <td>{% if row.last_login %}{{ row.last_login|date:"d/m/Y H:i:s" }}{% else %}-{% endif %}</td>
             </tr>
           {% empty %}
-            <tr><td colspan="3" style="text-align:center; color:var(--muted);">Aucun utilisateur trouve.</td></tr>
+            <tr><td colspan="11">Aucun utilisateur.</td></tr>
           {% endfor %}
         </tbody>
       </table>
     </div>
-  </div>
+  </section>
 {% endif %}
 
-<div class="actions-grid">
-  <div class="panel action-card fade-up" style="animation-delay: 40ms;">
-    <h4>Classes</h4>
-    <p class="subtitle">Accès aux classes, cohorte, prestataire, lieu.</p>
-    <a class="btn btn-primary" href="{% url 'class_list' %}">Voir les classes</a>
-  </div>
-  <div class="panel action-card fade-up" style="animation-delay: 80ms;">
-    <h4>Données traitées</h4>
-    <p class="subtitle">Graphes du TDB PADESCE.</p>
-    <a class="btn btn-primary" href="/reporting/">Ouvrir</a>
-  </div>
-  <div class="panel action-card fade-up" style="animation-delay: 120ms;">
-    <h4>Formations</h4>
-    <p class="subtitle">Statuts, prestataires, bénéficiaires.</p>
-    <a class="btn btn-primary" href="/formations/">Voir les formations</a>
-  </div>
-  <div class="panel action-card fade-up" style="animation-delay: 160ms;">
-    <h4>Export</h4>
-    <p class="subtitle">Exporter toutes les enquêtes.</p>
-    <div style="display:flex; gap:8px; flex-wrap: wrap;">
-      <a class="btn btn-ghost" href="/reporting/export/csv/">CSV</a>
-      <a class="btn btn-ghost" href="/reporting/export/excel/">Excel</a>
+{% if can_view_padesce_dashboard %}
+  <section class="section">
+    <h3>PADESCE - Prestations (Prestataire - Beneficiaire)</h3>
+    <div class="scroll-table">
+      <table>
+        <thead>
+          <tr><th>#</th><th>Prestation</th><th>Total apprenants</th><th>Appeles</th><th>Restants</th><th>Statut</th></tr>
+        </thead>
+        <tbody>
+          {% for row in padesce_prestation_progress %}
+            <tr>
+              <td>{{ forloop.counter }}</td>
+              <td>
+                <a class="drill-link" href="{% url 'appels_index' %}?prestataire={{ row.prestataire|urlencode }}&beneficiaire={{ row.beneficiaire|urlencode }}">
+                  {{ row.prestation_label }}
+                </a>
+              </td>
+              <td><a class="drill-link" href="{% url 'appels_index' %}?prestataire={{ row.prestataire|urlencode }}&beneficiaire={{ row.beneficiaire|urlencode }}">{{ row.total_apprenants }}</a></td>
+              <td><a class="drill-link" href="{% url 'appels_index' %}?prestataire={{ row.prestataire|urlencode }}&beneficiaire={{ row.beneficiaire|urlencode }}">{{ row.total_appeles }}</a></td>
+              <td><a class="drill-link" href="{% url 'appels_index' %}?prestataire={{ row.prestataire|urlencode }}&beneficiaire={{ row.beneficiaire|urlencode }}&status=en_attente">{{ row.restants }}</a></td>
+              <td>
+                {% if row.is_complete %}
+                  <a class="drill-link" href="{% url 'appels_index' %}?prestataire={{ row.prestataire|urlencode }}&beneficiaire={{ row.beneficiaire|urlencode }}&status=termine">Termine</a>
+                {% else %}
+                  <a class="drill-link" href="{% url 'appels_index' %}?prestataire={{ row.prestataire|urlencode }}&beneficiaire={{ row.beneficiaire|urlencode }}">
+                    {{ row.total_appeles }} appeles / {{ row.restants }} restants
+                  </a>
+                {% endif %}
+              </td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="6">Aucune donnee.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
     </div>
-  </div>
-</div>
+  </section>
 
-<script>
-  (function() {
-    const grid = document.querySelector(".countdown");
-    if (!grid) return;
-    const deadlineStr = grid.getAttribute("data-deadline");
-    const deadline = new Date(deadlineStr + "T23:59:59");
-    const start = new Date("2025-09-26T00:00:00");
-    const label = document.getElementById("countdown-label");
+  <section class="section">
+    <h3>FORMATEURS - Classement Prestataires</h3>
+    <div class="scroll-table">
+      <table>
+        <thead>
+          <tr><th>#</th><th>Prestataire</th><th>Appeles</th><th>Termines</th></tr>
+        </thead>
+        <tbody>
+          {% for row in formateurs_prestataire_ranking %}
+            <tr>
+              <td>{{ forloop.counter }}</td>
+              <td><a class="drill-link" href="{% url 'formateurs_index' %}?prestataire={{ row.prestataire|urlencode }}">{{ row.prestataire }}</a></td>
+              <td><a class="drill-link" href="{% url 'formateurs_index' %}?prestataire={{ row.prestataire|urlencode }}">{{ row.total_appels }}</a></td>
+              <td><a class="drill-link" href="{% url 'formateurs_index' %}?prestataire={{ row.prestataire|urlencode }}&status=termine">{{ row.total_termines }}</a></td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="4">Aucune donnee.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
 
-    function updateCountdown() {
-      const now = new Date();
-      const remaining = Math.max(0, deadline - now);
-      const days = Math.floor(remaining / (1000 * 60 * 60 * 24));
-      const hours = Math.floor((remaining / (1000 * 60 * 60)) % 24);
-      const minutes = Math.floor((remaining / (1000 * 60)) % 60);
-      const seconds = Math.floor((remaining / 1000) % 60);
-      grid.querySelector('[data-unit="days"]').textContent = days.toString().padStart(2, "0");
-      grid.querySelector('[data-unit="hours"]').textContent = hours.toString().padStart(2, "0");
-      grid.querySelector('[data-unit="minutes"]').textContent = minutes.toString().padStart(2, "0");
-      grid.querySelector('[data-unit="seconds"]').textContent = seconds.toString().padStart(2, "0");
-      if (label) label.textContent = `${days}j ${hours}h ${minutes}m ${seconds}s`;
-    }
-    updateCountdown();
-    setInterval(updateCountdown, 1000);
-  })();
-</script>
+  <section class="section">
+    <h3>FORMATEURS - Cohortes</h3>
+    <div class="scroll-table">
+      <table>
+        <thead>
+          <tr><th>#</th><th>Cohorte</th><th>Total</th><th>Termines</th></tr>
+        </thead>
+        <tbody>
+          {% for row in formateurs_cohorte_rows %}
+            <tr>
+              <td>{{ forloop.counter }}</td>
+              <td><a class="drill-link" href="{% url 'formateurs_index' %}?cohorte={{ row.cohorte|urlencode }}">{{ row.cohorte }}</a></td>
+              <td><a class="drill-link" href="{% url 'formateurs_index' %}?cohorte={{ row.cohorte|urlencode }}">{{ row.total }}</a></td>
+              <td><a class="drill-link" href="{% url 'formateurs_index' %}?cohorte={{ row.cohorte|urlencode }}&status=termine">{{ row.total_termines }}</a></td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="4">Aucune donnee.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="section">
+    <h3>FORMATEURS - Sessions par Date</h3>
+    <div class="scroll-table">
+      <table>
+        <thead>
+          <tr><th>#</th><th>Date</th><th>Appels effectues</th></tr>
+        </thead>
+        <tbody>
+          {% for row in formateurs_date_rows %}
+            <tr>
+              <td>{{ forloop.counter }}</td>
+              <td>
+                {% if row.session_date %}
+                  <a class="drill-link" href="{% url 'formateurs_index' %}?session_date={{ row.session_date|date:'Y-m-d' }}">{{ row.date_display }}</a>
+                {% else %}
+                  {{ row.date_display }}
+                {% endif %}
+              </td>
+              <td>
+                {% if row.session_date %}
+                  <a class="drill-link" href="{% url 'formateurs_index' %}?session_date={{ row.session_date|date:'Y-m-d' }}">{{ row.total }}</a>
+                {% else %}
+                  {{ row.total }}
+                {% endif %}
+              </td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="3">Aucune donnee.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="section">
+    <h3>PADESCE - Classement Prestations par Utilisateur</h3>
+    <div class="scroll-table">
+      <table>
+        <thead>
+          <tr><th>#</th><th>Utilisateur</th><th>Prestation</th><th>Appeles</th><th>Termines</th></tr>
+        </thead>
+        <tbody>
+          {% for row in padesce_prestation_user_ranking %}
+            <tr>
+              <td>{{ forloop.counter }}</td>
+              <td><a class="drill-link" href="{% url 'appels_index' %}?agent={{ row.locked_by__username|urlencode }}">{{ row.locked_by__username }}</a></td>
+              <td>
+                <a class="drill-link" href="{% url 'appels_index' %}?agent={{ row.locked_by__username|urlencode }}&classe={{ row.classe_label|urlencode }}&prestataire={{ row.prestataire|urlencode }}&beneficiaire={{ row.beneficiaire|urlencode }}">
+                  {{ row.prestation_label }}
+                </a>
+              </td>
+              <td><a class="drill-link" href="{% url 'appels_index' %}?agent={{ row.locked_by__username|urlencode }}&classe={{ row.classe_label|urlencode }}&prestataire={{ row.prestataire|urlencode }}&beneficiaire={{ row.beneficiaire|urlencode }}">{{ row.total_appeles }}</a></td>
+              <td><a class="drill-link" href="{% url 'appels_index' %}?agent={{ row.locked_by__username|urlencode }}&classe={{ row.classe_label|urlencode }}&prestataire={{ row.prestataire|urlencode }}&beneficiaire={{ row.beneficiaire|urlencode }}&status=termine">{{ row.total_termines }}</a></td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="5">Aucune donnee.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="section">
+    <h3>PADESCE - Classement Utilisateurs</h3>
+    <div class="scroll-table">
+      <table>
+        <thead>
+          <tr><th>#</th><th>Utilisateur</th><th>Appeles</th><th>Termines</th><th>24h</th></tr>
+        </thead>
+        <tbody>
+          {% for row in padesce_user_ranking %}
+            <tr>
+              <td>{{ forloop.counter }}</td>
+              <td><a class="drill-link" href="{% url 'appels_index' %}?agent={{ row.locked_by__username|urlencode }}">{{ row.locked_by__username }}</a></td>
+              <td><a class="drill-link" href="{% url 'appels_index' %}?agent={{ row.locked_by__username|urlencode }}">{{ row.total_appeles }}</a></td>
+              <td><a class="drill-link" href="{% url 'appels_index' %}?agent={{ row.locked_by__username|urlencode }}&status=termine">{{ row.total_termines }}</a></td>
+              <td><a class="drill-link" href="{% url 'appels_index' %}?agent={{ row.locked_by__username|urlencode }}">{{ row.recent_24h }}</a></td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="5">Aucune donnee.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="section">
+    <h3>FORMATEURS - Classement Utilisateurs</h3>
+    <div class="scroll-table">
+      <table>
+        <thead>
+          <tr><th>#</th><th>Utilisateur</th><th>Appeles</th><th>Termines</th></tr>
+        </thead>
+        <tbody>
+          {% for row in formateurs_user_ranking %}
+            <tr>
+              <td>{{ forloop.counter }}</td>
+              <td><a class="drill-link" href="{% url 'formateurs_index' %}?agent={{ row.locked_by__username|urlencode }}">{{ row.locked_by__username }}</a></td>
+              <td><a class="drill-link" href="{% url 'formateurs_index' %}?agent={{ row.locked_by__username|urlencode }}">{{ row.total_appels }}</a></td>
+              <td><a class="drill-link" href="{% url 'formateurs_index' %}?agent={{ row.locked_by__username|urlencode }}&status=termine">{{ row.total_termines }}</a></td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="4">Aucune donnee.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+{% endif %}
+
+{% if can_view_cga_dashboard %}
+  <section class="section">
+    <h3>CGA - Classement par Regime</h3>
+    <div class="scroll-table">
+      <table>
+        <thead>
+          <tr><th>#</th><th>Regime</th><th>Appeles</th><th>Termines</th></tr>
+        </thead>
+        <tbody>
+          {% for row in cga_regime_ranking %}
+            <tr>
+              <td>{{ forloop.counter }}</td>
+              <td><a class="drill-link" href="{% url 'cga_index' %}?regime={{ row.regime|urlencode }}">{{ row.regime }}</a></td>
+              <td><a class="drill-link" href="{% url 'cga_index' %}?regime={{ row.regime|urlencode }}">{{ row.total_appeles }}</a></td>
+              <td><a class="drill-link" href="{% url 'cga_index' %}?regime={{ row.regime|urlencode }}&status=termine">{{ row.total_termines }}</a></td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="4">Aucune donnee.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="section">
+    <h3>CGA - Classement par CRI</h3>
+    <div class="scroll-table">
+      <table>
+        <thead>
+          <tr><th>#</th><th>CRI</th><th>Appeles</th><th>Termines</th></tr>
+        </thead>
+        <tbody>
+          {% for row in cga_cri_ranking %}
+            <tr>
+              <td>{{ forloop.counter }}</td>
+              <td><a class="drill-link" href="{% url 'cga_index' %}?cri={{ row.cri|urlencode }}">{{ row.cri }}</a></td>
+              <td><a class="drill-link" href="{% url 'cga_index' %}?cri={{ row.cri|urlencode }}">{{ row.total_appeles }}</a></td>
+              <td><a class="drill-link" href="{% url 'cga_index' %}?cri={{ row.cri|urlencode }}&status=termine">{{ row.total_termines }}</a></td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="4">Aucune donnee.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="section">
+    <h3>CGA - Classement par Centre</h3>
+    <div class="scroll-table">
+      <table>
+        <thead>
+          <tr><th>#</th><th>Centre</th><th>Appeles</th><th>Termines</th></tr>
+        </thead>
+        <tbody>
+          {% for row in cga_centre_ranking %}
+            <tr>
+              <td>{{ forloop.counter }}</td>
+              <td><a class="drill-link" href="{% url 'cga_index' %}?centre={{ row.centre_de_rattachement|urlencode }}">{{ row.centre_de_rattachement }}</a></td>
+              <td><a class="drill-link" href="{% url 'cga_index' %}?centre={{ row.centre_de_rattachement|urlencode }}">{{ row.total_appeles }}</a></td>
+              <td><a class="drill-link" href="{% url 'cga_index' %}?centre={{ row.centre_de_rattachement|urlencode }}&status=termine">{{ row.total_termines }}</a></td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="4">Aucune donnee.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="section">
+    <h3>CGA - Classement Utilisateurs</h3>
+    <div class="scroll-table">
+      <table>
+        <thead>
+          <tr><th>#</th><th>Utilisateur</th><th>Appeles</th><th>Termines</th></tr>
+        </thead>
+        <tbody>
+          {% for row in cga_user_ranking %}
+            <tr>
+              <td>{{ forloop.counter }}</td>
+              <td><a class="drill-link" href="{% url 'cga_index' %}?agent={{ row.locked_by__username|urlencode }}">{{ row.locked_by__username }}</a></td>
+              <td><a class="drill-link" href="{% url 'cga_index' %}?agent={{ row.locked_by__username|urlencode }}">{{ row.total_appeles }}</a></td>
+              <td><a class="drill-link" href="{% url 'cga_index' %}?agent={{ row.locked_by__username|urlencode }}&status=termine">{{ row.total_termines }}</a></td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="4">Aucune donnee.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+{% endif %}
+
+{% if can_view_padesce_dashboard %}
+  <script>
+    (function () {
+      const dataTag = document.getElementById("padesce-fenetre-data");
+      const canvas = document.getElementById("js-fenetre-pie");
+      if (!dataTag || !canvas) return;
+      const data = JSON.parse(dataTag.textContent || "[]");
+      if (!data.length) return;
+      const colors = ["#6f3cc3", "#4c1d95", "#a78bfa", "#7c3aed", "#c4b5fd", "#8b5cf6", "#ddd6fe", "#5b21b6"];
+      const total = data.reduce((sum, item) => sum + (item.total || 0), 0) || 1;
+      const ctx = canvas.getContext("2d");
+      const cx = canvas.width / 2;
+      const cy = canvas.height / 2;
+      const radius = Math.min(cx, cy) - 6;
+      let start = -Math.PI / 2;
+      data.forEach((item, idx) => {
+        const slice = (item.total || 0) / total;
+        const angle = slice * Math.PI * 2;
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.arc(cx, cy, radius, start, start + angle);
+        ctx.closePath();
+        ctx.fillStyle = colors[idx % colors.length];
+        ctx.fill();
+        start += angle;
+      });
+      document.querySelectorAll("#js-fenetre-legend .legend-item").forEach((row) => {
+        const idx = Number(row.dataset.index || 0);
+        const dot = row.querySelector(".legend-dot");
+        if (dot) dot.style.background = colors[idx % colors.length];
+      });
+    })();
+  </script>
+{% endif %}
+{% if user.is_superuser %}
+  <script>
+    (function () {
+      function getCookie(name) {
+        const value = `; ${document.cookie}`;
+        const parts = value.split(`; ${name}=`);
+        if (parts.length === 2) return parts.pop().split(";").shift();
+        return "";
+      }
+      const csrfToken = getCookie("csrftoken");
+      const startBtn = document.getElementById("js-start-transcription");
+      const stopBtn = document.getElementById("js-stop-transcription");
+      const wrap = document.getElementById("transcription-progress-wrap");
+      const bar = document.getElementById("transcription-progress-bar");
+      const label = document.getElementById("transcription-progress-label");
+      const sub = document.getElementById("transcription-progress-sub");
+      let poller = null;
+
+      function renderStatus(status) {
+        if (!status) return;
+        const total = Number(status.total || 0);
+        const processed = Number(status.processed || 0);
+        const percent = total > 0 ? Math.round((processed / total) * 100) : 0;
+        if (wrap) wrap.style.display = (status.state === "idle" && !status.message) ? "none" : "flex";
+        if (bar) bar.style.width = `${Math.max(0, Math.min(percent, 100))}%`;
+        if (label) label.textContent = `${percent}%`;
+        if (sub) {
+          const detail = status.current_label ? ` | ${status.current_label}` : "";
+          sub.textContent = `${status.message || "En attente."}${detail}`;
+        }
+        const isBusy = ["running", "stopping"].includes(status.state);
+        if (startBtn) startBtn.disabled = isBusy;
+        if (stopBtn) stopBtn.style.display = isBusy ? "inline-flex" : "none";
+        if (stopBtn) stopBtn.disabled = status.state === "stopping";
+        if (!isBusy && poller) {
+          clearInterval(poller);
+          poller = null;
+        }
+      }
+
+      async function fetchStatus() {
+        try {
+          const res = await fetch("{% url 'bulk_transcription_status' %}");
+          const payload = await res.json();
+          renderStatus(payload.status);
+        } catch (err) {
+          if (sub) sub.textContent = "Impossible de recuperer l'etat de transcription.";
+        }
+      }
+
+      startBtn?.addEventListener("click", async function () {
+        try {
+          const res = await fetch("{% url 'start_bulk_transcription' %}", {
+            method: "POST",
+            headers: { "X-CSRFToken": csrfToken },
+          });
+          const payload = await res.json();
+          if (!res.ok || !payload.ok) {
+            alert(payload.error || "Lancement impossible.");
+            return;
+          }
+          renderStatus(payload.status);
+          if (!poller) poller = setInterval(fetchStatus, 2000);
+        } catch (err) {
+          alert("Lancement impossible.");
+        }
+      });
+
+      stopBtn?.addEventListener("click", async function () {
+        try {
+          const res = await fetch("{% url 'stop_bulk_transcription' %}", {
+            method: "POST",
+            headers: { "X-CSRFToken": csrfToken },
+          });
+          const payload = await res.json();
+          if (!res.ok || !payload.ok) {
+            alert(payload.error || "Arret impossible.");
+            return;
+          }
+          renderStatus(payload.status);
+          if (!poller) poller = setInterval(fetchStatus, 2000);
+        } catch (err) {
+          alert("Arret impossible.");
+        }
+      });
+
+      // transcription disabled
+    })();
+  </script>
+{% endif %}
 {% endblock %}

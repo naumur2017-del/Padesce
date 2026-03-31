@@ -170,7 +170,7 @@ def _transcribe_audio(audio_path: str) -> tuple[str | None, str | None]:
     return text[:8000], None
 
 
-def _parse_scores_from_transcript(transcript: str, total_questions: int = 9) -> dict[int, int]:
+def _parse_scores_from_transcript(transcript: str, total_questions: int = 3) -> dict[int, int]:
     results: dict[int, int] = {}
     if not transcript:
         return results
@@ -188,21 +188,19 @@ def _ai_results_formateur(audio_path: str) -> tuple[dict | None, str | None, str
     if error:
         return None, None, error
     size = default_storage.size(audio_path)
-    scores = _ai_scores(f"{audio_path}:{size}:{len(transcript)}")
-    parsed = _parse_scores_from_transcript(transcript)
+    scores = _ai_scores(f"{audio_path}:{size}:{len(transcript)}", count=3)
+    parsed = _parse_scores_from_transcript(transcript, total_questions=3)
     for idx, value in parsed.items():
-        if 1 <= idx <= 9:
+        if 1 <= idx <= 3:
             scores[idx - 1] = value
     results = {
-        "q1_motivation_apprenants": scores[0],
-        "q2_niveau_prerequis": scores[1],
-        "q3": scores[2],
-        "q4": scores[3],
-        "q5": scores[4],
-        "q6": scores[5],
-        "q7": scores[6],
-        "q8": scores[7],
-        "q9_satisfaction_globale_prestataire": scores[8],
+        "q1_prerequis_apprenants": scores[0],
+        "q2_interaction_apprenants": scores[1],
+        "q3_competences_acquises": scores[2],
+        # Q4-Q6 : questions ouvertes — a saisir manuellement apres transcription
+        "q4_gestion_administrative": "",
+        "q5_gestion_financiere": "",
+        "q6_communication": "",
         "commentaires": "",
         "recommandations": "",
     }
@@ -291,7 +289,11 @@ def satisfaction_formateurs(request):
                     data["date"] = workflow["date"]
                 if workflow.get("heure"):
                     data["heure"] = workflow["heure"]
-                data.update(workflow["ai_results"])
+                # Q1-Q3 viennent de l'IA ; Q4-Q6 viennent du POST (saisie manuelle)
+                ai = workflow["ai_results"]
+                data["q1_prerequis_apprenants"] = ai.get("q1_prerequis_apprenants", 1)
+                data["q2_interaction_apprenants"] = ai.get("q2_interaction_apprenants", 1)
+                data["q3_competences_acquises"] = ai.get("q3_competences_acquises", 1)
                 save_form = SatisfactionFormateurForm(data)
                 if save_form.is_valid():
                     obj = save_form.save(commit=False)
@@ -366,15 +368,12 @@ def satisfaction_formateurs_export_csv(request):
             "enqueteur",
             "date",
             "heure",
-            "q1",
-            "q2",
-            "q3",
-            "q4",
-            "q5",
-            "q6",
-            "q7",
-            "q8",
-            "q9",
+            "Q1 - Prerequis apprenants (1-5)",
+            "Q2 - Interaction apprenants (1-5)",
+            "Q3 - Competences acquises (1-5)",
+            "Q4 - Gestion administrative (texte)",
+            "Q5 - Gestion financiere (texte)",
+            "Q6 - Communication (texte)",
             "commentaires",
             "recommandations",
         ]
@@ -388,15 +387,12 @@ def satisfaction_formateurs_export_csv(request):
                 s.enqueteur,
                 s.date,
                 s.heure,
-                s.q1_motivation_apprenants,
-                s.q2_niveau_prerequis,
-                s.q3,
-                s.q4,
-                s.q5,
-                s.q6,
-                s.q7,
-                s.q8,
-                s.q9_satisfaction_globale_prestataire,
+                s.q1_prerequis_apprenants,
+                s.q2_interaction_apprenants,
+                s.q3_competences_acquises,
+                s.q4_gestion_administrative,
+                s.q5_gestion_financiere,
+                s.q6_communication,
                 s.commentaires,
                 s.recommandations,
             ]
