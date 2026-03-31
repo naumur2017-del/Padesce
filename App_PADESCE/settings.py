@@ -219,7 +219,8 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 LOGIN_URL = "/"
 LOGIN_REDIRECT_URL = "/dashboard/"
 LOGOUT_REDIRECT_URL = "/"
-CSRF_FAILURE_VIEW = "App_PADESCE.core.error_views.csrf_failure"
+if importlib.util.find_spec("App_PADESCE.core.error_views") is not None:
+    CSRF_FAILURE_VIEW = "App_PADESCE.core.error_views.csrf_failure"
 
 # ---------------------------------------------------------------------------
 # Cache — In-process memory cache (fast, no external service needed).
