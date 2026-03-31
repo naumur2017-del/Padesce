@@ -1,0 +1,30 @@
+[tool.black]
+line-length = 100
+target-version = ["py313"]
+exclude = '''
+/(
+  \.git
+  | \.venv
+  | venv
+  | logs
+  | media
+  | staticfiles
+  | migrations
+)/
+'''
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+exclude = [
+  ".git",
+  ".venv",
+  "venv",
+  "logs",
+  "media",
+  "staticfiles",
+  "migrations",
+]
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
