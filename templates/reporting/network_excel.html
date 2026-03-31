@@ -1,0 +1,673 @@
+{% extends "base.html" %}
+{% block title %}Classeur reseau{% endblock %}
+{% block content %}
+<style>
+  .excel-shell {
+    --excel-ink: #2a1842;
+    --excel-muted: #6e5a94;
+    --excel-line: rgba(76, 29, 149, 0.12);
+    --excel-panel: rgba(255, 255, 255, 0.96);
+    --excel-accent: #6f3cc3;
+    --excel-accent-soft: rgba(111, 60, 195, 0.14);
+    --excel-gold: #a78bfa;
+    display: grid;
+    gap: 18px;
+  }
+  .excel-hero,
+  .excel-card {
+    background:
+      radial-gradient(circle at top right, rgba(167, 139, 250, 0.22), transparent 34%),
+      linear-gradient(145deg, rgba(255, 255, 255, 0.99), rgba(247, 243, 255, 0.96));
+    border: 1px solid var(--excel-line);
+    border-radius: 24px;
+    box-shadow: 0 20px 45px rgba(15, 23, 42, 0.08);
+    overflow: hidden;
+  }
+  .excel-hero {
+    padding: 24px;
+    position: relative;
+  }
+  .excel-hero::after {
+    content: "";
+    position: absolute;
+    inset: auto -80px -80px auto;
+    width: 220px;
+    height: 220px;
+    border-radius: 999px;
+    background: radial-gradient(circle, rgba(111, 60, 195, 0.22), transparent 68%);
+    pointer-events: none;
+  }
+  .eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    border-radius: 999px;
+    padding: 8px 12px;
+    background: var(--excel-accent-soft);
+    color: var(--excel-accent);
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    font-size: 0.78rem;
+  }
+  .excel-title {
+    margin: 14px 0 10px;
+    color: var(--excel-ink);
+    font-size: clamp(1.8rem, 3vw, 2.6rem);
+    line-height: 1.08;
+  }
+  .excel-subtitle {
+    margin: 0;
+    max-width: 72ch;
+    color: var(--excel-muted);
+    font-size: 1rem;
+    line-height: 1.6;
+  }
+  .excel-path {
+    margin-top: 16px;
+    padding: 14px 16px;
+    border-radius: 18px;
+    background: rgba(15, 23, 42, 0.04);
+    border: 1px solid rgba(76, 29, 149, 0.12);
+    color: var(--excel-ink);
+    font-family: "Consolas", "Courier New", monospace;
+    font-size: 0.88rem;
+    overflow-wrap: anywhere;
+  }
+  .excel-grid {
+    display: grid;
+    gap: 16px;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  }
+  .excel-card {
+    padding: 18px;
+  }
+  .metric-label {
+    color: var(--excel-muted);
+    font-size: 0.82rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .metric-value {
+    margin-top: 10px;
+    color: var(--excel-ink);
+    font-size: 1.4rem;
+    font-weight: 800;
+  }
+  .metric-help {
+    margin-top: 6px;
+    color: var(--excel-muted);
+    font-size: 0.9rem;
+    line-height: 1.45;
+  }
+  .excel-alert {
+    display: none;
+    padding: 14px 16px;
+    border-radius: 18px;
+    border: 1px solid rgba(111, 60, 195, 0.2);
+    background: rgba(248, 245, 255, 0.96);
+    color: #991b1b;
+    font-weight: 600;
+  }
+  .toolbar {
+    display: flex;
+    gap: 12px;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .search-wrap {
+    flex: 1 1 340px;
+    min-width: 240px;
+  }
+  .search-label {
+    display: block;
+    margin-bottom: 6px;
+    color: var(--excel-muted);
+    font-size: 0.86rem;
+    font-weight: 700;
+  }
+  .search-input {
+    width: 100%;
+    border: 1px solid rgba(15, 23, 42, 0.12);
+    border-radius: 16px;
+    padding: 14px 16px;
+    font-size: 0.98rem;
+    color: var(--excel-ink);
+    background: #fff;
+    outline: none;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  }
+  .search-input:focus {
+    border-color: rgba(111, 60, 195, 0.4);
+    box-shadow: 0 0 0 4px rgba(111, 60, 195, 0.12);
+  }
+  .toolbar-actions {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .excel-btn {
+    border: none;
+    border-radius: 14px;
+    padding: 12px 16px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+  }
+  .excel-btn:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 14px 24px rgba(15, 23, 42, 0.12);
+  }
+  .excel-btn:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+  .excel-btn-primary {
+    background: linear-gradient(135deg, var(--excel-accent), #8b5cf6);
+    color: #fff;
+  }
+  .excel-btn-secondary {
+    background: rgba(15, 23, 42, 0.05);
+    color: var(--excel-ink);
+    border: 1px solid rgba(15, 23, 42, 0.08);
+  }
+  .hint-box {
+    padding: 14px 16px;
+    border-radius: 18px;
+    background: rgba(111, 60, 195, 0.08);
+    border: 1px solid rgba(111, 60, 195, 0.16);
+    color: #4c1d95;
+    line-height: 1.55;
+  }
+  .sheet-tabs {
+    display: flex;
+    gap: 10px;
+    overflow-x: auto;
+    padding-bottom: 2px;
+    scrollbar-width: thin;
+  }
+  .sheet-tab {
+    flex: 0 0 auto;
+    min-width: 170px;
+    border: 1px solid rgba(15, 23, 42, 0.08);
+    border-radius: 18px;
+    padding: 14px;
+    background: rgba(255, 255, 255, 0.88);
+    color: var(--excel-ink);
+    cursor: pointer;
+    text-align: left;
+    transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+  }
+  .sheet-tab:hover {
+    transform: translateY(-1px);
+    border-color: rgba(111, 60, 195, 0.26);
+  }
+  .sheet-tab.is-active {
+    background: linear-gradient(145deg, rgba(111, 60, 195, 0.16), rgba(167, 139, 250, 0.14));
+    border-color: rgba(111, 60, 195, 0.34);
+  }
+  .sheet-tab-name {
+    display: block;
+    font-weight: 800;
+    font-size: 0.96rem;
+    margin-bottom: 8px;
+  }
+  .sheet-tab-meta {
+    display: block;
+    color: var(--excel-muted);
+    font-size: 0.84rem;
+  }
+  .table-card-head {
+    display: flex;
+    gap: 14px;
+    justify-content: space-between;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    margin-bottom: 14px;
+  }
+  .table-title {
+    margin: 6px 0 8px;
+    color: var(--excel-ink);
+    font-size: 1.45rem;
+  }
+  .table-meta {
+    margin: 0;
+    color: var(--excel-muted);
+    line-height: 1.5;
+  }
+  .pill-stack {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .meta-pill {
+    border-radius: 999px;
+    padding: 10px 14px;
+    background: rgba(111, 60, 195, 0.08);
+    color: var(--excel-ink);
+    font-weight: 700;
+    white-space: nowrap;
+  }
+  .meta-pill strong {
+    color: var(--excel-accent);
+  }
+  .table-wrap {
+    border: 1px solid rgba(15, 23, 42, 0.08);
+    border-radius: 20px;
+    overflow: auto;
+    max-height: 68vh;
+    background: var(--excel-panel);
+  }
+  .excel-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    min-width: 860px;
+  }
+  .excel-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: linear-gradient(180deg, #faf7ff, #f2ecff);
+    color: var(--excel-ink);
+    font-size: 0.88rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .excel-table th,
+  .excel-table td {
+    padding: 12px 14px;
+    border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+    border-right: 1px solid rgba(15, 23, 42, 0.05);
+    text-align: left;
+    vertical-align: top;
+    white-space: nowrap;
+  }
+  .excel-table th:last-child,
+  .excel-table td:last-child {
+    border-right: none;
+  }
+  .excel-table tbody tr:nth-child(even) {
+    background: rgba(248, 250, 252, 0.9);
+  }
+  .excel-table tbody tr:hover {
+    background: rgba(111, 60, 195, 0.06);
+  }
+  .table-empty {
+    display: none;
+    padding: 28px 16px 8px;
+    text-align: center;
+    color: var(--excel-muted);
+    font-weight: 600;
+  }
+  .pager {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-top: 16px;
+  }
+  .pager-info {
+    color: var(--excel-muted);
+    line-height: 1.5;
+    font-weight: 600;
+  }
+  .pager-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .loading-note {
+    color: var(--excel-accent);
+    font-weight: 700;
+  }
+  @media (max-width: 720px) {
+    .excel-hero,
+    .excel-card {
+      border-radius: 18px;
+      padding: 16px;
+    }
+    .sheet-tab {
+      min-width: 150px;
+    }
+    .excel-table {
+      min-width: 680px;
+    }
+  }
+</style>
+
+<div class="excel-shell" data-api-url="{% url 'reporting_network_excel_api' %}">
+  <section class="excel-hero">
+    <div class="eyebrow">Classeur reseau PADESCE</div>
+    <h1 class="excel-title">Toutes les feuilles Excel dans une interface en onglets</h1>
+    <p class="excel-subtitle">
+      Cette page lit directement le fichier partage, affiche chaque feuille dans un onglet, et pagine les tables par {{ page_size }} lignes.
+      Quand vous appliquez un filtre, la vue repart automatiquement sur les {{ page_size }} premiers elements trouves.
+    </p>
+    <div class="excel-path" id="source-path">Chargement du chemin reseau...</div>
+  </section>
+
+  <div id="excel-alert" class="excel-alert" role="alert"></div>
+
+  <section class="excel-grid">
+    <article class="excel-card">
+      <div class="metric-label">Fichier source</div>
+      <div class="metric-value" id="metric-file">...</div>
+      <div class="metric-help" id="metric-updated">Verification du reseau en cours...</div>
+    </article>
+    <article class="excel-card">
+      <div class="metric-label">Feuilles detectees</div>
+      <div class="metric-value" id="metric-sheets">0</div>
+      <div class="metric-help">Un onglet est genere pour chaque feuille du classeur.</div>
+    </article>
+    <article class="excel-card">
+      <div class="metric-label">Lignes repertoriees</div>
+      <div class="metric-value" id="metric-rows">0</div>
+      <div class="metric-help">Somme des lignes de donnees hors entetes.</div>
+    </article>
+    <article class="excel-card">
+      <div class="metric-label">Pagination</div>
+      <div class="metric-value">{{ page_size }} / page</div>
+      <div class="metric-help">Navigation precedente / suivante sur chaque feuille.</div>
+    </article>
+  </section>
+
+  <section class="excel-card">
+    <div class="toolbar">
+      <div class="search-wrap">
+        <label class="search-label" for="sheet-search">Filtrer la feuille active</label>
+        <input
+          id="sheet-search"
+          class="search-input"
+          type="search"
+          placeholder="Rechercher un mot, un code, un nom, un numero..."
+          autocomplete="off"
+        >
+      </div>
+      <div class="toolbar-actions">
+        <div id="loading-note" class="loading-note" hidden>Chargement...</div>
+        <button id="refresh-button" type="button" class="excel-btn excel-btn-primary">Actualiser depuis le reseau</button>
+      </div>
+    </div>
+    <div class="hint-box" style="margin-top:14px;">
+      Astuce: utilisez les onglets pour changer de feuille. Le filtre agit seulement sur la feuille ouverte, puis la table revient sur la page 1.
+    </div>
+  </section>
+
+  <section class="excel-card">
+    <div class="sheet-tabs" id="sheet-tabs" aria-label="Liste des feuilles"></div>
+  </section>
+
+  <section class="excel-card">
+    <div class="table-card-head">
+      <div>
+        <div class="eyebrow">Feuille active</div>
+        <h2 class="table-title" id="sheet-title">Chargement...</h2>
+        <p class="table-meta" id="sheet-meta">Recuperation des colonnes et des lignes en cours.</p>
+      </div>
+      <div class="pill-stack">
+        <div class="meta-pill" id="sheet-columns"><strong>0</strong> colonnes</div>
+        <div class="meta-pill" id="sheet-rows"><strong>0</strong> lignes</div>
+        <div class="meta-pill" id="sheet-summary"><strong>Page 1</strong></div>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <table class="excel-table">
+        <thead id="table-head"></thead>
+        <tbody id="table-body"></tbody>
+      </table>
+    </div>
+    <div class="table-empty" id="table-empty">Aucune donnee a afficher pour cette feuille.</div>
+
+    <div class="pager">
+      <div class="pager-info" id="pager-info">Preparation de la table...</div>
+      <div class="pager-actions">
+        <button id="prev-page" type="button" class="excel-btn excel-btn-secondary">Precedent</button>
+        <button id="next-page" type="button" class="excel-btn excel-btn-secondary">Suivant</button>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script>
+  (function() {
+    const root = document.querySelector(".excel-shell");
+    if (!root) return;
+
+    const apiUrl = root.dataset.apiUrl;
+    const formatter = new Intl.NumberFormat("fr-FR");
+    const urlState = new URLSearchParams(window.location.search);
+
+    const elements = {
+      alert: document.getElementById("excel-alert"),
+      sourcePath: document.getElementById("source-path"),
+      metricFile: document.getElementById("metric-file"),
+      metricUpdated: document.getElementById("metric-updated"),
+      metricSheets: document.getElementById("metric-sheets"),
+      metricRows: document.getElementById("metric-rows"),
+      search: document.getElementById("sheet-search"),
+      loading: document.getElementById("loading-note"),
+      refresh: document.getElementById("refresh-button"),
+      tabs: document.getElementById("sheet-tabs"),
+      title: document.getElementById("sheet-title"),
+      meta: document.getElementById("sheet-meta"),
+      columns: document.getElementById("sheet-columns"),
+      rows: document.getElementById("sheet-rows"),
+      summary: document.getElementById("sheet-summary"),
+      head: document.getElementById("table-head"),
+      body: document.getElementById("table-body"),
+      empty: document.getElementById("table-empty"),
+      pagerInfo: document.getElementById("pager-info"),
+      prev: document.getElementById("prev-page"),
+      next: document.getElementById("next-page"),
+    };
+
+    const state = {
+      sheet: urlState.get("sheet") || "",
+      page: Math.max(parseInt(urlState.get("page") || "1", 10) || 1, 1),
+      search: urlState.get("search") || "",
+      requestId: 0,
+    };
+
+    elements.search.value = state.search;
+
+    function syncUrl() {
+      const params = new URLSearchParams();
+      if (state.sheet) params.set("sheet", state.sheet);
+      if (state.page > 1) params.set("page", String(state.page));
+      if (state.search) params.set("search", state.search);
+      const nextUrl = params.toString() ? `${window.location.pathname}?${params.toString()}` : window.location.pathname;
+      window.history.replaceState({}, "", nextUrl);
+    }
+
+    function setLoading(isLoading) {
+      elements.loading.hidden = !isLoading;
+      elements.refresh.disabled = isLoading;
+      elements.prev.disabled = isLoading || elements.prev.disabled;
+      elements.next.disabled = isLoading || elements.next.disabled;
+    }
+
+    function showError(message) {
+      elements.alert.textContent = message;
+      elements.alert.style.display = "block";
+    }
+
+    function clearError() {
+      elements.alert.textContent = "";
+      elements.alert.style.display = "none";
+    }
+
+    function buildTab(sheet) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = `sheet-tab${sheet.active ? " is-active" : ""}`;
+      button.dataset.sheet = sheet.name;
+
+      const name = document.createElement("span");
+      name.className = "sheet-tab-name";
+      name.textContent = sheet.name;
+
+      const meta = document.createElement("span");
+      meta.className = "sheet-tab-meta";
+      meta.textContent = `${formatter.format(sheet.rows)} lignes · ${formatter.format(sheet.columns)} colonnes`;
+
+      button.appendChild(name);
+      button.appendChild(meta);
+      return button;
+    }
+
+    function renderTabs(sheets) {
+      elements.tabs.innerHTML = "";
+      sheets.forEach((sheet) => {
+        elements.tabs.appendChild(buildTab(sheet));
+      });
+    }
+
+    function renderTable(headers, rows) {
+      elements.head.innerHTML = "";
+      elements.body.innerHTML = "";
+
+      const headerRow = document.createElement("tr");
+      headers.forEach((header) => {
+        const th = document.createElement("th");
+        th.textContent = header;
+        headerRow.appendChild(th);
+      });
+      elements.head.appendChild(headerRow);
+
+      if (!rows.length) {
+        elements.empty.style.display = "block";
+        return;
+      }
+
+      elements.empty.style.display = "none";
+      rows.forEach((row) => {
+        const tr = document.createElement("tr");
+        row.forEach((cell) => {
+          const td = document.createElement("td");
+          td.textContent = cell || " ";
+          tr.appendChild(td);
+        });
+        elements.body.appendChild(tr);
+      });
+    }
+
+    function renderPayload(payload) {
+      const sheet = payload.sheet;
+      state.sheet = sheet.name;
+      syncUrl();
+
+      elements.sourcePath.textContent = payload.source.path;
+      elements.metricFile.textContent = payload.source.name;
+      elements.metricUpdated.textContent = `Derniere modification reseau: ${payload.source.modified_label}`;
+      elements.metricSheets.textContent = formatter.format(payload.sheet_count);
+      elements.metricRows.textContent = formatter.format(payload.total_rows);
+
+      elements.title.textContent = sheet.name;
+      elements.meta.textContent = `Page active sur le fichier ${payload.source.name}. Vous consultez la feuille ${sheet.name}.`;
+      elements.columns.innerHTML = `<strong>${formatter.format(sheet.headers.length)}</strong> colonnes`;
+      elements.rows.innerHTML = sheet.filtered
+        ? `<strong>${formatter.format(sheet.rows.length)}</strong> lignes affichees`
+        : `<strong>${formatter.format(sheet.total_rows || 0)}</strong> lignes totales`;
+      elements.summary.innerHTML = sheet.filtered
+        ? `<strong>Filtre actif</strong>`
+        : `<strong>Page ${formatter.format(sheet.page)}</strong>`;
+
+      renderTabs(payload.sheets);
+      renderTable(sheet.headers, sheet.rows);
+
+      if (sheet.filtered) {
+        elements.pagerInfo.textContent = `${sheet.summary}. ${sheet.has_next ? "Utilisez Suivant pour continuer le filtre." : "Fin des resultats filtres."}`;
+      } else {
+        elements.pagerInfo.textContent = `Page ${formatter.format(sheet.page)} sur ${formatter.format(sheet.total_pages || 1)} · ${sheet.summary}`;
+      }
+
+      elements.prev.disabled = !sheet.has_previous;
+      elements.next.disabled = !sheet.has_next;
+    }
+
+    async function fetchPayload(options = {}) {
+      const refresh = options.refresh === true;
+      const requestId = ++state.requestId;
+      clearError();
+      setLoading(true);
+
+      const params = new URLSearchParams();
+      if (state.sheet) params.set("sheet", state.sheet);
+      params.set("page", String(state.page));
+      if (state.search) params.set("search", state.search);
+      if (refresh) params.set("refresh", "1");
+
+      try {
+        const response = await fetch(`${apiUrl}?${params.toString()}`, {
+          headers: { "X-Requested-With": "XMLHttpRequest" },
+        });
+        const payload = await response.json();
+        if (requestId !== state.requestId) {
+          return;
+        }
+        if (!response.ok) {
+          throw new Error(payload.error || "Erreur inconnue");
+        }
+        renderPayload(payload);
+      } catch (error) {
+        showError(error.message || "Impossible de charger le classeur reseau.");
+      } finally {
+        if (requestId === state.requestId) {
+          setLoading(false);
+        }
+      }
+    }
+
+    function debounce(callback, wait) {
+      let timeoutId = null;
+      return function() {
+        window.clearTimeout(timeoutId);
+        timeoutId = window.setTimeout(() => callback.apply(this, arguments), wait);
+      };
+    }
+
+    elements.tabs.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-sheet]");
+      if (!button) return;
+      const nextSheet = button.dataset.sheet;
+      if (!nextSheet || nextSheet === state.sheet) return;
+      state.sheet = nextSheet;
+      state.page = 1;
+      fetchPayload();
+    });
+
+    elements.prev.addEventListener("click", () => {
+      if (state.page <= 1) return;
+      state.page -= 1;
+      fetchPayload();
+    });
+
+    elements.next.addEventListener("click", () => {
+      state.page += 1;
+      fetchPayload();
+    });
+
+    elements.refresh.addEventListener("click", () => {
+      fetchPayload({ refresh: true });
+    });
+
+    elements.search.addEventListener(
+      "input",
+      debounce(() => {
+        const nextSearch = elements.search.value.trim();
+        if (nextSearch === state.search) return;
+        state.search = nextSearch;
+        state.page = 1;
+        fetchPayload();
+      }, 320)
+    );
+
+    fetchPayload();
+  })();
+</script>
+{% endblock %}

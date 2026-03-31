@@ -24,49 +24,24 @@
   .survey-form select,
   .survey-form textarea,
   .filter-bar select {
-    width:100%;
-    padding:10px 12px;
-    border:1px solid var(--border);
-    border-radius:12px;
-    background: var(--panel);
-    color: var(--text);
-    box-shadow: inset 0 1px 0 rgba(255,255,255,0.4);
+    width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:12px;
+    background: var(--panel); color: var(--text); box-shadow: inset 0 1px 0 rgba(255,255,255,0.4);
   }
   .survey-form input[type="file"] {
-    width:100%;
-    padding:8px 10px;
-    border:1px dashed var(--border);
-    border-radius:12px;
-    background: var(--panel);
-    color: var(--text);
+    width:100%; padding:8px 10px; border:1px dashed var(--border); border-radius:12px;
+    background: var(--panel); color: var(--text);
   }
   .survey-form input[type="file"]::file-selector-button {
-    margin-right:8px;
-    border:1px solid var(--border);
-    border-radius:10px;
-    padding:6px 10px;
-    background: rgba(15,139,141,0.08);
-    color: var(--text);
+    margin-right:8px; border:1px solid var(--border); border-radius:10px; padding:6px 10px;
+    background: rgba(15,139,141,0.08); color: var(--text);
   }
-  .survey-form input:focus,
-  .survey-form select:focus,
-  .survey-form textarea:focus {
-    outline:2px solid rgba(15,139,141,0.2);
-    border-color: var(--accent);
+  .survey-form input:focus, .survey-form select:focus, .survey-form textarea:focus {
+    outline:2px solid rgba(15,139,141,0.2); border-color: var(--accent);
   }
   .btn {
-    display:inline-flex;
-    align-items:center;
-    justify-content:center;
-    gap:6px;
-    padding:10px 14px;
-    border-radius:12px;
-    font-weight:600;
-    border:1px solid transparent;
-    cursor:pointer;
-    background: var(--accent);
-    color:#fff;
-    text-decoration:none;
+    display:inline-flex; align-items:center; justify-content:center; gap:6px;
+    padding:10px 14px; border-radius:12px; font-weight:600; border:1px solid transparent;
+    cursor:pointer; background: var(--accent); color:#fff; text-decoration:none;
     transition: transform .2s ease, box-shadow .2s ease, background .2s ease, border-color .2s ease;
   }
   .btn-primary { background: var(--accent); color:#fff; border-color: rgba(15,139,141,0.3); box-shadow: 0 8px 18px rgba(15,139,141,0.18); }
@@ -80,11 +55,25 @@
   .btn:focus-visible { outline:2px solid rgba(15,139,141,0.3); outline-offset:2px; }
   .pill { display:inline-flex; align-items:center; gap:6px; padding:6px 10px; border-radius:999px; background: rgba(15,139,141,0.08); border:1px solid var(--border); font-size:0.9rem; margin-top:8px; }
   .hint { font-size:0.85rem; color: var(--muted); }
-  .ai-grid { display:grid; gap:10px; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
+  .ai-grid { display:grid; gap:10px; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
   .ai-card, .ai-text { padding:8px 10px; border-radius:10px; background: var(--panel); border:1px solid var(--border); }
   .ai-text { white-space: pre-wrap; }
   .ai-card strong, .ai-text strong { display:block; font-size:0.8rem; color: var(--muted); margin-bottom:2px; }
   .form-actions { display:flex; gap:10px; flex-wrap:wrap; justify-content:flex-end; }
+
+  /* Toggle FR / EN */
+  .lang-toggle-bar { display:flex; align-items:center; gap:10px; margin-bottom:14px; }
+  .lang-toggle { display:inline-flex; background: var(--panel); border:1px solid var(--border); border-radius:999px; padding:3px; gap:3px; }
+  .lang-btn { padding:5px 14px; border-radius:999px; font-size:0.82rem; font-weight:700; cursor:pointer; border:none; background:transparent; color:var(--muted); transition: background .2s, color .2s; }
+  .lang-btn.active { background: var(--accent); color:#fff; }
+
+  /* Bloc question avec formulation */
+  .q-block { display:flex; flex-direction:column; gap:6px; }
+  .q-label { font-size:0.92rem; font-weight:600; color: var(--accent-strong, var(--accent)); }
+  .q-formulation { font-size:0.87rem; color: var(--muted); font-style:italic; margin-bottom:2px; padding:6px 10px; background: rgba(15,139,141,0.04); border-left:3px solid var(--accent); border-radius:0 6px 6px 0; }
+  .q-scale { font-size:0.78rem; color: var(--muted); }
+  .q-open-area { width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:12px; background: var(--panel); color: var(--text); resize:vertical; }
+
   @media (max-width: 720px) {
     .filter-bar { flex-direction:column; align-items:stretch; }
     .filter-actions { width:100%; }
@@ -93,8 +82,21 @@
   }
 </style>
 
-<h1 class="h4 mb-2">Satisfaction des formateurs</h1>
-<p class="subtitle" style="color:var(--muted);">Q1-Q9 (1-5), commentaires et recommandations. Audit actif.</p>
+<div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:4px;">
+  <div>
+    <h1 class="h4 mb-0">Satisfaction des formateurs</h1>
+    <p class="subtitle" style="color:var(--muted); margin:4px 0 0; font-size:0.9rem;">Q1-Q3 (1-5) + Q4-Q6 (questions ouvertes). Audit actif.</p>
+  </div>
+</div>
+
+<!-- Toggle FR / EN global -->
+<div class="lang-toggle-bar">
+  <span style="font-size:0.85rem; color:var(--muted);">Langue des questions :</span>
+  <div class="lang-toggle" id="lang-toggle">
+    <button class="lang-btn active" data-lang="fr" type="button">FR</button>
+    <button class="lang-btn" data-lang="en" type="button">EN</button>
+  </div>
+</div>
 
 <form method="get" class="filter-bar">
   <div class="filter-field">
@@ -116,15 +118,15 @@
   <h5>Nouvelle enquete</h5>
   <form method="post" enctype="multipart/form-data" class="survey-form">
     {% csrf_token %}
+
+    <!-- IDENTIFICATION -->
     <div class="form-section">
       <div class="section-title">
         <h6>Identification</h6>
         <div class="hint">Saisir le code ou telephone, puis identifier le formateur.</div>
       </div>
       <div class="form-row">
-        <div class="field">
-          {{ form.classe.label_tag }} {{ form.classe }}
-        </div>
+        <div class="field">{{ form.classe.label_tag }} {{ form.classe }}</div>
         <div class="field">
           <label for="id_identifiant">Code ou telephone formateur</label>
           <input type="text" id="id_identifiant" name="identifiant" value="{{ identifiant|default:'' }}" placeholder="FOR001 ou 6xxxxxxxx">
@@ -135,14 +137,13 @@
         </div>
       </div>
       {% if identified_formateur %}
-        <div class="pill">Formateur identifie: {{ identified_formateur }}</div>
+        <div class="pill">Formateur identifie : {{ identified_formateur }}</div>
       {% endif %}
     </div>
 
+    <!-- INFOS ENQUETE -->
     <div class="form-section">
-      <div class="section-title">
-        <h6>Infos enquete</h6>
-      </div>
+      <div class="section-title"><h6>Infos enquete</h6></div>
       <div class="form-row compact">
         <div class="field">{{ form.inspecteur.label_tag }} {{ form.inspecteur }}</div>
         <div class="field">{{ form.date.label_tag }} {{ form.date }}</div>
@@ -150,17 +151,14 @@
       </div>
     </div>
 
+    <!-- AUDIO -->
     <div class="form-section">
-      <div class="section-title">
-        <h6>Audio & traitement</h6>
-      </div>
+      <div class="section-title"><h6>Audio & traitement</h6></div>
       <div class="form-row">
         <div class="field">
           <label for="id_audio_appel">Audio appel</label>
           <input type="file" id="id_audio_appel" name="audio_appel" accept="audio/*">
-          {% if audio_name %}
-            <div class="hint">Fichier: {{ audio_name }}</div>
-          {% endif %}
+          {% if audio_name %}<div class="hint">Fichier : {{ audio_name }}</div>{% endif %}
         </div>
         <div class="field actions">
           <button class="btn btn-ghost" type="submit" name="action" value="process_audio" {% if not identified_formateur %}disabled{% endif %}>Actualiser traitement vocal</button>
@@ -168,36 +166,140 @@
       </div>
     </div>
 
+    <!-- REPONSES Q1-Q3 (IA) + TRANSCRIPTION -->
     <div class="form-section">
       <div class="section-title">
-        <h6>Reponses IA (lecture seule)</h6>
+        <h6>Reponses Q1-Q3 — notation IA (lecture seule)</h6>
+        <div class="hint">Scores extraits automatiquement depuis la transcription de l'appel.</div>
       </div>
       {% if ai_results %}
-        <div class="ai-grid">
-          <div class="ai-card"><strong>Q1</strong>{{ ai_results.q1_motivation_apprenants }}</div>
-          <div class="ai-card"><strong>Q2</strong>{{ ai_results.q2_niveau_prerequis }}</div>
-          <div class="ai-card"><strong>Q3</strong>{{ ai_results.q3 }}</div>
-          <div class="ai-card"><strong>Q4</strong>{{ ai_results.q4 }}</div>
-          <div class="ai-card"><strong>Q5</strong>{{ ai_results.q5 }}</div>
-          <div class="ai-card"><strong>Q6</strong>{{ ai_results.q6 }}</div>
-          <div class="ai-card"><strong>Q7</strong>{{ ai_results.q7 }}</div>
-          <div class="ai-card"><strong>Q8</strong>{{ ai_results.q8 }}</div>
-          <div class="ai-card"><strong>Q9</strong>{{ ai_results.q9_satisfaction_globale_prestataire }}</div>
+
+        <!-- Q1 -->
+        <div class="q-block" style="margin-bottom:12px;">
+          <div class="q-label">Q1 — <span class="q-text"
+            data-fr="Prerequis des apprenants"
+            data-en="Learner Prerequisites">Prerequis des apprenants</span></div>
+          <div class="q-formulation q-formulation-text"
+            data-fr="Les apprenants avaient-ils les prerequis necessaires pour suivre cette formation ?"
+            data-en="Did the learners have the necessary prerequisites to follow this training?">
+            Les apprenants avaient-ils les prerequis necessaires pour suivre cette formation ?
+          </div>
+          <div class="q-scale">
+            <span class="q-scale-text"
+              data-fr="1 = Insuffisant → 5 = Tres satisfaisant"
+              data-en="1 = Insufficient → 5 = Very satisfactory">1 = Insuffisant → 5 = Tres satisfaisant</span>
+          </div>
+          <div class="ai-grid" style="grid-template-columns:120px;">
+            <div class="ai-card"><strong>Score IA</strong>{{ ai_results.q1_prerequis_apprenants }}/5</div>
+          </div>
         </div>
-        <div class="ai-grid" style="margin-top:8px;">
-          <div class="ai-text"><strong>Commentaires</strong>{{ ai_results.commentaires|default:"-" }}</div>
-          <div class="ai-text"><strong>Recommandations</strong>{{ ai_results.recommandations|default:"-" }}</div>
+
+        <!-- Q2 -->
+        <div class="q-block" style="margin-bottom:12px;">
+          <div class="q-label">Q2 — <span class="q-text"
+            data-fr="Interaction des apprenants"
+            data-en="Learner Interaction">Interaction des apprenants</span></div>
+          <div class="q-formulation q-formulation-text"
+            data-fr="Les apprenants ont-ils ete suffisamment interactifs, posant des questions et participant activement ?"
+            data-en="Were the learners sufficiently interactive, asking questions and actively participating?">
+            Les apprenants ont-ils ete suffisamment interactifs, posant des questions et participant activement ?
+          </div>
+          <div class="q-scale">
+            <span class="q-scale-text"
+              data-fr="1 = Insuffisant → 5 = Tres satisfaisant"
+              data-en="1 = Insufficient → 5 = Very satisfactory">1 = Insuffisant → 5 = Tres satisfaisant</span>
+          </div>
+          <div class="ai-grid" style="grid-template-columns:120px;">
+            <div class="ai-card"><strong>Score IA</strong>{{ ai_results.q2_interaction_apprenants }}/5</div>
+          </div>
         </div>
+
+        <!-- Q3 -->
+        <div class="q-block" style="margin-bottom:4px;">
+          <div class="q-label">Q3 — <span class="q-text"
+            data-fr="Competences acquises"
+            data-en="Acquired Competencies">Competences acquises</span></div>
+          <div class="q-formulation q-formulation-text"
+            data-fr="Estimez-vous que les apprenants ont acquis les competences cibles a l'issue de la formation ?"
+            data-en="Do you estimate that the learners acquired the target competencies by the end of the training?">
+            Estimez-vous que les apprenants ont acquis les competences cibles a l'issue de la formation ?
+          </div>
+          <div class="q-scale">
+            <span class="q-scale-text"
+              data-fr="1 = Insuffisant → 5 = Tres satisfaisant"
+              data-en="1 = Insufficient → 5 = Very satisfactory">1 = Insuffisant → 5 = Tres satisfaisant</span>
+          </div>
+          <div class="ai-grid" style="grid-template-columns:120px;">
+            <div class="ai-card"><strong>Score IA</strong>{{ ai_results.q3_competences_acquises }}/5</div>
+          </div>
+        </div>
+
         {% if transcription %}
-          <div class="ai-text" style="margin-top:8px;"><strong>Transcription</strong>{{ transcription }}</div>
+          <div class="ai-text" style="margin-top:10px;"><strong>Transcription</strong>{{ transcription }}</div>
         {% endif %}
       {% else %}
-        <div class="hint">Aucune reponse IA pour le moment.</div>
+        <div class="hint">Aucune reponse IA pour le moment. Lancez le traitement vocal.</div>
       {% endif %}
     </div>
 
+    <!-- Q4-Q6 : QUESTIONS OUVERTES (saisie manuelle) -->
+    <div class="form-section">
+      <div class="section-title">
+        <h6>Questions ouvertes — Q4, Q5, Q6</h6>
+        <div class="hint">A renseigner apres lecture de la transcription. Le formateur repond oralement, vous retranscrivez.</div>
+      </div>
+
+      <!-- Q4 -->
+      <div class="q-block" style="margin-bottom:14px;">
+        <div class="q-label">Q4 — <span class="q-text"
+          data-fr="Gestion administrative"
+          data-en="Administrative Management">Gestion administrative</span></div>
+        <div class="q-formulation q-formulation-text"
+          data-fr="Estimez-vous que la gestion administrative du programme PADESCE a ete bien organisee et a facilite le bon deroulement des formations ? Dans le cas contraire, pouvez-vous nous en dire plus ?"
+          data-en="Do you think the administrative management of the PADESCE program was well organized and facilitated the smooth running of training sessions? If not, please tell us more.">
+          Estimez-vous que la gestion administrative du programme PADESCE a ete bien organisee et a facilite le bon deroulement des formations ? Dans le cas contraire, pouvez-vous nous en dire plus ?
+        </div>
+        <textarea name="q4_gestion_administrative" class="q-open-area" rows="3" placeholder="Reponse du formateur...">{{ ai_results.q4_gestion_administrative|default:'' }}</textarea>
+      </div>
+
+      <!-- Q5 -->
+      <div class="q-block" style="margin-bottom:14px;">
+        <div class="q-label">Q5 — <span class="q-text"
+          data-fr="Gestion financiere"
+          data-en="Financial Management">Gestion financiere</span></div>
+        <div class="q-formulation q-formulation-text"
+          data-fr="La gestion financiere du programme PADESCE a-t-elle facilite le bon deroulement des formations ? Dans le cas contraire, pouvez-vous nous en dire plus ?"
+          data-en="Did the financial management of the PADESCE program facilitate the smooth running of training sessions? If not, please tell us more.">
+          La gestion financiere du programme PADESCE a-t-elle facilite le bon deroulement des formations ? Dans le cas contraire, pouvez-vous nous en dire plus ?
+        </div>
+        <textarea name="q5_gestion_financiere" class="q-open-area" rows="3" placeholder="Reponse du formateur...">{{ ai_results.q5_gestion_financiere|default:'' }}</textarea>
+      </div>
+
+      <!-- Q6 -->
+      <div class="q-block">
+        <div class="q-label">Q6 — <span class="q-text"
+          data-fr="Communication"
+          data-en="Communication">Communication</span></div>
+        <div class="q-formulation q-formulation-text"
+          data-fr="Le programme PADESCE a-t-il assure une communication claire, vous informant de vos obligations et facilitant le bon deroulement des formations ? Dans le cas contraire, pouvez-vous nous en dire plus ?"
+          data-en="Did the PADESCE program ensure clear communication, informing you of your obligations and facilitating the smooth running of training sessions? If not, please tell us more.">
+          Le programme PADESCE a-t-il assure une communication claire, vous informant de vos obligations et facilitant le bon deroulement des formations ? Dans le cas contraire, pouvez-vous nous en dire plus ?
+        </div>
+        <textarea name="q6_communication" class="q-open-area" rows="3" placeholder="Reponse du formateur...">{{ ai_results.q6_communication|default:'' }}</textarea>
+      </div>
+    </div>
+
+    <!-- COMMENTAIRES / RECOMMANDATIONS -->
+    <div class="form-section">
+      <div class="section-title"><h6>Commentaires & Recommandations</h6></div>
+      <div class="form-row">
+        <div class="field">{{ form.commentaires.label_tag }} {{ form.commentaires }}</div>
+        <div class="field">{{ form.recommandations.label_tag }} {{ form.recommandations }}</div>
+      </div>
+    </div>
+
     {% if save_errors %}
-      <div class="subtitle" style="color:#d14343;">{{ save_errors }}</div>
+      <div style="color:#d14343; font-size:0.9rem; padding:8px 12px; background:rgba(209,67,67,0.07); border-radius:10px;">{{ save_errors }}</div>
     {% endif %}
     <div class="form-actions">
       <button class="btn btn-primary" type="submit" name="action" value="save" {% if not ai_results or not identified_formateur %}disabled{% endif %}>Enregistrer et suivant</button>
@@ -205,13 +307,17 @@
   </form>
 </div>
 
+<!-- DERNIERES ENQUETES -->
 <div class="panel" style="margin-top:14px;">
   <h5>Dernieres enquetes</h5>
   <div style="max-height:420px; overflow:auto;">
     <table>
       <thead>
         <tr>
-          <th>Date</th><th>Classe</th><th>Formateur</th><th>Inspecteur</th><th>Enqueteur</th><th>Q9</th><th>Commentaires</th>
+          <th>Date</th><th>Classe</th><th>Formateur</th><th>Inspecteur</th><th>Enqueteur</th>
+          <th>Q1</th><th>Q2</th><th>Q3</th>
+          <th>Q4 Gestion admin.</th><th>Q5 Gestion fin.</th><th>Q6 Communication</th>
+          <th>Commentaires</th>
         </tr>
       </thead>
       <tbody>
@@ -222,11 +328,16 @@
           <td>{{ e.formateur }}</td>
           <td>{{ e.inspecteur }}</td>
           <td>{{ e.enqueteur }}</td>
-          <td>{{ e.q9_satisfaction_globale_prestataire }}</td>
+          <td style="text-align:center;">{{ e.q1_prerequis_apprenants }}</td>
+          <td style="text-align:center;">{{ e.q2_interaction_apprenants }}</td>
+          <td style="text-align:center;">{{ e.q3_competences_acquises }}</td>
+          <td style="max-width:140px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="{{ e.q4_gestion_administrative }}">{{ e.q4_gestion_administrative|default:"-"|truncatechars:60 }}</td>
+          <td style="max-width:140px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="{{ e.q5_gestion_financiere }}">{{ e.q5_gestion_financiere|default:"-"|truncatechars:60 }}</td>
+          <td style="max-width:140px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="{{ e.q6_communication }}">{{ e.q6_communication|default:"-"|truncatechars:60 }}</td>
           <td>{{ e.commentaires|default:"-" }}</td>
         </tr>
         {% empty %}
-        <tr><td colspan="7" style="text-align:center; color:var(--muted);">Aucune enquete</td></tr>
+        <tr><td colspan="12" style="text-align:center; color:var(--muted);">Aucune enquete</td></tr>
         {% endfor %}
       </tbody>
     </table>
@@ -239,4 +350,40 @@
     </div>
   {% endif %}
 </div>
+
+<script>
+(function () {
+  // --- Toggle FR/EN ---
+  const toggle = document.getElementById('lang-toggle');
+  if (!toggle) return;
+
+  function applyLang(lang) {
+    // Titres courts des questions
+    document.querySelectorAll('.q-text[data-' + lang + ']').forEach(el => {
+      el.textContent = el.dataset[lang];
+    });
+    // Formulations longues
+    document.querySelectorAll('.q-formulation-text[data-' + lang + ']').forEach(el => {
+      el.textContent = el.dataset[lang];
+    });
+    // Echelles
+    document.querySelectorAll('.q-scale-text[data-' + lang + ']').forEach(el => {
+      el.textContent = el.dataset[lang];
+    });
+    // Boutons actifs
+    toggle.querySelectorAll('.lang-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.lang === lang);
+    });
+    localStorage.setItem('padesce_lang_form', lang);
+  }
+
+  // Init
+  const savedLang = localStorage.getItem('padesce_lang_form') || 'fr';
+  applyLang(savedLang);
+
+  toggle.querySelectorAll('.lang-btn').forEach(btn => {
+    btn.addEventListener('click', () => applyLang(btn.dataset.lang));
+  });
+})();
+</script>
 {% endblock %}

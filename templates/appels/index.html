@@ -2,24 +2,51 @@
 {% block title %}Appels{% endblock %}
 {% block content %}
 <style>
+  .btn, .btn-small {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    padding: 10px 14px; border-radius: 12px; border: 1px solid transparent;
+    font-weight: 600; cursor: pointer; transition: transform .15s ease, box-shadow .15s ease, background .2s ease;
+  }
+  .btn-sm { padding: 8px 12px; font-size: 0.9rem; }
+  .btn:disabled, .btn-small:disabled { opacity: .6; cursor: not-allowed; transform: none; box-shadow: none; }
+  .btn-primary { background: var(--accent); color: #fff; box-shadow: 0 8px 18px rgba(76,29,149,0.2); }
+  .btn-secondary { background: #fff; color: var(--accent-strong); border: 1px solid rgba(111,60,195,0.3); }
+  .btn-ghost { background: rgba(111,60,195,0.08); color: var(--accent-strong); border: 1px solid rgba(111,60,195,0.2); }
+  .btn-small.primary { background: var(--accent); color: #fff; }
+  .btn:hover, .btn-small:hover { transform: translateY(-1px); box-shadow: 0 10px 22px rgba(15,23,42,0.12); }
+  .input, select, input[type="text"], input[type="number"], input[type="datetime-local"] {
+    padding: 10px 12px; border-radius: 12px; border: 1px solid var(--border); background: #fff;
+    box-shadow: inset 0 1px 2px rgba(0,0,0,0.04); font-weight: 500;
+    transition: border-color .2s ease, box-shadow .2s ease;
+  }
+  .input:focus, select:focus, input[type="text"]:focus, input[type="number"]:focus, input[type="datetime-local"]:focus {
+    outline: none; border-color: rgba(111,60,195,0.6); box-shadow: 0 0 0 3px rgba(111,60,195,0.12);
+  }
+  .input-file {
+    display: inline-flex; align-items: center; gap: 10px; padding: 12px 16px; border-radius: 14px;
+    border: 1px dashed rgba(111,60,195,0.3); background: rgba(111,60,195,0.08);
+  }
+  .input-file input[type="file"] { background: transparent; border: none; padding: 4px; }
+  .input-file input[type="file"]::file-selector-button {
+    margin-right: 10px; padding: 8px 12px; border-radius: 10px; border: 1px solid rgba(111,60,195,0.3);
+    background: #fff; font-weight: 600; cursor: pointer;
+  }
+  .file-label { font-weight: 700; color: var(--accent-strong); }
+  .import-panel { display: grid; gap: 12px; }
+  .import-title { font-weight: 700; font-size: 1rem; }
+  .import-divider { height: 1px; background: var(--border); }
   .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 14px; box-shadow: var(--shadow); margin-bottom: 12px; }
   table { width: 100%; border-collapse: collapse; }
   th, td { padding: 8px; border: 1px solid var(--border); font-size: 0.92rem; }
-  thead { background: rgba(15,139,141,0.08); }
+  thead { background: rgba(111,60,195,0.08); }
   .actions { display: flex; gap: 6px; flex-wrap: wrap; }
-  .btn-small { padding: 6px 10px; border-radius: 10px; border: 1px solid var(--border); background: linear-gradient(120deg, rgba(15,139,141,0.1), rgba(24,176,172,0.18)); cursor: pointer; transition: transform .15s ease, box-shadow .15s ease; }
-  .btn-small:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(0,0,0,0.08); }
-  .btn-small.primary { background: linear-gradient(120deg, var(--accent), #18b0ac); color: #fff; border: none; }
   .checkbox-cell { text-align: center; }
   .checkbox-cell input { width: 18px; height: 18px; }
-  .input-file { display: inline-flex; align-items: center; gap: 10px; padding: 12px 16px; border-radius: 14px; border: 1px dashed var(--border); background: rgba(15,139,141,0.08); box-shadow: var(--shadow); }
-  .input-file input { border: none; background: transparent; }
-  .input, select { padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border); background: #fff; box-shadow: inset 0 1px 2px rgba(0,0,0,0.04); }
   .search-bar { flex: 1; min-width: 180px; }
   .selection-bar { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
   .selection-bar .subtitle { margin: 0; }
   .progress { position: relative; height: 8px; background: #eef2f7; border-radius: 999px; overflow: hidden; width: 140px; }
-  .progress-fill { position: absolute; top:0; left:0; height:100%; background: linear-gradient(120deg, var(--accent), #18b0ac); width:0%; transition: width .1s linear; }
+  .progress-fill { position: absolute; top:0; left:0; height:100%; background: var(--accent); width:0%; transition: width .1s linear; }
   .time-label { font-size: 0.82rem; color: var(--muted); min-width: 72px; text-align: right; }
   .badge { padding: 6px 10px; border-radius: 999px; font-weight: 700; font-size: 0.9rem; border: 1px solid var(--border); }
   .badge.wait { background: rgba(234,179,8,0.18); color: #92400e; }
@@ -39,34 +66,118 @@
   .modal-hint { font-size: 0.8rem; color: var(--muted); }
   .modal-backdrop[hidden] { display: none; }
   .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px; }
+  .modal-panel-xl { width: min(1120px, 96vw); max-height: 92vh; padding: 18px; }
+  .modal-embed { width: 100%; height: min(78vh, 820px); border: none; border-radius: 14px; background: #fff; }
+  .transcript-box { max-height: 320px; overflow: auto; white-space: pre-wrap; border: 1px solid var(--border); border-radius: 12px; padding: 12px; background: #fff; }
+  .bulk-progress-wrap { display:none; flex-direction:column; gap:8px; margin-bottom:10px; padding:10px 12px; border-radius:12px; border:1px solid rgba(15,139,141,0.2); background: rgba(15,139,141,0.05); }
+  .bulk-progress-head { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+  .bulk-progress-track { height:10px; border-radius:999px; overflow:hidden; background: rgba(15,139,141,0.12); border:1px solid rgba(15,139,141,0.2); }
+  .bulk-progress-bar { height:100%; width:0%; background: linear-gradient(90deg, #18b0ac, #f6c453); transition: width .2s ease; }
+  .badge.reached { background: #dcfce7; color: #166534; border-color: #bbf7d0; }
+  .badge.pending { background: #fefce8; color: #854d0e; border-color: #fef08a; }
+  .classe-summary { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+  .classe-badge { padding: 6px 12px; border-radius: 12px; border: 1px solid var(--border); background: #fff; font-size: 0.85rem; display: flex; align-items: center; gap: 6px; }
+  .clickable-row { cursor: pointer; }
+  .clickable-row:hover { background-color: rgba(111,60,195,0.03) !important; }
+  .flag-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; border-top: 1px solid var(--border); padding-top: 10px; }
+  .btn-danger { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
+  .btn-danger:hover { background: #fecaca; }
+  .ops-summary { display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:10px; margin-bottom:14px; }
+  .ops-tile { border:1px solid var(--border); border-radius:14px; background:linear-gradient(180deg, rgba(111,60,195,0.08), rgba(255,255,255,0.96)); padding:14px; }
+  .ops-tile strong { display:block; font-size:1.15rem; color:var(--accent-strong); margin-top:6px; }
+  .ops-kicker { font-size:0.78rem; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:var(--muted); }
+  .recommend-panel { margin-bottom:14px; border:1px solid var(--border); border-radius:16px; background:linear-gradient(135deg, rgba(15,139,141,0.08), rgba(255,255,255,0.98)); padding:16px; }
+  .recommend-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap:12px; margin-top:12px; }
+  .recommend-card { border:1px solid rgba(15,139,141,0.18); border-radius:14px; background:#fff; padding:14px; box-shadow:0 10px 24px rgba(15,23,42,0.08); }
+  .recommend-head { display:flex; justify-content:space-between; align-items:flex-start; gap:10px; margin-bottom:10px; }
+  .recommend-meta { display:flex; flex-wrap:wrap; gap:8px; margin:10px 0; }
+  .recommend-chip { display:inline-flex; align-items:center; gap:6px; padding:6px 10px; border-radius:999px; background:rgba(15,139,141,0.08); border:1px solid rgba(15,139,141,0.14); font-size:0.82rem; font-weight:600; color:#0f5f61; }
+  .recommend-copy { margin:0; color:var(--muted); font-size:0.88rem; line-height:1.45; }
+  .recommend-empty { margin-top:10px; color:var(--muted); }
+
 </style>
 
-<h1 class="h4 mb-2">Appels</h1>
-<p class="subtitle" style="color:var(--muted);">Uploader un fichier xlsx/xlsm (Feuil2) pour charger les contacts (Nom, Prestataire, Beneficiaire, Lieux, Classe, Tel). Le taux de presence est utilise comme seuil.</p>
+<!-- <h1 class="h4 mb-2">Appels</h1>
+<div class="classe-summary">
+  {% for cp in classe_progress %}
+    <div class="classe-badge">
+      <strong>{{ cp.classe }}</strong>: 
+      {% if cp.reached %}
+        <span class="badge reached">Objectif Atteint ✅</span>
+      {% else %}
+        <span class="badge pending">{{ cp.termines }}/{{ cp.target }} ({{ cp.pct }}%)</span>
+      {% endif %}
+    </div>
+  {% endfor %}
+</div> -->
 
-  <div class="panel">
-    <!-- <form method="post" enctype="multipart/form-data" class="form-inline" style="gap:12px; flex-wrap:wrap;">
+{% if user.is_superuser %}
+  <p class="subtitle" style="color:var(--muted);">Uploader un fichier xlsx/xlsm (Sheet1) pour charger les contacts (Nom et prénom, Bénéficiaires, Prestataire, Lieux, Classe, Téléphones).</p>
+  <div class="panel import-panel">
+    <div class="import-title">Importation des contacts</div>
+    <form method="post" enctype="multipart/form-data" class="form-inline" style="gap:12px; flex-wrap:wrap;">
+      {% csrf_token %}
+      <input type="hidden" name="update_mode" value="append">
+      <div class="input-file">
+        <span class="file-label">Choisir fichier (Sheet1)</span>
+        <input type="file" name="file" accept=".xlsx,.xlsm" required />
+      </div>
+      <button type="submit" class="btn btn-primary btn-sm">Uploader (ajouter/combiner)</button>
+    </form>
+    <div class="import-divider"></div>
+    <form method="post" enctype="multipart/form-data" class="form-inline" style="gap:12px; flex-wrap:wrap;">
       {% csrf_token %}
       <input type="hidden" name="update_mode" value="replace">
       <div class="input-file">
-        <span style="font-weight:700;">Choisir fichier (Feuil2)</span>
+        <span class="file-label">Choisir fichier (Sheet1)</span>
         <input type="file" name="file" accept=".xlsx,.xlsm" required />
       </div>
-      <button type="submit" class="btn btn-primary btn-sm" style="padding:10px 16px;">Uploader (ecrase l'existant)</button>
-    </form> -->
+      <button type="submit" class="btn btn-secondary btn-sm">Uploader (écrase l'existant)</button>
+    </form>
   </div>
   <div class="panel">
     <p class="subtitle" style="color:var(--muted); margin-bottom:8px;">Importer un fichier qui met uniquement à jour les colonnes "Type formation déclarée" et "Formation Padesce" pour les apprenants déjà présents sans modifier les autres informations.</p>
-    <!-- <form method="post" enctype="multipart/form-data" class="form-inline" style="gap:12px; flex-wrap:wrap;">
+    <form method="post" enctype="multipart/form-data" class="form-inline" style="gap:12px; flex-wrap:wrap;">
       {% csrf_token %}
       <input type="hidden" name="update_mode" value="formation_meta">
       <div class="input-file">
-        <span style="font-weight:700;">Choisir fichier (Feuil2)</span>
+        <span class="file-label">Choisir fichier (Sheet1)</span>
         <input type="file" name="file" accept=".xlsx,.xlsm" required />
       </div>
-      <button type="submit" class="btn btn-secondary btn-sm" style="padding:10px 16px;">Mettre à jour les formations</button>
-    </form> -->
+      <button type="submit" class="btn btn-ghost btn-sm">Mettre à jour les formations</button>
+    </form>
   </div>
+  <div class="panel import-panel">
+    <div class="import-title">Importations spécifiques</div>
+    <form method="post" enctype="multipart/form-data" class="form-inline" style="gap:12px; flex-wrap:wrap;">
+      {% csrf_token %}
+      <input type="hidden" name="update_mode" value="non_forme_feuil2">
+      <div class="input-file">
+        <span class="file-label">Non formés (Feuil2)</span>
+        <input type="file" name="file" accept=".xlsm,.xlsx" required />
+      </div>
+      <button type="submit" class="btn btn-primary btn-sm">Importer non formés (Feuil2)</button>
+    </form>
+    <div class="import-divider"></div>
+    <form method="post" enctype="multipart/form-data" class="form-inline" style="gap:12px; flex-wrap:wrap;">
+      {% csrf_token %}
+      <input type="hidden" name="update_mode" value="capef_sheet1">
+      <div class="input-file">
+        <span class="file-label">Formés (Sheet1)</span>
+        <input type="file" name="file" accept=".xlsx" required />
+      </div>
+      <button type="submit" class="btn btn-secondary btn-sm">Importer formés (Sheet1)</button>
+    </form>
+    <p class="subtitle" style="color:var(--muted); margin:6px 0 0;">Ces imports mettent à jour les enregistrements existants par code (sans suppression).</p>
+  </div>
+  <div class="panel">
+    <p class="subtitle" style="color:var(--muted); margin-bottom:8px;">Nettoyage global des doublons de numeros sur toutes les tables d'appels. Les doublons detectes sont desactives pour conserver l'historique.</p>
+    <form method="post" action="{% url 'deduplicate_all_call_tables' %}">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-ghost btn-sm">Detecter et supprimer les doublons numeros</button>
+    </form>
+  </div>
+{% endif %}
 
 <div class="panel">
   <form method="get" class="form-inline" style="gap:8px; margin-bottom:10px; flex-wrap:wrap;">
@@ -89,15 +200,39 @@
       {% endfor %}
     </select>
     <select name="beneficiaire" class="input">
-      <option value="">Beneficiaire</option>
+      <option value="">Bénéficiaire</option>
       {% for p in filters.beneficiaires %}
         <option value="{{ p }}" {% if filters.beneficiaire == p %}selected{% endif %}>{{ p }}</option>
       {% endfor %}
     </select>
-    <select name="classe" class="input">
+    <select name="classe" class="input" id="js-classe-filter">
       <option value="">Classe</option>
-      {% for p in filters.classes %}
-        <option value="{{ p }}" {% if filters.classe == p %}selected{% endif %}>{{ p }}</option>
+      {% for p in filters.classes_enriched %}
+        <option value="{{ p.value }}" {% if filters.classe == p.value %}selected{% endif %}>{{ p.label }}</option>
+      {% endfor %}
+    </select>
+    
+    <select name="fenetre" class="input">
+      <option value="">Fenêtre</option>
+      {% for p in filters.fenetres %}
+        <option value="{{ p }}" {% if filters.fenetre == p %}selected{% endif %}>{{ p }}</option>
+      {% endfor %}
+    </select>
+    <select name="agent" class="input">
+      <option value="">Utilisateur</option>
+      {% for p in filters.agents %}
+        <option value="{{ p }}" {% if filters.agent == p %}selected{% endif %}>{{ p }}</option>
+      {% endfor %}
+    </select>
+    <select name="formulaire" class="input">
+      <option value="">Formulaire</option>
+      <option value="rempli" {% if filters.formulaire == "rempli" %}selected{% endif %}>Rempli</option>
+      <option value="vide" {% if filters.formulaire == "vide" %}selected{% endif %}>Vide</option>
+    </select>
+    <select name="modified_by" class="input">
+      <option value="">Modifié par</option>
+      {% for p in filters.modified_bys %}
+        <option value="{{ p }}" {% if filters.modified_by == p %}selected{% endif %}>{{ p }}</option>
       {% endfor %}
     </select>
     <button type="submit" class="btn btn-primary btn-sm" style="padding:10px 14px;">Filtrer</button>
@@ -108,9 +243,84 @@
     <p class="subtitle" style="color:var(--muted); margin:0;">
       Apprenants affichés : <strong>{{ appels_count }}</strong>
     </p>
-    <button type="button" id="js-download-audios" class="btn btn-primary btn-sm" disabled>
-      Télécharger les audios sélectionnés
-    </button>
+    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+      <a class="btn btn-ghost btn-sm" href="{% url 'appels_export_filtered_csv' %}{% if request.GET.urlencode %}?{{ request.GET.urlencode }}{% endif %}">Exporter le tableau filtré (CSV)</a>
+      {% if user.is_superuser %}<a class="btn btn-secondary btn-sm" id="js-open-consolidation-modal" href="{% url 'appels_consolidation_pending' %}">Charger depuis Consolidation</a>{% endif %}
+      <a class="btn btn-ghost btn-sm" href="{% url 'appels_export_xlsx' %}">Exporter toutes les données (XLSX)</a>
+      <button type="button" id="js-download-audios" class="btn btn-primary btn-sm" disabled>
+        Télécharger les audios sélectionnés
+      </button>
+    </div>
+  </div>
+
+  <div class="ops-summary">
+    <div class="ops-tile">
+      <div class="ops-kicker">Classes masquees</div>
+      <strong>{{ hidden_class_summary.hidden_class_count }}</strong>
+      <div class="subtitle" style="margin:6px 0 0;">Objectif d'appels deja atteint, retirees de la table et du filtre.</div>
+    </div>
+    <div class="ops-tile">
+      <div class="ops-kicker">Lignes allégées</div>
+      <strong>{{ hidden_class_summary.hidden_appel_count }}</strong>
+      <div class="subtitle" style="margin:6px 0 0;">Lignes masquees pour garder visibles les classes encore a appeler.</div>
+    </div>
+    <div class="ops-tile">
+      <div class="ops-kicker">Classes sans numero</div>
+      <strong>{{ hidden_class_summary.classes_without_callable_phone_count }}</strong>
+      <div class="subtitle" style="margin:6px 0 0;">Elles ne comptent plus dans les objectifs apprenants de la classe.</div>
+    </div>
+    <div class="ops-tile">
+      <div class="ops-kicker">Source de pilotage</div>
+      <strong>
+        {% if source_summary.label %}
+          {{ source_summary.label }}
+        {% elif source_summary.name %}
+          {{ source_summary.name }}
+        {% else %}
+          Source locale
+        {% endif %}
+      </strong>
+      <div class="subtitle" style="margin:6px 0 0;">Mise en cache : {{ source_summary.modified_label|default:"non disponible" }}</div>
+    </div>
+  </div>
+
+  <div class="recommend-panel">
+    <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap;">
+      <div>
+        <div class="ops-kicker">Recommandations PADESCE</div>
+        <h3 style="margin:4px 0 0;">Classes a appeler pour finir plus vite les prestations</h3>
+      </div>
+      <div class="subtitle" style="margin:0; max-width:360px;">Priorite aux classes qui cloturent une prestation, puis a celles avec peu d'apprenants joignables et sans numeros dupliques.</div>
+    </div>
+    {% if recommended_classes %}
+      <div class="recommend-grid">
+        {% for item in recommended_classes %}
+          <article class="recommend-card">
+            <div class="recommend-head">
+              <div>
+                <div class="pill">{{ item.classe }}</div>
+                <div class="subtitle" style="margin-top:8px;">{{ item.prestation }}</div>
+              </div>
+              <span class="badge run">{{ item.priority_label }}</span>
+            </div>
+            <div style="font-weight:700;">{{ item.prestataire }}</div>
+            <div class="subtitle">{{ item.beneficiaire }}</div>
+            <div class="recommend-meta">
+              <span class="recommend-chip">{{ item.termines }}/{{ item.callable_total }} joignables</span>
+              <span class="recommend-chip">Reste {{ item.remaining_to_target }} appel{% if item.remaining_to_target|default:0 > 1 %}s{% endif %}</span>
+              {% if item.duplicate_phone_total %}
+                <span class="recommend-chip">{{ item.duplicate_phone_total }} numero{% if item.duplicate_phone_total > 1 %}s{% endif %} duplique{% if item.duplicate_phone_total > 1 %}s{% endif %}</span>
+              {% else %}
+                <span class="recommend-chip">Aucun numero duplique</span>
+              {% endif %}
+            </div>
+            <p class="recommend-copy">{{ item.reason }}</p>
+          </article>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p class="recommend-empty">Aucune classe prioritaire detectee pour l'instant.</p>
+    {% endif %}
   </div>
 
   <div class="table-wrap">
@@ -120,19 +330,19 @@
           <th class="checkbox-cell">
             <input type="checkbox" id="js-select-all" aria-label="Sélectionner tous les audios">
           </th>
-          <th>Nom</th><th>Code</th><th>Prestataire</th><th>Beneficiaire</th><th>Lieu</th><th>Classe</th><th>Type formation déclarée</th><th>Formation Padesce</th><th>Tel</th><th>Taux presence</th><th>Statut</th><th>Action</th><th>Audio</th>
+          <th>Nom</th><th>Code</th><th>Prestataire</th><th>Bénéficiaire</th><th>Lieu</th><th>Classe</th><th>Fenêtre</th><th>Type formation déclarée</th><th>Formation Padesce</th><th>Tél</th><th>Taux présence</th><th>Statut</th><th>Action</th><th>Audio</th>
         </tr>
       </thead>
       <tbody>
         {% for a in appels %}
-        <tr data-id="{{ a.id }}" data-status="{{ a.status }}" data-locked-by="{{ a.locked_by.username|default:'' }}" data-name="{{ a.nom }}" data-phone="{{ a.telephone1|default:a.telephone2|default:"" }}">
+        <tr class="clickable-row" data-id="{{ a.id }}" data-status="{{ a.status }}" data-locked-by="{{ a.locked_by.username|default:'' }}" data-name="{{ a.nom }}" data-phone="{{ a.telephone1|default:a.telephone2|default:"" }}">
           <td class="checkbox-cell">
             <input
               type="checkbox"
               class="js-audio-select"
               value="{{ a.id }}"
               aria-label="Sélection audio pour {{ a.nom }}"
-              {% if not a.audio_file %}disabled title="Pas d'audio disponible"{% endif %}
+              {% if not a.has_audio_file %}disabled title="{% if a.audio_file_missing %}Audio introuvable{% else %}Pas d'audio disponible{% endif %}"{% endif %}
             />
           </td>
           <td>{{ a.nom }}</td>
@@ -141,6 +351,7 @@
           <td>{{ a.beneficiaire }}</td>
           <td>{{ a.lieu }}</td>
           <td>{{ a.classe_label }}</td>
+          <td>{{ a.fenetre|default:"-" }}</td>
           <td>{{ a.type_formation_declaree|default:"-" }}</td>
           <td>{{ a.formation_padesce|default:"-" }}</td>
           <td>{{ a.telephone1|default:a.telephone2|default:"-" }}</td>
@@ -151,10 +362,18 @@
           </td>
           <td>
             <div class="actions js-actions">
-              <button type="button" class="btn-small primary js-start">Demarrer</button>
-              <button type="button" class="btn-small js-pause" hidden>Pause</button>
-              <button type="button" class="btn-small js-resume" hidden>Reprendre</button>
-              <button type="button" class="btn-small js-terminer" hidden>Terminer</button>
+              <button
+                type="button"
+                class="btn-small primary js-start"
+                {% if a.status not in "en_attente,a_rappeler" %}hidden{% endif %}
+              >Demarrer</button>
+              <button type="button" class="btn-small js-pause" {% if a.status != "en_cours" %}hidden{% endif %}>Pause</button>
+              <button type="button" class="btn-small js-resume" {% if a.status != "pause" %}hidden{% endif %}>Reprendre</button>
+              <button
+                type="button"
+                class="btn-small js-terminer"
+                {% if a.status not in "en_cours,pause" %}hidden{% endif %}
+              >Terminer</button>
             </div>
           </td>
           <td>
@@ -162,15 +381,15 @@
               <div class="visual" style="width:120px; height:32px; border:1px solid var(--border); border-radius:8px; overflow:hidden;">
                 <canvas width="120" height="32" class="js-visual"></canvas>
               </div>
-              <div style="display:flex; align-items:center; gap:6px;">
-                <button type="button" class="btn-small js-play" {% if a.status != 'termine' or not a.audio_file %}disabled{% endif %}>Play</button>
-                {% if a.audio_file %}
-                  <a class="btn-small" href="{{ a.audio_file.url }}" download="appel-{{ a.code }}.mp3" style="font-size:0.85rem;" title="Télécharger l'audio en MP3">Télécharger</a>
+              <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+                <button type="button" class="btn-small js-play" {% if a.status != 'termine' or not a.has_audio_file %}disabled{% endif %}>Play</button>
+                {% if a.has_audio_file %}
+                  <a class="btn-small js-audio-download" href="{{ a.audio_file.url }}" download="appel-{{ a.code }}.mp3" style="font-size:0.85rem;" title="Télécharger l'audio en MP3">Télécharger</a>
                 {% endif %}
                 <div class="progress"><div class="progress-fill"></div></div>
                 <span class="time-label">0:00</span>
               </div>
-              <audio class="js-audio" style="display:none;" {% if a.audio_file %}src="{{ a.audio_file.url }}"{% endif %}></audio>
+              <audio class="js-audio" style="display:none;" {% if a.has_audio_file %}src="{{ a.audio_file_url }}"{% endif %}></audio>
             </div>
           </td>
         </tr>
@@ -179,9 +398,108 @@
         {% endfor %}
       </tbody>
     </table>
+    
+    <!-- ── Pagination ── -->
+    {% if paginator.num_pages > 1 %}
+    <div style="display: flex; justify-content: center; align-items: center; gap: 8px; margin-top: 16px; flex-wrap: wrap;">
+      <!-- Bouton Précédent -->
+      {% if page_obj.has_previous %}
+        <a href="?page=1{% for k, v in request.GET.items %}{% if k != 'page' %}&{{ k }}={{ v }}{% endif %}{% endfor %}" class="btn btn-ghost btn-sm" title="Première page">«</a>
+        <a href="?page={{ page_obj.previous_page_number }}{% for k, v in request.GET.items %}{% if k != 'page' %}&{{ k }}={{ v }}{% endif %}{% endfor %}" class="btn btn-ghost btn-sm" title="Page précédente">‹</a>
+      {% else %}
+        <span class="btn btn-ghost btn-sm" style="opacity: 0.5; cursor: not-allowed;">«</span>
+        <span class="btn btn-ghost btn-sm" style="opacity: 0.5; cursor: not-allowed;">‹</span>
+      {% endif %}
+      
+      <!-- Numéros de pages -->
+      <span style="color: var(--muted); font-size: 0.9rem; margin: 0 8px;">
+        Page <strong>{{ page_obj.number }}</strong> sur <strong>{{ paginator.num_pages }}</strong>
+        ({{ appels_count }} appels total)
+      </span>
+      
+      <!-- Bouton Suivant -->
+      {% if page_obj.has_next %}
+        <a href="?page={{ page_obj.next_page_number }}{% for k, v in request.GET.items %}{% if k != 'page' %}&{{ k }}={{ v }}{% endif %}{% endfor %}" class="btn btn-ghost btn-sm" title="Page suivante">›</a>
+        <a href="?page={{ paginator.num_pages }}{% for k, v in request.GET.items %}{% if k != 'page' %}&{{ k }}={{ v }}{% endif %}{% endfor %}" class="btn btn-ghost btn-sm" title="Dernière page">»</a>
+      {% else %}
+        <span class="btn btn-ghost btn-sm" style="opacity: 0.5; cursor: not-allowed;">›</span>
+        <span class="btn btn-ghost btn-sm" style="opacity: 0.5; cursor: not-allowed;">»</span>
+      {% endif %}
+    </div>
+    {% endif %}
   </div>
 </div>
 
+
+<div id="js-consolidation-modal" class="modal-backdrop" hidden>
+  <div class="modal-panel modal-panel-xl">
+    <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:12px;">
+      <div>
+        <h2 style="margin:0;">Données à charger depuis Consolidation</h2>
+        <div class="modal-hint">La liste embarquée conserve les filtres dépendants et permet le chargement unitaire, par lot ou global sans quitter la page PADESCE.</div>
+      </div>
+      <button type="button" class="btn btn-ghost btn-sm" id="js-close-consolidation-modal">Fermer</button>
+    </div>
+    <iframe id="js-consolidation-frame" class="modal-embed" loading="lazy" title="Chargement Consolidation"></iframe>
+  </div>
+</div>
+
+<div id="js-detail-modal" class="modal-backdrop" hidden>
+  <div class="modal-panel" style="width: 600px; max-height: 90vh; overflow-y: auto;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+      <h2 style="margin:0;">Détails de l'apprenant & Réponses</h2>
+      <button type="button" class="btn btn-ghost btn-sm" id="js-detail-close">×</button>
+    </div>
+    <div id="js-detail-info" style="display:grid; grid-template-columns:1fr 1fr; gap:10px; font-size:0.9rem; margin-bottom:15px; background:rgba(0,0,0,0.02); padding:10px; border-radius:8px;">
+      <!-- Filled by JS -->
+    </div>
+    
+    <form id="js-detail-form">
+      <div style="margin: 10px 0; border: 1px solid var(--border); padding: 10px; border-radius: 8px;">
+        <h4 style="margin-top:0; margin-bottom: 8px;">Questionnaire de satisfaction</h4>
+        <div id="js-detail-questions">
+          <!-- Questions 1-9 generated by JS -->
+        </div>
+        <div class="modal-field">
+          <label style="font-size:0.85rem;">Commentaire général</label>
+          <textarea name="commentaire" class="input" style="padding:4px; font-size:0.85rem;" rows="2"></textarea>
+        </div>
+        <div class="modal-field">
+          <label style="font-size:0.85rem;">Recommandations</label>
+          <textarea name="recommandations" class="input" style="padding:4px; font-size:0.85rem;" rows="2"></textarea>
+        </div>
+      </div>
+      
+      <div class="flag-grid">
+        <label style="display:flex; align-items:center; gap:6px; font-size:0.85rem;">
+          <input type="checkbox" name="flag_pas_forme"> Déjà formé / Pas suivi formation
+        </label>
+        <label style="display:flex; align-items:center; gap:6px; font-size:0.85rem;">
+          <input type="checkbox" name="flag_deja_appele"> Déjà appelé auparavant
+        </label>
+        <label style="display:flex; align-items:center; gap:6px; font-size:0.85rem;">
+          <input type="checkbox" name="flag_numero_double"> Numéro double
+        </label>
+        <label style="display:flex; align-items:center; gap:6px; font-size:0.85rem;">
+          <input type="checkbox" name="flag_faux_nom" id="js-detail-faux-nom"> Ce n'est pas son vrai nom
+        </label>
+      </div>
+      <div id="js-detail-vrai-nom-wrap" class="modal-field" style="display:none; margin-top:5px;">
+        <label style="font-size:0.85rem;">Vrai nom :</label>
+        <input type="text" name="flag_vrai_nom" class="input" style="padding:4px;">
+      </div>
+
+      <div id="js-detail-audit" style="margin-top:15px; font-size:0.75rem; color:var(--muted); border-top:1px solid var(--border); padding-top:5px;">
+        <!-- Audit info -->
+      </div>
+
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost btn-sm" id="js-detail-cancel">Annuler</button>
+        <button type="submit" class="btn btn-primary btn-sm">Enregistrer les modifications</button>
+      </div>
+    </form>
+  </div>
+</div>
 <div id="js-termination-modal" class="modal-backdrop" hidden>
   <div class="modal-panel">
     <h2>Clôturer l'appel</h2>
@@ -213,6 +531,111 @@
   </div>
 </div>
 
+<div id="js-satisfaction-modal" class="modal-backdrop" hidden>
+  <div class="modal-panel" style="width: 550px; max-height: 90vh; overflow-y: auto;">
+    <h2>Enregistrement de l'appel (PADESCE)</h2>
+    
+    <div class="modal-detail">
+      <span class="modal-label">Nom :</span>
+      <span id="js-sat-modal-nom">-</span>
+      <span style="margin-left:15px;" class="modal-label">Tél :</span>
+      <span id="js-sat-modal-phone">-</span>
+    </div>
+    
+    <div style="margin: 10px 0; border: 1px solid var(--border); padding: 10px; border-radius: 8px;">
+
+    
+    <div style="margin: 10px 0; border: 1px solid var(--border); padding: 10px; border-radius: 8px;">
+      <h4 style="margin-top:0; margin-bottom: 8px;">Questionnaire de satisfaction (Cochez de 1 à 5)</h4>
+      
+    <div class="flag-grid" style="margin-bottom:10px;">
+        <label style="display:flex; align-items:center; gap:6px; font-size:0.82rem;">
+          <input type="checkbox" id="js-sat-flag-pas-forme"> Déjà formé / Pas suivi formation
+        </label>
+        <label style="display:flex; align-items:center; gap:6px; font-size:0.82rem;">
+          <input type="checkbox" id="js-sat-flag-faux-nom"> Faux nom
+        </label>
+        <label style="display:flex; align-items:center; gap:6px; font-size:0.82rem;">
+          <input type="checkbox" id="js-sat-flag-deja-appele"> Déjà appelé
+        </label>
+        <label style="display:flex; align-items:center; gap:6px; font-size:0.82rem;">
+          <input type="checkbox" id="js-sat-flag-numero-double"> Numéro double
+        </label>
+    </div>
+    <div id="js-sat-vrai-nom-wrap" style="display:none; margin-bottom:10px;">
+       <input type="text" id="js-sat-vrai-nom" class="input" style="width:100%; padding:6px;" placeholder="Entrez le vrai nom...">
+    </div>
+<div id="js-sat-questions">
+        <div class="form-inline" style="justify-content:space-between; margin-bottom:4px;">
+          <label style="font-size:0.85rem;">1. Clarté des exposés et explications</label>
+          <div style="font-size:0.85rem;"><input type="radio" name="q1" value="1"> 1 <input type="radio" name="q1" value="2"> 2 <input type="radio" name="q1" value="3" checked> 3 <input type="radio" name="q1" value="4"> 4 <input type="radio" name="q1" value="5"> 5</div>
+        </div>
+        <div class="form-inline" style="justify-content:space-between; margin-bottom:4px;">
+          <label style="font-size:0.85rem;">2. Interaction avec le formateur</label>
+          <div style="font-size:0.85rem;"><input type="radio" name="q2" value="1"> 1 <input type="radio" name="q2" value="2"> 2 <input type="radio" name="q2" value="3" checked> 3 <input type="radio" name="q2" value="4"> 4 <input type="radio" name="q2" value="5"> 5</div>
+        </div>
+        <div class="form-inline" style="justify-content:space-between; margin-bottom:4px;">
+          <label style="font-size:0.85rem;">3. Maîtrise du contenu par le formateur</label>
+          <div style="font-size:0.85rem;"><input type="radio" name="q3" value="1"> 1 <input type="radio" name="q3" value="2"> 2 <input type="radio" name="q3" value="3" checked> 3 <input type="radio" name="q3" value="4"> 4 <input type="radio" name="q3" value="5"> 5</div>
+        </div>
+        <div class="form-inline" style="justify-content:space-between; margin-bottom:4px;">
+          <label style="font-size:0.85rem;">4. Adéquation et confort de la salle</label>
+          <div style="font-size:0.85rem;"><input type="radio" name="q4" value="1"> 1 <input type="radio" name="q4" value="2"> 2 <input type="radio" name="q4" value="3" checked> 3 <input type="radio" name="q4" value="4"> 4 <input type="radio" name="q4" value="5"> 5</div>
+        </div>
+        <div class="form-inline" style="justify-content:space-between; margin-bottom:4px;">
+          <label style="font-size:0.85rem;">5. Disponibilité du matériel pédagogique</label>
+          <div style="font-size:0.85rem;"><input type="radio" name="q5" value="1"> 1 <input type="radio" name="q5" value="2"> 2 <input type="radio" name="q5" value="3" checked> 3 <input type="radio" name="q5" value="4"> 4 <input type="radio" name="q5" value="5"> 5</div>
+        </div>
+        <div class="form-inline" style="justify-content:space-between; margin-bottom:4px;">
+          <label style="font-size:0.85rem;">6. Organisation et gestion du temps</label>
+          <div style="font-size:0.85rem;"><input type="radio" name="q6" value="1"> 1 <input type="radio" name="q6" value="2"> 2 <input type="radio" name="q6" value="3" checked> 3 <input type="radio" name="q6" value="4"> 4 <input type="radio" name="q6" value="5"> 5</div>
+        </div>
+        <div class="form-inline" style="justify-content:space-between; margin-bottom:4px;">
+          <label style="font-size:0.85rem;">7. Utilité et applicabilité de la formation</label>
+          <div style="font-size:0.85rem;"><input type="radio" name="q7" value="1"> 1 <input type="radio" name="q7" value="2"> 2 <input type="radio" name="q7" value="3" checked> 3 <input type="radio" name="q7" value="4"> 4 <input type="radio" name="q7" value="5"> 5</div>
+        </div>
+        <div class="form-inline" style="justify-content:space-between; margin-bottom:4px;">
+          <label style="font-size:0.85rem;">8. Adéquation du contenu avec les besoins</label>
+          <div style="font-size:0.85rem;"><input type="radio" name="q8" value="1"> 1 <input type="radio" name="q8" value="2"> 2 <input type="radio" name="q8" value="3" checked> 3 <input type="radio" name="q8" value="4"> 4 <input type="radio" name="q8" value="5"> 5</div>
+        </div>
+        <div class="form-inline" style="justify-content:space-between; margin-bottom:10px;">
+          <label style="font-size:0.85rem;">9. Satisfaction globale</label>
+          <div style="font-size:0.85rem;"><input type="radio" name="q9" value="1"> 1 <input type="radio" name="q9" value="2"> 2 <input type="radio" name="q9" value="3" checked> 3 <input type="radio" name="q9" value="4"> 4 <input type="radio" name="q9" value="5"> 5</div>
+        </div>
+        <div class="modal-field">
+          <label style="font-size:0.85rem;">Commentaire général</label>
+          <textarea id="js-sat-commentaire" class="input" style="padding:4px; font-size:0.85rem;" rows="1"></textarea>
+        </div>
+        <div class="modal-field">
+          <label style="font-size:0.85rem;">Recommandations</label>
+          <textarea id="js-sat-recommandations" class="input" style="padding:4px; font-size:0.85rem;" rows="1"></textarea>
+        </div>
+      </div>
+    </div>
+    
+    <div style="border-top: 1px solid var(--border); padding-top: 8px;">
+        <label class="modal-field" style="flex-direction:row; align-items:center;">
+          <input type="checkbox" id="js-sat-modal-rappel" />
+          A rappeler
+        </label>
+        <label class="modal-field" style="flex-direction:row; align-items:center;">
+          <span style="width:60px;">Quand :</span>
+          <input type="datetime-local" id="js-sat-modal-rappel-at" disabled placeholder="mm/dd/yyyy --:-- --">
+        </label>
+        <label class="modal-field" style="flex-direction:row; align-items:center;">
+          <input type="checkbox" id="js-sat-modal-deja-forme" />
+          Déjà formé
+        </label>
+    </div>
+
+    <div class="modal-actions">
+      <button type="button" class="btn btn-ghost btn-sm" id="js-sat-stop-record">Arrêter l'enregistrement</button>
+      <button type="button" class="btn btn-ghost btn-sm" id="js-sat-hide">Masquer</button>
+      <button type="button" class="btn btn-danger btn-sm" id="js-sat-terminer">Terminer l'appel et Sauvegarder</button>
+    </div>
+  </div>
+</div>
+
 <script>
   (function() {
     function getCookie(name) {
@@ -222,6 +645,164 @@
       return "";
     }
     const csrfToken = getCookie("csrftoken");
+    const offlineScope = "appels";
+    const offlineUserKey = "{{ request.user.pk|default:'anon' }}";
+    const consolidationModal = document.getElementById("js-consolidation-modal");
+    const openConsolidationModalBtn = document.getElementById("js-open-consolidation-modal");
+    const closeConsolidationModalBtn = document.getElementById("js-close-consolidation-modal");
+    const consolidationFrame = document.getElementById("js-consolidation-frame");
+    const offlineDbName = "padesce-offline-cache";
+    const offlineStoreName = "jobs";
+
+    function buildStatusLabel(status) {
+      const labels = {
+        en_attente: "En attente",
+        en_cours: "En cours",
+        pause: "Pause",
+        a_rappeler: "A rappeler",
+        termine: "Termine",
+      };
+      return labels[status] || status || "";
+    }
+
+    function optimisticStatusFromAction(action) {
+      if (action === "start" || action === "resume") return "en_cours";
+      if (action === "pause") return "pause";
+      if (action === "rappeler") return "a_rappeler";
+      if (action === "terminer") return "termine";
+      return "";
+    }
+
+    function openOfflineDb() {
+      return new Promise((resolve, reject) => {
+        const request = indexedDB.open(offlineDbName, 1);
+        request.onupgradeneeded = () => {
+          const db = request.result;
+          if (!db.objectStoreNames.contains(offlineStoreName)) {
+            const store = db.createObjectStore(offlineStoreName, { keyPath: "id", autoIncrement: true });
+            store.createIndex("scope", ["scope", "userKey"], { unique: false });
+          }
+        };
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+    }
+
+    async function queueOfflineJob(job) {
+      const db = await openOfflineDb();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(offlineStoreName, "readwrite");
+        tx.objectStore(offlineStoreName).add({ ...job, scope: offlineScope, userKey: offlineUserKey, createdAt: Date.now() });
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+      });
+    }
+
+    async function loadOfflineJobs() {
+      const db = await openOfflineDb();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(offlineStoreName, "readonly");
+        const request = tx.objectStore(offlineStoreName).getAll();
+        request.onsuccess = () => {
+          const jobs = (request.result || []).filter((job) => job.scope === offlineScope && job.userKey === offlineUserKey);
+          jobs.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+          resolve(jobs);
+        };
+        request.onerror = () => reject(request.error);
+      });
+    }
+
+    async function deleteOfflineJob(id) {
+      const db = await openOfflineDb();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(offlineStoreName, "readwrite");
+        tx.objectStore(offlineStoreName).delete(id);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+      });
+    }
+
+    async function processOfflineJob(job) {
+      if (job.kind === "action") {
+        const form = new FormData();
+        form.append("action", job.action);
+        if (job.extra?.rappel_at) form.append("rappel_at", job.extra.rappel_at);
+        if (job.extra?.deja_forme !== undefined) form.append("deja_forme", job.extra.deja_forme ? "1" : "0");
+        const res = await fetch(job.url, { method: "POST", headers: { "X-CSRFToken": csrfToken }, body: form });
+        if (!res.ok) throw new Error("sync action failed");
+        const data = await res.json();
+        const row = document.querySelector(`tr[data-id="${job.rowId}"]`);
+        if (row) updateRow(row, data);
+        return;
+      }
+      if (job.kind === "audio") {
+        const form = new FormData();
+        form.append("audio", job.blob, job.filename);
+        const res = await fetch(job.url, { method: "POST", headers: { "X-CSRFToken": csrfToken }, body: form });
+        if (!res.ok) throw new Error("sync audio failed");
+        const payload = await res.json();
+        const row = document.querySelector(`tr[data-id="${job.rowId}"]`);
+        if (row && payload?.audio_url) {
+          const audio = row.querySelector(".js-audio");
+          if (audio) audio.src = payload.audio_url;
+        }
+      }
+    }
+
+    async function syncOfflineJobs() {
+      if (!navigator.onLine) return;
+      try {
+        const jobs = await loadOfflineJobs();
+        for (const job of jobs) {
+          await processOfflineJob(job);
+          await deleteOfflineJob(job.id);
+        }
+      } catch (err) {
+        // Best effort sync; remaining jobs stay queued.
+      }
+    }
+
+    window.addEventListener("online", syncOfflineJobs);
+    syncOfflineJobs();
+
+    function buildConsolidationModalUrl() {
+      if (!openConsolidationModalBtn) return "";
+      const url = new URL(openConsolidationModalBtn.href, window.location.origin);
+      url.searchParams.set("modal", "1");
+      ["classe", "prestataire", "beneficiaire", "fenetre"].forEach((name) => {
+        const field = document.querySelector(`[name="${name}"]`);
+        const value = field?.value?.trim();
+        if (value) url.searchParams.set(name, value);
+      });
+      return url.toString();
+    }
+
+    function closeConsolidationModal() {
+      if (!consolidationModal) return;
+      consolidationModal.hidden = true;
+      if (consolidationFrame) consolidationFrame.src = "about:blank";
+      window.location.reload();
+    }
+
+    openConsolidationModalBtn?.addEventListener("click", (event) => {
+      event.preventDefault();
+      if (!consolidationModal || !consolidationFrame) {
+        window.location.href = openConsolidationModalBtn.href;
+        return;
+      }
+      consolidationFrame.src = buildConsolidationModalUrl();
+      consolidationModal.hidden = false;
+    });
+
+    closeConsolidationModalBtn?.addEventListener("click", closeConsolidationModal);
+    consolidationModal?.addEventListener("click", (event) => {
+      if (event.target === consolidationModal) closeConsolidationModal();
+    });
+    window.addEventListener("message", (event) => {
+      if (event.data?.type === "close-consolidation-modal") {
+        closeConsolidationModal();
+      }
+    });
 
     const terminationModal = document.getElementById("js-termination-modal");
     const modalRappelCheckbox = document.getElementById("js-modal-rappel");
@@ -291,17 +872,154 @@
     terminationModal?.addEventListener("click", (event) => {
       if (event.target === terminationModal) closeTerminationModal(null);
     });
+    const satModal = document.getElementById("js-satisfaction-modal");
+    const satModalRappel = document.getElementById("js-sat-modal-rappel");
+    const satModalRappelAt = document.getElementById("js-sat-modal-rappel-at");
+    let currentSatFormData = null;
 
-    async function sendAction(row, action, extra = {}) {
+    satModalRappel?.addEventListener("change", () => {
+      if (satModalRappelAt) {
+        satModalRappelAt.disabled = !satModalRappel.checked;
+        if (!satModalRappel.checked) satModalRappelAt.value = "";
+      }
+    });
+
+    document.getElementById("js-sat-hide")?.addEventListener("click", () => {
+      if (satModal) satModal.hidden = true;
+    });
+
+    document.getElementById("js-sat-terminer")?.addEventListener("click", async () => {
+        const rowId = satModal.dataset.rowId;
+        const row = document.querySelector(`tr[data-id="${rowId}"]`);
+        if (!row) return;
+        const satQuestions = satModal?.querySelector("#js-sat-questions");
+
+        const shouldRappeler = satModalRappel?.checked;
+        const rappelAt = satModalRappelAt?.value;
+        const de_forme_check = document.getElementById("js-sat-modal-deja-forme")?.checked;
+        const action = shouldRappeler ? "rappeler" : "terminer";
+        
+        // Build satisfaction form data - TOUJOURS envoyer les réponses (même les valeurs par défaut)
+        const satForm = new FormData();
+        for (let i = 1; i <= 9; i++) {
+            const checked = satQuestions?.querySelector(`input[name="q${i}"]:checked`);
+            // Toujours inclure la réponse (cochez par défaut ou par l'utilisateur)
+            const value = checked?.value || "3";
+            satForm.append(`q${i}`, value);
+        }
+        satForm.append("commentaire", document.getElementById("js-sat-commentaire").value || "");
+        satForm.append("recommandations", document.getElementById("js-sat-recommandations").value || "");
+        satForm.append("flag_pas_forme", document.getElementById("js-sat-flag-pas-forme").checked ? "1" : "0");
+        satForm.append("flag_faux_nom", document.getElementById("js-sat-flag-faux-nom").checked ? "1" : "0");
+        satForm.append("flag_vrai_nom", document.getElementById("js-sat-vrai-nom").value);
+        satForm.append("flag_deja_appele", document.getElementById("js-sat-flag-deja-appele").checked ? "1" : "0");
+        satForm.append("flag_numero_double", document.getElementById("js-sat-flag-numero-double").checked ? "1" : "0");
+        satForm.append("deja_forme", de_forme_check ? "1" : "0");
+        satForm.append("rappel_at", rappelAt || "");
+
+        satModal.hidden = true;
+
+        // Collect audio blob if recording is active
+        let audioBlob = null;
+        const state = getRecordState(row);
+        if (state?.recorder && state.recorder.state !== "inactive") {
+            // Stop recorder and wait for blob
+            await new Promise((resolve) => {
+                const originalStop = state.recorder.onstop;
+                state.recorder.onstop = (e) => {
+                    audioBlob = state.blob || (recordState.get(row.dataset.id)?.blob) || null;
+                    if (originalStop) originalStop(e);
+                    resolve();
+                };
+                state.recorder.stop();
+                state.stream?.getTracks().forEach(t => t.stop());
+                setTimeout(() => {
+                    audioBlob = recordState.get(row.dataset.id)?.blob || null;
+                    resolve();
+                }, 200);
+            });
+        }
+
+        // Send everything atomically via finalize endpoint
+        const data = await finalizeAction(row, action, satForm, audioBlob);
+        updateRow(row, data);
+        if (data.satisfaction_message) alert(data.satisfaction_message);
+    });
+
+    async function sendAction(row, action, extra = {}, formData = null) {
       const id = row.dataset.id;
       const url = `/appels/${id}/action/`;
-      const form = new FormData();
+      const form = formData || new FormData();
       form.append("action", action);
       if (extra.rappel_at) form.append("rappel_at", extra.rappel_at);
       if (extra.deja_forme !== undefined) form.append("deja_forme", extra.deja_forme ? "1" : "0");
-      const res = await fetch(url, { method: "POST", headers: { "X-CSRFToken": csrfToken }, body: form });
-      if (!res.ok) throw new Error("action failed");
-      return res.json();
+      try {
+        if (!navigator.onLine) throw new Error("offline");
+        const res = await fetch(url, { method: "POST", headers: { "X-CSRFToken": csrfToken }, body: form });
+        const data = await res.json().catch(() => ({}));
+        // If the server responded but with an error status, return it for UI handling instead of throwing.
+        if (!res.ok) return data;
+        return data;
+      } catch (err) {
+        await queueOfflineJob({ kind: "action", rowId: id, url, action, extra });
+        const status = optimisticStatusFromAction(action);
+        return { ok: true, queued: true, status, status_label: buildStatusLabel(status) };
+      }
+    }
+
+    async function finalizeAction(row, action, satFormData, audioBlob) {
+      const id = row.dataset.id;
+      const url = `/appels/${id}/finalize/`;
+      const form = new FormData();
+      form.append("action", action);
+      
+      // Add satisfaction data
+      for (let [key, value] of satFormData) {
+        form.append(key, value);
+      }
+      
+      // Add audio if available
+      if (audioBlob) {
+        const blobType = (audioBlob && audioBlob.type) ? audioBlob.type.toLowerCase() : "";
+        const ext = blobType.includes("webm") ? "webm" : "mp3";
+        form.append("audio", audioBlob, `appel-${id}.${ext}`);
+      }
+      
+      try {
+        if (!navigator.onLine) throw new Error("offline");
+        const res = await fetch(url, { 
+          method: "POST", 
+          headers: { "X-CSRFToken": csrfToken }, 
+          body: form 
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          console.error("Finalize error:", data);
+          return data || { ok: false, error: "Erreur serveur" };
+        }
+        
+        // Update audio element if audio was saved
+        if (data.audio_url) {
+          const audio = row.querySelector(".js-audio");
+          if (audio) audio.src = data.audio_url;
+          const playBtn = row.querySelector(".js-play");
+          if (playBtn) playBtn.disabled = false;
+        }
+        
+        return data;
+      } catch (err) {
+        console.error("Finalize offline/error:", err);
+        await queueOfflineJob({ 
+          kind: "finalize", 
+          rowId: id, 
+          url, 
+          action,
+          satFormData,
+          audioBlob
+        });
+        const status = optimisticStatusFromAction(action);
+        return { ok: true, queued: true, status, status_label: buildStatusLabel(status) };
+      }
     }
 
     function updateRow(row, data) {
@@ -337,6 +1055,12 @@
       }
     }
 
+    const recordState = new Map();
+
+    function getRecordState(row) {
+      return recordState.get(row.dataset.id);
+    }
+
     document.querySelectorAll(".js-actions").forEach((wrap) => {
       const row = wrap.closest("tr[data-id]");
       const start = wrap.querySelector(".js-start");
@@ -348,52 +1072,134 @@
         try {
           const data = await sendAction(row, "start");
           updateRow(row, data);
+          if (!getRecordState(row)) {
+            await startRecording(row);
+          }
         } catch (err) { alert("Action impossible."); }
       });
       pause?.addEventListener("click", async () => {
-        try { const data = await sendAction(row, "pause"); updateRow(row, data); } catch (err) { alert("Action impossible."); }
+        try {
+          const data = await sendAction(row, "pause");
+          updateRow(row, data);
+          const state = getRecordState(row);
+          if (state?.recorder && state.recorder.state === "recording") {
+            state.recorder.pause();
+          }
+        } catch (err) { alert("Action impossible."); }
       });
       resume?.addEventListener("click", async () => {
-        try { const data = await sendAction(row, "resume"); updateRow(row, data); } catch (err) { alert("Action impossible."); }
+        try {
+          const data = await sendAction(row, "resume");
+          updateRow(row, data);
+          const state = getRecordState(row);
+          if (state?.recorder && state.recorder.state === "paused") {
+            state.recorder.resume();
+          } else if (!state) {
+            await startRecording(row);
+          }
+        } catch (err) { alert("Action impossible."); }
       });
       terminer?.addEventListener("click", async () => {
-        const modalResult = await askTermination(row);
-        if (!modalResult) return;
+        // IMPORTANT: Ouvrir la modale de questionnaire au lieu d'appeler sendAction directement
+        // Cela garantit que le questionnaire est enregistré via finalize_appel
+        const id = row.dataset.id;
+        const satModal = document.getElementById("js-satisfaction-modal");
+        if (!satModal) return;
+        
+        // Initialiser la modale avec les données de la ligne
+        document.querySelectorAll("#js-sat-questions input[type=radio][value='3']").forEach(r => r.checked = true);
+        
+        // Charger les réponses précédentes
         try {
-          const data = await sendAction(row, modalResult.action, {
-            rappel_at: modalResult.rappel_at,
-            deja_forme: modalResult.deja_forme,
-          });
-          updateRow(row, data);
-        } catch (err) { alert("Action impossible."); }
+          const res = await fetch(`/appels/${id}/answers/`);
+          const data = await res.json();
+          if (data.ok && data.answers) {
+            for(let i=1; i<=9; i++) {
+              const v = data.answers[`q${i}`];
+              if(v) { 
+                const r = document.querySelector(`#js-sat-questions input[name="q${i}"][value="${v}"]`); 
+                if(r) r.checked = true; 
+              }
+            }
+            document.getElementById("js-sat-commentaire").value = data.answers.commentaire || "";
+            document.getElementById("js-sat-recommandations").value = data.answers.recommandations || "";
+          } else {
+            document.getElementById("js-sat-commentaire").value = "";
+            document.getElementById("js-sat-recommandations").value = "";
+          }
+        } catch(e) {
+          document.getElementById("js-sat-commentaire").value = "";
+          document.getElementById("js-sat-recommandations").value = "";
+        }
+        
+        // Mettre à jour les métadonnées
+        document.getElementById("js-sat-modal-nom").textContent = row.dataset.name || "-";
+        document.getElementById("js-sat-modal-phone").textContent = row.dataset.phone || "-";
+        document.getElementById("js-sat-modal-rappel").checked = false;
+        document.getElementById("js-sat-modal-rappel-at").value = "";
+        document.getElementById("js-sat-modal-rappel-at").disabled = true;
+        document.getElementById("js-sat-modal-deja-forme").checked = false;
+        
+        satModal.dataset.rowId = id;
+        satModal.hidden = false;
       });
     });
     document.querySelectorAll("tr[data-id]").forEach((row) => {
       const badge = row.querySelector("[data-badge]");
       updateRow(row, { status: row.dataset.status, status_label: badge ? badge.textContent : "" });
-      // auto-record when Demarrer est affiche
-      const startBtn = row.querySelector(".js-start");
-      if (row.dataset.status === "en_attente" && startBtn) {
-        startBtn.addEventListener("click", async () => {
-          await startRecording(row, startBtn);
-        }, { once: true });
-      }
-      const terminerBtn = row.querySelector(".js-terminer");
-      if (terminerBtn) {
-        terminerBtn.addEventListener("click", () => {
-          const state = recordState.get(row.dataset.id);
-          if (state?.recorder) {
-            state.recorder.stop();
-            state.stream?.getTracks().forEach(t => t.stop());
-          }
-        });
-      }
     });
 
-    const recordState = new Map();
-
-    async function startRecording(row, btn) {
+    async function startRecording(row) {
       const id = row.dataset.id;
+      
+      const satModal = document.getElementById("js-satisfaction-modal");
+      if (satModal) {
+          // Default values
+          document.querySelectorAll("#js-sat-questions input[type=radio][value='3']").forEach(r => r.checked = true);
+          
+          // Charger les réponses précédentes si disponibles (peu importe le statut)
+          try {
+            const res = await fetch(`/appels/${id}/answers/`);
+            const data = await res.json();
+            if (data.ok && data.answers) {
+              // Charger les réponses Q1-Q9
+              for(let i=1; i<=9; i++) {
+                const v = data.answers[`q${i}`];
+                if(v) { 
+                  const r = document.querySelector(`#js-sat-questions input[name="q${i}"][value="${v}"]`); 
+                  if(r) r.checked = true; 
+                }
+              }
+              // Charger les commentaires et recommandations SANS les réinitialiser
+              document.getElementById("js-sat-commentaire").value = data.answers.commentaire || "";
+              document.getElementById("js-sat-recommandations").value = data.answers.recommandations || "";
+            } else {
+              // Nouveau enregistrement - initialiser à vide
+              document.getElementById("js-sat-commentaire").value = "";
+              document.getElementById("js-sat-recommandations").value = "";
+            }
+          } catch(e) {
+            // Nouveau enregistrement - initialiser à vide
+            document.getElementById("js-sat-commentaire").value = "";
+            document.getElementById("js-sat-recommandations").value = "";
+          }
+          const smr = document.getElementById("js-sat-modal-rappel");
+          if (smr) smr.checked = false;
+          const smrat = document.getElementById("js-sat-modal-rappel-at");
+          if (smrat) {
+              smrat.value = "";
+              smrat.disabled = true;
+          }
+          const satDejaForme = document.getElementById("js-sat-modal-deja-forme");
+          if (satDejaForme) satDejaForme.checked = false;
+          
+          const satNom = document.getElementById("js-sat-modal-nom");
+          if (satNom) satNom.textContent = row.dataset.name || "-";
+          satModal.dataset.rowId = id;
+          document.getElementById("js-sat-modal-phone").textContent = row.dataset.phone || "-";
+          satModal.hidden = false;
+      }
+      
       let stream;
       try {
         stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -439,10 +1245,10 @@
         audio.src = URL.createObjectURL(blob);
         row.querySelector(".js-play").disabled = false;
         recordState.set(id, { recorder: null, chunks: [], blob });
-        await uploadAudio(row, blob);
         cancelAnimationFrame(raf);
         ctx.clearRect(0,0,canvas.width, canvas.height);
         audioCtx.close();
+        // Audio upload now handled atomic by finalize endpoint
       };
       recorder.start();
       recordState.set(id, { recorder, chunks, stream, raf, ctx, canvas, audioCtx });
@@ -450,17 +1256,67 @@
 
     async function uploadAudio(row, blob) {
       const id = row.dataset.id;
+      const blobType = (blob && blob.type) ? blob.type.toLowerCase() : "";
+      const ext = blobType.includes("webm") ? "webm" : "mp3";
       const form = new FormData();
-      form.append("audio", blob, `appel-${id}.mp3`);
+      form.append("audio", blob, `appel-${id}.${ext}`);
+      
+      if (typeof currentSatFormData !== 'undefined' && currentSatFormData) {
+          for (let pair of currentSatFormData.entries()) {
+              form.append(pair[0], pair[1]);
+          }
+          currentSatFormData = null;
+      }
+      
       try {
+        if (!navigator.onLine) throw new Error("offline");
         const res = await fetch(`/appels/${id}/upload/`, {
           method: "POST",
           headers: { "X-CSRFToken": csrfToken },
           body: form,
         });
         if (!res.ok) throw new Error();
+        const payload = await res.json();
+        const audioUrl = payload?.audio_url || "";
+        if (payload?.satisfaction_message) {
+          alert(payload.satisfaction_message);
+        }
+        if (audioUrl) {
+          const audio = row.querySelector(".js-audio");
+          if (audio) audio.src = audioUrl;
+
+          const checkbox = row.querySelector(".js-audio-select");
+          if (checkbox) {
+            checkbox.disabled = false;
+            checkbox.removeAttribute("title");
+          }
+
+          let downloadLink = row.querySelector(".js-audio-download");
+          if (!downloadLink) {
+            const playBtn = row.querySelector(".js-play");
+            if (playBtn && playBtn.parentElement) {
+              downloadLink = document.createElement("a");
+              downloadLink.className = "btn-small js-audio-download";
+              downloadLink.style.fontSize = "0.85rem";
+              downloadLink.title = "Télécharger l'audio";
+              playBtn.insertAdjacentElement("afterend", downloadLink);
+            }
+          }
+          if (downloadLink) {
+            downloadLink.href = audioUrl;
+            downloadLink.setAttribute("download", `appel-${id}.${ext}`);
+            downloadLink.textContent = "Télécharger";
+          }
+          updateDownloadButtonState();
+        }
       } catch (err) {
-        alert("Upload audio echoue.");
+        await queueOfflineJob({
+          kind: "audio",
+          rowId: id,
+          url: `/appels/${id}/upload/`,
+          filename: `appel-${id}.${ext}`,
+          blob,
+        });
       }
     }
 
@@ -575,6 +1431,201 @@
 
     downloadBtn?.addEventListener("click", downloadSelectedAudios);
     updateDownloadButtonState();
+
+    const filteredStartBtn = null;
+    const filteredStopBtn = null;
+    const filteredWrap = null;
+    const filteredBar = null;
+    const filteredLabel = null;
+    const filteredSub = null;
+    let filteredPoller = null;
+
+    async function fetchFilteredStatus() {
+      try {
+        const res = await fetch("{% url 'filtered_appels_transcription_status' %}");
+        const payload = await res.json();
+        renderFilteredStatus(payload.status);
+      } catch (err) {
+        if (filteredSub) filteredSub.textContent = "Impossible de recuperer l'etat de transcription.";
+      }
+    }
+
+    filteredStartBtn?.addEventListener("click", async function () {
+      try {
+        const query = window.location.search || "";
+        const res = await fetch(`{% url 'start_filtered_appels_transcription' %}${query}`, {
+          method: "POST",
+          headers: { "X-CSRFToken": csrfToken },
+        });
+        const payload = await res.json();
+        if (!res.ok || !payload.ok) {
+          alert(payload.error || "Lancement impossible.");
+          return;
+        }
+        renderFilteredStatus(payload.status);
+        if (!filteredPoller) filteredPoller = setInterval(fetchFilteredStatus, 2000);
+      } catch (err) {
+        alert("Lancement impossible.");
+      }
+    });
+
+    filteredStopBtn?.addEventListener("click", async function () {
+      try {
+        const res = await fetch("{% url 'stop_filtered_appels_transcription' %}", {
+          method: "POST",
+          headers: { "X-CSRFToken": csrfToken },
+        });
+        const payload = await res.json();
+        if (!res.ok || !payload.ok) {
+          alert(payload.error || "Arret impossible.");
+          return;
+        }
+        renderFilteredStatus(payload.status);
+        if (!filteredPoller) filteredPoller = setInterval(fetchFilteredStatus, 2000);
+      } catch (err) {
+        alert("Arret impossible.");
+      }
+    });
+
+    // transcription disabled
+  
+    // ── Detail / Edit Logic ──
+    const detailModal = document.getElementById("js-detail-modal");
+    const detailForm = document.getElementById("js-detail-form");
+    const detailQuestions = document.getElementById("js-detail-questions");
+    const detailFauxNom = document.getElementById("js-detail-faux-nom");
+    const detailVraiNomWrap = document.getElementById("js-detail-vrai-nom-wrap");
+    const questionLabels = ["Clarté des exposés", "Interaction formateur", "Maîtrise contenu", "Salle adéquate", "Matériel disponible", "Organisation temps", "Utilité formation", "Adéquation besoins", "Satisfaction globale"];
+
+    function renderDetailQuestions(answers) {
+      detailQuestions.innerHTML = "";
+      questionLabels.forEach((label, i) => {
+        const val = answers ? answers[`q${i+1}`] : 3;
+        let radios = "";
+        for(let v=1; v<=5; v++) {
+          radios += `<label style="margin-left:8px;"><input type="radio" name="q${i+1}" value="${v}" ${val==v?'checked':''}> ${v}</label>`;
+        }
+        detailQuestions.innerHTML += `<div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:0.85rem;"><label>${i+1}. ${label}</label><div>${radios}</div></div>`;
+      });
+    }
+
+    detailFauxNom?.addEventListener("change", () => {
+      detailVraiNomWrap.style.display = detailFauxNom.checked ? "block" : "none";
+    });
+
+    document.querySelectorAll(".clickable-row").forEach(row => {
+      row.addEventListener("click", async (e) => {
+        if (e.target.closest(".actions") || e.target.closest(".checkbox-cell") || e.target.closest("button") || e.target.closest("a")) return;
+        const id = row.dataset.id;
+        detailModal.hidden = false;
+        renderDetailQuestions(null);
+        document.getElementById("js-detail-info").innerHTML = "Chargement...";
+        document.getElementById("js-detail-audit").innerHTML = "";
+        
+        try {
+          const res = await fetch(`/appels/${id}/answers/`);
+          const data = await res.json();
+          if (!data.ok) throw new Error();
+          
+          const a = data.appel;
+          document.getElementById("js-detail-info").innerHTML = `
+            <div><strong>Nom:</strong> ${a.nom}</div>
+            <div><strong>Code:</strong> ${a.code}</div>
+            <div><strong>Tél 1:</strong> ${a.telephone1||'-'}</div>
+            <div><strong>Tél 2:</strong> ${a.telephone2||'-'}</div>
+            <div><strong>Prestataire:</strong> ${a.prestataire}</div>
+            <div><strong>Statut:</strong> ${a.status_label}</div>
+            <div><strong>Initialement verrouillé par:</strong> ${a.locked_by||'-'}</div>
+          `;
+          
+          renderDetailQuestions(data.answers);
+          detailForm.commentaire.value = data.answers?.commentaire || "";
+          detailForm.recommandations.value = data.answers?.recommandations || "";
+          detailForm.flag_pas_forme.checked = a.flag_pas_forme;
+          detailForm.flag_deja_appele.checked = a.flag_deja_appele;
+          detailForm.flag_numero_double.checked = a.flag_numero_double;
+          detailForm.flag_faux_nom.checked = a.flag_faux_nom;
+          detailForm.flag_vrai_nom.value = a.flag_vrai_nom || "";
+          detailVraiNomWrap.style.display = a.flag_faux_nom ? "block" : "none";
+          
+          if (data.answers?.modified_by) {
+            document.getElementById("js-detail-audit").innerHTML = `Modifié par <strong>${data.answers.modified_by}</strong> le ${new Date(data.answers.modified_at).toLocaleString()}`;
+          }
+          detailForm.dataset.rowId = id;
+
+        } catch(err) { alert("Erreur de chargement."); detailModal.hidden = true; }
+      });
+    });
+
+    detailForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const id = detailForm.dataset.rowId;
+      const fd = new FormData(detailForm);
+      // Flags are checkboxes
+      ["flag_pas_forme", "flag_deja_appele", "flag_numero_double", "flag_faux_nom"].forEach(f => {
+        if (!fd.has(f)) fd.append(f, "0"); else fd.set(f, "1");
+      });
+
+      try {
+        const res = await fetch(`/appels/${id}/answers/`, {
+          method: "POST",
+          headers: { "X-CSRFToken": csrfToken },
+          body: fd
+        });
+        const data = await res.json();
+        if (data.ok) {
+          alert("Enregistré avec succès.");
+          detailModal.hidden = true;
+          // Optionnel: rafraîchir la ligne ou la page
+        } else alert(data.error || "Erreur.");
+      } catch(err) { alert("Erreur réseau."); }
+    });
+
+    document.getElementById("js-detail-close").onclick = () => detailModal.hidden = true;
+    document.getElementById("js-detail-cancel").onclick = () => detailModal.hidden = true;
+
+    // ── Satisfaction Modal Enrichment ──
+    const satFauxNom = document.getElementById("js-sat-flag-faux-nom");
+    const satVraiNomWrap = document.getElementById("js-sat-vrai-nom-wrap");
+    satFauxNom.addEventListener("change", () => {
+      satVraiNomWrap.style.display = satFauxNom.checked ? "block" : "none";
+    });
+
+    const stopRecBtn = document.getElementById("js-sat-stop-record");
+    stopRecBtn.addEventListener("click", () => {
+       const id = satModal.dataset.rowId;
+       const row = document.querySelector(`tr[data-id="${id}"]`);
+       const state = getRecordState(row);
+       if (state?.recorder && state.recorder.state !== "inactive") {
+         state.recorder.stop();
+         state.stream?.getTracks().forEach(t => t.stop());
+         alert("Enregistrement arrêté. Vous pouvez finir de remplir le formulaire.");
+       }
+    });
+
   })();
+
+    const classeFilter = document.getElementById('js-classe-filter');
+    
+    const classeProgress = {{ classe_progress_json|safe }};
+
+    function updateFilterBadge() {
+        const val = classeFilter.value;
+        
+        if (!val) return;
+        
+        const prog = classeProgress.find(p => p.classe === val);
+        if (prog) {
+            if (prog.reached) {
+                
+            } else {
+                
+            }
+        }
+    }
+
+    classeFilter.addEventListener('change', updateFilterBadge);
+    updateFilterBadge(); // init
+
 </script>
 {% endblock %}

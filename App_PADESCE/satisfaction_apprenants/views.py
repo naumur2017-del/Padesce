@@ -1,6 +1,7 @@
 import base64
 import csv
 import hashlib
+import io
 import json
 import logging
 import os
@@ -8,32 +9,48 @@ import re
 import uuid
 from collections import Counter, defaultdict
 from datetime import date as date_cls
+from types import SimpleNamespace
 
 import requests
+import openpyxl
+from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+from openpyxl.utils import get_column_letter
 from django.contrib import messages
+from django.core.exceptions import ObjectDoesNotExist
 from django.core.files.storage import default_storage
 from django.core.paginator import Paginator
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse, QueryDict
 from django.shortcuts import redirect, render
-
+from django.db.models import Count
+from django.utils import timezone
 from App_PADESCE.apprenants.models import Apprenant
+from App_PADESCE.appels.models import APPEL_ANSWER_QUESTION_FIELDS, Appel, AppelAnswers
+from App_PADESCE.core.access import require_analysis_access
+from App_PADESCE.core.call_metrics import count_callable_source_records_by_class, normalize_phone_digits
 from App_PADESCE.formations.models import Classe
+from App_PADESCE.reporting.network_excel import (
+    build_padesce_source_index,
+    get_workbook_source_options,
+    normalize_network_lookup,
+    normalize_workbook_source_key,
+)
 from App_PADESCE.satisfaction_apprenants.forms import SatisfactionApprenantForm
 from App_PADESCE.satisfaction_apprenants.models import SatisfactionApprenant
+from App_PADESCE.satisfaction_apprenants.rag import answer_dashboard_prompt
 
 SESSION_KEY = "sat_appr_workflow"
 REASON_KEYWORDS = [
-    ("Problèmes de transport", ["transport", "véhicule", "route", "panne", "déplacement"]),
-    ("Disponibilité / santé", ["malade", "santé", "disponibilité", "maladie", "absent", "repos"]),
-    ("Pas au courant / notification", ["pas au courant", "notification", "notifié", "ignoré", "erreur"]),
-    ("Conditions / éligibilité", ["diplôme", "condition", "éligibilité", "inscription"]),
-    ("Pas intéressé", ["intéressé", "ne souhaite pas", "désintéressé", "pas de formation"]),
+    ("ProblÃ¨mes de transport", ["transport", "vÃ©hicule", "route", "panne", "dÃ©placement"]),
+    ("DisponibilitÃ© / santÃ©", ["malade", "santÃ©", "disponibilitÃ©", "maladie", "absent", "repos"]),
+    ("Pas au courant / notification", ["pas au courant", "notification", "notifiÃ©", "ignorÃ©", "erreur"]),
+    ("Conditions / Ã©ligibilitÃ©", ["diplÃ´me", "condition", "Ã©ligibilitÃ©", "inscription"]),
+    ("Pas intÃ©ressÃ©", ["intÃ©ressÃ©", "ne souhaite pas", "dÃ©sintÃ©ressÃ©", "pas de formation"]),
 ]
 
 
 def _categorize_reason(text: str) -> str:
     if not text:
-        return "Sans réponse"
+        return "Sans rÃ©ponse"
     for label, keywords in REASON_KEYWORDS:
         if any(keyword in text for keyword in keywords):
             return label
@@ -42,12 +59,12 @@ def _categorize_reason(text: str) -> str:
 
 def _detect_participation(text: str) -> str:
     if not text:
-        return "Indéterminé"
-    if re.search(r"\b(?:pas|n['’]?a)\b.*\b(particip|assist|présent|venu)\b", text):
+        return "IndÃ©terminÃ©"
+    if re.search(r"\b(?:pas|n['â€™]?a)\b.*\b(particip|assist|prÃ©sent|venu)\b", text):
         return "Absents"
-    if any(kw in text for kw in ["participé", "assisté", "présent", "été là", "présente", "participant"]):
-        return "Présents"
-    return "Indéterminé"
+    if any(kw in text for kw in ["participÃ©", "assistÃ©", "prÃ©sent", "Ã©tÃ© lÃ ", "prÃ©sente", "participant"]):
+        return "PrÃ©sents"
+    return "IndÃ©terminÃ©"
 
 OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
 DEFAULT_TRANSCRIBE_MODEL = "google/gemini-2.5-flash"
@@ -57,7 +74,7 @@ logger = logging.getLogger(__name__)
 
 
 def _normalize_phone(value: str) -> str:
-    return "".join(ch for ch in value if ch.isdigit())
+    return normalize_phone_digits(value)
 
 
 def _find_apprenant(classe_id: str, identifiant: str) -> Apprenant | None:
@@ -223,11 +240,11 @@ def _ai_results_apprenant(audio_path: str) -> tuple[dict | None, str | None, str
     results = {
         "q1_clarte_exposes": scores[0],
         "q2_interaction_formateur": scores[1],
-        "q3_rythme_formation": scores[2],
-        "q4_qualite_supports": scores[3],
-        "q5_applicabilite_contenu": scores[4],
-        "q6_organisation_logistique": scores[5],
-        "q7_respect_programme": scores[6],
+        "q3_maitrise_contenu": scores[2],
+        "q4_salle_adequate": scores[3],
+        "q5_materiel_disponible": scores[4],
+        "q6_organisation_temps": scores[5],
+        "q7_utilite_formation": scores[6],
         "q8_adequation_besoins": scores[7],
         "q9_satisfaction_globale": scores[8],
         "commentaire": "",
@@ -238,7 +255,7 @@ def _ai_results_apprenant(audio_path: str) -> tuple[dict | None, str | None, str
 
 def satisfaction_apprenants(request):
     filter_classe = request.GET.get("classe")
-    qs = SatisfactionApprenant.objects.select_related("classe", "apprenant", "inspecteur", "enqueteur").order_by(
+    qs = SatisfactionApprenant.objects.select_related("classe", "apprenant", "appel", "inspecteur", "enqueteur").order_by(
         "-date", "-created_at"
     )
     if filter_classe:
@@ -362,8 +379,8 @@ def satisfaction_apprenants(request):
 
     summary_rows = qs.values_list("commentaire", "transcription", "recommandations")
     reason_counts = Counter({label: 0 for label, _ in REASON_KEYWORDS})
-    reason_counts.update({"Autres raisons": 0, "Sans réponse": 0})
-    participation_counts = Counter({"Présents": 0, "Absents": 0, "Indéterminé": 0})
+    reason_counts.update({"Autres raisons": 0, "Sans rÃ©ponse": 0})
+    participation_counts = Counter({"PrÃ©sents": 0, "Absents": 0, "IndÃ©terminÃ©": 0})
     reason_samples = defaultdict(list)
     for comment, transcript, reco in summary_rows:
         text = " ".join(filter(None, [comment, transcript, reco])).strip()
@@ -377,7 +394,7 @@ def satisfaction_apprenants(request):
         participation_counts[_detect_participation(lower_text)] += 1
 
     reason_distribution = []
-    for label, _ in list(REASON_KEYWORDS) + [("Autres raisons", []), ("Sans réponse", [])]:
+    for label, _ in list(REASON_KEYWORDS) + [("Autres raisons", []), ("Sans rÃ©ponse", [])]:
         reason_distribution.append(
             {
                 "label": label,
@@ -391,11 +408,11 @@ def satisfaction_apprenants(request):
         "values": [item["count"] for item in reason_distribution if item["count"]],
     }
     participation_chart = {
-        "labels": ["Présents", "Absents", "Indéterminé"],
+        "labels": ["PrÃ©sents", "Absents", "IndÃ©terminÃ©"],
         "values": [
-            participation_counts.get("Présents", 0),
+            participation_counts.get("PrÃ©sents", 0),
             participation_counts.get("Absents", 0),
-            participation_counts.get("Indéterminé", 0),
+            participation_counts.get("IndÃ©terminÃ©", 0),
         ],
     }
 
@@ -420,7 +437,7 @@ def satisfaction_apprenants(request):
 
 def satisfaction_apprenants_export_csv(request):
     filter_classe = request.GET.get("classe")
-    qs = SatisfactionApprenant.objects.select_related("classe", "apprenant", "inspecteur", "enqueteur").order_by("-date")
+    qs = SatisfactionApprenant.objects.select_related("classe", "apprenant", "appel", "inspecteur", "enqueteur").order_by("-date")
     if filter_classe:
         qs = qs.filter(classe_id=filter_classe)
 
@@ -459,15 +476,2019 @@ def satisfaction_apprenants_export_csv(request):
                 s.heure,
                 s.q1_clarte_exposes,
                 s.q2_interaction_formateur,
-                s.q3_rythme_formation,
-                s.q4_qualite_supports,
-                s.q5_applicabilite_contenu,
-                s.q6_organisation_logistique,
-                s.q7_respect_programme,
+                s.q3_maitrise_contenu,
+                s.q4_salle_adequate,
+                s.q5_materiel_disponible,
+                s.q6_organisation_temps,
+                s.q7_utilite_formation,
                 s.q8_adequation_besoins,
                 s.q9_satisfaction_globale,
                 s.commentaire,
                 s.recommandations,
             ]
         )
+    return response
+
+
+Q_FIELDS = [
+    ("q1_clarte_exposes", "Clarté des exposés"),
+    ("q2_interaction_formateur", "Interaction avec le formateur"),
+    ("q3_maitrise_contenu", "Maîtrise du contenu"),
+    ("q4_salle_adequate", "Salle adéquate"),
+    ("q5_materiel_disponible", "Matériel disponible"),
+    ("q6_organisation_temps", "Organisation du temps"),
+    ("q7_utilite_formation", "Utilité de la formation"),
+    ("q8_adequation_besoins", "Adéquation aux besoins"),
+    ("q9_satisfaction_globale", "Satisfaction globale"),
+]
+
+CSV_Q_HEADERS = [
+    "Q1_ClarteExposes",
+    "Q2_InteractionFormateur",
+    "Q3_MaitriseContenu",
+    "Q4_SalleAdequate",
+    "Q5_MaterielDisponible",
+    "Q6_OrganisationTemps",
+    "Q7_UtiliteFormation",
+    "Q8_AdequationBesoins",
+    "Q9_SatisfactionGlobale",
+]
+
+
+def _avg(values):
+    nums = [v for v in values if v is not None]
+    return round(sum(nums) / len(nums), 2) if nums else 0
+
+
+def _satisfaction_dashboard_base_queryset():
+    return AppelAnswers.objects.select_related(
+        "appel",
+        "appel__classe",
+        "appel__classe__prestation",
+        "appel__classe__prestation__prestataire",
+        "appel__classe__prestation__beneficiaire",
+        "appel__classe__lieu",
+        "appel__satisfaction_apprenant",
+        "appel__satisfaction_apprenant__inspecteur",
+        "appel__satisfaction_apprenant__apprenant",
+        "modified_by",
+    ).filter(appel__is_active=True)
+
+
+def _autosize_worksheet(worksheet, max_width: int = 40):
+    for index, column_cells in enumerate(worksheet.columns, start=1):
+        values = [len(str(cell.value or "")) for cell in column_cells]
+        if not values:
+            continue
+        worksheet.column_dimensions[get_column_letter(index)].width = min(max(values) + 2, max_width)
+
+
+def _dashboard_row_from_answer(answer_or_appel) -> dict:
+    if hasattr(answer_or_appel, "appel"):
+        answer = answer_or_appel
+        appel = answer.appel
+    else:
+        answer = None
+        appel = answer_or_appel
+
+    classe = appel.classe
+    prestation = getattr(classe, "prestation", None) if classe else None
+    survey = getattr(appel, "satisfaction_apprenant", None)
+    prestataire = getattr(getattr(prestation, "prestataire", None), "raison_sociale", "") or appel.prestataire or "-"
+    beneficiaire_obj = getattr(prestation, "beneficiaire", None) if prestation else None
+    beneficiaire = getattr(beneficiaire_obj, "nom_structure", "") or appel.beneficiaire or "-"
+    beneficiaire_type = str(getattr(beneficiaire_obj, "type_structure", "") or "").lower()
+    ville = getattr(getattr(classe, "lieu", None), "ville", "") or appel.lieu or "Non renseignée"
+
+    raw_fenetre = (
+        str(appel.fenetre or "").strip()
+        or str(getattr(classe, "fenetre", "") or "").strip()
+        or ""
+    )
+
+    # Mapping logic for window (Entreprises -> 2, Associations/GIC -> 3)
+    if raw_fenetre in {"2", "3"}:
+        fenetre = raw_fenetre
+    elif "entreprise" in beneficiaire_type:
+        fenetre = "2"
+    elif "association" in beneficiaire_type or "gic" in beneficiaire_type:
+        fenetre = "3"
+    else:
+        # Fallback to digits if any but only if it's 2 or 3
+        digits = "".join(ch for ch in raw_fenetre if ch.isdigit())
+        if digits in {"2", "3"}:
+            fenetre = digits
+        else:
+            fenetre = "Non renseignée"
+
+    cohorte = (
+        str(getattr(classe, "cohorte", "") or "").strip()
+        or "Non renseignée"
+    )
+
+    # Handle potentially missing answer data
+    timestamp = getattr(answer, "modified_at", None) or getattr(answer, "created_at", None) or appel.updated_at or appel.created_at
+    survey_date = getattr(survey, "date", None) or timestamp.date()
+    survey_time = getattr(survey, "heure", None) or timestamp.time().replace(microsecond=0)
+    inspecteur = getattr(survey, "inspecteur", None)
+
+    return {
+        "id": getattr(answer, "id", None),
+        "date": timestamp.date(),
+        "heure": timestamp.time().replace(microsecond=0),
+        "modified_at": timestamp,
+        "survey_date": survey_date,
+        "survey_time": survey_time,
+        "inspecteur_code": getattr(inspecteur, "code", "") or "",
+        "inspecteur_nom": getattr(inspecteur, "nom_complet", "") or "",
+        "classe_code": getattr(classe, "code", "") or appel.classe_label or "Non renseignée",
+        "classe_intitule": getattr(classe, "intitule_formation", "") or "-",
+        "formation_intitule": getattr(classe, "intitule_formation", "") or "-",
+        "prestation_code": getattr(prestation, "code", "") or "-",
+        "prestataire": prestataire,
+        "beneficiaire": beneficiaire,
+        "fenetre": fenetre,
+        "cohorte": cohorte,
+        "ville": ville,
+        "apprenant_code": appel.code or "",
+        "apprenant_nom": appel.nom or "",
+        "status": appel.status or "",
+        "user": getattr(getattr(answer, "modified_by", None), "username", "") if answer else "Non renseigné",
+        "commentaire": getattr(answer, "commentaire", "") if answer else "",
+        "recommandations": getattr(answer, "recommandations", "") if answer else "",
+        **{field: getattr(answer, field, None) if answer else None for field, _ in Q_FIELDS},
+    }
+
+
+def _dashboard_bucket():
+    return {
+        "nb": 0,
+        "sums": {field: 0 for field, _ in Q_FIELDS},
+        "counts": {field: 0 for field, _ in Q_FIELDS},
+    }
+
+
+def _dashboard_bucket_add(bucket: dict, row: dict):
+    bucket["nb"] += 1
+    for field, _label in Q_FIELDS:
+        value = row.get(field)
+        if value is None:
+            continue
+        bucket["sums"][field] += float(value)
+        bucket["counts"][field] += 1
+
+
+def _dashboard_bucket_avg(bucket: dict, field_name: str) -> float:
+    count = bucket["counts"][field_name]
+    return round(bucket["sums"][field_name] / count, 2) if count else 0
+
+
+def _dashboard_bucket_avgs(bucket: dict) -> list[float]:
+    return [_dashboard_bucket_avg(bucket, field) for field, _label in Q_FIELDS]
+
+
+def _row_has_any_numeric_score(row: dict) -> bool:
+    return any(row.get(field) is not None for field, _label in Q_FIELDS)
+
+
+def _source_class_apprenant_counts(source_bundle: dict | None) -> dict[str, int]:
+    return count_callable_source_records_by_class(source_bundle)
+
+
+def _merge_class_apprenant_counts(local_counts: dict[str, int], source_bundle: dict | None) -> dict[str, int]:
+    merged = dict(local_counts)
+    for classe_code, source_count in _source_class_apprenant_counts(source_bundle).items():
+        merged[classe_code] = max(int(merged.get(classe_code) or 0), int(source_count or 0))
+    return merged
+
+
+def _source_class_is_finished(source_class: dict) -> bool:
+    status = normalize_network_lookup(source_class.get("statut_prestation", ""))
+    if not status:
+        return True
+    return status in {"termine", "terminee"}
+
+
+def _sorted_unique(values):
+    return sorted({str(value).strip() for value in values if str(value or "").strip() and str(value).strip() != "-"})
+
+
+def _is_placeholder_dashboard_label(value: str) -> bool:
+    normalized = normalize_network_lookup(str(value or ""))
+    return normalized in {
+        "",
+        "-",
+        "--",
+        "- -",
+        "none",
+        "n/a",
+        "na",
+        "non renseigne",
+        "non renseignee",
+        "sans intitule",
+    }
+
+
+def _prefer_dashboard_label(current: str, candidate: str) -> str:
+    current_text = str(current or "").strip()
+    candidate_text = str(candidate or "").strip()
+    if not candidate_text:
+        return current_text
+    if not current_text:
+        return candidate_text
+    current_missing = _is_placeholder_dashboard_label(current_text)
+    candidate_missing = _is_placeholder_dashboard_label(candidate_text)
+    if current_missing and not candidate_missing:
+        return candidate_text
+    if candidate_missing and not current_missing:
+        return current_text
+    return candidate_text if len(candidate_text) > len(current_text) else current_text
+
+
+SATISFACTION_TABS = {
+    "tab-apprenants",
+    "tab-classe",
+    "tab-prestation",
+    "tab-cohorte",
+    "tab-ville",
+    "tab-user",
+}
+
+SATISFACTION_DASHBOARD_TAB_LABELS = {
+    "tab-apprenants": "Liste des enquêtes",
+    "tab-classe": "Par classe",
+    "tab-prestation": "Par prestation",
+    "tab-cohorte": "Par cohorte",
+    "tab-ville": "Par ville",
+    "tab-user": "Par utilisateur",
+}
+
+SATISFACTION_DASHBOARD_TAB_DESCRIPTIONS = {
+    "tab-apprenants": "Détail des enquêtes visibles, enrichi avec la cohérence de la source réseau.",
+    "tab-classe": "Synthèse des classes affichées dont le seuil d'appels est atteint.",
+    "tab-prestation": "Regroupement des résultats visibles par prestation, prestataire et bénéficiaire.",
+    "tab-cohorte": "Vue agrégée des résultats visibles par cohorte.",
+    "tab-ville": "Répartition des résultats visibles par ville.",
+    "tab-user": "Répartition des résultats visibles par utilisateur.",
+}
+
+SOURCE_COMPARE_FIELDS = (
+    ("apprenant_nom", "nom_individu", "Nom"),
+    ("classe_code", "classe_id", "Classe"),
+    ("prestataire", "prestataire", "Prestataire"),
+    ("beneficiaire", "beneficiaire", "Bénéficiaire"),
+)
+
+FILTER_FIELD_ROW_MAP = {
+    "prestation": "prestation_code",
+    "fenetre": "fenetre",
+    "ville": "ville",
+    "user": "user",
+    "classe": "classe_code",
+    "prestataire": "prestataire",
+    "beneficiaire": "beneficiaire",
+    "cohorte": "cohorte",
+}
+
+
+def _active_satisfaction_tab(request) -> str:
+    tab = (request.GET.get("tab") or "tab-apprenants").strip()
+    return tab if tab in SATISFACTION_TABS else "tab-apprenants"
+
+
+def _source_compare_alert(row: dict, source_record: dict, row_key: str, source_key: str, label: str) -> str | None:
+    row_value = str(row.get(row_key) or "").strip()
+    source_value = str(source_record.get(source_key) or "").strip()
+    if not row_value and not source_value:
+        return None
+    if normalize_network_lookup(row_value) == normalize_network_lookup(source_value):
+        return None
+    return f"{label}: {row_value or '-'} != {source_value or '-'}"
+
+
+def _source_summary_unavailable(error_message: str, source_key: str = "main") -> dict:
+    source_options = {item["value"]: item for item in get_workbook_source_options()}
+    selected_source = normalize_workbook_source_key(source_key)
+    source_meta = source_options.get(selected_source, {})
+    return {
+        "available": False,
+        "message": error_message,
+        "key": selected_source,
+        "label": source_meta.get("label", ""),
+        "name": source_meta.get("name", ""),
+        "modified_label": "",
+        "matched_count": 0,
+        "missing_count": 0,
+        "consistent_count": 0,
+        "mismatch_count": 0,
+        "apprenant_id_count": 0,
+        "source_apprenant_count": 0,
+        "duplicate_code_count": 0,
+        "mismatch_rows": [],
+    }
+
+
+def _normalize_enquete_id(value: str, fallback_index: int | None = None) -> str:
+    text = str(value or "").strip().upper()
+    digits = "".join(ch for ch in text if ch.isdigit())
+    if digits:
+        return f"ENQ{int(digits):03d}"
+    if fallback_index is not None:
+        return f"ENQ{int(fallback_index):03d}"
+    return ""
+
+
+def _format_export_date(value) -> str:
+    if not value:
+        return ""
+    try:
+        return value.strftime("%d/%m/%Y")
+    except Exception:
+        return str(value)
+
+
+def _format_export_time(value) -> str:
+    if not value:
+        return ""
+    try:
+        return value.strftime("%H:%M:%S")
+    except Exception:
+        return str(value)
+
+
+def _row_matches_dashboard_filters(row: dict, filters: dict, skip_field: str | None = None) -> bool:
+    for filter_name, row_key in FILTER_FIELD_ROW_MAP.items():
+        if filter_name == skip_field:
+            continue
+        filter_value = str(filters.get(filter_name) or "").strip()
+        if filter_value and str(row.get(row_key) or "").strip() != filter_value:
+            return False
+    return True
+
+
+def _build_threshold_class_stats(filtered_rows: list[dict], classe_apprenant_counts: dict) -> tuple[list[dict], set[str]]:
+    classe_groups_pre_threshold = {}
+    for row in filtered_rows:
+        classe_key = row["classe_code"]
+        classe_groups_pre_threshold.setdefault(
+            classe_key,
+            {
+                "code": row["classe_code"],
+                "intitule": row.get("formation_intitule") or row["classe_intitule"],
+                "prestation": row["prestation_code"],
+                "cohorte": row["cohorte"],
+                "metrics": _dashboard_bucket(),
+            },
+        )
+        classe_groups_pre_threshold[classe_key]["intitule"] = _prefer_dashboard_label(
+            classe_groups_pre_threshold[classe_key]["intitule"],
+            row.get("formation_intitule") or row["classe_intitule"],
+        )
+        classe_groups_pre_threshold[classe_key]["prestation"] = _prefer_dashboard_label(
+            classe_groups_pre_threshold[classe_key]["prestation"],
+            row["prestation_code"],
+        )
+        classe_groups_pre_threshold[classe_key]["cohorte"] = _prefer_dashboard_label(
+            classe_groups_pre_threshold[classe_key]["cohorte"],
+            row["cohorte"],
+        )
+        _dashboard_bucket_add(classe_groups_pre_threshold[classe_key]["metrics"], row)
+
+    classe_stats_all = sorted(
+        [
+            {
+                "code": item["code"],
+                "intitule": item["intitule"],
+                "prestation": item["prestation"],
+                "cohorte": item["cohorte"],
+                "nb": item["metrics"]["nb"],
+                "avgs": _dashboard_bucket_avgs(item["metrics"]),
+                "total_apprenants": classe_apprenant_counts.get(item["code"], 0),
+                "threshold_reached": (
+                    item["metrics"]["nb"] >= ((classe_apprenant_counts.get(item["code"], 0) + 1) // 2)
+                    if classe_apprenant_counts.get(item["code"], 0) > 0
+                    else item["metrics"]["nb"] > 0
+                ),
+            }
+            for item in classe_groups_pre_threshold.values()
+        ],
+        key=lambda item: (item["code"], item["cohorte"]),
+    )
+    threshold_class_codes = {item["code"] for item in classe_stats_all if item["threshold_reached"]}
+    return classe_stats_all, threshold_class_codes
+
+
+def _thresholded_dashboard_rows(
+    all_rows: list[dict],
+    filters: dict,
+    classe_apprenant_counts: dict,
+    skip_field: str | None = None,
+) -> tuple[list[dict], list[dict]]:
+    filtered_rows = [
+        row
+        for row in all_rows
+        if _row_matches_dashboard_filters(row, filters, skip_field=skip_field)
+    ]
+    classe_stats_all, threshold_class_codes = _build_threshold_class_stats(filtered_rows, classe_apprenant_counts)
+    threshold_rows = [row for row in filtered_rows if row["classe_code"] in threshold_class_codes]
+    return threshold_rows, classe_stats_all
+
+
+def _build_dashboard_filter_options(
+    all_rows: list[dict],
+    filters: dict,
+    classe_apprenant_counts: dict,
+) -> dict[str, list[str]]:
+    filter_options = {}
+    for filter_name, row_key in FILTER_FIELD_ROW_MAP.items():
+        option_rows, _ = _thresholded_dashboard_rows(
+            all_rows,
+            filters,
+            classe_apprenant_counts,
+            skip_field=filter_name,
+        )
+        filter_options[filter_name] = _sorted_unique(row.get(row_key, "") for row in option_rows)
+    return filter_options
+
+
+def _build_class_filter_options(
+    all_rows: list[dict],
+    filters: dict,
+    classe_apprenant_counts: dict,
+) -> list[dict]:
+    _rows, classe_stats = _thresholded_dashboard_rows(
+        all_rows,
+        filters,
+        classe_apprenant_counts,
+        skip_field="classe",
+    )
+    options = []
+    for item in classe_stats:
+        if not item["threshold_reached"]:
+            continue
+        target = ((item["total_apprenants"] or 0) + 1) // 2 if item["total_apprenants"] else item["nb"]
+        options.append(
+            {
+                "value": item["code"],
+                "label": (
+                    f"{item['code']} - Seuil 50% atteint "
+                    f"({item['nb']} / {item['total_apprenants'] or item['nb']}, cible {target})"
+                ),
+            }
+        )
+    return options
+
+
+def _build_dashboard_active_filters_summary(filters: dict) -> list[dict]:
+    filter_labels = {
+        "source": "Source",
+        "prestation": "Prestation",
+        "fenetre": "Fenêtre",
+        "classe": "Classe",
+        "prestataire": "Prestataire",
+        "beneficiaire": "Bénéficiaire",
+        "cohorte": "Cohorte",
+        "ville": "Ville",
+        "user": "Utilisateur",
+    }
+    return [
+        {"label": filter_labels[key], "value": str(value).strip()}
+        for key, value in filters.items()
+        if str(value or "").strip()
+    ]
+
+
+def _dashboard_tab_headers(active_tab: str) -> list[str]:
+    if active_tab == "tab-classe":
+        return ["Classe", "Intitulé de la formation", "Cohorte", "Nombre d'enquêtes", *[label for _, label in Q_FIELDS]]
+    if active_tab == "tab-prestation":
+        return [
+            "Code prestation",
+            "Prestataire",
+            "Bénéficiaire",
+            "Nombre d'enquêtes",
+            *[label for _, label in Q_FIELDS],
+            "Global (Q9)",
+        ]
+    if active_tab == "tab-cohorte":
+        return ["Cohorte", "Nombre d'enquêtes", *[label for _, label in Q_FIELDS], "Global (Q9)"]
+    if active_tab == "tab-ville":
+        return ["Ville", "Nombre d'enquêtes", "Moyenne de satisfaction globale (Q9)"]
+    if active_tab == "tab-user":
+        return ["Utilisateur", "Nombre d'enquêtes", "Moyenne de satisfaction globale (Q9)"]
+    return [
+        "Code",
+        "ApprenantID réseau",
+        "Apprenant",
+        "Source",
+        "Classe",
+        "Intitulé de la formation",
+        "Prestataire",
+        "Bénéficiaire",
+        "Cohorte",
+        *[label for _, label in Q_FIELDS],
+        "Commentaire",
+    ]
+
+
+def _build_dashboard_table_details(context: dict, rows: list[dict]) -> dict[str, dict]:
+    row_counts = {
+        "tab-apprenants": len(rows),
+        "tab-classe": len(context["classe_stats"]),
+        "tab-prestation": len(context["prestation_stats"]),
+        "tab-cohorte": len(context["cohorte_stats"]),
+        "tab-ville": len(context["ville_stats"]),
+        "tab-user": len(context["user_stats"]),
+    }
+    return {
+        tab_id: {
+            "label": SATISFACTION_DASHBOARD_TAB_LABELS[tab_id],
+            "description": SATISFACTION_DASHBOARD_TAB_DESCRIPTIONS[tab_id],
+            "row_count": row_counts[tab_id],
+            "column_count": len(_dashboard_tab_headers(tab_id)),
+            "headers": _dashboard_tab_headers(tab_id),
+        }
+        for tab_id in SATISFACTION_DASHBOARD_TAB_LABELS
+    }
+
+
+def _ordered_survey_rows(rows: list[dict]) -> list[dict]:
+    return sorted(
+        rows,
+        key=lambda row: (
+            row.get("survey_date") or row.get("date"),
+            row.get("survey_time") or row.get("heure"),
+            row.get("classe_code", ""),
+            row.get("source_apprenant_id") or row.get("apprenant_code", ""),
+            row.get("apprenant_nom", ""),
+        ),
+    )
+
+
+def _assign_enquete_ids(rows: list[dict]) -> list[dict]:
+    grouped_rows: dict[str, list[tuple[int, dict]]] = {}
+    for index, row in enumerate(rows, start=1):
+        classe_key = normalize_network_lookup(row.get("classe_code", "")) or "__none__"
+        grouped_rows.setdefault(classe_key, []).append((index, row))
+
+    updates: dict[int, str] = {}
+    for grouped in grouped_rows.values():
+        known_ids: list[str] = []
+        for _row_index, row in grouped:
+            for raw_id in row.get("source_known_enquete_ids", []):
+                normalized = _normalize_enquete_id(raw_id)
+                if normalized and normalized not in known_ids:
+                    known_ids.append(normalized)
+
+        ordered_group = sorted(
+            grouped,
+            key=lambda item: (
+                item[1].get("survey_date") or item[1].get("date"),
+                item[1].get("survey_time") or item[1].get("heure"),
+                item[1].get("source_apprenant_id") or item[1].get("apprenant_code", ""),
+                item[1].get("apprenant_nom", ""),
+                item[0],
+            ),
+        )
+        for local_index, (row_index, row) in enumerate(ordered_group, start=1):
+            normalized = (
+                known_ids[local_index - 1]
+                if local_index <= len(known_ids)
+                else _normalize_enquete_id("", fallback_index=local_index)
+            )
+            updates[row_index] = normalized
+
+    enriched = []
+    for index, row in enumerate(rows, start=1):
+        enriched.append({**row, "source_enquete_id": updates.get(index, _normalize_enquete_id("", fallback_index=index))})
+    return enriched
+
+
+def _dashboard_export_filename_from_rows(rows: list[dict], filters: dict, extension: str) -> str:
+    ordered_rows = _ordered_survey_rows(rows)
+    if ordered_rows:
+        first_row = ordered_rows[0]
+        classe = _clean_export_part(first_row.get("classe_code") or filters.get("classe") or "TOUTES", "TOUTES")
+        prestataire = _clean_export_part(first_row.get("prestataire") or filters.get("prestataire") or "TOUS", "TOUS")
+        beneficiaire = _clean_export_part(first_row.get("beneficiaire") or filters.get("beneficiaire") or "TOUS", "TOUS")
+        cohorte = _clean_export_part(first_row.get("cohorte") or filters.get("cohorte") or "TOUTES", "TOUTES")
+        return f"{classe}_{prestataire}_{beneficiaire}_{cohorte}.{extension}"
+    return _dashboard_export_filename(filters, extension)
+
+
+def _safe_related(instance, attr_name: str):
+    try:
+        return getattr(instance, attr_name)
+    except ObjectDoesNotExist:
+        return None
+
+
+def _source_class_matches_filters(source_class: dict, filters: dict, skip_field: str | None = None) -> bool:
+    source_filter_map = {
+        "prestation": "prestation_id",
+        "fenetre": "fenetre",
+        "classe": "classe_id",
+        "prestataire": "prestataire",
+        "beneficiaire": "beneficiaire",
+        "cohorte": "cohorte",
+        "ville": "ville",
+    }
+    for filter_name, source_key in source_filter_map.items():
+        if filter_name == skip_field:
+            continue
+        filter_value = str(filters.get(filter_name) or "").strip()
+        if not filter_value:
+            continue
+        if normalize_network_lookup(source_class.get(source_key, "")) != normalize_network_lookup(filter_value):
+            return False
+    return True
+
+
+def _fallback_qualified_prestation_codes(classe_stats_all: list[dict]) -> set[str]:
+    prestations: dict[str, list[bool]] = {}
+    for item in classe_stats_all:
+        prestation_key = normalize_network_lookup(item.get("prestation", ""))
+        if not prestation_key:
+            continue
+        prestations.setdefault(prestation_key, []).append(bool(item.get("threshold_reached")))
+    return {
+        prestation_key
+        for prestation_key, threshold_states in prestations.items()
+        if threshold_states and all(threshold_states)
+    }
+
+
+def _source_prestation_classes_from_source(filters: dict, source_bundle: dict | None) -> dict[str, dict[str, dict]]:
+    if not source_bundle:
+        return {}
+
+    source_classes = list((source_bundle.get("classes") or {}).values())
+    if not source_classes:
+        return {}
+
+    prestation_classes: dict[str, dict[str, dict]] = {}
+    for source_class in source_classes:
+        if not _source_class_matches_filters(source_class, filters):
+            continue
+        prestation_key = normalize_network_lookup(source_class.get("prestation_id", ""))
+        classe_key = normalize_network_lookup(source_class.get("classe_id", ""))
+        if not prestation_key or not classe_key:
+            continue
+        prestation_classes.setdefault(prestation_key, {})[classe_key] = source_class
+    return prestation_classes
+
+
+def _terminated_prestation_codes_from_source(filters: dict, source_bundle: dict | None) -> set[str]:
+    prestation_classes = _source_prestation_classes_from_source(filters, source_bundle)
+    return {
+        prestation_key
+        for prestation_key, class_map in prestation_classes.items()
+        if class_map and all(_source_class_is_finished(source_class) for source_class in class_map.values())
+    }
+
+
+def _qualified_prestation_codes_from_source(
+    filters: dict,
+    classe_stats_all: list[dict],
+    source_bundle: dict | None,
+) -> set[str]:
+    fallback_codes = _fallback_qualified_prestation_codes(classe_stats_all)
+    prestation_classes = _source_prestation_classes_from_source(filters, source_bundle)
+    if not prestation_classes:
+        return fallback_codes
+
+    threshold_by_class = {
+        normalize_network_lookup(item.get("code", "")): bool(item.get("threshold_reached"))
+        for item in classe_stats_all
+        if item.get("code")
+    }
+    terminated_prestation_codes = _terminated_prestation_codes_from_source(filters, source_bundle)
+    if not terminated_prestation_codes:
+        return set()
+
+    qualified_codes = set()
+    for prestation_key, class_map in prestation_classes.items():
+        if prestation_key not in terminated_prestation_codes:
+            continue
+        class_keys = set(class_map)
+        if class_keys and all(threshold_by_class.get(class_key, False) for class_key in class_keys):
+            qualified_codes.add(prestation_key)
+    return qualified_codes
+
+
+def _is_ras_text(value: str) -> bool:
+    normalized = normalize_network_lookup(value or "")
+    return normalized in {"", "ras", "r.a.s", "r a s", "-", "neant", "sans observation"}
+
+
+def _has_complete_answer_set(answer: AppelAnswers | None) -> bool:
+    if not answer:
+        return False
+    return all(getattr(answer, field, None) is not None for field in APPEL_ANSWER_QUESTION_FIELDS)
+
+
+def _has_ras_only_form(answer: AppelAnswers | None) -> bool:
+    if not answer:
+        return False
+    return _is_ras_text(answer.commentaire) and _is_ras_text(answer.recommandations)
+
+
+def _build_call_failure_reasons(appel: Appel, answer: AppelAnswers | None) -> list[str]:
+    reasons: list[str] = []
+    status = str(appel.status or "").strip()
+    if status != "termine":
+        reasons.append(f"Statut non termine ({appel.get_status_display()})")
+    if appel.deja_forme or appel.flag_pas_forme:
+        reasons.append("Deja forme / pas concerne")
+    if appel.flag_faux_nom:
+        label = "Faux nom"
+        if appel.flag_vrai_nom:
+            label += f" ({appel.flag_vrai_nom})"
+        reasons.append(label)
+    if appel.flag_numero_double:
+        reasons.append("Numero double")
+    if appel.flag_deja_appele:
+        reasons.append("Deja appele")
+    if not answer:
+        reasons.append("Formulaire absent")
+    elif not _has_complete_answer_set(answer):
+        reasons.append("Formulaire incomplet")
+    if _has_ras_only_form(answer):
+        reasons.append("Formulaire RAS")
+    return reasons
+
+
+def _call_report_status(appel: Appel, answer: AppelAnswers | None) -> tuple[bool, list[str]]:
+    reasons = _build_call_failure_reasons(appel, answer)
+    return not reasons, reasons
+
+
+def _excel_style(cell, *, fill=None, font=None, alignment=None, border=None, number_format=None):
+    if fill is not None:
+        cell.fill = fill
+    if font is not None:
+        cell.font = font
+    if alignment is not None:
+        cell.alignment = alignment
+    if border is not None:
+        cell.border = border
+    if number_format is not None:
+        cell.number_format = number_format
+
+
+def _style_excel_table_header(worksheet, row_number: int, fill: PatternFill, font: Font, border: Border):
+    for cell in worksheet[row_number]:
+        if cell.value in (None, ""):
+            continue
+        _excel_style(
+            cell,
+            fill=fill,
+            font=font,
+            alignment=Alignment(horizontal="center", vertical="center", wrap_text=True),
+            border=border,
+        )
+
+
+def _style_excel_data_range(worksheet, start_row: int, border: Border, fill: PatternFill | None = None):
+    for row in worksheet.iter_rows(min_row=start_row, max_row=worksheet.max_row):
+        for cell in row:
+            if cell.value in (None, ""):
+                continue
+            _excel_style(
+                cell,
+                fill=fill,
+                border=border,
+                alignment=Alignment(vertical="top", wrap_text=True),
+            )
+
+
+def _daily_report_filename(generated_at) -> str:
+    return f"rapport-quotidien-padesce-{generated_at.strftime('%Y%m%d')}.xlsx"
+
+
+def _build_daily_report_row(appel: Appel, source_records: dict[str, dict]) -> dict:
+    answer = _safe_related(appel, "answers")
+    survey = _safe_related(appel, "satisfaction_apprenant")
+    classe = getattr(appel, "classe", None)
+    prestation = getattr(classe, "prestation", None) if classe else None
+    inspecteur = getattr(survey, "inspecteur", None) if survey else None
+    apprenant = getattr(survey, "apprenant", None) if survey else None
+    answer_user = getattr(getattr(answer, "modified_by", None), "username", "") if answer else ""
+    survey_user = getattr(getattr(survey, "enqueteur", None), "username", "") if survey else ""
+    source_record = source_records.get(normalize_network_lookup(appel.code or "")) or {}
+    is_success, failure_reasons = _call_report_status(appel, answer)
+    failure_detail_parts = []
+    if appel.deja_forme or appel.flag_pas_forme:
+        failure_detail_parts.append("Le beneficiaire indique qu'il a deja suivi la formation.")
+    if appel.flag_faux_nom:
+        failure_detail_parts.append(
+            f"Nom incoherent. Vrai nom saisi: {appel.flag_vrai_nom or 'non renseigne'}."
+        )
+    if appel.flag_numero_double:
+        failure_detail_parts.append("Le numero a ete signale comme doublon.")
+    if appel.flag_deja_appele:
+        failure_detail_parts.append("Le contact a deja ete traite dans la campagne.")
+    if answer and _has_ras_only_form(answer):
+        failure_detail_parts.append("Le formulaire ne contient que 'RAS' dans les champs narratifs.")
+    if not answer:
+        failure_detail_parts.append("Aucune reponse Q1-Q9 n'a ete enregistree.")
+
+    return {
+        "code": appel.code or "",
+        "nom": appel.nom or "",
+        "vrai_nom": appel.flag_vrai_nom or "",
+        "source_apprenant_id": source_record.get("apprenant_id", ""),
+        "classe": getattr(classe, "code", "") or appel.classe_label or source_record.get("classe_id", ""),
+        "formation": getattr(classe, "intitule_formation", "") or source_record.get("formation", "") or appel.formation_padesce or "",
+        "prestation": getattr(prestation, "code", "") or source_record.get("prestation_id", ""),
+        "prestataire": (
+            getattr(getattr(prestation, "prestataire", None), "raison_sociale", "")
+            or source_record.get("prestataire", "")
+            or appel.prestataire
+        ),
+        "beneficiaire": (
+            getattr(getattr(prestation, "beneficiaire", None), "nom_structure", "")
+            or source_record.get("beneficiaire", "")
+            or appel.beneficiaire
+        ),
+        "fenetre": appel.fenetre or source_record.get("fenetre", ""),
+        "cohorte": getattr(classe, "cohorte", "") or source_record.get("cohorte", ""),
+        "ville": getattr(getattr(classe, "lieu", None), "ville", "") or source_record.get("ville", "") or appel.lieu,
+        "lieu": appel.lieu or source_record.get("lieu", ""),
+        "telephone1": appel.telephone1 or "",
+        "telephone2": appel.telephone2 or "",
+        "status": appel.get_status_display(),
+        "taux_presence": float(appel.taux_presence or 0),
+        "inspecteur": getattr(inspecteur, "nom_complet", "") or source_record.get("inspecteur_label", ""),
+        "enqueteur": answer_user or survey_user or getattr(getattr(appel, "locked_by", None), "username", "") or "",
+        "survey_date": _format_export_date(getattr(survey, "date", None)),
+        "survey_time": _format_export_time(getattr(survey, "heure", None)),
+        "commentaire": getattr(answer, "commentaire", "") if answer else "",
+        "recommandations": getattr(answer, "recommandations", "") if answer else "",
+        "transcription": getattr(survey, "transcription", "") if survey else "",
+        "audio_name": os.path.basename(getattr(getattr(appel, "audio_file", None), "name", "") or ""),
+        "source_status": "Trouve" if source_record else "Absent",
+        "created_at": timezone.localtime(appel.created_at).strftime("%d/%m/%Y %H:%M") if getattr(appel, "created_at", None) else "",
+        "updated_at": timezone.localtime(appel.updated_at).strftime("%d/%m/%Y %H:%M") if getattr(appel, "updated_at", None) else "",
+        "deja_forme": "Oui" if appel.deja_forme else "Non",
+        "flag_pas_forme": "Oui" if appel.flag_pas_forme else "Non",
+        "flag_faux_nom": "Oui" if appel.flag_faux_nom else "Non",
+        "flag_numero_double": "Oui" if appel.flag_numero_double else "Non",
+        "flag_deja_appele": "Oui" if appel.flag_deja_appele else "Non",
+        "formulaire_complet": "Oui" if _has_complete_answer_set(answer) else "Non",
+        "formulaire_ras": "Oui" if _has_ras_only_form(answer) else "Non",
+        "rapport_statut": "Reussi" if is_success else "Echoue",
+        "motifs_echec": " | ".join(failure_reasons),
+        "details_echec": " ".join(failure_detail_parts),
+        "apprenant_reference": str(apprenant) if apprenant else "",
+        "is_success": is_success,
+        "failure_reasons": failure_reasons,
+        **{field: getattr(answer, field, None) if answer else None for field in APPEL_ANSWER_QUESTION_FIELDS},
+    }
+
+
+def _append_daily_dashboard_sheet(
+    worksheet,
+    generated_at,
+    total_count: int,
+    success_rows: list[dict],
+    failed_rows: list[dict],
+    status_counts: Counter,
+    failure_counts: Counter,
+    source_bundle: dict | None,
+):
+    header_fill = PatternFill("solid", fgColor="4C1D95")
+    subheader_fill = PatternFill("solid", fgColor="6F3CC3")
+    success_fill = PatternFill("solid", fgColor="DCFCE7")
+    failed_fill = PatternFill("solid", fgColor="FEE2E2")
+    neutral_fill = PatternFill("solid", fgColor="F8FAFC")
+    white_font = Font(color="FFFFFF", bold=True)
+    title_font = Font(color="FFFFFF", bold=True, size=14)
+    body_border = Border(
+        left=Side(style="thin", color="D4C7EC"),
+        right=Side(style="thin", color="D4C7EC"),
+        top=Side(style="thin", color="D4C7EC"),
+        bottom=Side(style="thin", color="D4C7EC"),
+    )
+
+    worksheet.title = "Tableau de bord"
+    worksheet["A1"] = "Rapport quotidien PADESCE"
+    worksheet["A2"] = f"Genere le {generated_at.strftime('%d/%m/%Y a %H:%M')}"
+    worksheet["A3"] = "Perimetre: appels PADESCE actifs depuis le debut"
+    worksheet.merge_cells("A1:D1")
+    worksheet.merge_cells("A2:D2")
+    worksheet.merge_cells("A3:D3")
+    _excel_style(worksheet["A1"], fill=header_fill, font=title_font, alignment=Alignment(horizontal="center"))
+    _excel_style(worksheet["A2"], fill=neutral_fill, border=body_border)
+    _excel_style(worksheet["A3"], fill=neutral_fill, border=body_border)
+
+    worksheet.append([])
+    worksheet.append(["Indicateur", "Valeur", "Taux"])
+    _style_excel_table_header(worksheet, 5, subheader_fill, white_font, body_border)
+
+    success_count = len(success_rows)
+    failed_count = len(failed_rows)
+    success_rate = round((success_count / total_count) * 100, 2) if total_count else 0
+    failed_rate = round((failed_count / total_count) * 100, 2) if total_count else 0
+
+    dashboard_rows = [
+        ("Total appels", total_count, "100%"),
+        ("Appels reussis", success_count, f"{success_rate}%"),
+        ("Appels echoues", failed_count, f"{failed_rate}%"),
+    ]
+    for label, value, rate in dashboard_rows:
+        worksheet.append([label, value, rate])
+
+    _style_excel_data_range(worksheet, 6, body_border)
+    for cell in worksheet[7]:
+        _excel_style(cell, fill=success_fill if cell.column <= 3 else None)
+    for cell in worksheet[8]:
+        _excel_style(cell, fill=failed_fill if cell.column <= 3 else None)
+
+    worksheet.append([])
+    worksheet.append(["Statut appel", "Nombre"])
+    _style_excel_table_header(worksheet, 10, subheader_fill, white_font, body_border)
+    for status_label in sorted(status_counts):
+        worksheet.append([status_label, status_counts[status_label]])
+    _style_excel_data_range(worksheet, 11, body_border)
+
+    start_row = worksheet.max_row + 2
+    worksheet.append(["Motif d'echec", "Nombre"])
+    _style_excel_table_header(worksheet, start_row, subheader_fill, white_font, body_border)
+    for label, count in failure_counts.most_common():
+        worksheet.append([label, count])
+    _style_excel_data_range(worksheet, start_row + 1, body_border)
+
+    start_row = worksheet.max_row + 2
+    worksheet.append(["Source reseau", "Valeur"])
+    _style_excel_table_header(worksheet, start_row, subheader_fill, white_font, body_border)
+    source_meta = source_bundle.get("source", {}) if source_bundle else {}
+    worksheet.append(["Disponible", "Oui" if source_bundle else "Non"])
+    worksheet.append(["Nom du fichier", source_meta.get("name", "Indisponible")])
+    worksheet.append(["Derniere mise a jour", source_meta.get("modified_label", "")])
+    worksheet.append(["Apprenants source", (source_bundle or {}).get("counts", {}).get("apprenants", 0)])
+    worksheet.append(["Classes source", (source_bundle or {}).get("counts", {}).get("classes", 0)])
+    worksheet.append(["Prestations source", (source_bundle or {}).get("counts", {}).get("prestations", 0)])
+    _style_excel_data_range(worksheet, start_row + 1, body_border)
+
+    worksheet.freeze_panes = "A5"
+    _autosize_worksheet(worksheet)
+
+
+def _append_daily_detail_sheet(worksheet, title: str, headers: list[str], rows: list[list], fill_color: str):
+    fill = PatternFill("solid", fgColor=fill_color)
+    white_font = Font(color="FFFFFF", bold=True)
+    border = Border(
+        left=Side(style="thin", color="D4C7EC"),
+        right=Side(style="thin", color="D4C7EC"),
+        top=Side(style="thin", color="D4C7EC"),
+        bottom=Side(style="thin", color="D4C7EC"),
+    )
+    worksheet.title = title
+    worksheet.append(headers)
+    _style_excel_table_header(worksheet, 1, fill, white_font, border)
+    for row in rows:
+        worksheet.append(row)
+    _style_excel_data_range(worksheet, 2, border)
+    worksheet.freeze_panes = "A2"
+    worksheet.auto_filter.ref = worksheet.dimensions
+    _autosize_worksheet(worksheet, max_width=48)
+
+
+def _attach_network_source_to_rows(
+    rows: list[dict],
+    source_bundle: dict | None = None,
+    source_key: str = "main",
+) -> tuple[list[dict], dict]:
+    try:
+        source_bundle = source_bundle or build_padesce_source_index(source_key=source_key)
+    except Exception as exc:
+        unavailable_rows = [
+            {
+                **row,
+                "source_found": False,
+                "source_apprenant_id": "",
+                "source_classe_id": "",
+                "source_prestation_id": "",
+                "source_fenetre": "",
+                "source_cohorte": "",
+                "source_status_label": "Source indisponible",
+                "source_status_tone": "muted",
+                "source_alerts": [],
+                "source_alerts_label": str(exc),
+                "formation_intitule": row.get("formation_intitule") or row.get("classe_intitule") or "-",
+                "source_inspecteur_id": "",
+                "source_inspecteur_label": "",
+                "source_statut_prestation": "",
+                "source_known_enquete_ids": [],
+                "source_enquete_id": "",
+            }
+            for row in rows
+        ]
+        return unavailable_rows, _source_summary_unavailable(str(exc), source_key=source_key)
+
+    source_records = source_bundle["records"]
+    enriched_rows: list[dict] = []
+    matched_count = 0
+    missing_count = 0
+    consistent_count = 0
+    mismatch_count = 0
+    apprenant_id_count = 0
+    mismatch_rows: list[dict] = []
+
+    for row in rows:
+        code_key = normalize_network_lookup(row.get("apprenant_code", ""))
+        source_record = source_records.get(code_key)
+
+        if not source_record:
+            missing_count += 1
+            enriched_rows.append(
+                {
+                    **row,
+                    "source_found": False,
+                    "source_apprenant_id": "",
+                    "source_classe_id": "",
+                    "source_prestation_id": "",
+                    "source_fenetre": "",
+                    "source_cohorte": "",
+                    "source_status_label": "Absent source",
+                    "source_status_tone": "danger",
+                    "source_alerts": [],
+                    "source_alerts_label": "Code introuvable dans la feuille Apprenants du classeur réseau.",
+                    "formation_intitule": row.get("formation_intitule") or row.get("classe_intitule") or "-",
+                    "source_inspecteur_id": "",
+                    "source_inspecteur_label": "",
+                    "source_statut_prestation": "",
+                    "source_known_enquete_ids": source_bundle.get("class_enquetes", {}).get(
+                        normalize_network_lookup(row.get("classe_code", "")),
+                        [],
+                    ),
+                    "source_enquete_id": "",
+                }
+            )
+            continue
+
+        matched_count += 1
+        if source_record.get("apprenant_id"):
+            apprenant_id_count += 1
+
+        alerts = [
+            alert
+            for row_key, source_key, label in SOURCE_COMPARE_FIELDS
+            for alert in [_source_compare_alert(row, source_record, row_key, source_key, label)]
+            if alert
+        ]
+        if alerts:
+            mismatch_count += 1
+            status_label = "À vérifier"
+            status_tone = "warning"
+            if len(mismatch_rows) < 8:
+                mismatch_rows.append(
+                    {
+                        "code": row.get("apprenant_code", ""),
+                        "nom": row.get("apprenant_nom", ""),
+                        "apprenant_id": source_record.get("apprenant_id", ""),
+                        "alerts_label": "; ".join(alerts),
+                    }
+                )
+        else:
+            consistent_count += 1
+            status_label = "OK"
+            status_tone = "success"
+
+        enriched_rows.append(
+            {
+                **row,
+                "source_found": True,
+                "source_apprenant_id": source_record.get("apprenant_id", ""),
+                "source_classe_id": source_record.get("classe_id", ""),
+                "source_prestation_id": source_record.get("prestation_id", ""),
+                "source_fenetre": source_record.get("fenetre", ""),
+                "source_cohorte": source_record.get("cohorte", ""),
+                "source_status_label": status_label,
+                "source_status_tone": status_tone,
+                "source_alerts": alerts,
+                "source_alerts_label": "; ".join(alerts)
+                if alerts
+                else "Aucun écart détecté avec le classeur réseau.",
+                "formation_intitule": source_record.get("formation")
+                or row.get("formation_intitule")
+                or row.get("classe_intitule")
+                or "-",
+                "source_inspecteur_id": source_record.get("inspecteur_id", ""),
+                "source_inspecteur_label": source_record.get("inspecteur_label", ""),
+                "source_statut_prestation": source_record.get("statut_prestation", ""),
+                "source_known_enquete_ids": list(source_record.get("enquete_ids", [])),
+                "source_enquete_id": "",
+            }
+        )
+
+    return enriched_rows, {
+        "available": True,
+        "message": "",
+        "key": source_bundle["source"].get("key", normalize_workbook_source_key(source_key)),
+        "label": source_bundle["source"].get("label", ""),
+        "name": source_bundle["source"]["name"],
+        "modified_label": source_bundle["source"]["modified_label"],
+        "matched_count": matched_count,
+        "missing_count": missing_count,
+        "consistent_count": consistent_count,
+        "mismatch_count": mismatch_count,
+        "apprenant_id_count": apprenant_id_count,
+        "source_apprenant_count": source_bundle["counts"]["apprenants"],
+        "duplicate_code_count": len(source_bundle["duplicate_codes"]),
+        "mismatch_rows": mismatch_rows,
+    }
+
+
+def _clean_export_part(value: str, default: str) -> str:
+    cleaned = re.sub(r"[^A-Z0-9_-]", "_", str(value or "").strip().upper())
+    cleaned = re.sub(r"_+", "_", cleaned).strip("_")
+    return (cleaned or default)[:40]
+
+
+def _dashboard_export_filename(filters: dict, extension: str) -> str:
+    classe = _clean_export_part(filters.get("classe") or "TOUTES", "TOUTES")
+    prestataire = _clean_export_part(filters.get("prestataire") or "TOUS", "TOUS")
+    beneficiaire = _clean_export_part(filters.get("beneficiaire") or "TOUS", "TOUS")
+    cohorte = _clean_export_part(filters.get("cohorte") or "TOUTES", "TOUTES")
+    return f"{classe}_{prestataire}_{beneficiaire}_{cohorte}.{extension}"
+
+def _dashboard_class_export_label(classe_code: str, rows: list[dict], filters: dict) -> str:
+    for row in rows:
+        if str(row.get("classe_code") or "").strip() == str(classe_code or "").strip():
+            prestataire = row.get("prestataire") or "-"
+            beneficiaire = row.get("beneficiaire") or "-"
+            return f"{classe_code}_{prestataire}_{beneficiaire}"
+    return str(classe_code or "Non renseignée")
+
+def _dashboard_export_chapeau_filename(filters: dict, extension: str) -> str:
+    base_name = _dashboard_export_filename(filters, extension)
+    return f"EVALUATION_DES_CLASSES_{base_name}"
+
+
+def _tabular_dashboard_export(active_tab: str, context: dict, rows: list[dict]) -> tuple[list[str], list[list]]:
+    if active_tab == "tab-classe":
+        return (
+            ["Classe", "Intitulé de la formation", "Cohorte", "Nombre d'enquêtes", *[label for _, label in Q_FIELDS]],
+            [
+                [item["code"], item["intitule"], item["cohorte"], item["nb"], *item["avgs"]]
+                for item in context["classe_stats"]
+            ],
+        )
+    if active_tab == "tab-prestation":
+        return (
+            ["Prestation", "Prestataire", "Bénéficiaire", "Nombre d'enquêtes", *[label for _, label in Q_FIELDS], "Global (Q9)"],
+            [
+                [item["code"], item["prestataire"], item["beneficiaire"], item["nb"], *item["avgs"], item["avg"]]
+                for item in context["prestation_stats"]
+            ],
+        )
+    if active_tab == "tab-cohorte":
+        return (
+            ["Cohorte", "Nombre d'enquêtes", *[label for _, label in Q_FIELDS], "Global (Q9)"],
+            [[item["label"], item["nb"], *item["avgs"], item["avg"]] for item in context["cohorte_stats"]],
+        )
+    if active_tab == "tab-ville":
+        return (
+            ["Ville", "Nombre d'enquêtes", "Moyenne de satisfaction globale (Q9)"],
+            [[item["ville"], item["nb"], item["avg"]] for item in context["ville_stats"]],
+        )
+    if active_tab == "tab-user":
+        return (
+            ["Utilisateur", "Nombre d'enquêtes", "Moyenne de satisfaction globale (Q9)"],
+            [[item["username"], item["nb"], item["avg"]] for item in context["user_stats"]],
+        )
+    return (
+        [
+            "N°",
+            "ID Apprenant",
+            "Nom Apprenant",
+            "Bénéficiaire",
+            "Prestataire",
+            "Formation",
+            "Inspecteur",
+            "ClassID",
+            *CSV_Q_HEADERS,
+            "Commentaires",
+            "Recommandations",
+            "N°Enquête",
+            "Date Enregistrement",
+            "Heure Enregistrement",
+        ],
+        [
+            [
+                index,
+                row.get("source_apprenant_id", ""),
+                row["apprenant_nom"],
+                row["beneficiaire"],
+                row["prestataire"],
+                row.get("formation_intitule") or row["classe_intitule"],
+                row.get("inspecteur_code") or row.get("source_inspecteur_id") or row.get("source_inspecteur_label", ""),
+                row["classe_code"],
+                *[row.get(field) for field, _ in Q_FIELDS],
+                row["commentaire"],
+                row["recommandations"],
+                row.get("source_enquete_id", ""),
+                _format_export_date(row.get("survey_date")),
+                _format_export_time(row.get("survey_time")),
+            ]
+            for index, row in enumerate(_ordered_survey_rows(rows), start=1)
+        ],
+    )
+
+
+def _build_satisfaction_dashboard_data(request):
+    selected_source = normalize_workbook_source_key(request.GET.get("source", ""))
+    source_options = get_workbook_source_options()
+    source_option_map = {item["value"]: item for item in source_options}
+    filters = {
+        "source": selected_source,
+        "prestation": request.GET.get("prestation", ""),
+        "fenetre": request.GET.get("fenetre", ""),
+        "ville": request.GET.get("ville", ""),
+        "user": request.GET.get("user", ""),
+        "classe": request.GET.get("classe", ""),
+        "prestataire": request.GET.get("prestataire", ""),
+        "beneficiaire": request.GET.get("beneficiaire", ""),
+        "cohorte": request.GET.get("cohorte", ""),
+    }
+
+    all_rows = [_dashboard_row_from_answer(answer) for answer in _satisfaction_dashboard_base_queryset()]
+    # Filter only windows 2 and 3 for analysis
+    all_rows = [row for row in all_rows if row["fenetre"] in {"2", "3"}]
+
+    classe_apprenant_counts = dict(
+        Classe.objects.annotate(_nb=Count("apprenants")).values_list("code", "_nb")
+    )
+    rows, classe_stats_all = _thresholded_dashboard_rows(all_rows, filters, classe_apprenant_counts)
+    try:
+        source_bundle = build_padesce_source_index(source_key=selected_source)
+    except Exception:
+        source_bundle = None
+    rows, source_summary = _attach_network_source_to_rows(
+        rows,
+        source_bundle=source_bundle,
+        source_key=selected_source,
+    )
+    rows = _assign_enquete_ids(rows)
+    total = len(rows)
+    terminated_prestation_codes = _terminated_prestation_codes_from_source(filters, source_bundle)
+    qualified_prestation_codes = _qualified_prestation_codes_from_source(filters, classe_stats_all, source_bundle)
+
+    global_bucket = _dashboard_bucket()
+    classe_groups = {}
+    prestation_groups = {}
+    fenetre_groups = {}
+    ville_groups = {}
+    user_groups = {}
+    cohorte_groups = {}
+    prestataire_groups = {}
+    beneficiaire_groups = {}
+
+    for row in rows:
+        _dashboard_bucket_add(global_bucket, row)
+        effective_prestation_code = row.get("source_prestation_id") or row["prestation_code"]
+
+        classe_key = row["classe_code"]
+        classe_groups.setdefault(
+            classe_key,
+            {
+                "code": row["classe_code"],
+                "intitule": row.get("formation_intitule") or row["classe_intitule"],
+                "prestation": effective_prestation_code,
+                "cohorte": row["cohorte"],
+                "metrics": _dashboard_bucket(),
+            },
+        )
+        classe_groups[classe_key]["intitule"] = _prefer_dashboard_label(
+            classe_groups[classe_key]["intitule"],
+            row.get("formation_intitule") or row["classe_intitule"],
+        )
+        classe_groups[classe_key]["prestation"] = _prefer_dashboard_label(
+            classe_groups[classe_key]["prestation"],
+            effective_prestation_code,
+        )
+        classe_groups[classe_key]["cohorte"] = _prefer_dashboard_label(
+            classe_groups[classe_key]["cohorte"],
+            row["cohorte"],
+        )
+        _dashboard_bucket_add(classe_groups[classe_key]["metrics"], row)
+
+        normalized_p_code = normalize_network_lookup(effective_prestation_code)
+        prestation_key = (normalized_p_code, row["prestataire"], row["beneficiaire"])
+        prestation_groups.setdefault(
+            prestation_key,
+            {
+                "code": normalized_p_code,
+                "prestataire": row["prestataire"],
+                "beneficiaire": row["beneficiaire"],
+                "metrics": _dashboard_bucket(),
+            },
+        )
+        _dashboard_bucket_add(prestation_groups[prestation_key]["metrics"], row)
+
+        fenetre_groups.setdefault(row["fenetre"], {"label": row["fenetre"], "metrics": _dashboard_bucket()})
+        _dashboard_bucket_add(fenetre_groups[row["fenetre"]]["metrics"], row)
+
+        ville_groups.setdefault(row["ville"], {"ville": row["ville"], "metrics": _dashboard_bucket()})
+        _dashboard_bucket_add(ville_groups[row["ville"]]["metrics"], row)
+
+        user_groups.setdefault(row["user"], {"username": row["user"], "metrics": _dashboard_bucket()})
+        _dashboard_bucket_add(user_groups[row["user"]]["metrics"], row)
+
+        cohorte_groups.setdefault(row["cohorte"], {"label": row["cohorte"], "metrics": _dashboard_bucket()})
+        _dashboard_bucket_add(cohorte_groups[row["cohorte"]]["metrics"], row)
+
+        prestataire_groups.setdefault(row["prestataire"], {"label": row["prestataire"], "metrics": _dashboard_bucket()})
+        _dashboard_bucket_add(prestataire_groups[row["prestataire"]]["metrics"], row)
+
+        beneficiaire_groups.setdefault(row["beneficiaire"], {"label": row["beneficiaire"], "metrics": _dashboard_bucket()})
+        _dashboard_bucket_add(beneficiaire_groups[row["beneficiaire"]]["metrics"], row)
+
+    global_avgs = {label: _dashboard_bucket_avg(global_bucket, field) for field, label in Q_FIELDS}
+
+    classe_stats = sorted(
+        [
+            {
+                "code": item["code"],
+                "intitule": item["intitule"],
+                "prestation": item["prestation"],
+                "cohorte": item["cohorte"],
+                "nb": item["metrics"]["nb"],
+                "avgs": _dashboard_bucket_avgs(item["metrics"]),
+                "total_apprenants": classe_apprenant_counts.get(item["code"], 0),
+                "threshold_reached": True,
+            }
+            for item in classe_groups.values()
+        ],
+        key=lambda item: (item["code"], item["cohorte"]),
+    )
+    classe_stats_seuil = classe_stats
+
+    prestation_stats = sorted(
+        [
+            {
+                "code": item["code"],
+                "prestataire": item["prestataire"],
+                "beneficiaire": item["beneficiaire"],
+                "nb": item["metrics"]["nb"],
+                "avg": _dashboard_bucket_avg(item["metrics"], "q9_satisfaction_globale"),
+                "avgs": _dashboard_bucket_avgs(item["metrics"]),
+            }
+            for item in prestation_groups.values()
+            if normalize_network_lookup(item["code"]) in qualified_prestation_codes
+        ],
+        key=lambda item: (item["code"], item["prestataire"], item["beneficiaire"]),
+    )
+
+    ville_stats = sorted(
+        [
+            {
+                "ville": item["ville"],
+                "nb": item["metrics"]["nb"],
+                "avg": _dashboard_bucket_avg(item["metrics"], "q9_satisfaction_globale"),
+            }
+            for item in ville_groups.values()
+        ],
+        key=lambda item: item["ville"],
+    )
+
+    user_stats = sorted(
+        [
+            {
+                "username": item["username"],
+                "nb": item["metrics"]["nb"],
+                "avg": _dashboard_bucket_avg(item["metrics"], "q9_satisfaction_globale"),
+            }
+            for item in user_groups.values()
+        ],
+        key=lambda item: item["username"],
+    )
+
+    cohorte_stats = sorted(
+        [
+            {
+                "label": item["label"],
+                "nb": item["metrics"]["nb"],
+                "avg": _dashboard_bucket_avg(item["metrics"], "q9_satisfaction_globale"),
+                "avgs": _dashboard_bucket_avgs(item["metrics"]),
+            }
+            for item in cohorte_groups.values()
+        ],
+        key=lambda item: item["label"],
+    )
+    fenetre_stats = sorted(
+        [
+            {
+                "label": item["label"],
+                "nb": item["metrics"]["nb"],
+            }
+            for item in fenetre_groups.values()
+        ],
+        key=lambda item: item["label"],
+    )
+
+    analyzed_classes = [{"label": f"{item['code']} - {item['intitule']}", "nb": item["nb"]} for item in classe_stats_seuil]
+    analyzed_prestations = [
+        {"label": f"{item['code']} | {item['prestataire']} | {item['beneficiaire']}", "nb": item["nb"]}
+        for item in prestation_stats
+    ]
+    analyzed_fenetres = [{"label": item["label"], "nb": item["nb"]} for item in fenetre_stats]
+    analyzed_prestataires = [
+        {"label": label, "nb": item["metrics"]["nb"]}
+        for label, item in sorted(prestataire_groups.items(), key=lambda pair: pair[0])
+    ]
+    analyzed_beneficiaires = [
+        {"label": label, "nb": item["metrics"]["nb"]}
+        for label, item in sorted(beneficiaire_groups.items(), key=lambda pair: pair[0])
+    ]
+    analyzed_cohortes = [{"label": item["label"], "nb": item["nb"]} for item in cohorte_stats]
+
+    filter_options = _build_dashboard_filter_options(all_rows, filters, classe_apprenant_counts)
+    eligible_prestation_options = sorted(
+        {item["code"] for item in prestation_stats if str(item.get("code") or "").strip() and item["code"] != "-"}
+    )
+    if filters["prestation"] and filters["prestation"] not in eligible_prestation_options:
+        eligible_prestation_options.append(filters["prestation"])
+    filter_options["prestation"] = eligible_prestation_options
+    class_options = _build_class_filter_options(all_rows, filters, classe_apprenant_counts)
+    active_filters_summary = _build_dashboard_active_filters_summary(
+        {
+            **filters,
+            "source": source_option_map.get(selected_source, {}).get("label", selected_source),
+        }
+    )
+
+    filter_query_string = request.GET.copy().urlencode()
+    analyzed_prestations_total_count = len(terminated_prestation_codes) if source_bundle else len(analyzed_prestations)
+    analyzed_prestations_ratio = f"{len(analyzed_prestations)}/{analyzed_prestations_total_count}"
+    context = {
+        "total": total,
+        "global_avgs": global_avgs,
+        "q_labels": [label for _, label in Q_FIELDS],
+        "classe_stats": classe_stats_seuil,
+        "prestation_stats": prestation_stats,
+        "ville_stats": ville_stats,
+        "user_stats": user_stats,
+        "cohorte_stats": cohorte_stats,
+        "filter_prestation": filters["prestation"],
+        "filter_source": selected_source,
+        "filter_fenetre": filters["fenetre"],
+        "filter_ville": filters["ville"],
+        "filter_user": filters["user"],
+        "filter_classe": filters["classe"],
+        "filter_prestataire": filters["prestataire"],
+        "filter_beneficiaire": filters["beneficiaire"],
+        "filter_cohorte": filters["cohorte"],
+        "analyzed_classes": analyzed_classes,
+        "analyzed_prestations": analyzed_prestations,
+        "analyzed_fenetres": analyzed_fenetres,
+        "analyzed_prestataires": analyzed_prestataires,
+        "analyzed_beneficiaires": analyzed_beneficiaires,
+        "analyzed_cohortes": analyzed_cohortes,
+        "analyzed_classes_count": len(analyzed_classes),
+        "analyzed_prestations_count": len(analyzed_prestations),
+        "analyzed_prestations_total_count": analyzed_prestations_total_count,
+        "analyzed_prestations_ratio": analyzed_prestations_ratio,
+        "analyzed_fenetres_count": len(analyzed_fenetres),
+        "analyzed_prestataires_count": len(analyzed_prestataires),
+        "analyzed_beneficiaires_count": len(analyzed_beneficiaires),
+        "analyzed_cohortes_count": len(analyzed_cohortes),
+        "filter_query_string": filter_query_string,
+        "active_filters_summary": active_filters_summary,
+        "source_summary": source_summary,
+        "source_options": source_options,
+        "class_options": class_options,
+        "prestations": filter_options["prestation"],
+        "fenetres": filter_options["fenetre"],
+        "villes": filter_options["ville"],
+        "users": filter_options["user"],
+        "classes": filter_options["classe"],
+        "prestataires": filter_options["prestataire"],
+        "beneficiaires": filter_options["beneficiaire"],
+        "cohortes": filter_options["cohorte"],
+    }
+    context["tab_details"] = _build_dashboard_table_details(context, rows)
+    return {"rows": rows, "filters": filters, "context": context}
+
+
+@require_analysis_access
+def satisfaction_dashboard_export_chapeau(request):
+    dashboard = _build_satisfaction_dashboard_data(request)
+    context = dashboard["context"]
+    rows = dashboard["rows"]
+    filename = _dashboard_export_chapeau_filename(dashboard["filters"], "docx")
+
+    from docx import Document
+
+    document = Document()
+
+    class_question_counts: dict[str, dict[str, int]] = defaultdict(dict)
+    class_respondent_counts: dict[str, int] = {}
+    class_respondent_keys: dict[str, set[str]] = defaultdict(set)
+
+    for row in rows:
+        classe_code = str(row.get("classe_code") or "").strip()
+        if not classe_code:
+            continue
+
+        apprenant_key = (
+            str(row.get("source_apprenant_id") or "").strip()
+            or str(row.get("apprenant_code") or "").strip()
+            or str(row.get("apprenant_nom") or "").strip()
+        )
+
+        if apprenant_key:
+            class_respondent_keys[classe_code].add(apprenant_key)
+
+        for field, _label in Q_FIELDS:
+            value = row.get(field)
+            if value not in (None, ""):
+                class_question_counts.setdefault(classe_code, {})
+                class_question_counts[classe_code][field] = (
+                    class_question_counts[classe_code].get(field, 0) + 1
+                )
+
+    for classe_code, respondents in class_respondent_keys.items():
+        class_respondent_counts[classe_code] = len(respondents)
+
+    if not context.get("classe_stats"):
+        document.add_paragraph("Aucune classe à exporter.")
+    else:
+        for item in context["classe_stats"]:
+            classe_code = item["code"]
+            classe_nom_complet = _dashboard_class_export_label(
+                classe_code, rows, dashboard["filters"]
+            )
+            total_repondants = class_respondent_counts.get(classe_code, 0)
+
+            table = document.add_table(rows=1, cols=2)
+            table.style = "Table Grid"
+
+            title_cells = table.rows[0].cells
+            title_cell = title_cells[0].merge(title_cells[1])
+            title_paragraph = title_cell.paragraphs[0]
+            title_run = title_paragraph.add_run(classe_nom_complet)
+            title_run.bold = True
+
+            headers = table.add_row().cells
+            headers[0].text = "QUESTION"
+            headers[1].text = "NOTE"
+
+            for index, (field, question_label) in enumerate(Q_FIELDS):
+                note = item["avgs"][index] if index < len(item.get("avgs", [])) else 0
+                total_question = class_question_counts.get(classe_code, {}).get(field, 0)
+
+                row_cells = table.add_row().cells
+                row_cells[0].text = question_label
+                row_cells[1].text = f"{note}/5" if total_question else "-"
+
+            # Ligne TOTAL conservée
+            total_row = table.add_row().cells
+            total_label_cell = total_row[0]
+            total_label_cell.text = "TOTAL DES PARTICIPANTS A LA FORMATION"
+            total_row[1].text = str(total_repondants)
+
+            document.add_paragraph("")
+
+    output = io.BytesIO()
+    document.save(output)
+    output.seek(0)
+
+    response = HttpResponse(
+        output.getvalue(),
+        content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    )
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return response
+
+
+@require_analysis_access
+def satisfaction_dashboard_export_xlsx(request):
+    dashboard = _build_satisfaction_dashboard_data(request)
+    rows = dashboard["rows"]
+    context = dashboard["context"]
+
+    wb = openpyxl.Workbook()
+    ws_summary = wb.active
+    ws_summary.title = "Synthese"
+    ws_summary.append(["Analyse satisfaction apprenants"])
+    ws_summary.append([])
+    ws_summary.append(["Total enquêtes", context["total"]])
+    ws_summary.append(["Classes analysées", context["analyzed_classes_count"]])
+    ws_summary.append(["Prestations analysees", context["analyzed_prestations_ratio"]])
+    ws_summary.append(["Prestataires analysés", context["analyzed_prestataires_count"]])
+    ws_summary.append(["Bénéficiaires analysés", context["analyzed_beneficiaires_count"]])
+    ws_summary.append(["Cohortes analysées", context["analyzed_cohortes_count"]])
+    ws_summary.append([])
+    ws_summary.append(["Filtres appliqués"])
+    ws_summary.append(["Prestation", context["filter_prestation"] or "Toutes"])
+    ws_summary.append(["Fenêtre", context["filter_fenetre"] or "Toutes"])
+    ws_summary.append(["Classe", context["filter_classe"] or "Toutes"])
+    ws_summary.append(["Prestataire", context["filter_prestataire"] or "Tous"])
+    ws_summary.append(["Bénéficiaire", context["filter_beneficiaire"] or "Tous"])
+    ws_summary.append(["Cohorte", context["filter_cohorte"] or "Toutes"])
+    ws_summary.append(["Ville", context["filter_ville"] or "Toutes"])
+    ws_summary.append(["Utilisateur", context["filter_user"] or "Tous"])
+    ws_summary.append([])
+    ws_summary.append(["Contrôle source réseau"])
+    ws_summary.append(["Source disponible", "Oui" if context["source_summary"]["available"] else "Non"])
+    ws_summary.append(["ApprenantID réseau trouvés", context["source_summary"]["apprenant_id_count"]])
+    ws_summary.append(["Lignes reliées à la source", context["source_summary"]["matched_count"]])
+    ws_summary.append(["Lignes cohérentes", context["source_summary"]["consistent_count"]])
+    ws_summary.append(["Lignes à vérifier", context["source_summary"]["mismatch_count"]])
+    ws_summary.append(["Lignes absentes de la source", context["source_summary"]["missing_count"]])
+    ws_summary.append([])
+    ws_summary.append(["Type", "Libellé", "Nombre d'enquêtes"])
+    for item in context["analyzed_classes"]:
+        ws_summary.append(["Classe", item["label"], item["nb"]])
+    for item in context["analyzed_prestations"]:
+        ws_summary.append(["Prestation", item["label"], item["nb"]])
+    for item in context["analyzed_fenetres"]:
+        ws_summary.append(["Fenêtre", item["label"], item["nb"]])
+    for item in context["analyzed_prestataires"]:
+        ws_summary.append(["Prestataire", item["label"], item["nb"]])
+    for item in context["analyzed_beneficiaires"]:
+        ws_summary.append(["Bénéficiaire", item["label"], item["nb"]])
+    for item in context["analyzed_cohortes"]:
+        ws_summary.append(["Cohorte", item["label"], item["nb"]])
+
+    ws_data = wb.create_sheet("Enquêtes")
+    ws_data.append(
+        [
+            "Classe",
+            "Intitulé de la formation",
+            "Prestataire",
+            "Bénéficiaire",
+            "Cohorte",
+            "Ville",
+            "Code apprenant",
+            "ApprenantID réseau",
+            "Apprenant",
+            "Cohérence source",
+            "Alertes source",
+            "Statut appel",
+            *[label for _, label in Q_FIELDS],
+            "Commentaire",
+            "Recommandations",
+        ]
+    )
+    for item in _ordered_survey_rows(rows):
+        ws_data.append(
+            [
+                item["classe_code"],
+                item.get("formation_intitule") or item["classe_intitule"],
+                item["prestataire"],
+                item["beneficiaire"],
+                item["cohorte"],
+                item["ville"],
+                item["apprenant_code"],
+                item.get("source_apprenant_id", ""),
+                item["apprenant_nom"],
+                item.get("source_status_label", ""),
+                item.get("source_alerts_label", ""),
+                item["status"],
+                *[item.get(field) for field, _label in Q_FIELDS],
+                item["commentaire"],
+                item["recommandations"],
+            ]
+        )
+
+    ws_classes = wb.create_sheet("Classes")
+    ws_classes.append(["Classe", "Intitulé de la formation", "Cohorte", "Nombre d'enquêtes", *[label for _, label in Q_FIELDS]])
+    for item in context["classe_stats"]:
+        ws_classes.append([item["code"], item["intitule"], item["cohorte"], item["nb"], *item["avgs"]])
+
+    ws_prestations = wb.create_sheet("Prestations")
+    ws_prestations.append(["Prestation", "Prestataire", "Bénéficiaire", "Nombre d'enquêtes", *[label for _, label in Q_FIELDS], "Global (Q9)"])
+    for item in context["prestation_stats"]:
+        ws_prestations.append([item["code"], item["prestataire"], item["beneficiaire"], item["nb"], *item["avgs"], item["avg"]])
+
+    ws_cohortes = wb.create_sheet("Cohortes")
+    ws_cohortes.append(["Cohorte", "Nombre d'enquêtes", *[label for _, label in Q_FIELDS], "Global (Q9)"])
+    for item in context["cohorte_stats"]:
+        ws_cohortes.append([item["label"], item["nb"], *item["avgs"], item["avg"]])
+
+    for worksheet in wb.worksheets:
+        _autosize_worksheet(worksheet)
+
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    filename = _dashboard_export_filename_from_rows(
+        sorted(rows, key=lambda row: row["modified_at"]),
+        dashboard["filters"],
+        "xlsx",
+    )
+
+    response = HttpResponse(
+        output.getvalue(),
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return response
+
+
+@require_analysis_access
+def satisfaction_dashboard_daily_report_xlsx(request):
+    generated_at = timezone.localtime()
+    selected_source = normalize_workbook_source_key(request.GET.get("source", ""))
+    try:
+        source_bundle = build_padesce_source_index(source_key=selected_source)
+    except Exception:
+        source_bundle = None
+    source_records = (source_bundle or {}).get("records", {})
+
+    appels = list(
+        Appel.objects.filter(is_active=True)
+        .select_related(
+            "classe",
+            "classe__lieu",
+            "classe__prestation",
+            "classe__prestation__prestataire",
+            "classe__prestation__beneficiaire",
+            "locked_by",
+            "answers",
+            "answers__modified_by",
+            "satisfaction_apprenant",
+            "satisfaction_apprenant__inspecteur",
+            "satisfaction_apprenant__apprenant",
+            "satisfaction_apprenant__enqueteur",
+        )
+        .order_by("created_at", "nom", "code")
+    )
+
+    report_rows = [_build_daily_report_row(appel, source_records) for appel in appels]
+    success_rows = [row for row in report_rows if row["is_success"]]
+    failed_rows = [row for row in report_rows if not row["is_success"]]
+
+    status_counts = Counter(row["status"] for row in report_rows)
+    failure_counts = Counter()
+    for row in failed_rows:
+        for reason in row["failure_reasons"]:
+            failure_counts[reason] += 1
+
+    success_headers = [
+        "N°",
+        "Code appel",
+        "Nom déclare",
+        "ID apprenant réseau",
+        "Classe",
+        "Formation",
+        "Prestation",
+        "Prestataire",
+        "Beneficiaire",
+        "Fenetre",
+        "Cohorte",
+        "Ville",
+        "Lieu",
+        "Telephone 1",
+        "Telephone 2",
+        "Statut appel",
+        "Taux presence",
+        "Inspecteur",
+        "Enqueteur",
+        "Date enquete",
+        "Heure enquete",
+        *[label for _, label in Q_FIELDS],
+        "Commentaire",
+        "Recommandations",
+        "Transcription",
+        "Audio",
+        "Source reseau",
+        "Cree le",
+        "Mis a jour le",
+    ]
+    failed_headers = [
+        "N°",
+        "Code appel",
+        "Nom declare",
+        "Vrai nom",
+        "ID apprenant réseau",
+        "Classe",
+        "Formation",
+        "Prestation",
+        "Prestataire",
+        "Beneficiaire",
+        "Fenetre",
+        "Cohorte",
+        "Ville",
+        "Lieu",
+        "Telephone 1",
+        "Telephone 2",
+        "Statut appel",
+        "Motifs d'echec",
+        "Details",
+        "Deja forme",
+        "Pas forme",
+        "Faux nom",
+        "Numero double",
+        "Deja appele",
+        "Formulaire complet",
+        "Formulaire RAS",
+        *[label for _, label in Q_FIELDS],
+        "Commentaire",
+        "Recommandations",
+        "Transcription",
+        "Audio",
+        "Cree le",
+        "Mis a jour le",
+    ]
+
+    success_sheet_rows = [
+        [
+            index,
+            row["code"],
+            row["nom"],
+            row["source_apprenant_id"],
+            row["classe"],
+            row["formation"],
+            row["prestation"],
+            row["prestataire"],
+            row["beneficiaire"],
+            row["fenetre"],
+            row["cohorte"],
+            row["ville"],
+            row["lieu"],
+            row["telephone1"],
+            row["telephone2"],
+            row["status"],
+            row["taux_presence"],
+            row["inspecteur"],
+            row["enqueteur"],
+            row["survey_date"],
+            row["survey_time"],
+            *[row.get(field) for field in APPEL_ANSWER_QUESTION_FIELDS],
+            row["commentaire"],
+            row["recommandations"],
+            row["transcription"],
+            row["audio_name"],
+            row["source_status"],
+            row["created_at"],
+            row["updated_at"],
+        ]
+        for index, row in enumerate(success_rows, start=1)
+    ]
+    failed_sheet_rows = [
+        [
+            index,
+            row["code"],
+            row["nom"],
+            row["vrai_nom"],
+            row["source_apprenant_id"],
+            row["classe"],
+            row["formation"],
+            row["prestation"],
+            row["prestataire"],
+            row["beneficiaire"],
+            row["fenetre"],
+            row["cohorte"],
+            row["ville"],
+            row["lieu"],
+            row["telephone1"],
+            row["telephone2"],
+            row["status"],
+            row["motifs_echec"],
+            row["details_echec"],
+            row["deja_forme"],
+            row["flag_pas_forme"],
+            row["flag_faux_nom"],
+            row["flag_numero_double"],
+            row["flag_deja_appele"],
+            row["formulaire_complet"],
+            row["formulaire_ras"],
+            *[row.get(field) for field in APPEL_ANSWER_QUESTION_FIELDS],
+            row["commentaire"],
+            row["recommandations"],
+            row["transcription"],
+            row["audio_name"],
+            row["created_at"],
+            row["updated_at"],
+        ]
+        for index, row in enumerate(failed_rows, start=1)
+    ]
+
+    wb = openpyxl.Workbook()
+    ws_dashboard = wb.active
+    _append_daily_dashboard_sheet(
+        ws_dashboard,
+        generated_at,
+        len(report_rows),
+        success_rows,
+        failed_rows,
+        status_counts,
+        failure_counts,
+        source_bundle,
+    )
+    ws_success = wb.create_sheet("Appels reussis")
+    _append_daily_detail_sheet(ws_success, "Appels reussis", success_headers, success_sheet_rows, "166534")
+    ws_failed = wb.create_sheet("Appels echoues")
+    _append_daily_detail_sheet(ws_failed, "Appels echoues", failed_headers, failed_sheet_rows, "B91C1C")
+
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    response = HttpResponse(
+        output.getvalue(),
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+    response["Content-Disposition"] = f'attachment; filename="{_daily_report_filename(generated_at)}"'
+    return response
+
+
+@require_analysis_access
+def satisfaction_dashboard(request):
+    dashboard = _build_satisfaction_dashboard_data(request)
+    ctx = dashboard["context"]
+    ctx["rows"] = [
+        {**row, "q_values": [row.get(field) for field, _ in Q_FIELDS]}
+        for row in sorted(dashboard["rows"], key=lambda r: r["modified_at"], reverse=True)
+    ]
+    ctx["active_tab"] = _active_satisfaction_tab(request)
+    ctx["active_table_details"] = ctx["tab_details"].get(ctx["active_tab"], ctx["tab_details"]["tab-apprenants"])
+    return render(request, "satisfaction_apprenants/dashboard.html", ctx)
+
+
+@require_analysis_access
+def satisfaction_dashboard_rag(request):
+    if request.method != "POST":
+        return JsonResponse({"error": "Methode non autorisee."}, status=405)
+
+    try:
+        payload = json.loads(request.body.decode("utf-8") or "{}")
+    except (TypeError, ValueError, UnicodeDecodeError):
+        return JsonResponse({"error": "Corps JSON invalide."}, status=400)
+
+    prompt = str(payload.get("prompt") or "").strip()
+    if not prompt:
+        return JsonResponse({"error": "Le prompt est vide."}, status=400)
+
+    filter_query = str(payload.get("filter_query") or "").lstrip("?")
+    active_tab = str(payload.get("tab") or "tab-apprenants").strip()
+    query_params = QueryDict(filter_query, mutable=True)
+    query_params["tab"] = active_tab
+    request_like = SimpleNamespace(GET=query_params)
+
+    try:
+        dashboard = _build_satisfaction_dashboard_data(request_like)
+        active_tab = _active_satisfaction_tab(request_like)
+        result = answer_dashboard_prompt(
+            prompt,
+            active_tab,
+            dashboard["context"],
+            dashboard["rows"],
+        )
+    except ValueError as exc:
+        return JsonResponse({"error": str(exc)}, status=400)
+    except RuntimeError as exc:
+        return JsonResponse({"error": str(exc)}, status=400)
+    except requests.RequestException as exc:
+        return JsonResponse(
+            {"error": f"Erreur Groq lors de la generation de la reponse: {exc}"},
+            status=502,
+        )
+    except Exception as exc:
+        return JsonResponse(
+            {"error": f"Impossible de traiter la demande RAG: {exc}"},
+            status=500,
+        )
+
+    return JsonResponse(
+        {
+            "ok": True,
+            "active_tab": active_tab,
+            "active_tab_label": SATISFACTION_DASHBOARD_TAB_LABELS.get(active_tab, "Table active"),
+            "answer_markdown": result["answer_markdown"],
+            "matched_rows": result.get("matched_rows", []),
+            "matched_count": len(result.get("matched_rows", [])),
+            "retrieved_count": result.get("retrieved_count", 0),
+            "insufficient_context": bool(result.get("insufficient_context")),
+            "model": result.get("model", ""),
+            "row_count": len(dashboard["rows"]),
+        }
+    )
+
+
+@require_analysis_access
+def satisfaction_dashboard_export_csv(request):
+    dashboard = _build_satisfaction_dashboard_data(request)
+    rows = dashboard["rows"]
+    active_tab = _active_satisfaction_tab(request)
+    headers, export_rows = _tabular_dashboard_export(active_tab, dashboard["context"], rows)
+    filename = _dashboard_export_filename_from_rows(
+        sorted(rows, key=lambda row: row["modified_at"]),
+        dashboard["filters"],
+        "csv",
+    )
+
+    response = HttpResponse(content_type="text/csv; charset=utf-8")
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    response.write('\ufeff')
+    writer = csv.writer(response)
+    writer.writerow(headers)
+    for export_row in export_rows:
+        writer.writerow(export_row)
     return response

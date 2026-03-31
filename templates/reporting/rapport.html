@@ -2,76 +2,180 @@
 {% block title %}Rapport Application{% endblock %}
 {% block content %}
 <style>
-  .report-shell { display:grid; gap:16px; }
-  .hero, .toolbar-card, .card, .panel { background:#fff; border:1px solid var(--border); border-radius:16px; box-shadow:var(--shadow); }
-  .hero { padding:22px; background:linear-gradient(135deg,#f5fbfb 0%,#ffffff 100%); }
-  .hero h1 { margin:0 0 8px; color:var(--accent); }
-  .hero p { margin:0; color:var(--muted); }
-  .toolbar, .cards, .panels { display:grid; gap:14px; }
-  .toolbar { grid-template-columns:1fr auto; align-items:end; }
-  .toolbar-card, .panel { padding:16px; }
-  .filters, .actions { display:flex; flex-wrap:wrap; gap:10px; align-items:end; }
-  .field { display:grid; gap:6px; min-width:180px; }
-  .field label { font-size:.86rem; color:var(--muted); font-weight:700; }
-  .field input { border:1px solid var(--border); border-radius:12px; padding:10px 12px; font:inherit; }
-  .btn { display:inline-flex; align-items:center; justify-content:center; gap:8px; padding:10px 14px; border-radius:12px; border:1px solid transparent; text-decoration:none; font-weight:700; cursor:pointer; }
-  .btn-primary { background:var(--accent); color:#fff; }
-  .btn-ghost { background:#fff; color:var(--accent); border-color:var(--border); }
-  .btn-soft { background:rgba(15,139,141,0.08); color:var(--accent); border-color:rgba(15,139,141,0.15); }
-  .cards { grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); }
-  .card { padding:16px; }
-  .card .label { color:var(--muted); font-size:.9rem; }
-  .card .value { margin-top:8px; font-size:1.7rem; font-weight:800; color:var(--accent); }
-  .card .meta { margin-top:6px; color:var(--muted); font-size:.88rem; }
-  .panels { grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); }
-  .panel h3 { margin:0 0 12px; color:var(--accent); }
-  .metric-list { display:grid; gap:10px; }
-  .metric-row { display:flex; justify-content:space-between; gap:12px; padding:10px 12px; border-radius:12px; background:#f7fbfb; border:1px solid rgba(15,139,141,0.08); }
-  .metric-row strong { color:var(--accent); }
-  .pill { display:inline-flex; align-items:center; padding:6px 10px; border-radius:999px; border:1px solid var(--border); background:#f7fbfb; color:var(--accent); font-weight:700; font-size:.84rem; }
-  .hour-list { display:grid; gap:10px; }
-  .hour-row { display:grid; gap:6px; }
-  .hour-top { display:flex; justify-content:space-between; gap:10px; font-size:.92rem; }
-  .bar { height:11px; border-radius:999px; background:#eaf7f7; overflow:hidden; border:1px solid rgba(15,139,141,0.08); }
-  .bar > span { display:block; height:100%; border-radius:inherit; background:linear-gradient(90deg,#0f8b8d,#18b0ac); }
-  .user-card { border:1px solid var(--border); border-radius:14px; padding:12px; background:#f7fbfb; display:grid; gap:8px; }
-  .user-card-title { font-weight:800; color:var(--accent); font-size:.98rem; }
-  .user-card-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px 10px; }
-  .user-card-item { border:1px solid rgba(15,139,141,0.08); border-radius:10px; background:#fff; padding:8px 10px; }
-  .user-card-item span { display:block; color:var(--muted); font-size:.76rem; margin-bottom:4px; }
-  .user-card-item strong { color:var(--accent); font-size:.92rem; }
-  .table-scroll { width:100%; overflow-x:auto; -webkit-overflow-scrolling:touch; border-radius:14px; }
-  table { width:100%; border-collapse:collapse; }
-  th, td { padding:9px 10px; border-bottom:1px solid var(--border); text-align:left; }
-  th { color:var(--muted); font-size:.84rem; text-transform:uppercase; letter-spacing:.04em; }
-  .muted { color:var(--muted); }
-  .dot-not-formed { background:#f59e0b; }
-  .dot-fake-number { background:#ef4444; }
-  .dot-false-name { background:#7c3aed; }
-  .legend-item { display:inline-flex; align-items:center; gap:8px; margin-right:16px; font-size:.9rem; }
-  .legend-dot { width:10px; height:10px; border-radius:50%; display:inline-block; }
-  .anomaly-not-formed td { background:rgba(245,158,11,0.12); }
-  .anomaly-duplicate td { background:rgba(239,68,68,0.10); }
-  .anomaly-false-name td { background:rgba(124,58,237,0.10); }
-  .th-not-formed { background:rgba(245,158,11,0.16); color:#92400e; }
-  .th-fake-number { background:rgba(239,68,68,0.14); color:#991b1b; }
-  .th-false-name { background:rgba(124,58,237,0.14); color:#6d28d9; }
-  .th-code { background:#f8fafc; color:#334155; }
-  .anomaly-panel { padding:12px; max-width:90%; width:90%; justify-self:start; }
-  .anomaly-compact-note { margin:0 0 8px; font-size:.82rem; }
-  .anomaly-legend { margin-bottom:8px !important; padding:8px 10px !important; }
-  .anomaly-legend .legend-item { margin-right:10px; font-size:.82rem; }
-  .anomaly-table th, .anomaly-table td { padding:6px 8px; font-size:.82rem; }
-  .anomaly-table-scroll { max-height:235px; overflow-y:auto; }
-  @media (max-width:860px) {
-    .toolbar { grid-template-columns:1fr; }
-    .actions, .filters { width:100%; }
-    .actions > *, .filters > * { flex:1 1 100%; }
-    .cards, .panels { grid-template-columns:1fr; }
-    .metric-row { flex-direction:column; align-items:flex-start; }
-    .user-card-grid { grid-template-columns:1fr; }
-    .anomaly-panel { max-width:100%; width:100%; }
+  .report-shell { display: grid; gap: 16px; }
+  .hero {
+    padding: 22px;
+    border-radius: 18px;
+    border: 1px solid rgba(111, 60, 195, 0.16);
+    background:
+      radial-gradient(circle at top right, rgba(111, 60, 195, 0.14), transparent 34%),
+      linear-gradient(135deg, #faf7ff 0%, #ffffff 100%);
+    box-shadow: var(--shadow);
   }
+  .hero h1 { margin: 0 0 8px; color: var(--accent-strong); }
+  .hero p { margin: 0; color: var(--muted); }
+  .toolbar, .cards, .panels { display: grid; gap: 14px; }
+  .toolbar { grid-template-columns: 1fr auto; align-items: end; }
+  .toolbar-card, .card, .panel {
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background: #fff;
+    box-shadow: var(--shadow);
+  }
+  .toolbar-card, .panel { padding: 16px; }
+  .filters { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; }
+  .field { display: grid; gap: 6px; min-width: 180px; }
+  .field label { font-size: .86rem; color: var(--muted); font-weight: 700; }
+  .field input {
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 10px 12px;
+    font: inherit;
+  }
+  .actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 10px 14px;
+    border-radius: 12px;
+    border: 1px solid transparent;
+    text-decoration: none;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-ghost { background: #fff; color: var(--accent-strong); border-color: var(--border); }
+  .btn-soft { background: rgba(111, 60, 195, 0.08); color: var(--accent-strong); border-color: rgba(111, 60, 195, 0.15); }
+  .cards { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+  .card { padding: 16px; }
+  .card .label { color: var(--muted); font-size: .9rem; }
+  .card .value { margin-top: 8px; font-size: 1.7rem; font-weight: 800; color: var(--accent-strong); }
+  .card .meta { margin-top: 6px; color: var(--muted); font-size: .88rem; }
+  .panels { grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
+  .panel h3 { margin: 0 0 12px; color: var(--accent-strong); }
+  .table-scroll {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    border-radius: 14px;
+  }
+  .metric-list { display: grid; gap: 10px; }
+  .metric-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: #faf7ff;
+    border: 1px solid rgba(111, 60, 195, 0.08);
+  }
+  .metric-row strong { color: var(--accent-strong); }
+  .user-card {
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 12px;
+    background: #faf7ff;
+    display: grid;
+    gap: 8px;
+  }
+  .user-card-title {
+    font-weight: 800;
+    color: var(--accent-strong);
+    font-size: .98rem;
+  }
+  .user-card-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px 10px;
+  }
+  .user-card-item {
+    border: 1px solid rgba(111, 60, 195, 0.08);
+    border-radius: 10px;
+    background: #fff;
+    padding: 8px 10px;
+  }
+  .user-card-item span {
+    display: block;
+    color: var(--muted);
+    font-size: .76rem;
+    margin-bottom: 4px;
+  }
+  .user-card-item strong {
+    color: var(--accent-strong);
+    font-size: .92rem;
+  }
+  .hour-list { display: grid; gap: 10px; }
+  .hour-row { display: grid; gap: 6px; }
+  .hour-top { display: flex; justify-content: space-between; gap: 10px; font-size: .92rem; }
+  .bar {
+    height: 11px;
+    border-radius: 999px;
+    background: #f3ecff;
+    overflow: hidden;
+    border: 1px solid rgba(111, 60, 195, 0.08);
+  }
+  .bar > span {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, #6f3cc3, #10b981);
+  }
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 6px 10px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: #faf7ff;
+    color: var(--accent-strong);
+    font-weight: 700;
+    font-size: .84rem;
+  }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { padding: 9px 10px; border-bottom: 1px solid var(--border); text-align: left; }
+  th { color: var(--muted); font-size: .84rem; text-transform: uppercase; letter-spacing: .04em; }
+  .muted { color: var(--muted); }
+  @media (max-width: 860px) {
+    .toolbar { grid-template-columns: 1fr; }
+    .actions { justify-content: flex-start; }
+    .actions,
+    .filters { width: 100%; }
+    .actions > *,
+    .filters > * { flex: 1 1 100%; }
+    .actions .btn,
+    .actions form,
+    .actions form .btn,
+    .filters .btn,
+    .field,
+    .field input { width: 100%; }
+    .cards { grid-template-columns: 1fr 1fr; }
+    .panels { grid-template-columns: 1fr; }
+    .metric-row { flex-direction: column; align-items: flex-start; }
+    .hero { padding: 18px; }
+    .hero h1 { font-size: 1.5rem; }
+    .user-card-grid { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 560px) {
+    .cards { grid-template-columns: 1fr; }
+    .toolbar-card, .panel, .card { padding: 14px; }
+    th, td { padding: 8px; font-size: .88rem; }
+    .card .value { font-size: 1.45rem; }
+    .pill { width: 100%; justify-content: center; }
+  }
+  .dot-not-formed { background: #f59e0b; }
+  .dot-fake-number { background: #ef4444; }
+  .dot-false-name { background: #7c3aed; }
+  .anomaly-not-formed td { background: rgba(245, 158, 11, 0.12); }
+  .anomaly-duplicate td { background: rgba(239, 68, 68, 0.10); }
+  .anomaly-false-name td { background: rgba(124, 58, 237, 0.10); }
+  .th-not-formed { background: rgba(245, 158, 11, 0.16); color: #92400e; }
+  .th-fake-number { background: rgba(239, 68, 68, 0.14); color: #991b1b; }
+  .th-false-name { background: rgba(124, 58, 237, 0.14); color: #6d28d9; }
+  .th-code { background: #f8fafc; color: #334155; }
+  .legend-item { display: inline-flex; align-items: center; gap: 8px; margin-right: 16px; font-size: 0.9rem; }
+  .legend-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
 </style>
 
 <div class="report-shell">
@@ -103,7 +207,6 @@
         {% csrf_token %}
         <input type="hidden" name="start" value="{{ start_value }}">
         <input type="hidden" name="end" value="{{ end_value }}">
-        <input type="hidden" name="classe" value="{{ selected_class_code }}">
         <button class="btn btn-primary" type="submit">Envoyer par mail</button>
       </form>
       {% endif %}
@@ -142,10 +245,17 @@
     <article class="panel">
       <h3>Appels</h3>
       <div class="metric-list">
-        <div class="metric-row"><span>Total</span><strong>{{ report.calls.total }}</strong></div>
-        <div class="metric-row"><span>Effectues</span><strong>{{ report.calls.processed }}</strong></div>
-        <div class="metric-row"><span>Termines</span><strong>{{ report.calls.completed }}</strong></div>
-        <div class="metric-row"><span>Avec audio</span><strong>{{ report.calls.with_audio }}</strong></div>
+        {% for source in report.call_sources %}
+        <div class="metric-row">
+          <div>
+            <strong>{{ source.label }}</strong>
+            <div class="muted">{{ source.completed }} termines, {{ source.with_audio }} audios</div>
+          </div>
+          <div>{{ source.total }}</div>
+        </div>
+        {% endfor %}
+      </div>
+      <div class="metric-list" style="margin-top:12px;">
         <div class="metric-row"><span>En attente</span><strong>{{ report.calls.pending }}</strong></div>
         <div class="metric-row"><span>En cours</span><strong>{{ report.calls.in_progress }}</strong></div>
         <div class="metric-row"><span>A rappeler</span><strong>{{ report.calls.callbacks }}</strong></div>
@@ -160,7 +270,8 @@
         <div class="metric-row"><span>Utilisateurs ayant appele</span><strong>{{ report.users.called_today }}</strong></div>
         <div class="metric-row"><span>Staff</span><strong>{{ report.users.staff }}</strong></div>
         <div class="metric-row"><span>Superadmin</span><strong>{{ report.users.superusers }}</strong></div>
-        <div class="metric-row"><span>Actifs sur la periode</span><strong>{{ report.users.seen_period }}</strong></div>
+        <div class="metric-row"><span>Groupes</span><strong>{{ user_groups_total }}</strong></div>
+        <div class="metric-row"><span>Managers</span><strong>{{ user_managers_total }}</strong></div>
       </div>
     </article>
 
@@ -174,14 +285,15 @@
       </div>
     </article>
 
-    <article class="panel anomaly-panel">
+    <article class="panel" style="grid-column: 1 / -1;">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
         <h3 style="margin:0;">Anomalie classe</h3>
         <form method="get" id="anomaly-filter-form" style="display:flex; gap:10px; align-items:center;">
           <input type="hidden" name="start" value="{{ start_value }}">
           <input type="hidden" name="end" value="{{ end_value }}">
-          <select name="classe" id="id_classe_selector" onchange="this.form.submit()" style="width:220px; max-width:220px; padding:8px 12px; border-radius:10px; border:1px solid var(--border); background:#fff; font-weight:600; color:var(--accent);">
-            <option value="">- Toutes les classes anormales -</option>
+          <label for="id_classe_selector" style="font-size:0.9rem; font-weight:700; color:var(--muted);">Filtrer par classe :</label>
+          <select name="classe" id="id_classe_selector" onchange="this.form.submit()" style="padding:8px 12px; border-radius:10px; border:1px solid var(--border); background:#fff; font-weight:600; color:var(--accent-strong);">
+            <option value="">— Toutes les classes anormales —</option>
             {% for cl in class_options %}
             <option value="{{ cl.code }}" {% if selected_class_code == cl.code %}selected{% endif %}>
               {{ cl.label }}{% if cl.has_not_formed %} &#x1F7E0;{% endif %}{% if cl.has_duplicate %} &#x1F534;{% endif %}{% if cl.has_false_name %} &#x1F7E3;{% endif %}
@@ -191,41 +303,45 @@
         </form>
       </div>
 
-      <p class="muted anomaly-compact-note">Anomalies du {{ report.anomaly_date|date:"d/m/Y" }}</p>
-      <div class="legend anomaly-legend" style="border-radius:12px; background:#f8fafc; border:1px solid #e2e8f0;">
+      <div class="legend" style="margin-bottom:16px; padding:12px; border-radius:12px; background:#f8fafc; border:1px solid #e2e8f0;">
+        {% if report.anomalies.selected_class.not_formed_count %}
         <span class="legend-item"><span class="legend-dot dot-not-formed"></span>Pas forme : {{ report.anomalies.selected_class.not_formed_count }}</span>
+        {% endif %}
+        {% if report.anomalies.selected_class.duplicate_numbers_count %}
         <span class="legend-item"><span class="legend-dot dot-fake-number"></span>Numero double : {{ report.anomalies.selected_class.duplicate_numbers_count }}</span>
+        {% endif %}
+        {% if report.anomalies.selected_class.false_name_count %}
         <span class="legend-item"><span class="legend-dot dot-false-name"></span>Faux nom : {{ report.anomalies.selected_class.false_name_count }}</span>
+        {% endif %}
         <span class="legend-item"><strong>Total anomalies : {{ report.anomalies.selected_class.total_anomalies_count }}</strong></span>
       </div>
 
-      <p class="muted anomaly-compact-note">
-        {{ report.anomalies.total_rows_count }} anomalie(s) trouvee(s) pour ce jour
-        {% if report.anomalies.total_rows_count > report.anomalies.page_rows_count %}
-        ; affichage des {{ report.anomalies.page_rows_count }} premieres lignes sur la page
-        {% endif %}
-      </p>
-
-      <div class="table-scroll anomaly-table-scroll">
-        <table class="anomaly-table">
+      <div class="table-scroll">
+        <table>
           <thead>
             <tr>
               <th class="th-code">Code</th>
-              <th class="th-not-formed">Pas forme</th>
-              <th class="th-fake-number">Numero double</th>
-              <th class="th-false-name">Faux nom</th>
+              {% if report.anomalies.selected_class.not_formed_count %}<th class="th-not-formed">Pas forme</th>{% endif %}
+              {% if report.anomalies.selected_class.duplicate_numbers_count %}<th class="th-fake-number">Numero double</th>{% endif %}
+              {% if report.anomalies.selected_class.false_name_count %}<th class="th-false-name">Faux nom</th>{% endif %}
             </tr>
           </thead>
           <tbody>
-            {% for row in report.anomalies.page_rows %}
+            {% for row in report.anomalies.anomaly_rows %}
             <tr class="{% if row.anomaly_label == 'Pas forme' %}anomaly-not-formed{% elif row.anomaly_label == 'Doublon' %}anomaly-duplicate{% else %}anomaly-false-name{% endif %}">
               <td>{{ row.code }}</td>
+              {% if report.anomalies.selected_class.not_formed_count %}
               <td>{% if row.anomaly_label == "Pas forme" %}Pas forme{% endif %}</td>
+              {% endif %}
+              {% if report.anomalies.selected_class.duplicate_numbers_count %}
               <td>{% if row.anomaly_label == "Doublon" %}{{ row.phone_display }}{% endif %}</td>
+              {% endif %}
+              {% if report.anomalies.selected_class.false_name_count %}
               <td>{% if row.anomaly_label == "Faux nom" %}{{ row.name }}{% endif %}</td>
+              {% endif %}
             </tr>
             {% empty %}
-            <tr><td colspan="4" class="muted" style="text-align:center; padding:14px;">Aucune anomalie detectee.</td></tr>
+            <tr><td colspan="4" class="muted" style="text-align:center; padding:20px;">Aucune anomalie detectee.</td></tr>
             {% endfor %}
           </tbody>
         </table>
@@ -238,20 +354,44 @@
         <div class="metric-row"><span>Bugs signales</span><strong>{{ report.bugs.alarms_total }}</strong></div>
         <div class="metric-row"><span>Bugs resolus</span><strong>{{ report.bugs.alarms_resolved }}</strong></div>
         <div class="metric-row"><span>Bugs ouverts</span><strong>{{ report.bugs.alarms_open }}</strong></div>
-        <div class="metric-row"><span>Entrees audit</span><strong>{{ report.bugs.audit_total }}</strong></div>
+        <div class="metric-row"><span>Erreurs logs</span><strong>{{ report.bugs.log_errors }}</strong></div>
+        <div class="metric-row"><span>Erreurs critiques</span><strong>{{ report.bugs.log_critical }}</strong></div>
       </div>
+      {% if report.bugs.recent_alarms %}
+      <div class="table-scroll" style="margin-top:12px;">
+        <table>
+          <thead>
+            <tr><th>Incident</th><th>Module</th><th>Etat</th></tr>
+          </thead>
+          <tbody>
+            {% for alarm in report.bugs.recent_alarms %}
+            <tr>
+              <td>{{ alarm.title }}</td>
+              <td>{{ alarm.module }}</td>
+              <td>{{ alarm.status }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% endif %}
     </article>
 
     <article class="panel">
       <h3>Appels par heure</h3>
       {% if report.best_hour %}
-      <div class="pill" style="margin-bottom:12px;">Pic journalier : {{ report.best_hour.label }} avec {{ report.best_hour.completed }} appels termines</div>
+      <div class="pill" style="margin-bottom:12px;">Pic journalier: {{ report.best_hour.label }} avec {{ report.best_hour.completed }} appels termines</div>
       {% endif %}
       <div class="hour-list">
         {% for row in report.hourly_rows %}
         <div class="hour-row">
-          <div class="hour-top"><span>{{ row.label }}</span><strong>{{ row.completed }}</strong></div>
-          <div class="bar"><span style="width:{% if report.best_hour and report.best_hour.completed %}{% widthratio row.completed report.best_hour.completed 100 %}{% else %}0{% endif %}%"></span></div>
+          <div class="hour-top">
+            <span>{{ row.label }}</span>
+            <strong>{{ row.completed }}</strong>
+          </div>
+          <div class="bar">
+            <span style="width:{% if report.best_hour and report.best_hour.completed %}{% widthratio row.completed report.best_hour.completed 100 %}{% else %}0{% endif %}%"></span>
+          </div>
         </div>
         {% endfor %}
       </div>
@@ -259,16 +399,31 @@
 
     <article class="panel">
       <h3>Temps par utilisateur</h3>
-      <div style="display:grid; gap:10px;">
+      <div class="mobile-user-list" style="display:grid; gap:10px;">
         {% for item in report.user_call_rows %}
         <article class="user-card">
           <div class="user-card-title">{{ item.username }}</div>
           <div class="user-card-grid">
-            <div class="user-card-item"><span>Appels effectues</span><strong>{{ item.calls_made }}</strong></div>
-            <div class="user-card-item"><span>Appels termines</span><strong>{{ item.completed_calls }}</strong></div>
-            <div class="user-card-item"><span>Temps estime</span><strong>{{ item.time_spent_label }}</strong></div>
-            <div class="user-card-item"><span>Premiere activite</span><strong>{{ item.first_activity_label }}</strong></div>
-            <div class="user-card-item"><span>Derniere activite</span><strong>{{ item.last_activity_label }}</strong></div>
+            <div class="user-card-item">
+              <span>Appels effectues</span>
+              <strong>{{ item.calls_made }}</strong>
+            </div>
+            <div class="user-card-item">
+              <span>Appels termines</span>
+              <strong>{{ item.completed_calls }}</strong>
+            </div>
+            <div class="user-card-item">
+              <span>Temps estime</span>
+              <strong>{{ item.time_spent_label }}</strong>
+            </div>
+            <div class="user-card-item">
+              <span>Premiere activite</span>
+              <strong>{{ item.first_activity_label }}</strong>
+            </div>
+            <div class="user-card-item">
+              <span>Derniere activite</span>
+              <strong>{{ item.last_activity_label }}</strong>
+            </div>
           </div>
         </article>
         {% empty %}
@@ -280,10 +435,27 @@
     <article class="panel">
       <h3>Diffusion mail</h3>
       <div class="metric-list">
-        <div class="metric-row"><span>Horaire automatique</span><strong>17h30</strong></div>
-        <div class="metric-row"><span>Destinataires configures</span><strong>{{ report.mail_status.configured_recipients|length }}</strong></div>
-        <div class="metric-row"><span>SMTP pret</span><strong>{% if report.mail_status.smtp_ready %}Oui{% else %}Non{% endif %}</strong></div>
+        <div class="metric-row">
+          <span>Horaire automatique</span>
+          <strong>17h30</strong>
+        </div>
+        <div class="metric-row">
+          <span>Destinataires configures</span>
+          <strong>{{ report.mail_status.configured_recipients|length }}</strong>
+        </div>
       </div>
+      <div style="margin-top:12px; display:flex; gap:8px; flex-wrap:wrap;">
+        {% for item in mail_recipients %}
+        <span class="pill">{{ item }}</span>
+        {% endfor %}
+      </div>
+      {% if report.mail_status.missing_configuration %}
+      <p class="muted" style="margin:12px 0 0;">Renseigne `REPORT_EMAIL_TO` dans le fichier `.env` pour activer les destinataires.</p>
+      {% elif not report.mail_status.smtp_ready %}
+      <p class="muted" style="margin:12px 0 0;">La liste des destinataires existe, mais la configuration SMTP n'est pas encore complete.</p>
+      {% else %}
+      <p class="muted" style="margin:12px 0 0;">La diffusion automatique par mail est prete.</p>
+      {% endif %}
     </article>
   </section>
 </div>

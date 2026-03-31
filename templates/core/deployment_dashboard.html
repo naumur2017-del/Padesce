@@ -1,0 +1,723 @@
+{% extends "base.html" %}
+{% block title %}Deploiement Gandi{% endblock %}
+{% block content %}
+<style>
+  .deploy-shell {
+    display: grid;
+    gap: 16px;
+  }
+  .deploy-hero,
+  .deploy-card {
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    background: #fff;
+    box-shadow: var(--shadow);
+  }
+  .deploy-hero {
+    padding: 22px;
+    background:
+      radial-gradient(circle at top right, rgba(111, 60, 195, 0.18), transparent 34%),
+      linear-gradient(135deg, #faf7ff 0%, #ffffff 72%);
+  }
+  .deploy-title {
+    margin: 0 0 8px;
+    color: var(--accent-strong);
+    font-size: 1.9rem;
+  }
+  .deploy-subtitle,
+  .muted {
+    margin: 0;
+    color: var(--muted);
+  }
+  .deploy-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 12px;
+  }
+  .deploy-card {
+    padding: 18px;
+  }
+  .label {
+    display: block;
+    margin-bottom: 6px;
+    color: var(--muted);
+    font-size: 0.83rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 700;
+  }
+  .value {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--text);
+    word-break: break-word;
+  }
+  .status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    border-radius: 999px;
+    padding: 7px 12px;
+    font-weight: 700;
+    border: 1px solid var(--border);
+    background: #faf7ff;
+  }
+  .status-pill.ready {
+    color: #0f766e;
+    background: #ecfdf5;
+    border-color: #a7f3d0;
+  }
+  .status-pill.error {
+    color: #9f1239;
+    background: #fff1f2;
+    border-color: #fecdd3;
+  }
+  .status-pill.running {
+    color: #92400e;
+    background: #fff7ed;
+    border-color: #fdba74;
+  }
+  .action-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+  }
+  .search-input {
+    width: 100%;
+    min-width: 0;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: #fff;
+    color: var(--text);
+    font: inherit;
+  }
+  .primary-btn,
+  .secondary-btn {
+    border-radius: 12px;
+    padding: 11px 16px;
+    font-weight: 700;
+    border: 1px solid var(--accent);
+    cursor: pointer;
+  }
+  .primary-btn {
+    background: var(--accent);
+    color: #fff;
+  }
+  .secondary-btn {
+    background: #fff;
+    color: var(--accent-strong);
+  }
+  .primary-btn[disabled],
+  .secondary-btn[disabled] {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+  .progress-track {
+    height: 12px;
+    border-radius: 999px;
+    background: #ede9fe;
+    overflow: hidden;
+    border: 1px solid var(--border);
+  }
+  .progress-bar {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, #6f3cc3 0%, #f59e0b 100%);
+    transition: width 0.25s ease;
+  }
+  .steps-grid,
+  .summary-grid,
+  .list-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 12px;
+  }
+  .step-card,
+  .summary-card,
+  .list-card {
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: #faf7ff;
+    padding: 14px;
+  }
+  .step-card.pending { opacity: 0.68; }
+  .step-card.running { border-color: #fdba74; background: #fff7ed; }
+  .step-card.completed { border-color: #a7f3d0; background: #ecfdf5; }
+  .step-card.failed { border-color: #fecdd3; background: #fff1f2; }
+  .step-card.skipped { border-style: dashed; }
+  .step-head,
+  .history-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .step-title,
+  .summary-value {
+    margin: 0;
+    font-weight: 800;
+    color: var(--accent-strong);
+  }
+  .step-meta,
+  .history-meta {
+    margin-top: 8px;
+    font-size: 0.88rem;
+    color: var(--muted);
+  }
+  .list-scroll,
+  .logs-scroll,
+  .history-scroll {
+    max-height: 320px;
+    overflow: auto;
+  }
+  .file-list,
+  .log-list {
+    margin: 0;
+    padding-left: 18px;
+  }
+  .file-list li,
+  .log-list li {
+    margin-bottom: 6px;
+    font-size: 0.92rem;
+  }
+  .history-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .history-table th,
+  .history-table td {
+    border-bottom: 1px solid var(--border);
+    padding: 10px 8px;
+    text-align: left;
+    font-size: 0.92rem;
+  }
+  .empty-box,
+  .alert-box {
+    border-radius: 14px;
+    padding: 14px;
+    border: 1px dashed var(--border);
+    background: #faf7ff;
+    color: var(--muted);
+  }
+  .alert-box.error {
+    border-style: solid;
+    border-color: #fecdd3;
+    background: #fff1f2;
+    color: #9f1239;
+  }
+  .inline-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 12px;
+  }
+  .inline-links a {
+    color: var(--accent-strong);
+    font-weight: 700;
+    text-decoration: none;
+  }
+</style>
+
+<section class="deploy-shell">
+  <section class="deploy-hero">
+    <h1 class="deploy-title">Deploiement Gandi</h1>
+    <p class="deploy-subtitle">
+      Pipeline en etapes pour synchroniser les ajouts, modifications et suppressions vers
+      <strong>{{ config.domain }}</strong>, avec verification distante et suivi horodate.
+    </p>
+  </section>
+
+  <section class="deploy-grid">
+    <article class="deploy-card">
+      <span class="label">Etat</span>
+      <div class="status-pill {% if config.ready %}ready{% else %}error{% endif %}">
+        {% if config.ready %}Configuration prete{% else %}Configuration incomplete{% endif %}
+      </div>
+    </article>
+    <article class="deploy-card">
+      <span class="label">Serveur SFTP</span>
+      <div class="value">{{ config.host }}:{{ config.port }}</div>
+    </article>
+    <article class="deploy-card">
+      <span class="label">Utilisateur</span>
+      <div class="value">{{ config.username_masked|default:"Non configure" }}</div>
+    </article>
+    <article class="deploy-card">
+      <span class="label">Racine distante</span>
+      <div class="value">{{ config.remote_path|default:"Detection automatique" }}</div>
+    </article>
+    <article class="deploy-card">
+      <span class="label">Verification web</span>
+      <div class="value">{{ config.verify_url }}</div>
+    </article>
+    <article class="deploy-card">
+      <span class="label">Racine locale</span>
+      <div class="value">{{ config.local_root }}</div>
+    </article>
+    <article class="deploy-card">
+      <span class="label">Chemins deployes</span>
+      <div class="value">{{ config.include_paths|join:", " }}</div>
+    </article>
+  </section>
+
+  <section class="deploy-card">
+    <span class="label">Configuration serveur</span>
+    <p class="muted" style="margin-bottom:12px;">
+      Si le serveur affiche des variables manquantes, enregistrez ici l'hote, le username et le token directement sur le serveur.
+    </p>
+    <div class="deploy-grid">
+      <label>
+        <span class="label">Hote</span>
+        <input id="cfg-host" class="search-input" value="{{ config.host }}" />
+      </label>
+      <label>
+        <span class="label">Port</span>
+        <input id="cfg-port" class="search-input" value="{{ config.port }}" />
+      </label>
+      <label>
+        <span class="label">Domaine</span>
+        <input id="cfg-domain" class="search-input" value="{{ config.domain }}" />
+      </label>
+      <label>
+        <span class="label">Username</span>
+        <input id="cfg-username" class="search-input" value="" placeholder="{{ config.username_masked|default:'A renseigner' }}" />
+      </label>
+      <label>
+        <span class="label">Token</span>
+        <input id="cfg-token" type="password" class="search-input" value="" placeholder="{% if config.token_present %}Token deja enregistre{% else %}A renseigner{% endif %}" />
+      </label>
+      <label>
+        <span class="label">Racine distante</span>
+        <input id="cfg-remote-path" class="search-input" value="{{ config.remote_path }}" placeholder="Detection automatique" />
+      </label>
+      <label>
+        <span class="label">Verification URL</span>
+        <input id="cfg-verify-url" class="search-input" value="{{ config.verify_url }}" />
+      </label>
+      <label>
+        <span class="label">Racine locale</span>
+        <input id="cfg-local-root" class="search-input" value="{{ config.local_root }}" />
+      </label>
+      <label>
+        <span class="label">Chemins deployes</span>
+        <input id="cfg-include-paths" class="search-input" value="{{ config.include_paths|join:', ' }}" />
+      </label>
+    </div>
+    <div class="action-row" style="margin-top:12px;">
+      <button id="save-config-btn" class="secondary-btn" type="button">Enregistrer la config serveur</button>
+      <div id="config-status" class="status-pill {% if config.runtime_config_present or config.ready %}ready{% endif %}">
+        {% if config.runtime_config_present %}Config serveur enregistree{% else %}Config non enregistree{% endif %}
+      </div>
+    </div>
+  </section>
+
+  <section class="deploy-card">
+    <div class="action-row">
+      <button id="preview-btn" class="secondary-btn" {% if not config.ready %}disabled{% endif %}>Previsualiser</button>
+      <button id="deploy-btn" class="primary-btn" {% if not config.ready %}disabled{% endif %}>Deployer maintenant</button>
+      <div id="action-status" class="status-pill {% if active_run %}running{% endif %}">
+        {% if active_run %}Run en cours{% else %}Aucun run actif{% endif %}
+      </div>
+    </div>
+    {% if config.errors %}
+      <div class="alert-box error" style="margin-top:12px;">
+        {% for error in config.errors %}<div>{{ error }}</div>{% endfor %}
+      </div>
+    {% else %}
+      <p class="muted" style="margin-top:12px;">
+        Le premier deploiement pose un manifeste distant pour activer les suppressions suivies sans risquer de nettoyer des fichiers externes au pipeline.
+      </p>
+    {% endif %}
+  </section>
+
+  <section class="deploy-card">
+    <div class="history-head">
+      <div>
+        <span class="label">Run selectionne</span>
+        <h2 class="step-title" id="run-title">Aucun run charge</h2>
+      </div>
+      <div class="status-pill" id="run-status-pill">En attente</div>
+    </div>
+    <div class="step-meta" id="run-meta">Lancez une previsualisation ou un deploiement pour initialiser le pipeline.</div>
+    <div class="progress-track" style="margin-top:14px;">
+      <div id="progress-bar" class="progress-bar"></div>
+    </div>
+  </section>
+
+  <section class="summary-grid">
+    <article class="summary-card"><span class="label">Ajouts</span><p id="summary-additions" class="summary-value">0</p></article>
+    <article class="summary-card"><span class="label">Modifications</span><p id="summary-modifications" class="summary-value">0</p></article>
+    <article class="summary-card"><span class="label">Suppressions suivies</span><p id="summary-deletions" class="summary-value">0</p></article>
+    <article class="summary-card"><span class="label">Distants non suivis</span><p id="summary-untracked" class="summary-value">0</p></article>
+  </section>
+
+  <section class="deploy-card">
+    <span class="label">Confirmation du serveur Python</span>
+    <div id="verification-panel" class="empty-box">
+      Le rechargement du serveur Python sera controle automatiquement apres un deploiement reel.
+    </div>
+  </section>
+
+  <section class="steps-grid" id="steps-grid"></section>
+
+  <section class="list-grid">
+    <article class="list-card">
+      <span class="label">Ajouts</span>
+      <div id="list-additions" class="list-scroll empty-box">Aucun element.</div>
+    </article>
+    <article class="list-card">
+      <span class="label">Modifications</span>
+      <div id="list-modifications" class="list-scroll empty-box">Aucun element.</div>
+    </article>
+    <article class="list-card">
+      <span class="label">Suppressions</span>
+      <div id="list-deletions" class="list-scroll empty-box">Aucun element.</div>
+    </article>
+    <article class="list-card">
+      <span class="label">Distants non suivis</span>
+      <div id="list-untracked" class="list-scroll empty-box">Aucun element.</div>
+    </article>
+  </section>
+
+  <section class="deploy-card">
+    <span class="label">Journal</span>
+    <div id="logs-panel" class="logs-scroll empty-box">Aucun journal pour le moment.</div>
+  </section>
+
+  <section class="deploy-card">
+    <span class="label">Historique recent</span>
+    <div class="history-scroll">
+      <table class="history-table">
+        <thead>
+          <tr>
+            <th>Run</th>
+            <th>Mode</th>
+            <th>Statut</th>
+            <th>Debut</th>
+            <th>Progression</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for run in recent_runs %}
+            <tr>
+              <td><button class="secondary-btn history-run" data-run-id="{{ run.id }}" type="button">{{ run.id }}</button></td>
+              <td>{{ run.mode }}</td>
+              <td>{{ run.status }}</td>
+              <td>{{ run.started_at }}</td>
+              <td>{{ run.progress_pct }}%</td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="5">Aucun historique de deploiement disponible.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+</section>
+
+<input type="hidden" id="csrf-token" value="{{ csrf_token }}">
+<script id="initial-run-data" type="application/json">{{ initial_run_json|safe }}</script>
+<script>
+  const initialRun = JSON.parse(document.getElementById("initial-run-data").textContent || "{}");
+  const csrfToken = document.getElementById("csrf-token").value;
+  const configSaveUrl = "{% url 'deployment_config_save' %}";
+  const startUrl = "{% url 'deployment_start' %}";
+  const statusUrlTemplate = "{% url 'deployment_status' '__RUN_ID__' %}";
+  const actionStatus = document.getElementById("action-status");
+  const configStatus = document.getElementById("config-status");
+  const saveConfigBtn = document.getElementById("save-config-btn");
+  const previewBtn = document.getElementById("preview-btn");
+  const deployBtn = document.getElementById("deploy-btn");
+  let activeRunId = initialRun.id || "";
+  let pollTimer = null;
+
+  function refreshConfigState(config) {
+    const ready = !!(config && config.ready);
+    previewBtn.disabled = !ready;
+    deployBtn.disabled = !ready;
+    configStatus.textContent = ready ? "Configuration prete" : "Configuration incomplete";
+    configStatus.className = "status-pill " + (ready ? "ready" : "error");
+  }
+
+  function formatDate(value) {
+    if (!value) return "-";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value;
+    return date.toLocaleString("fr-FR");
+  }
+
+  function setBusy(isBusy) {
+    const canRun = configStatus.className.includes("ready");
+    previewBtn.disabled = isBusy || !canRun;
+    deployBtn.disabled = isBusy || !canRun;
+    actionStatus.textContent = isBusy ? "Run en cours" : "Pret";
+    actionStatus.className = "status-pill " + (isBusy ? "running" : "ready");
+  }
+
+  function renderList(targetId, items) {
+    const target = document.getElementById(targetId);
+    if (!items || !items.length) {
+      target.className = "list-scroll empty-box";
+      target.innerHTML = "Aucun element.";
+      return;
+    }
+    target.className = "list-scroll";
+    target.innerHTML = `<ol class="file-list">${items.map((item) => `<li>${item}</li>`).join("")}</ol>`;
+  }
+
+  function renderLogs(logs) {
+    const target = document.getElementById("logs-panel");
+    if (!logs || !logs.length) {
+      target.className = "logs-scroll empty-box";
+      target.textContent = "Aucun journal pour le moment.";
+      return;
+    }
+    target.className = "logs-scroll";
+    target.innerHTML = `<ol class="log-list">${logs.map((entry) => `<li>[${formatDate(entry.at)}] ${entry.message}</li>`).join("")}</ol>`;
+  }
+
+  function renderVerification(run) {
+    const target = document.getElementById("verification-panel");
+    const verification = (run && run.verification) || {};
+    const live = verification.live_refresh || {};
+    const http = verification.http_check || {};
+    if (!run || !run.id) {
+      target.className = "empty-box";
+      target.textContent = "Le rechargement du serveur Python sera controle automatiquement apres un deploiement reel.";
+      return;
+    }
+    const lines = [];
+    if (live.message) {
+      lines.push(`<div><strong>Serveur Python:</strong> ${live.message}</div>`);
+    } else if (run.mode === "preview") {
+      lines.push("<div><strong>Serveur Python:</strong> Verification reservee au deploiement reel.</div>");
+    }
+    if (live.app_booted_at) {
+      lines.push(`<div><strong>Nouveau demarrage confirme:</strong> ${formatDate(live.app_booted_at)}</div>`);
+    }
+    if (http.status_code) {
+      lines.push(`<div><strong>Site public:</strong> HTTP ${http.status_code}</div>`);
+    } else if (http.message) {
+      lines.push(`<div><strong>Site public:</strong> ${http.message}</div>`);
+    }
+    const links = [];
+    if (live.live_status_url) {
+      links.push(`<a href="${live.live_status_url}" target="_blank" rel="noreferrer">Controle live</a>`);
+    }
+    if (live.deployment_page_url) {
+      links.push(`<a href="${live.deployment_page_url}" target="_blank" rel="noreferrer">Page de suivi</a>`);
+    }
+    if (links.length) {
+      lines.push(`<div class="inline-links">${links.join("")}</div>`);
+    }
+    if (!lines.length) {
+      target.className = "empty-box";
+      target.textContent = "Aucune verification supplementaire n'est encore disponible pour ce run.";
+      return;
+    }
+    const hasError = live.required !== false && live.reloaded === false && run.status === "failed";
+    target.className = hasError ? "alert-box error" : "empty-box";
+    target.innerHTML = lines.join("");
+  }
+
+  function renderSteps(steps) {
+    const container = document.getElementById("steps-grid");
+    if (!steps || !steps.length) {
+      container.innerHTML = `<div class="empty-box">Aucune etape disponible.</div>`;
+      return;
+    }
+    container.innerHTML = steps.map((step) => `
+      <article class="step-card ${step.status}">
+        <div class="step-head">
+          <h3 class="step-title">${step.label}</h3>
+          <span class="status-pill">${step.status}</span>
+        </div>
+        <div class="step-meta">${step.message || "En attente."}</div>
+        <div class="step-meta">Debut: ${formatDate(step.started_at)} | Fin: ${formatDate(step.completed_at)}</div>
+      </article>
+    `).join("");
+  }
+
+  function renderRun(run) {
+    if (!run || !run.id) {
+      return;
+    }
+    const summary = run.summary || {};
+    const diff = run.diff || {};
+    const archivedNotice = run.archived_notice || "";
+    document.getElementById("run-title").textContent = `${run.id} (${run.mode || "run"})`;
+    document.getElementById("run-status-pill").textContent = run.status || "pending";
+    document.getElementById("run-meta").textContent =
+      `Debut: ${formatDate(run.started_at)} | Fin: ${formatDate(run.completed_at)} | Racine distante: ${summary.remote_path || "-"}${archivedNotice ? " | " + archivedNotice : ""}`;
+    document.getElementById("progress-bar").style.width = `${run.progress_pct || 0}%`;
+    document.getElementById("summary-additions").textContent = summary.additions || 0;
+    document.getElementById("summary-modifications").textContent = summary.modifications || 0;
+    document.getElementById("summary-deletions").textContent = summary.deletions || 0;
+    document.getElementById("summary-untracked").textContent = summary.remote_untracked || 0;
+    renderSteps(run.steps || []);
+    renderList("list-additions", diff.additions || []);
+    renderList("list-modifications", diff.modifications || []);
+    renderList("list-deletions", diff.deletions || []);
+    renderList("list-untracked", diff.remote_untracked || []);
+    renderLogs(run.logs || []);
+    renderVerification(run);
+    const isRunning = run.status === "running";
+    setBusy(isRunning);
+    if (run.status === "failed" && run.error) {
+      actionStatus.textContent = run.error;
+      actionStatus.className = "status-pill error";
+    } else if (run.archived) {
+      actionStatus.textContent = "Resume archive charge";
+      actionStatus.className = "status-pill ready";
+    } else if (!isRunning) {
+      actionStatus.textContent = run.status === "completed" ? "Dernier run termine" : "Pret";
+      actionStatus.className = "status-pill ready";
+    }
+  }
+
+  async function fetchRun(runId) {
+    const response = await fetch(statusUrlTemplate.replace("__RUN_ID__", runId), {
+      headers: { "Accept": "application/json" }
+    });
+    const payload = await response.json();
+    if (!response.ok || !payload.ok) {
+      throw new Error(payload.error || "Impossible de charger le run.");
+    }
+    return payload.run;
+  }
+
+  async function pollRun(runId) {
+    try {
+      const run = await fetchRun(runId);
+      renderRun(run);
+      if (run.status === "running") {
+        pollTimer = window.setTimeout(() => pollRun(runId), 2000);
+      }
+    } catch (error) {
+      actionStatus.textContent = error.message;
+      actionStatus.className = "status-pill error";
+    }
+  }
+
+  async function startRun(mode) {
+    if (pollTimer) {
+      window.clearTimeout(pollTimer);
+    }
+    setBusy(true);
+    const body = new URLSearchParams({ mode });
+    const response = await fetch(startUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
+        "X-CSRFToken": csrfToken,
+        "Accept": "application/json"
+      },
+      body: body.toString()
+    });
+    const payload = await response.json();
+    if (!response.ok || !payload.ok) {
+      setBusy(false);
+      throw new Error(payload.error || "Le lancement du pipeline a echoue.");
+    }
+    activeRunId = payload.run_id;
+    pollRun(activeRunId);
+  }
+
+  async function saveServerConfig() {
+    saveConfigBtn.disabled = true;
+    configStatus.textContent = "Enregistrement...";
+    configStatus.className = "status-pill running";
+    const body = new URLSearchParams({
+      host: document.getElementById("cfg-host").value,
+      port: document.getElementById("cfg-port").value,
+      domain: document.getElementById("cfg-domain").value,
+      username: document.getElementById("cfg-username").value,
+      token: document.getElementById("cfg-token").value,
+      remote_path: document.getElementById("cfg-remote-path").value,
+      verify_url: document.getElementById("cfg-verify-url").value,
+      local_root: document.getElementById("cfg-local-root").value,
+      include_paths: document.getElementById("cfg-include-paths").value
+    });
+    const response = await fetch(configSaveUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
+        "X-CSRFToken": csrfToken,
+        "Accept": "application/json"
+      },
+      body: body.toString()
+    });
+    const payload = await response.json();
+    saveConfigBtn.disabled = false;
+    if (!response.ok || !payload.ok) {
+      throw new Error(payload.error || "Impossible d'enregistrer la configuration.");
+    }
+    refreshConfigState(payload.config || {});
+    document.getElementById("cfg-username").value = "";
+    document.getElementById("cfg-token").value = "";
+    return payload.config;
+  }
+
+  previewBtn?.addEventListener("click", async () => {
+    try {
+      await startRun("preview");
+    } catch (error) {
+      actionStatus.textContent = error.message;
+      actionStatus.className = "status-pill error";
+    }
+  });
+
+  deployBtn?.addEventListener("click", async () => {
+    try {
+      await startRun("deploy");
+    } catch (error) {
+      actionStatus.textContent = error.message;
+      actionStatus.className = "status-pill error";
+    }
+  });
+
+  saveConfigBtn?.addEventListener("click", async () => {
+    try {
+      const config = await saveServerConfig();
+      actionStatus.textContent = config.ready ? "Configuration serveur mise a jour" : "Configuration enregistree mais incomplete";
+      actionStatus.className = "status-pill " + (config.ready ? "ready" : "error");
+    } catch (error) {
+      configStatus.textContent = error.message;
+      configStatus.className = "status-pill error";
+    }
+  });
+
+  document.querySelectorAll(".history-run").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const runId = button.dataset.runId;
+      if (!runId) return;
+      if (pollTimer) {
+        window.clearTimeout(pollTimer);
+      }
+      try {
+        const run = await fetchRun(runId);
+        activeRunId = runId;
+        renderRun(run);
+        if (run.status === "running") {
+          pollRun(runId);
+        }
+      } catch (error) {
+        actionStatus.textContent = error.message;
+        actionStatus.className = "status-pill error";
+      }
+    });
+  });
+
+  if (initialRun && initialRun.id) {
+    fetchRun(initialRun.id).then((run) => {
+      renderRun(run);
+      if (run.status === "running") {
+        pollRun(run.id);
+      }
+    }).catch(() => renderRun(initialRun));
+  }
+  refreshConfigState({ ready: {{ config.ready|yesno:"true,false" }} });
+</script>
+{% endblock %}

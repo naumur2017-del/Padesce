@@ -1,0 +1,276 @@
+{% extends "base.html" %}
+{% block title %}Support Interne{% endblock %}
+{% block content %}
+<style>
+  .support-grid { display:grid; grid-template-columns: 320px 1fr; gap:14px; }
+  .panel { border:1px solid var(--border); background:#fff; border-radius:14px; padding:14px; box-shadow:var(--shadow); }
+  .panel h2, .panel h3 { margin:0 0 10px; color:var(--accent-strong); }
+  .small { color:var(--muted); font-size:.9rem; }
+  .user-list { max-height:220px; overflow:auto; border:1px solid var(--border); border-radius:10px; padding:8px; }
+  .user-item { display:block; padding:7px 8px; border-radius:8px; margin-bottom:4px; }
+  .user-item.active { background:#f3e8ff; font-weight:700; }
+  .form-row { margin-bottom:10px; display:grid; gap:6px; }
+  input, select, textarea { border:1px solid var(--border); border-radius:10px; padding:9px; font:inherit; }
+  .btn { border:1px solid var(--accent); background:var(--accent); color:#fff; border-radius:10px; padding:9px 12px; cursor:pointer; font-weight:700; }
+  .btn-ghost { border:1px solid var(--border); background:#fff; color:var(--accent-strong); }
+  .thread { max-height:340px; overflow:auto; border:1px solid var(--border); border-radius:12px; padding:10px; background:#fcfbff; }
+  .msg { margin:0 0 8px; padding:8px 10px; border-radius:10px; border:1px solid var(--border); background:#fff; }
+  .msg.mine { border-color:#c4b5fd; background:#f5f3ff; }
+  .msg-meta { font-size:.78rem; color:var(--muted); margin-bottom:4px; }
+  .alarm-history { max-height:320px; overflow:auto; }
+  .alarm-card { border:1px solid var(--border); border-radius:10px; padding:8px; margin-bottom:8px; background:#fff; }
+  .alarm-head { display:flex; justify-content:space-between; gap:8px; align-items:center; }
+  .alarm-badge { border:1px solid #fecaca; background:#fef2f2; color:#991b1b; border-radius:999px; padding:2px 8px; font-size:.78rem; font-weight:700; }
+  .notify-box { margin-bottom:10px; padding:8px 10px; border-radius:10px; border:1px solid #fecaca; background:#fff1f2; color:#9f1239; font-weight:700; }
+  @media (max-width: 960px){ .support-grid { grid-template-columns: 1fr; } }
+</style>
+
+<div class="support-grid">
+  <section class="panel">
+    <h2>Support Interne</h2>
+    <div class="small">Utilisateurs disponibles</div>
+    <div class="user-list" style="margin-top:8px;">
+      {% for u in recipient_users %}
+        <a class="user-item{% if selected_user and selected_user.id == u.id %} active{% endif %}" href="?with={{ u.id }}">{{ u.username }}</a>
+      {% empty %}
+        <div class="small">Aucun utilisateur disponible.</div>
+      {% endfor %}
+    </div>
+
+    <hr style="margin:12px 0; border:none; border-top:1px solid var(--border);">
+
+    <h3>Envoyer Un Message</h3>
+    <form method="post" id="js-msg-form">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="send_message">
+      <div class="form-row">
+        <label for="{{ message_form.recipient.id_for_label }}">Destinataire</label>
+        {{ message_form.recipient }}
+      </div>
+      <div class="form-row">
+        <label for="{{ message_form.body.id_for_label }}">Message</label>
+        {{ message_form.body }}
+      </div>
+      <button class="btn" type="submit">Envoyer</button>
+    </form>
+
+    <hr style="margin:12px 0; border:none; border-top:1px solid var(--border);">
+
+    <h3>Signaler Une Alerte</h3>
+    <form method="post" id="js-alarm-form">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="raise_alarm">
+      <div class="form-row">
+        <label for="{{ alarm_form.module.id_for_label }}">Module</label>
+        {{ alarm_form.module }}
+      </div>
+      <div class="form-row">
+        <label for="{{ alarm_form.title.id_for_label }}">Titre</label>
+        {{ alarm_form.title }}
+      </div>
+      <div class="form-row">
+        <label for="{{ alarm_form.details.id_for_label }}">Details</label>
+        {{ alarm_form.details }}
+      </div>
+      <button class="btn" type="submit">Declencher Alarme</button>
+    </form>
+  </section>
+
+  <section class="panel">
+    <h2>Conversation</h2>
+    <div class="small">
+      {% if selected_user %}Discussion avec <strong>{{ selected_user.username }}</strong>{% else %}Selectionnez un utilisateur{% endif %}
+      | Non lus: <strong>{{ unread_inbox_count }}</strong>
+    </div>
+    <div class="thread" id="js-thread" style="margin-top:10px;">
+      {% for m in thread_messages %}
+        <div class="msg{% if m.sender_id == user.id %} mine{% endif %}">
+          <div class="msg-meta">{{ m.sender.username }} | {{ m.created_at|date:"d/m/Y H:i:s" }} | {{ m.get_kind_display }}</div>
+          <div>{{ m.body|linebreaksbr }}</div>
+        </div>
+      {% empty %}
+        <div class="small">Aucun message pour cette conversation.</div>
+      {% endfor %}
+    </div>
+
+    <h3 style="margin-top:14px;">Historique Alarmes</h3>
+    {% if user.is_superuser %}
+      <div id="js-notify-box" class="notify-box" style="display:none;"></div>
+    {% endif %}
+    <div class="alarm-history" id="js-alarm-history">
+      {% for a in support_alarms %}
+        <div class="alarm-card" data-alarm-id="{{ a.id }}">
+          <div class="alarm-head">
+            <strong>{{ a.title }}</strong>
+            {% if a.is_seen %}
+              <span class="alarm-badge" style="background:#ecfdf5; color:#065f46; border-color:#a7f3d0;">Vue</span>
+            {% else %}
+              <span class="alarm-badge">Nouvelle</span>
+            {% endif %}
+          </div>
+          <div class="small" style="margin-top:4px;">Reporter: {{ a.reporter.username }} | Module: {{ a.module|default:"-" }} | {{ a.created_at|date:"d/m/Y H:i:s" }}</div>
+          {% if a.details %}<div style="margin-top:6px;">{{ a.details|linebreaksbr }}</div>{% endif %}
+          {% if user.is_superuser and not a.is_seen %}
+            <form method="post" action="{% url 'messaging_support_alarm_seen' a.id %}" class="js-seen-form" style="margin-top:8px;">
+              {% csrf_token %}
+              <button class="btn btn-ghost" type="submit">Marquer comme vue</button>
+            </form>
+          {% endif %}
+        </div>
+      {% empty %}
+        <div class="small">Aucune alarme.</div>
+      {% endfor %}
+    </div>
+  </section>
+</div>
+
+<script>
+  (function () {
+    const isSuperuser = {{ user.is_superuser|yesno:"true,false" }};
+    const currentUserId = {{ user.id }};
+    const selectedUserId = {% if selected_user %}{{ selected_user.id }}{% else %}null{% endif %};
+    const msgForm = document.getElementById("js-msg-form");
+    const alarmForm = document.getElementById("js-alarm-form");
+    const threadEl = document.getElementById("js-thread");
+    const alarmHistoryEl = document.getElementById("js-alarm-history");
+    const notifyBox = document.getElementById("js-notify-box");
+    let audioCtx = null;
+    let wsRetryCount = 0;
+    const maxWsRetries = 5;
+
+    function beep() {
+      try {
+        audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+        const oscillator = audioCtx.createOscillator();
+        const gainNode = audioCtx.createGain();
+        oscillator.type = "sine";
+        oscillator.frequency.value = 880;
+        gainNode.gain.value = 0.08;
+        oscillator.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+        oscillator.start();
+        setTimeout(() => oscillator.stop(), 180);
+      } catch (e) {}
+    }
+
+    function escHtml(value) {
+      return String(value || "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+    }
+
+    function appendMessage(message) {
+      if (!threadEl || !selectedUserId) return;
+      const senderId = Number(message.sender_id || 0);
+      const recipientId = Number(message.recipient_id || 0);
+      const inCurrentThread =
+        (senderId === currentUserId && recipientId === selectedUserId) ||
+        (senderId === selectedUserId && recipientId === currentUserId);
+      if (!inCurrentThread) return;
+      const mine = senderId === currentUserId ? " mine" : "";
+      const created = message.created_at ? new Date(message.created_at).toLocaleString() : "";
+      const wrapper = document.createElement("div");
+      wrapper.className = "msg" + mine;
+      wrapper.innerHTML =
+        '<div class="msg-meta">' + escHtml(message.sender_username) + " | " + escHtml(created) + " | " + escHtml(message.kind_label || "Chat") + "</div>" +
+        "<div>" + escHtml(message.body).replaceAll("\n", "<br>") + "</div>";
+      threadEl.appendChild(wrapper);
+      threadEl.scrollTop = threadEl.scrollHeight;
+    }
+
+    function appendAlarm(alarm) {
+      if (!alarmHistoryEl) return;
+      const created = alarm.created_at ? new Date(alarm.created_at).toLocaleString() : "";
+      const wrapper = document.createElement("div");
+      wrapper.className = "alarm-card";
+      wrapper.setAttribute("data-alarm-id", alarm.id);
+      wrapper.innerHTML =
+        '<div class="alarm-head"><strong>' + escHtml(alarm.title) + '</strong><span class="alarm-badge">Nouvelle</span></div>' +
+        '<div class="small" style="margin-top:4px;">Reporter: ' + escHtml(alarm.reporter_username || "-") + " | Module: " + escHtml(alarm.module || "-") + " | " + escHtml(created) + "</div>" +
+        (alarm.details ? '<div style="margin-top:6px;">' + escHtml(alarm.details).replaceAll("\n", "<br>") + "</div>" : "");
+      alarmHistoryEl.prepend(wrapper);
+    }
+
+    function notifyAlarm(alarm) {
+      if (!isSuperuser || !notifyBox || !alarm) return;
+      notifyBox.style.display = "block";
+      notifyBox.textContent = "ALERTE: " + (alarm.title || "Nouvelle alerte") + " | Reporter: " + (alarm.reporter_username || "-") + " | Module: " + (alarm.module || "-");
+      beep();
+    }
+
+    const protocol = window.location.protocol === "https:" ? "wss" : "ws";
+    const wsUrl = protocol + "://" + window.location.host + "/ws/support/";
+    let ws = null;
+
+    function connectWs() {
+      if (!("WebSocket" in window) || wsRetryCount >= maxWsRetries) return;
+      ws = new WebSocket(wsUrl);
+      ws.onopen = function () {
+        wsRetryCount = 0;
+      };
+      ws.onmessage = function (event) {
+        let data = {};
+        try { data = JSON.parse(event.data || "{}"); } catch (err) { return; }
+        if (data.type === "chat_message" && data.message) {
+          appendMessage(data.message);
+          const receiverId = Number(data.message.recipient_id || 0);
+          const senderId = Number(data.message.sender_id || 0);
+          if (receiverId === currentUserId && senderId !== currentUserId) beep();
+        } else if (data.type === "alarm_created" && data.alarm) {
+          appendAlarm(data.alarm);
+          notifyAlarm(data.alarm);
+        } else if (data.type === "error" && data.error) {
+          alert(data.error);
+        }
+      };
+      ws.onclose = function () {
+        ws = null;
+        wsRetryCount += 1;
+        if (wsRetryCount < maxWsRetries) {
+          setTimeout(connectWs, 1200);
+        }
+      };
+    }
+
+    connectWs();
+
+    msgForm?.addEventListener("submit", function (event) {
+      if (!ws || ws.readyState !== WebSocket.OPEN) return;
+      event.preventDefault();
+      const recipientInput = msgForm.querySelector("select[name='msg-recipient']");
+      const bodyInput = msgForm.querySelector("textarea[name='msg-body']");
+      const recipientId = recipientInput ? recipientInput.value : "";
+      const body = bodyInput ? bodyInput.value.trim() : "";
+      if (!recipientId || !body) return alert("Destinataire et message requis.");
+      ws.send(JSON.stringify({ action: "send_chat", recipient_id: recipientId, body: body }));
+      bodyInput.value = "";
+    });
+
+    alarmForm?.addEventListener("submit", function (event) {
+      if (!ws || ws.readyState !== WebSocket.OPEN) return;
+      event.preventDefault();
+      const moduleInput = alarmForm.querySelector("input[name='alarm-module']");
+      const titleInput = alarmForm.querySelector("input[name='alarm-title']");
+      const detailsInput = alarmForm.querySelector("textarea[name='alarm-details']");
+      const payload = {
+        action: "send_alarm",
+        module: moduleInput ? moduleInput.value.trim() : "",
+        title: titleInput ? titleInput.value.trim() : "",
+        details: detailsInput ? detailsInput.value.trim() : "",
+      };
+      if (!payload.title) return alert("Le titre de l'alarme est requis.");
+      ws.send(JSON.stringify(payload));
+      titleInput && (titleInput.value = "");
+      detailsInput && (detailsInput.value = "");
+    });
+
+    document.querySelectorAll(".js-seen-form").forEach((form) => {
+      form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const tokenInput = form.querySelector("input[name='csrfmiddlewaretoken']");
+        const token = tokenInput ? tokenInput.value : "";
+        const res = await fetch(form.action, { method: "POST", headers: { "X-CSRFToken": token } });
+        if (res.ok) window.location.reload();
+      });
+    });
+  })();
+</script>
+{% endblock %}

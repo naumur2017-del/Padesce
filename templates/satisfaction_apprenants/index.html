@@ -100,10 +100,30 @@
     .form-actions { justify-content:stretch; }
     .form-actions .btn { width:100%; }
   }
+  /* Toggle FR / EN */
+  .lang-toggle-bar { display:flex; align-items:center; gap:10px; margin-bottom:14px; }
+  .lang-toggle { display:inline-flex; background: var(--panel); border:1px solid var(--border); border-radius:999px; padding:3px; gap:3px; }
+  .lang-btn { padding:5px 14px; border-radius:999px; font-size:0.82rem; font-weight:700; cursor:pointer; border:none; background:transparent; color:var(--muted); transition: background .2s, color .2s; }
+  .lang-btn.active { background: var(--accent); color:#fff; }
+  /* Formulations questions */
+  .q-formulation { font-size:0.85rem; color: var(--muted); font-style:italic; margin-top:2px; padding:5px 10px; background: rgba(15,139,141,0.04); border-left:3px solid var(--accent); border-radius:0 6px 6px 0; }
 </style>
 
-<h1 class="h4 mb-2">Satisfaction des apprenants</h1>
-<p class="subtitle" style="color:var(--muted);">Q1-Q9 (1-5), commentaires et recommandations. Audit actif.</p>
+<div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:8px; margin-bottom:4px;">
+  <div>
+    <h1 class="h4 mb-0">Satisfaction des apprenants</h1>
+    <p class="subtitle" style="color:var(--muted); margin:4px 0 0; font-size:0.9rem;">Q1-Q9 (1-5), commentaires et recommandations. Audit actif.</p>
+  </div>
+</div>
+
+<!-- Toggle FR / EN -->
+<div class="lang-toggle-bar">
+  <span style="font-size:0.85rem; color:var(--muted);">Langue des questions :</span>
+  <div class="lang-toggle" id="lang-toggle-appr">
+    <button class="lang-btn active" data-lang="fr" type="button">FR</button>
+    <button class="lang-btn" data-lang="en" type="button">EN</button>
+  </div>
+</div>
 
 <form method="get" class="filter-bar">
   <div class="filter-field">
@@ -118,6 +138,7 @@
   <div class="filter-actions">
     <button class="btn btn-primary btn-sm" type="submit">Filtrer</button>
     <a class="btn btn-ghost btn-sm" href="{% url 'satisfaction_apprenants_export_csv' %}{% if filter_classe %}?classe={{ filter_classe }}{% endif %}">Export CSV</a>
+    <a class="btn btn-outline btn-sm" href="{% url 'satisfaction_dashboard' %}">📊 Analyse</a>
   </div>
 </form>
 
@@ -222,19 +243,64 @@
     <div class="form-section">
       <div class="section-title">
         <h6>Reponses IA (lecture seule)</h6>
+        <div class="hint">Scores 1-5 extraits automatiquement depuis la transcription. Echelle : 1 = Insuffisant → 5 = Tres satisfaisant</div>
       </div>
       {% if ai_results %}
-        <div class="ai-grid">
-          <div class="ai-card"><strong>Q1</strong>{{ ai_results.q1_clarte_exposes }}</div>
-          <div class="ai-card"><strong>Q2</strong>{{ ai_results.q2_interaction_formateur }}</div>
-          <div class="ai-card"><strong>Q3</strong>{{ ai_results.q3_rythme_formation }}</div>
-          <div class="ai-card"><strong>Q4</strong>{{ ai_results.q4_qualite_supports }}</div>
-          <div class="ai-card"><strong>Q5</strong>{{ ai_results.q5_applicabilite_contenu }}</div>
-          <div class="ai-card"><strong>Q6</strong>{{ ai_results.q6_organisation_logistique }}</div>
-          <div class="ai-card"><strong>Q7</strong>{{ ai_results.q7_respect_programme }}</div>
-          <div class="ai-card"><strong>Q8</strong>{{ ai_results.q8_adequation_besoins }}</div>
-          <div class="ai-card"><strong>Q9</strong>{{ ai_results.q9_satisfaction_globale }}</div>
+        <!-- Q1 -->
+        <div style="margin-bottom:10px;">
+          <div style="font-size:0.82rem; font-weight:700; color:var(--accent-strong, var(--accent));">Q1 — <span class="appr-q-text" data-fr="Clarte des exposes" data-en="Clarity of presentations">Clarte des exposes</span></div>
+          <div class="q-formulation appr-q-form" data-fr="Les exposes etaient-ils clairs et bien structures ?" data-en="Were the presentations clear and well-structured?">Les exposes etaient-ils clairs et bien structures ?</div>
+          <div class="ai-grid" style="grid-template-columns:100px; margin-top:4px;"><div class="ai-card"><strong>Score</strong>{{ ai_results.q1_clarte_exposes }}/5</div></div>
         </div>
+        <!-- Q2 -->
+        <div style="margin-bottom:10px;">
+          <div style="font-size:0.82rem; font-weight:700; color:var(--accent-strong, var(--accent));">Q2 — <span class="appr-q-text" data-fr="Interaction avec le formateur" data-en="Interaction with the trainer">Interaction avec le formateur</span></div>
+          <div class="q-formulation appr-q-form" data-fr="Comment evaluez-vous votre interaction avec le formateur ?" data-en="How do you rate your interaction with the trainer?">Comment evaluez-vous votre interaction avec le formateur ?</div>
+          <div class="ai-grid" style="grid-template-columns:100px; margin-top:4px;"><div class="ai-card"><strong>Score</strong>{{ ai_results.q2_interaction_formateur }}/5</div></div>
+        </div>
+        <!-- Q3 -->
+        <div style="margin-bottom:10px;">
+          <div style="font-size:0.82rem; font-weight:700; color:var(--accent-strong, var(--accent));">Q3 — <span class="appr-q-text" data-fr="Maitrise du contenu" data-en="Mastery of content">Maitrise du contenu</span></div>
+          <div class="q-formulation appr-q-form" data-fr="Le formateur maitrisait-il bien le contenu de la formation ?" data-en="Did the trainer master the training content well?">Le formateur maitrisait-il bien le contenu de la formation ?</div>
+          <div class="ai-grid" style="grid-template-columns:100px; margin-top:4px;"><div class="ai-card"><strong>Score</strong>{{ ai_results.q3_maitrise_contenu }}/5</div></div>
+        </div>
+        <!-- Q4 -->
+        <div style="margin-bottom:10px;">
+          <div style="font-size:0.82rem; font-weight:700; color:var(--accent-strong, var(--accent));">Q4 — <span class="appr-q-text" data-fr="Salle adequate" data-en="Adequate room">Salle adequate</span></div>
+          <div class="q-formulation appr-q-form" data-fr="La salle de formation etait-elle adequate ?" data-en="Was the training room adequate?">La salle de formation etait-elle adequate ?</div>
+          <div class="ai-grid" style="grid-template-columns:100px; margin-top:4px;"><div class="ai-card"><strong>Score</strong>{{ ai_results.q4_salle_adequate }}/5</div></div>
+        </div>
+        <!-- Q5 -->
+        <div style="margin-bottom:10px;">
+          <div style="font-size:0.82rem; font-weight:700; color:var(--accent-strong, var(--accent));">Q5 — <span class="appr-q-text" data-fr="Materiel disponible" data-en="Available material">Materiel disponible</span></div>
+          <div class="q-formulation appr-q-form" data-fr="Le materiel pedagogique etait-il disponible et fonctionnel ?" data-en="Was the educational material available and functional?">Le materiel pedagogique etait-il disponible et fonctionnel ?</div>
+          <div class="ai-grid" style="grid-template-columns:100px; margin-top:4px;"><div class="ai-card"><strong>Score</strong>{{ ai_results.q5_materiel_disponible }}/5</div></div>
+        </div>
+        <!-- Q6 -->
+        <div style="margin-bottom:10px;">
+          <div style="font-size:0.82rem; font-weight:700; color:var(--accent-strong, var(--accent));">Q6 — <span class="appr-q-text" data-fr="Organisation du temps" data-en="Time management">Organisation du temps</span></div>
+          <div class="q-formulation appr-q-form" data-fr="L'organisation du temps de formation vous a-t-elle satisfait ?" data-en="Were you satisfied with the time management of the training?">L'organisation du temps de formation vous a-t-elle satisfait ?</div>
+          <div class="ai-grid" style="grid-template-columns:100px; margin-top:4px;"><div class="ai-card"><strong>Score</strong>{{ ai_results.q6_organisation_temps }}/5</div></div>
+        </div>
+        <!-- Q7 -->
+        <div style="margin-bottom:10px;">
+          <div style="font-size:0.82rem; font-weight:700; color:var(--accent-strong, var(--accent));">Q7 — <span class="appr-q-text" data-fr="Utilite de la formation" data-en="Usefulness of the training">Utilite de la formation</span></div>
+          <div class="q-formulation appr-q-form" data-fr="Cette formation vous sera-t-elle utile dans votre travail ?" data-en="Will this training be useful in your work?">Cette formation vous sera-t-elle utile dans votre travail ?</div>
+          <div class="ai-grid" style="grid-template-columns:100px; margin-top:4px;"><div class="ai-card"><strong>Score</strong>{{ ai_results.q7_utilite_formation }}/5</div></div>
+        </div>
+        <!-- Q8 -->
+        <div style="margin-bottom:10px;">
+          <div style="font-size:0.82rem; font-weight:700; color:var(--accent-strong, var(--accent));">Q8 — <span class="appr-q-text" data-fr="Adequation aux besoins" data-en="Alignment with needs">Adequation aux besoins</span></div>
+          <div class="q-formulation appr-q-form" data-fr="La formation a-t-elle repondu a vos besoins de developpement ?" data-en="Did the training meet your development needs?">La formation a-t-elle repondu a vos besoins de developpement ?</div>
+          <div class="ai-grid" style="grid-template-columns:100px; margin-top:4px;"><div class="ai-card"><strong>Score</strong>{{ ai_results.q8_adequation_besoins }}/5</div></div>
+        </div>
+        <!-- Q9 -->
+        <div style="margin-bottom:10px;">
+          <div style="font-size:0.82rem; font-weight:700; color:var(--accent-strong, var(--accent));">Q9 — <span class="appr-q-text" data-fr="Satisfaction globale" data-en="Overall satisfaction">Satisfaction globale</span></div>
+          <div class="q-formulation appr-q-form" data-fr="Quelle est votre satisfaction globale vis-a-vis de cette formation ?" data-en="What is your overall satisfaction with this training?">Quelle est votre satisfaction globale vis-a-vis de cette formation ?</div>
+          <div class="ai-grid" style="grid-template-columns:100px; margin-top:4px;"><div class="ai-card"><strong>Score</strong>{{ ai_results.q9_satisfaction_globale }}/5</div></div>
+        </div>
+
         <div class="ai-grid" style="margin-top:8px;">
           <div class="ai-text"><strong>Commentaire</strong>{{ ai_results.commentaire|default:"-" }}</div>
           <div class="ai-text"><strong>Recommandations</strong>{{ ai_results.recommandations|default:"-" }}</div>
@@ -269,8 +335,8 @@
         {% for e in enquetes %}
         <tr>
           <td>{{ e.date }}</td>
-          <td>{{ e.classe }}</td>
-          <td>{{ e.apprenant }}</td>
+          <td>{% if e.classe %}{{ e.classe }}{% elif e.appel %}{{ e.appel.classe_label|default:"-" }}{% else %}-{% endif %}</td>
+          <td>{% if e.apprenant %}{{ e.apprenant }}{% elif e.appel %}{{ e.appel.nom|default:"-" }}{% if e.appel.code %} ({{ e.appel.code }}){% endif %}{% else %}-{% endif %}</td>
           <td>{{ e.inspecteur }}</td>
           <td>{{ e.enqueteur }}</td>
           <td>{{ e.q9_satisfaction_globale }}</td>
@@ -292,6 +358,20 @@
   </div>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script>
+    // --- Toggle FR/EN apprenants ---
+    (function () {
+      const toggle = document.getElementById('lang-toggle-appr');
+      if (!toggle) return;
+      function applyLang(lang) {
+        document.querySelectorAll('.appr-q-text[data-' + lang + ']').forEach(el => { el.textContent = el.dataset[lang]; });
+        document.querySelectorAll('.appr-q-form[data-' + lang + ']').forEach(el => { el.textContent = el.dataset[lang]; });
+        toggle.querySelectorAll('.lang-btn').forEach(btn => { btn.classList.toggle('active', btn.dataset.lang === lang); });
+        localStorage.setItem('padesce_lang_appr', lang);
+      }
+      const saved = localStorage.getItem('padesce_lang_appr') || 'fr';
+      applyLang(saved);
+      toggle.querySelectorAll('.lang-btn').forEach(btn => { btn.addEventListener('click', () => applyLang(btn.dataset.lang)); });
+    })();
     (function() {
       const participationData = {{ participation_chart|safe }};
       const reasonData = {{ reason_chart|safe }};
