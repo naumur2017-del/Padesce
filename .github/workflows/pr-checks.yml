@@ -1,0 +1,95 @@
+name: PR Checks
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches-ignore:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  branch-policy:
+    name: Branch Policy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate branch naming
+        shell: bash
+        run: |
+          BRANCH_NAME="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME}}"
+          echo "Branch: ${BRANCH_NAME}"
+          if [[ ! "${BRANCH_NAME}" =~ ^(feature|fix|hotfix|chore|docs|release|codex)/[A-Za-z0-9._-]+$ ]]; then
+            echo "::error::Nom de branche invalide. Utilisez feature/... fix/... chore/... docs/... hotfix/... release/... ou codex/..."
+            exit 1
+          fi
+
+      - name: Block direct work on main
+        shell: bash
+        run: |
+          BRANCH_NAME="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME}}"
+          if [[ "${BRANCH_NAME}" == "main" ]]; then
+            echo "::error::Le travail direct sur main est interdit. Creez une branche dediee."
+            exit 1
+          fi
+
+  django-check:
+    name: Django Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run Django checks
+        env:
+          DJANGO_SECRET_KEY: ci-secret-key
+          DJANGO_DEBUG: "True"
+          DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1
+          DJANGO_CSRF_TRUSTED_ORIGINS: http://localhost
+        run: python manage.py check
+
+  deployment-tests:
+    name: Deployment Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run deployment test suite
+        env:
+          DJANGO_SECRET_KEY: ci-secret-key
+          DJANGO_DEBUG: "True"
+          DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1
+          DJANGO_CSRF_TRUSTED_ORIGINS: http://localhost
+          DEPLOYMENT_EMAIL_BACKEND: django.core.mail.backends.locmem.EmailBackend
+          DEPLOYMENT_REPORT_EMAIL_TO: jackbrayan1707@gmail.com
+        run: |
+          python manage.py test App_PADESCE.core.test_gandi_deploy App_PADESCE.core.test_deployment_reporting

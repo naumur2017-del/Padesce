@@ -42,6 +42,48 @@ Le fichier `.env.example` sert uniquement de modele sans secret.
 4. Pousser la branche sur GitHub.
 5. Faire valider puis fusionner dans `main`.
 
+## Convention d'equipe
+
+Chaque membre travaille sur sa propre branche, par exemple :
+
+- `feature/nom-court`
+- `fix/nom-court`
+- `chore/nom-court`
+- `docs/nom-court`
+- `hotfix/nom-court`
+
+Le proprietaire du depot reste le validateur final avant fusion sur `main`.
+
+## GitHub Actions pour les PR
+
+Le depot contient maintenant :
+
+- `.github/workflows/pr-checks.yml`
+- `.github/CODEOWNERS`
+- `.github/pull_request_template.md`
+
+Sur chaque branche poussee et sur chaque PR vers `main`, GitHub Actions verifie :
+
+1. le nom de branche
+2. l'absence de travail direct sur `main`
+3. `python manage.py check`
+4. la suite de tests du pipeline de deploiement
+
+## GitHub Actions pour le deploiement
+
+Le depot contient aussi :
+
+- `.github/workflows/deploy-gandi.yml`
+
+Quand une PR est fusionnee sur `main`, GitHub Actions :
+
+1. recupere le code fusionne
+2. installe Python et les dependances
+3. valide la configuration Django
+4. lance `python manage.py gandi_deploy --mode deploy`
+5. envoie le mail de resultat via le pipeline existant
+6. archive les logs du run dans GitHub Actions
+
 ## Flux de deploiement Gandi
 
 Une fois le code a jour sur la machine de deploiement :
@@ -75,3 +117,37 @@ Le serveur Gandi doit recevoir :
 - soit une branche explicitement choisie pour un test
 
 Ainsi, l'equipe sait toujours quelle version du code est en ligne.
+
+## Reglages GitHub a activer
+
+Dans GitHub, sur la branche `main`, activez aussi :
+
+1. `Require a pull request before merging`
+2. `Require approvals`
+3. `Require review from Code Owners`
+4. `Require status checks to pass before merging`
+5. l'interdiction des pushes directs sur `main`
+
+Checks a selectionner dans la protection de branche :
+
+- `Branch Policy`
+- `Django Check`
+- `Deployment Tests`
+
+## Secrets GitHub a renseigner
+
+Ajoutez dans `Settings > Secrets and variables > Actions` :
+
+- `DJANGO_SECRET_KEY`
+- `EMAIL_HOST`
+- `EMAIL_PORT`
+- `EMAIL_USE_TLS`
+- `EMAIL_HOST_USER`
+- `EMAIL_HOST_PASSWORD`
+- `DEFAULT_FROM_EMAIL`
+- `DEPLOYMENT_REPORT_EMAIL_TO`
+- `GANDI_SFTP_HOST`
+- `GANDI_SFTP_PORT`
+- `GANDI_SFTP_USERNAME`
+- `GANDI_SFTP_TOKEN`
+- `GANDI_SFTP_REMOTE_PATH`
