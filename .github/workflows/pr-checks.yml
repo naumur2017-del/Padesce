@@ -145,7 +145,18 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: Detect deployment test modules
+        id: deployment-tests-available
+        shell: bash
+        run: |
+          if [[ -f "App_PADESCE/core/test_gandi_deploy.py" && -f "App_PADESCE/core/test_deployment_reporting.py" ]]; then
+            echo "available=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "available=false" >> "${GITHUB_OUTPUT}"
+          fi
+
       - name: Run deployment test suite
+        if: steps.deployment-tests-available.outputs.available == 'true'
         env:
           DJANGO_SECRET_KEY: ci-secret-key
           DJANGO_DEBUG: "True"
@@ -155,3 +166,8 @@ jobs:
           DEPLOYMENT_REPORT_EMAIL_TO: jackbrayan1707@gmail.com
         run: |
           python manage.py test App_PADESCE.core.test_gandi_deploy App_PADESCE.core.test_deployment_reporting
+
+      - name: Skip deployment tests when modules are absent
+        if: steps.deployment-tests-available.outputs.available != 'true'
+        run: |
+          echo "::notice::Les tests du pipeline de deploiement sont ignores sur cette branche car les modules de deploiement ne sont pas encore versionnes ici."

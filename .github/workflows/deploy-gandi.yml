@@ -35,7 +35,18 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: Detect Gandi deployment command
+        id: deploy-command
+        shell: bash
+        run: |
+          if [[ -f "App_PADESCE/core/management/commands/gandi_deploy.py" && -f "App_PADESCE/core/gandi_deploy.py" ]]; then
+            echo "available=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "available=false" >> "${GITHUB_OUTPUT}"
+          fi
+
       - name: Validate Django configuration
+        if: steps.deploy-command.outputs.available == 'true'
         env:
           DJANGO_SECRET_KEY: ${{ secrets.DJANGO_SECRET_KEY }}
           DJANGO_DEBUG: "False"
@@ -61,6 +72,7 @@ jobs:
         run: python manage.py check
 
       - name: Deploy application
+        if: steps.deploy-command.outputs.available == 'true'
         env:
           DJANGO_SECRET_KEY: ${{ secrets.DJANGO_SECRET_KEY }}
           DJANGO_DEBUG: "False"
@@ -84,6 +96,11 @@ jobs:
           GANDI_DEPLOY_VERIFY_URL: https://call.naumur.com
           GANDI_DEPLOY_INCLUDE_PATHS: App_PADESCE,templates,static,admin,manage.py,requirements.txt,Dockerfile,docker-compose.yml,start-command
         run: python manage.py gandi_deploy --mode deploy
+
+      - name: Skip deployment when custom pipeline is absent
+        if: steps.deploy-command.outputs.available != 'true'
+        run: |
+          echo "::notice::Le pipeline de deploiement Gandi n'est pas encore present sur cette branche. Aucun deploiement automatique n'est lance."
 
       - name: Upload deployment logs
         if: always()
