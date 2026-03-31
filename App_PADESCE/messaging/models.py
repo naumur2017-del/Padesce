@@ -48,3 +48,69 @@ class CampagneMessage(TimeStampedModel):
 
     def __str__(self) -> str:
         return f"Campagne {self.date_heure}"
+
+
+class SupportMessage(TimeStampedModel):
+    KIND_CHAT = "chat"
+    KIND_ALARM = "alarm"
+    KIND_CHOICES = [
+        (KIND_CHAT, "Chat"),
+        (KIND_ALARM, "Alarm"),
+    ]
+
+    sender = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="support_messages_sent"
+    )
+    recipient = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="support_messages_received"
+    )
+    body = models.TextField()
+    kind = models.CharField(max_length=20, choices=KIND_CHOICES, default=KIND_CHAT)
+    is_read = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ["created_at"]
+        indexes = [
+            models.Index(fields=["recipient", "is_read"]),
+            models.Index(fields=["created_at"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.sender} -> {self.recipient} ({self.kind})"
+
+
+class SupportAlarm(TimeStampedModel):
+    reporter = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="support_alarms_reported"
+    )
+    module = models.CharField(max_length=80, blank=True)
+    title = models.CharField(max_length=255)
+    details = models.TextField(blank=True)
+    is_seen = models.BooleanField(default=False)
+    seen_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="support_alarms_seen",
+    )
+    seen_at = models.DateTimeField(null=True, blank=True)
+    is_resolved = models.BooleanField(default=False)
+    resolved_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="support_alarms_resolved",
+    )
+    resolved_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["is_seen", "created_at"]),
+            models.Index(fields=["reporter", "created_at"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"Alarm {self.title} by {self.reporter}"

@@ -1,0 +1,1136 @@
+﻿{% extends "base.html" %}
+{% block title %}Appels formateurs{% endblock %}
+{% block content %}
+<style>
+  .btn, .btn-small {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    padding: 10px 14px; border-radius: 12px; border: 1px solid transparent;
+    font-weight: 600; cursor: pointer; transition: transform .15s ease, box-shadow .15s ease, background .2s ease;
+  }
+  .btn-sm { padding: 8px 12px; font-size: 0.9rem; }
+  .btn:disabled, .btn-small:disabled { opacity: .6; cursor: not-allowed; transform: none; box-shadow: none; }
+  .btn-primary { background: var(--accent); color: #fff; box-shadow: 0 8px 18px rgba(76,29,149,0.2); }
+  .btn-secondary { background: #fff; color: var(--accent-strong); border: 1px solid rgba(111,60,195,0.3); }
+  .btn-ghost { background: rgba(111,60,195,0.08); color: var(--accent-strong); border: 1px solid rgba(111,60,195,0.2); }
+  .btn-small.primary { background: var(--accent); color: #fff; }
+  .btn:hover, .btn-small:hover { transform: translateY(-1px); box-shadow: 0 10px 22px rgba(15,23,42,0.12); }
+  .input, select, input[type="text"], input[type="datetime-local"] {
+    padding: 10px 12px; border-radius: 12px; border: 1px solid var(--border); background: #fff;
+    box-shadow: inset 0 1px 2px rgba(0,0,0,0.04); font-weight: 500;
+  }
+  .input-file {
+    display: inline-flex; align-items: center; gap: 10px; padding: 12px 16px; border-radius: 14px;
+    border: 1px dashed rgba(111,60,195,0.3); background: rgba(111,60,195,0.08);
+  }
+  .input-file input[type="file"] { background: transparent; border: none; padding: 4px; }
+  .input-file input[type="file"]::file-selector-button {
+    margin-right: 10px; padding: 8px 12px; border-radius: 10px; border: 1px solid rgba(111,60,195,0.3);
+    background: #fff; font-weight: 600; cursor: pointer;
+  }
+  .file-label { font-weight: 700; color: var(--accent-strong); }
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 14px; box-shadow: var(--shadow); margin-bottom: 12px; }
+  .form-inline { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; margin-bottom: 10px; }
+  .stat { border: 1px solid var(--border); border-radius: 12px; background: #faf7ff; padding: 12px; }
+  .stat strong { display: block; font-size: 1.25rem; color: var(--accent-strong); }
+  .stat.ok { background: rgba(34,197,94,0.08); border-color: rgba(34,197,94,0.2); }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { padding: 8px; border: 1px solid var(--border); font-size: 0.92rem; vertical-align: top; }
+  thead { background: rgba(111,60,195,0.08); }
+  .table-wrap { max-height: 540px; overflow: auto; }
+  .actions { display: flex; gap: 6px; flex-wrap: wrap; }
+  .checkbox-cell { text-align: center; }
+  .checkbox-cell input { width: 18px; height: 18px; }
+  .selection-bar { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
+  .subtitle { color: var(--muted); }
+  .badge { padding: 6px 10px; border-radius: 999px; font-weight: 700; font-size: 0.9rem; border: 1px solid var(--border); }
+  .badge.wait { background: rgba(234,179,8,0.18); color: #92400e; }
+  .badge.run { background: rgba(34,197,94,0.15); color: #15803d; }
+  .badge.pause { background: rgba(59,130,246,0.15); color: #1d4ed8; }
+  .badge.done { background: rgba(107,114,128,0.18); color: #374151; }
+  .progress { position: relative; height: 8px; background: #eef2f7; border-radius: 999px; overflow: hidden; width: 140px; }
+  .progress-fill { position: absolute; top: 0; left: 0; height: 100%; background: var(--accent); width: 0%; transition: width .1s linear; }
+  .time-label { font-size: 0.82rem; color: var(--muted); min-width: 72px; text-align: right; }
+  .modal-backdrop { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(15,23,42,0.55); z-index: 1200; }
+  .modal-panel { background: var(--panel); border-radius: 18px; padding: 26px 28px; width: min(460px, 90%); box-shadow: 0 20px 60px rgba(15,23,42,0.35); border: 1px solid var(--border); }
+  .modal-field { margin-bottom: 10px; display: flex; flex-direction: column; gap: 6px; font-size: 0.95rem; }
+  .modal-detail { display: flex; gap: 6px; font-size: 0.95rem; margin-bottom: 8px; }
+  .modal-detail .modal-label { font-weight: 700; }
+  .modal-backdrop[hidden] { display: none; }
+  .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px; }
+  .bulk-progress-wrap { display:none; flex-direction:column; gap:8px; margin-top:12px; padding:10px 12px; border-radius:12px; border:1px solid rgba(15,139,141,0.2); background: rgba(15,139,141,0.05); }
+  .bulk-progress-head { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+  .bulk-progress-track { height:10px; border-radius:999px; overflow:hidden; background: rgba(15,139,141,0.12); border:1px solid rgba(15,139,141,0.2); }
+  .bulk-progress-bar { height:100%; width:0%; background: linear-gradient(90deg, #18b0ac, #f6c453); transition: width .2s ease; }
+  .transcript-box { max-height: 320px; overflow: auto; white-space: pre-wrap; border: 1px solid var(--border); border-radius: 12px; padding: 12px; background: #fff; }
+  .modal-panel-lg { width: min(760px, 95%); max-height: 92vh; overflow: auto; }
+  .lang-toggle { display:inline-flex; background: var(--panel); border:1px solid var(--border); border-radius:999px; padding:3px; gap:3px; }
+  .lang-btn { padding:5px 14px; border-radius:999px; font-size:0.82rem; font-weight:700; cursor:pointer; border:none; background:transparent; color:var(--muted); transition: background .2s, color .2s; }
+  .lang-btn.active { background: var(--accent); color:#fff; }
+  .survey-grid { display:grid; gap:10px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); margin-top:8px; }
+  .survey-row { border:1px solid var(--border); border-radius:12px; padding:10px; background: rgba(111,60,195,0.04); }
+  .q-title { font-weight:700; font-size:0.9rem; color: var(--accent-strong); }
+  .q-formulation { font-size:0.83rem; color:var(--muted); margin:4px 0 6px; line-height:1.35; }
+  .q-scale { font-size:0.78rem; color:var(--muted); margin-bottom:6px; display:block; }
+  .survey-open { width:100%; min-height:88px; border:1px solid var(--border); border-radius:10px; padding:8px 10px; background:#fff; }
+  .survey-side { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  @media (max-width: 720px) { .survey-side { grid-template-columns:1fr; } }
+</style>
+
+<h1 class="h4 mb-2">Appels formateurs</h1>
+{% if user.is_superuser %}
+  <p class="subtitle" style="margin-bottom:8px;">Importer un ou plusieurs fichiers Excel avec la feuille <strong>Calendrier</strong>. Chaque numero de <strong>CONTACT DU FORMATEUR</strong> est nettoye, dedoublonne et insere comme une ligne d'appel distincte.</p>
+  <div class="panel">
+    <form method="post" enctype="multipart/form-data" class="form-inline" style="margin-bottom:10px;">
+      {% csrf_token %}
+      <input type="hidden" name="update_mode" value="append">
+      <div class="input-file">
+        <span class="file-label">Choisir fichiers Excel</span>
+        <input type="file" name="files" accept=".xlsx,.xlsm" multiple required />
+      </div>
+      <button type="submit" class="btn btn-primary btn-sm">Uploader (ajouter/combiner)</button>
+    </form>
+    <form method="post" enctype="multipart/form-data" class="form-inline">
+      {% csrf_token %}
+      <input type="hidden" name="update_mode" value="replace">
+      <div class="input-file">
+        <span class="file-label">Choisir fichiers Excel</span>
+        <input type="file" name="files" accept=".xlsx,.xlsm" multiple required />
+      </div>
+      <button type="submit" class="btn btn-secondary btn-sm">Uploader (ecrase l'affichage)</button>
+    </form>
+  </div>
+  <div class="panel">
+    <p class="subtitle" style="margin-bottom:8px;">Nettoyage global des doublons de numeros sur toutes les tables d'appels. Les doublons detectes sont desactives pour conserver l'historique.</p>
+    <form method="post" action="{% url 'deduplicate_all_call_tables' %}" style="display:flex; gap:8px; flex-wrap:wrap;">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-ghost btn-sm">Detecter et supprimer les doublons numeros</button>
+    </form>
+    <form method="post" action="{% url 'formateurs_delete_missing_phones' %}" style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-ghost btn-sm">Supprimer les lignes sans telephone</button>
+    </form>
+    <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
+      <button type="button" id="js-start-transcription" class="btn btn-ghost btn-sm">Transcrire le tableau filtre</button>
+      <button type="button" id="js-stop-transcription" class="btn btn-ghost btn-sm" style="display:none;">Stopper</button>
+    </div>
+    <div id="bulk-progress-wrap" class="bulk-progress-wrap" aria-live="polite">
+      <div class="bulk-progress-head">
+        <strong>Transcription locale</strong>
+        <span id="bulk-progress-label">0%</span>
+      </div>
+      <div class="bulk-progress-track">
+        <div id="bulk-progress-bar" class="bulk-progress-bar"></div>
+      </div>
+      <div id="bulk-progress-sub" class="subtitle">En attente.</div>
+    </div>
+  </div>
+{% endif %}
+
+<div class="panel">
+  <div class="stats-grid">
+    <div class="stat">Total filtre<strong>{{ stats.total|default:0 }}</strong></div>
+    <div class="stat">Appels termines<strong>{{ stats.completion_label|default:"0 / 0" }}</strong></div>
+    <div class="stat">A rappeler<strong>{{ stats.rappels|default:0 }}</strong></div>
+    <div class="stat">Audios disponibles<strong>{{ stats.audios|default:0 }}</strong></div>
+    <div class="stat {% if stats.threshold_reached %}ok{% endif %}">
+      Seuil 50%
+      <strong>{% if stats.threshold_reached %}Atteint{% else %}{{ stats.completion_rate|default:0 }}%{% endif %}</strong>
+      <div class="subtitle" style="margin-top:4px;">{{ stats.threshold_message }}</div>
+    </div>
+  </div>
+
+  <form method="get" class="form-inline" style="margin-bottom:10px;">
+    <input type="text" name="q" class="input" style="flex:1; min-width:200px;" placeholder="Recherche numero / prestataire / formation..." value="{{ filters.q }}">
+    <input type="datetime-local" name="date_from" class="input" value="{{ filters.date_from }}">
+    <input type="datetime-local" name="date_to" class="input" value="{{ filters.date_to }}">
+    <select name="status" class="input">
+      <option value="">Statut</option>
+      <option value="en_attente" {% if filters.status == "en_attente" %}selected{% endif %}>En attente</option>
+      <option value="en_cours" {% if filters.status == "en_cours" %}selected{% endif %}>En cours</option>
+      <option value="pause" {% if filters.status == "pause" %}selected{% endif %}>Pause</option>
+      <option value="a_rappeler" {% if filters.status == "a_rappeler" %}selected{% endif %}>A rappeler</option>
+      <option value="termine" {% if filters.status == "termine" %}selected{% endif %}>Termine</option>
+    </select>
+    <select name="prestataire" class="input">
+      <option value="">Prestataire</option>
+      {% for item in filters.prestataires %}
+        <option value="{{ item }}" {% if filters.prestataire == item %}selected{% endif %}>{{ item }}</option>
+      {% endfor %}
+    </select>
+    <select name="beneficiaire" class="input">
+      <option value="">Beneficiaire</option>
+      {% for item in filters.beneficiaires %}
+        <option value="{{ item }}" {% if filters.beneficiaire == item %}selected{% endif %}>{{ item }}</option>
+      {% endfor %}
+    </select>
+    <select name="formation" class="input">
+      <option value="">Formation</option>
+      {% for item in filters.formations %}
+        <option value="{{ item }}" {% if filters.formation == item %}selected{% endif %}>{{ item }}</option>
+      {% endfor %}
+    </select>
+    <select name="cohorte" class="input">
+      <option value="">Cohorte</option>
+      {% for item in filters.cohortes %}
+        <option value="{{ item }}" {% if filters.cohorte == item %}selected{% endif %}>{{ item }}</option>
+      {% endfor %}
+    </select>
+    <select name="session_date" class="input">
+      <option value="">Date session</option>
+      {% for item in filters.session_dates %}
+        <option value="{{ item }}" {% if filters.session_date == item %}selected{% endif %}>{{ item }}</option>
+      {% endfor %}
+    </select>
+    <select name="agent" class="input">
+      <option value="">Utilisateur</option>
+      {% for item in filters.agents %}
+        <option value="{{ item }}" {% if filters.agent == item %}selected{% endif %}>{{ item }}</option>
+      {% endfor %}
+    </select>
+    <select name="page_size" class="input">
+      <option value="20" {% if page_size == 20 %}selected{% endif %}>20 / page</option>
+      <option value="50" {% if page_size == 50 %}selected{% endif %}>50 / page</option>
+      <option value="100" {% if page_size == 100 %}selected{% endif %}>100 / page</option>
+      <option value="200" {% if page_size == 200 %}selected{% endif %}>200 / page</option>
+      <option value="500" {% if page_size == 500 %}selected{% endif %}>500 / page</option>
+    </select>
+    <button type="submit" class="btn btn-primary btn-sm">Filtrer</button>
+    <a class="btn btn-ghost btn-sm" href="/appels-formateurs/">Reset</a>
+  </form>
+
+  <div class="selection-bar">
+    <p class="subtitle" style="margin:0;">
+      Lignes affichees : <strong>{{ rows_count }}</strong>
+      {% if page_obj %} | Page {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}{% endif %}
+    </p>
+    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+      <a class="btn btn-ghost btn-sm" href="{% url 'formateurs_export_filtered_csv' %}{% if request.GET.urlencode %}?{{ request.GET.urlencode }}{% endif %}">Exporter le tableau filtre (CSV)</a>
+      <a class="btn btn-ghost btn-sm" href="{% url 'formateurs_export_xlsx' %}">Exporter toutes les donnees (XLSX)</a>
+      <button type="button" id="js-download-audios" class="btn btn-primary btn-sm" disabled>Telecharger les audios selectionnes</button>
+    </div>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th class="checkbox-cell"><input type="checkbox" id="js-select-all" aria-label="Selectionner tous les audios"></th>
+          <th>Seance</th>
+          <th>Prestataire</th>
+          <th>Beneficiaire</th>
+          <th>Formation</th>
+          <th>Lieu</th>
+          <th>Telephone</th>
+          <th>Cohorte</th>
+          <th>Date</th>
+          <th>Heure</th>
+          <th>Statut</th>
+          <th>Action</th>
+          <th>Audio</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for a in rows %}
+          <tr data-id="{{ a.id }}" data-status="{{ a.status }}" data-name="{{ a.prestataire }} / {{ a.beneficiaire }}" data-phone="{{ a.telephone|default:'-' }}" data-q1="{{ a.q1_prerequis_apprenants|default:'' }}" data-q2="{{ a.q2_interaction_apprenants|default:'' }}" data-q3="{{ a.q3_competences_acquises|default:'' }}" data-q4="{{ a.q4_gestion_administrative|default:''|escapejs }}" data-q5="{{ a.q5_gestion_financiere|default:''|escapejs }}" data-q6="{{ a.q6_communication|default:''|escapejs }}" data-commentaires="{{ a.commentaires|default:''|escapejs }}" data-recommandations="{{ a.recommandations|default:''|escapejs }}">
+            <td class="checkbox-cell">
+              <input type="checkbox" class="js-audio-select" value="{{ a.id }}" {% if not a.has_audio_file %}disabled title="{% if a.audio_file_missing %}Audio introuvable{% else %}Pas d'audio disponible{% endif %}"{% endif %}>
+            </td>
+            <td>{{ a.numero_seance|default:"-" }}</td>
+            <td>{{ a.prestataire|default:"-" }}</td>
+            <td>{{ a.beneficiaire|default:"-" }}</td>
+            <td>{{ a.formation|default:"-" }}</td>
+            <td>{{ a.lieu|default:"-" }}</td>
+            <td><strong>{{ a.telephone|default:"-" }}</strong></td>
+            <td>{{ a.cohorte|default:"-" }}</td>
+            <td>{% if a.session_date %}{{ a.session_date|date:"Y-m-d" }}{% else %}{{ a.date_label|default:"-" }}{% endif %}</td>
+            <td>{{ a.heure_debut|default:"-" }}{% if a.heure_fin %} - {{ a.heure_fin }}{% endif %}</td>
+            <td>
+              <span class="badge {% if a.status == 'en_cours' %}run{% elif a.status == 'pause' %}pause{% elif a.status == 'termine' %}done{% else %}wait{% endif %}" data-badge>{{ a.get_status_display }}</span>
+              {% if a.locked_by %}<div class="subtitle">Par {{ a.locked_by.username }}</div>{% endif %}
+            </td>
+            <td>
+              <div class="actions js-actions">
+                <button type="button" class="btn-small primary js-start" {% if a.status not in "en_attente,a_rappeler" %}hidden{% endif %}>Demarrer</button>
+                <button type="button" class="btn-small js-pause" {% if a.status != "en_cours" %}hidden{% endif %}>Pause</button>
+                <button type="button" class="btn-small js-resume" {% if a.status != "pause" %}hidden{% endif %}>Reprendre</button>
+                <button type="button" class="btn-small js-rappeler" {% if a.status not in "en_cours,pause" %}hidden{% endif %}>A rappeler</button>
+                <button type="button" class="btn-small js-terminer" {% if a.status not in "en_cours,pause" %}hidden{% endif %}>Terminer</button>
+              </div>
+            </td>
+            <td>
+              <div class="actions">
+                <div class="visual" style="width:120px; height:32px; border:1px solid var(--border); border-radius:8px; overflow:hidden;">
+                  <canvas width="120" height="32" class="js-visual"></canvas>
+                </div>
+                <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+                  <button type="button" class="btn-small js-play" {% if a.status != 'termine' or not a.has_audio_file %}disabled{% endif %}>Play</button>
+                  <button type="button" class="btn-small js-transcription" {% if not a.has_audio_file %}disabled{% endif %}>Transcription</button>
+                  {% if a.has_audio_file %}
+                    <a class="btn-small js-audio-download" href="{{ a.audio_file.url }}" download="formateur-{{ a.reference_code }}.mp3" style="font-size:0.85rem;">Telecharger</a>
+                  {% endif %}
+                  <div class="progress"><div class="progress-fill"></div></div>
+                  <span class="time-label">0:00</span>
+                </div>
+                <audio class="js-audio" style="display:none;" {% if a.has_audio_file %}src="{{ a.audio_file_url }}"{% endif %}></audio>
+              </div>
+            </td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="13" style="text-align:center; color:var(--muted);">Aucune ligne formateur.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if page_obj and page_obj.paginator.num_pages > 1 %}
+    <div class="selection-bar" style="margin-top:10px;">
+      <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+        {% if page_obj.has_previous %}
+          <a class="btn btn-ghost btn-sm" href="?{% if querystring_no_page %}{{ querystring_no_page }}&{% endif %}page=1">Premiere</a>
+          <a class="btn btn-ghost btn-sm" href="?{% if querystring_no_page %}{{ querystring_no_page }}&{% endif %}page={{ page_obj.previous_page_number }}">Precedente</a>
+        {% endif %}
+        {% for num in page_obj.paginator.page_range %}
+          {% if num >= page_obj.number|add:"-2" and num <= page_obj.number|add:"2" %}
+            {% if num == page_obj.number %}
+              <span class="btn btn-primary btn-sm">{{ num }}</span>
+            {% else %}
+              <a class="btn btn-ghost btn-sm" href="?{% if querystring_no_page %}{{ querystring_no_page }}&{% endif %}page={{ num }}">{{ num }}</a>
+            {% endif %}
+          {% endif %}
+        {% endfor %}
+        {% if page_obj.has_next %}
+          <a class="btn btn-ghost btn-sm" href="?{% if querystring_no_page %}{{ querystring_no_page }}&{% endif %}page={{ page_obj.next_page_number }}">Suivante</a>
+          <a class="btn btn-ghost btn-sm" href="?{% if querystring_no_page %}{{ querystring_no_page }}&{% endif %}page={{ page_obj.paginator.num_pages }}">Derniere</a>
+        {% endif %}
+      </div>
+      <div class="subtitle">Page {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</div>
+    </div>
+  {% endif %}
+</div>
+
+<div id="js-transcription-modal" class="modal-backdrop" hidden>
+  <div class="modal-panel">
+    <h2>Transcription</h2>
+    <div class="modal-detail"><span class="modal-label">Appel :</span><span id="js-transcription-name">-</span></div>
+    <div id="js-transcription-status" class="subtitle">Chargement...</div>
+    <div id="js-transcription-text" class="transcript-box" style="margin-top:10px;">Aucune transcription.</div>
+    <div class="modal-actions">
+      <a id="js-transcription-download" class="btn btn-ghost btn-sm" href="#" download>Telecharger</a>
+      <button type="button" class="btn btn-primary btn-sm" data-transcription-close>Fermer</button>
+    </div>
+  </div>
+</div>
+
+<div id="js-termination-modal" class="modal-backdrop" hidden>
+  <div class="modal-panel modal-panel-lg">
+    <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;">
+      <h2 id="js-modal-title" style="margin:0;">Formulaire du formateur</h2>
+      <div class="lang-toggle" id="js-formateur-lang-toggle">
+        <button class="lang-btn active" data-lang="fr" type="button">FR</button>
+        <button class="lang-btn" data-lang="en" type="button">EN</button>
+      </div>
+    </div>
+    <div class="modal-detail" style="margin-top:8px;"><span class="modal-label">Session :</span><span id="js-modal-nom">-</span></div>
+    <div class="modal-detail"><span class="modal-label">Telephone :</span><span id="js-modal-phone">-</span></div>
+
+    <div class="survey-grid">
+      <div class="survey-row">
+        <div class="q-title js-formateur-q-title" data-fr="Q1 - Niveau des prerequis des apprenants" data-en="Q1 - Learners' prerequisites level">Q1 - Niveau des prerequis des apprenants</div>
+        <div class="q-formulation js-formateur-q-form" data-fr="Les apprenants avaient-ils les prerequis necessaires pour suivre cette formation ?" data-en="Did learners have the necessary prerequisites to follow this training?">Les apprenants avaient-ils les prerequis necessaires pour suivre cette formation ?</div>
+        <span class="q-scale js-formateur-q-scale" data-fr="1 = Insuffisant -> 5 = Tres satisfaisant" data-en="1 = Insufficient -> 5 = Very satisfactory">1 = Insuffisant -> 5 = Tres satisfaisant</span>
+        <select id="js-modal-q1" class="input">
+          <option value="">Note</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option>
+        </select>
+      </div>
+      <div class="survey-row">
+        <div class="q-title js-formateur-q-title" data-fr="Q2 - Niveau d'interaction des apprenants" data-en="Q2 - Learners interaction level">Q2 - Niveau d'interaction des apprenants</div>
+        <div class="q-formulation js-formateur-q-form" data-fr="Les apprenants ont-ils ete suffisamment interactifs, posant des questions et participant activement ?" data-en="Were learners sufficiently interactive, asking questions and actively participating?">Les apprenants ont-ils ete suffisamment interactifs, posant des questions et participant activement ?</div>
+        <span class="q-scale js-formateur-q-scale" data-fr="1 = Insuffisant -> 5 = Tres satisfaisant" data-en="1 = Insufficient -> 5 = Very satisfactory">1 = Insuffisant -> 5 = Tres satisfaisant</span>
+        <select id="js-modal-q2" class="input">
+          <option value="">Note</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option>
+        </select>
+      </div>
+      <div class="survey-row">
+        <div class="q-title js-formateur-q-title" data-fr="Q3 - Competences acquises par les apprenants" data-en="Q3 - Learners acquired competencies">Q3 - Competences acquises par les apprenants</div>
+        <div class="q-formulation js-formateur-q-form" data-fr="Estimez-vous que les apprenants ont acquis les competences cibles a l'issue de la formation ?" data-en="Do you estimate that learners acquired the target competencies at the end of the training?">Estimez-vous que les apprenants ont acquis les competences cibles a l'issue de la formation ?</div>
+        <span class="q-scale js-formateur-q-scale" data-fr="1 = Insuffisant -> 5 = Tres satisfaisant" data-en="1 = Insufficient -> 5 = Very satisfactory">1 = Insuffisant -> 5 = Tres satisfaisant</span>
+        <select id="js-modal-q3" class="input">
+          <option value="">Note</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="survey-grid" style="grid-template-columns:1fr;">
+      <div class="survey-row">
+        <div class="q-title js-formateur-q-title" data-fr="Q4 - Gestion administrative du programme PADESCE" data-en="Q4 - PADESCE administrative management">Q4 - Gestion administrative du programme PADESCE</div>
+        <div class="q-formulation js-formateur-q-form" data-fr="Estimez-vous que la gestion administrative du programme PADESCE a ete bien organisee et a facilite le bon deroulement des formations ? Dans le cas contraire, pouvez-vous nous en dire plus ?" data-en="Do you think PADESCE administrative management was well organized and facilitated smooth training delivery? If not, can you tell us more?">Estimez-vous que la gestion administrative du programme PADESCE a ete bien organisee et a facilite le bon deroulement des formations ? Dans le cas contraire, pouvez-vous nous en dire plus ?</div>
+        <textarea id="js-modal-q4" class="survey-open" placeholder="Reponse ouverte"></textarea>
+      </div>
+      <div class="survey-row">
+        <div class="q-title js-formateur-q-title" data-fr="Q5 - Gestion financiere du programme PADESCE" data-en="Q5 - PADESCE financial management">Q5 - Gestion financiere du programme PADESCE</div>
+        <div class="q-formulation js-formateur-q-form" data-fr="La gestion financiere du programme PADESCE a-t-elle facilite le bon deroulement des formations ? Dans le cas contraire, pouvez-vous nous en dire plus ?" data-en="Did PADESCE financial management facilitate smooth training delivery? If not, can you tell us more?">La gestion financiere du programme PADESCE a-t-elle facilite le bon deroulement des formations ? Dans le cas contraire, pouvez-vous nous en dire plus ?</div>
+        <textarea id="js-modal-q5" class="survey-open" placeholder="Reponse ouverte"></textarea>
+      </div>
+      <div class="survey-row">
+        <div class="q-title js-formateur-q-title" data-fr="Q6 - Communication du programme PADESCE" data-en="Q6 - PADESCE communication">Q6 - Communication du programme PADESCE</div>
+        <div class="q-formulation js-formateur-q-form" data-fr="Le programme PADESCE a-t-il assure une communication claire, vous informant de vos obligations et facilitant le bon deroulement des formations ? Dans le cas contraire, pouvez-vous nous en dire plus ?" data-en="Did PADESCE ensure clear communication, informing you of your obligations and facilitating smooth training delivery? If not, can you tell us more?">Le programme PADESCE a-t-il assure une communication claire, vous informant de vos obligations et facilitant le bon deroulement des formations ? Dans le cas contraire, pouvez-vous nous en dire plus ?</div>
+        <textarea id="js-modal-q6" class="survey-open" placeholder="Reponse ouverte"></textarea>
+      </div>
+    </div>
+
+    <div class="survey-side" style="margin-top:8px;">
+      <label class="modal-field"><span>Commentaires</span><textarea id="js-modal-commentaires" class="survey-open" style="min-height:64px;"></textarea></label>
+      <label class="modal-field"><span>Recommandations</span><textarea id="js-modal-recommandations" class="survey-open" style="min-height:64px;"></textarea></label>
+    </div>
+
+    <label class="modal-field" id="js-modal-rappel-wrap" style="display:none; margin-top:8px;">
+      <input type="checkbox" id="js-modal-rappel" />
+      A rappeler
+    </label>
+    <label class="modal-field" id="js-modal-rappel-at-wrap" style="display:none;">
+      <span>Quand :</span>
+      <input type="datetime-local" id="js-modal-rappel-at" disabled>
+    </label>
+
+    <div class="modal-actions">
+      <button type="button" class="btn btn-ghost btn-sm" data-modal-action="cancel">Annuler</button>
+      <button type="button" class="btn btn-primary btn-sm" data-modal-action="confirm" id="js-modal-confirm">Enregistrer le formulaire</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function() {
+    function getCookie(name) {
+      const value = `; ${document.cookie}`;
+      const parts = value.split(`; ${name}=`);
+      if (parts.length === 2) return parts.pop().split(";").shift();
+      return "";
+    }
+    const csrfToken = getCookie("csrftoken");
+    const offlineScope = "formateurs";
+    const offlineUserKey = "{{ request.user.pk|default:'anon' }}";
+    const offlineDbName = "padesce-offline-cache";
+    const offlineStoreName = "jobs";
+
+    function buildStatusLabel(status) {
+      const labels = { en_attente: "En attente", en_cours: "En cours", pause: "Pause", a_rappeler: "A rappeler", termine: "Termine" };
+      return labels[status] || status || "";
+    }
+
+    function optimisticStatusFromAction(action) {
+      if (action === "start" || action === "resume") return "en_cours";
+      if (action === "pause") return "pause";
+      if (action === "rappeler") return "a_rappeler";
+      if (action === "terminer") return "termine";
+      return "";
+    }
+
+    function openOfflineDb() {
+      return new Promise((resolve, reject) => {
+        const request = indexedDB.open(offlineDbName, 1);
+        request.onupgradeneeded = () => {
+          const db = request.result;
+          if (!db.objectStoreNames.contains(offlineStoreName)) {
+            const store = db.createObjectStore(offlineStoreName, { keyPath: "id", autoIncrement: true });
+            store.createIndex("scope", ["scope", "userKey"], { unique: false });
+          }
+        };
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+    }
+
+    async function queueOfflineJob(job) {
+      const db = await openOfflineDb();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(offlineStoreName, "readwrite");
+        tx.objectStore(offlineStoreName).add({ ...job, scope: offlineScope, userKey: offlineUserKey, createdAt: Date.now() });
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+      });
+    }
+
+    async function loadOfflineJobs() {
+      const db = await openOfflineDb();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(offlineStoreName, "readonly");
+        const request = tx.objectStore(offlineStoreName).getAll();
+        request.onsuccess = () => {
+          const jobs = (request.result || []).filter((job) => job.scope === offlineScope && job.userKey === offlineUserKey);
+          jobs.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+          resolve(jobs);
+        };
+        request.onerror = () => reject(request.error);
+      });
+    }
+
+    async function deleteOfflineJob(id) {
+      const db = await openOfflineDb();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(offlineStoreName, "readwrite");
+        tx.objectStore(offlineStoreName).delete(id);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+      });
+    }
+
+    async function processOfflineJob(job) {
+      if (job.kind === "action") {
+        const form = new FormData();
+        form.append("action", job.action);
+        if (job.extra?.rappel_at) form.append("rappel_at", job.extra.rappel_at);
+        if (job.extra?.survey) {
+          Object.entries(job.extra.survey).forEach(([key, value]) => form.append(key, value ?? ""));
+        }
+        const res = await fetch(job.url, { method: "POST", headers: { "X-CSRFToken": csrfToken }, body: form });
+        if (!res.ok) throw new Error("sync action failed");
+        const data = await res.json();
+        const row = document.querySelector(`tr[data-id="${job.rowId}"]`);
+        if (row) updateRow(row, data);
+        return;
+      }
+      if (job.kind === "audio") {
+        const form = new FormData();
+        form.append("audio", job.blob, job.filename);
+        const res = await fetch(job.url, { method: "POST", headers: { "X-CSRFToken": csrfToken }, body: form });
+        if (!res.ok) throw new Error("sync audio failed");
+        const payload = await res.json();
+        const row = document.querySelector(`tr[data-id="${job.rowId}"]`);
+        if (row && payload?.audio_url) {
+          const audio = row.querySelector(".js-audio");
+          if (audio) audio.src = payload.audio_url;
+        }
+      }
+    }
+
+    async function syncOfflineJobs() {
+      if (!navigator.onLine) return;
+      try {
+        const jobs = await loadOfflineJobs();
+        for (const job of jobs) {
+          await processOfflineJob(job);
+          await deleteOfflineJob(job.id);
+        }
+      } catch (err) {
+        // pending jobs remain in IndexedDB
+      }
+    }
+
+    window.addEventListener("online", syncOfflineJobs);
+    syncOfflineJobs();
+    const terminationModal = document.getElementById("js-termination-modal");
+    const modalRappelCheckbox = document.getElementById("js-modal-rappel");
+    const modalRappelAt = document.getElementById("js-modal-rappel-at");
+    const modalConfirmBtn = document.querySelector("[data-modal-action=\"confirm\"]");
+    const modalCancelBtn = document.querySelector("[data-modal-action=\"cancel\"]");
+    const modalTitle = document.getElementById("js-modal-title");
+    const modalName = document.getElementById("js-modal-nom");
+    const modalPhone = document.getElementById("js-modal-phone");
+    const transcriptionModal = document.getElementById("js-transcription-modal");
+    const transcriptionName = document.getElementById("js-transcription-name");
+    const transcriptionStatus = document.getElementById("js-transcription-status");
+    const transcriptionText = document.getElementById("js-transcription-text");
+    const transcriptionDownload = document.getElementById("js-transcription-download");
+    const modalQ1 = document.getElementById("js-modal-q1");
+    const modalQ2 = document.getElementById("js-modal-q2");
+    const modalQ3 = document.getElementById("js-modal-q3");
+    const modalQ4 = document.getElementById("js-modal-q4");
+    const modalQ5 = document.getElementById("js-modal-q5");
+    const modalQ6 = document.getElementById("js-modal-q6");
+    const modalCommentaires = document.getElementById("js-modal-commentaires");
+    const modalRecommandations = document.getElementById("js-modal-recommandations");
+    const formateurLangToggle = document.getElementById("js-formateur-lang-toggle");
+    let modalResolve = null;
+    let modalContext = { mode: "edit" };
+
+    function toggleRappelInput() {
+      if (!modalRappelCheckbox || !modalRappelAt) return;
+      modalRappelAt.disabled = !modalRappelCheckbox.checked;
+      if (modalRappelAt.disabled) modalRappelAt.value = "";
+    }
+    function setFormateurModalLang(lang) {
+      formateurLangToggle?.querySelectorAll(".lang-btn").forEach((btn) => {
+        btn.classList.toggle("active", btn.dataset.lang === lang);
+      });
+      document.querySelectorAll(".js-formateur-q-title").forEach((el) => {
+        if (el.dataset[lang]) el.textContent = el.dataset[lang];
+      });
+      document.querySelectorAll(".js-formateur-q-form").forEach((el) => {
+        if (el.dataset[lang]) el.textContent = el.dataset[lang];
+      });
+      document.querySelectorAll(".js-formateur-q-scale").forEach((el) => {
+        if (el.dataset[lang]) el.textContent = el.dataset[lang];
+      });
+      localStorage.setItem("padesce_lang_formateur_cc", lang);
+    }
+
+    function resetSurveyInputs() {
+      if (modalQ1) modalQ1.value = "";
+      if (modalQ2) modalQ2.value = "";
+      if (modalQ3) modalQ3.value = "";
+      if (modalQ4) modalQ4.value = "";
+      if (modalQ5) modalQ5.value = "";
+      if (modalQ6) modalQ6.value = "";
+      if (modalCommentaires) modalCommentaires.value = "";
+      if (modalRecommandations) modalRecommandations.value = "";
+    }
+
+    function populateSurveyFromRow(row) {
+      if (!row) return;
+      if (modalQ1) modalQ1.value = row.dataset.q1 || "";
+      if (modalQ2) modalQ2.value = row.dataset.q2 || "";
+      if (modalQ3) modalQ3.value = row.dataset.q3 || "";
+      if (modalQ4) modalQ4.value = row.dataset.q4 || "";
+      if (modalQ5) modalQ5.value = row.dataset.q5 || "";
+      if (modalQ6) modalQ6.value = row.dataset.q6 || "";
+      if (modalCommentaires) modalCommentaires.value = row.dataset.commentaires || "";
+      if (modalRecommandations) modalRecommandations.value = row.dataset.recommandations || "";
+    }
+
+    function closeFormModal(result) {
+      if (terminationModal) terminationModal.hidden = true;
+      if (modalName) modalName.textContent = "-";
+      if (modalPhone) modalPhone.textContent = "-";
+      if (modalRappelCheckbox) modalRappelCheckbox.checked = false;
+      if (modalRappelAt) {
+        modalRappelAt.value = "";
+        modalRappelAt.disabled = true;
+      }
+      resetSurveyInputs();
+      modalResolve?.(result);
+      modalResolve = null;
+    }
+
+    function openFormModal(row, mode = "edit") {
+      if (!terminationModal) return Promise.resolve(null);
+      modalContext = { mode };
+      modalName.textContent = row?.dataset?.name || "-";
+      modalPhone.textContent = row?.dataset?.phone || "-";
+      populateSurveyFromRow(row);
+      if (modalTitle) {
+        modalTitle.textContent = mode === "start"
+          ? "Demarrer l'appel formateur"
+          : "Modifier le formulaire du formateur";
+      }
+      if (modalConfirmBtn) {
+        modalConfirmBtn.textContent = mode === "start"
+          ? "Demarrer et enregistrer"
+          : "Enregistrer le formulaire";
+      }
+      const savedLang = localStorage.getItem("padesce_lang_formateur_cc") || "fr";
+      setFormateurModalLang(savedLang);
+      terminationModal.hidden = false;
+      return new Promise((resolve) => { modalResolve = resolve; });
+    }
+
+    modalRappelCheckbox?.addEventListener("change", toggleRappelInput);
+    formateurLangToggle?.querySelectorAll(".lang-btn").forEach((btn) => {
+      btn.addEventListener("click", () => setFormateurModalLang(btn.dataset.lang || "fr"));
+    });
+    modalConfirmBtn?.addEventListener("click", () => {
+      closeFormModal({
+        action: modalContext.mode === "start" ? "start" : "update_form",
+        survey: {
+          q1_prerequis_apprenants: modalQ1?.value || "",
+          q2_interaction_apprenants: modalQ2?.value || "",
+          q3_competences_acquises: modalQ3?.value || "",
+          q4_gestion_administrative: modalQ4?.value || "",
+          q5_gestion_financiere: modalQ5?.value || "",
+          q6_communication: modalQ6?.value || "",
+          commentaires: modalCommentaires?.value || "",
+          recommandations: modalRecommandations?.value || "",
+        },
+      });
+    });
+    modalCancelBtn?.addEventListener("click", () => closeFormModal(null));
+    terminationModal?.addEventListener("click", (event) => {
+      if (event.target === terminationModal) closeFormModal(null);
+    });
+    document.querySelector("[data-transcription-close]")?.addEventListener("click", () => {
+      if (transcriptionModal) transcriptionModal.hidden = true;
+    });
+    transcriptionModal?.addEventListener("click", (event) => {
+      if (event.target === transcriptionModal) transcriptionModal.hidden = true;
+    });
+
+    async function sendAction(row, action, extra = {}) {
+      const form = new FormData();
+      form.append("action", action);
+      if (extra.rappel_at) form.append("rappel_at", extra.rappel_at);
+      if (extra.survey) {
+        Object.entries(extra.survey).forEach(([key, value]) => form.append(key, value ?? ""));
+      }
+      const url = `/appels-formateurs/${row.dataset.id}/action/`;
+      try {
+        if (!navigator.onLine) throw new Error("offline");
+        const res = await fetch(url, {
+          method: "POST",
+          headers: { "X-CSRFToken": csrfToken },
+          body: form,
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) return data;
+        return data;
+      } catch (err) {
+        await queueOfflineJob({ kind: "action", rowId: row.dataset.id, url, action, extra });
+        const status = optimisticStatusFromAction(action) || row.dataset.status || "";
+        return { ok: true, queued: true, status, status_label: buildStatusLabel(status) };
+      }
+    }
+
+    function updateRow(row, data) {
+      row.dataset.status = data.status || row.dataset.status;
+      const badge = row.querySelector("[data-badge]");
+      if (badge && data.status_label) badge.textContent = data.status_label;
+      badge?.classList.toggle("run", data.status === "en_cours");
+      badge?.classList.toggle("pause", data.status === "pause");
+      badge?.classList.toggle("done", data.status === "termine");
+      badge?.classList.toggle("wait", !["en_cours", "pause", "termine"].includes(data.status));
+      const start = row.querySelector(".js-start");
+      const pause = row.querySelector(".js-pause");
+      const resume = row.querySelector(".js-resume");
+      const rappeler = row.querySelector(".js-rappeler");
+      const terminer = row.querySelector(".js-terminer");
+      const canStart = ["en_attente", "a_rappeler"].includes(data.status);
+      if (start) start.hidden = !canStart;
+      if (pause) pause.hidden = data.status !== "en_cours";
+      if (resume) resume.hidden = data.status !== "pause";
+      if (rappeler) rappeler.hidden = !["en_cours", "pause"].includes(data.status);
+      if (terminer) terminer.hidden = !["en_cours", "pause"].includes(data.status);
+      const playBtn = row.querySelector(".js-play");
+      const audio = row.querySelector(".js-audio");
+      if (playBtn) playBtn.disabled = !(data.status === "termine" && audio?.src);
+    }
+
+    const recordState = new Map();
+    function getRecordState(row) { return recordState.get(row.dataset.id); }
+
+    async function uploadAudio(row, blob) {
+      const id = row.dataset.id;
+      const blobType = (blob && blob.type) ? blob.type.toLowerCase() : "";
+      const ext = blobType.includes("webm") ? "webm" : "mp3";
+      const form = new FormData();
+      form.append("audio", blob, `formateur-${id}.${ext}`);
+      let payload = null;
+      try {
+        if (!navigator.onLine) throw new Error("offline");
+        const res = await fetch(`/appels-formateurs/${id}/upload/`, {
+          method: "POST",
+          headers: { "X-CSRFToken": csrfToken },
+          body: form,
+        });
+        if (!res.ok) throw new Error("upload failed");
+        payload = await res.json();
+      } catch (err) {
+        await queueOfflineJob({
+          kind: "audio",
+          rowId: id,
+          url: `/appels-formateurs/${id}/upload/`,
+          filename: `formateur-${id}.${ext}`,
+          blob,
+        });
+      }
+      if (payload?.audio_url) {
+        const audio = row.querySelector(".js-audio");
+        if (audio) audio.src = payload.audio_url;
+        const checkbox = row.querySelector(".js-audio-select");
+        if (checkbox) checkbox.disabled = false;
+        let link = row.querySelector(".js-audio-download");
+        if (!link) {
+          const playBtn = row.querySelector(".js-play");
+          link = document.createElement("a");
+          link.className = "btn-small js-audio-download";
+          link.style.fontSize = "0.85rem";
+          link.textContent = "Telecharger";
+          playBtn.insertAdjacentElement("afterend", link);
+        }
+        link.href = payload.audio_url;
+        link.setAttribute("download", `formateur-${id}.${ext}`);
+      }
+    }
+
+    async function startRecording(row) {
+      let stream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      } catch (err) {
+        alert("Micro non accessible.");
+        return;
+      }
+      const audioCtx = new AudioContext();
+      const source = audioCtx.createMediaStreamSource(stream);
+      const analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 256;
+      source.connect(analyser);
+      const canvas = row.querySelector(".js-visual");
+      const ctx = canvas.getContext("2d");
+      const bufferLength = analyser.frequencyBinCount;
+      const dataArray = new Uint8Array(bufferLength);
+      let raf;
+      function draw() {
+        raf = requestAnimationFrame(draw);
+        analyser.getByteFrequencyData(dataArray);
+        ctx.fillStyle = "#f8fafc";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        const barWidth = (canvas.width / bufferLength) * 2.5;
+        let x = 0;
+        for (let i = 0; i < bufferLength; i++) {
+          const barHeight = dataArray[i] / 3;
+          ctx.fillStyle = "rgba(24,176,172,0.8)";
+          ctx.fillRect(x, canvas.height - barHeight, barWidth, barHeight);
+          x += barWidth + 1;
+        }
+      }
+      draw();
+      const mimeType = MediaRecorder.isTypeSupported("audio/mpeg") ? "audio/mpeg" : "audio/webm";
+      const recorder = new MediaRecorder(stream, { mimeType });
+      const chunks = [];
+      recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
+      recorder.onstop = async () => {
+        const blob = new Blob(chunks, { type: mimeType });
+        const audio = row.querySelector(".js-audio");
+        audio.src = URL.createObjectURL(blob);
+        row.querySelector(".js-play").disabled = false;
+        recordState.set(row.dataset.id, { recorder: null, chunks: [], blob });
+        await uploadAudio(row, blob);
+        cancelAnimationFrame(raf);
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        audioCtx.close();
+      };
+      recorder.start();
+      recordState.set(row.dataset.id, { recorder, chunks, stream, raf });
+    }
+
+    document.querySelectorAll(".js-actions").forEach((wrap) => {
+      const row = wrap.closest("tr[data-id]");
+      wrap.querySelector(".js-start")?.addEventListener("click", async () => {
+        const modalResult = await openFormModal(row, "start");
+        if (!modalResult) return;
+        try {
+          const data = await sendAction(row, modalResult.action, { survey: modalResult.survey });
+          if (!data?.ok) {
+            alert(data?.error || "Action impossible.");
+            return;
+          }
+          if (modalResult?.survey) {
+            row.dataset.q1 = String(modalResult.survey.q1_prerequis_apprenants || "");
+            row.dataset.q2 = String(modalResult.survey.q2_interaction_apprenants || "");
+            row.dataset.q3 = String(modalResult.survey.q3_competences_acquises || "");
+            row.dataset.q4 = modalResult.survey.q4_gestion_administrative || "";
+            row.dataset.q5 = modalResult.survey.q5_gestion_financiere || "";
+            row.dataset.q6 = modalResult.survey.q6_communication || "";
+            row.dataset.commentaires = modalResult.survey.commentaires || "";
+            row.dataset.recommandations = modalResult.survey.recommandations || "";
+          }
+          updateRow(row, data);
+          await startRecording(row);
+        } catch (err) { alert("Action impossible."); }
+      });
+      wrap.querySelector(".js-pause")?.addEventListener("click", async () => {
+        try {
+          const data = await sendAction(row, "pause");
+          if (!data?.ok) {
+            alert(data?.error || "Action impossible.");
+            return;
+          }
+          updateRow(row, data);
+          const state = getRecordState(row);
+          if (state?.recorder && state.recorder.state === "recording") state.recorder.pause();
+        } catch (err) { alert("Action impossible."); }
+      });
+      wrap.querySelector(".js-resume")?.addEventListener("click", async () => {
+        try {
+          const data = await sendAction(row, "resume");
+          if (!data?.ok) {
+            alert(data?.error || "Action impossible.");
+            return;
+          }
+          updateRow(row, data);
+          const state = getRecordState(row);
+          if (state?.recorder && state.recorder.state === "paused") {
+            state.recorder.resume();
+          } else if (!state) {
+            await startRecording(row);
+          }
+        } catch (err) { alert("Action impossible."); }
+      });
+      wrap.querySelector(".js-rappeler")?.addEventListener("click", async () => {
+        if (!(row.dataset.q1 && row.dataset.q2 && row.dataset.q3)) {
+          alert("Renseignez d'abord le formulaire via Demarrer ou en cliquant sur la ligne du formateur.");
+          return;
+        }
+        const defaultReminder = new Date(Date.now() + 60 * 60 * 1000).toISOString().slice(0, 16);
+        const rappelAt = window.prompt("Date et heure du rappel (format AAAA-MM-JJTHH:MM)", defaultReminder);
+        if (!rappelAt) return;
+        try {
+          const state = getRecordState(row);
+          if (state?.recorder && state.recorder.state !== "inactive") {
+            state.recorder.stop();
+            state.stream?.getTracks().forEach((track) => track.stop());
+          }
+          const data = await sendAction(row, "rappeler", { rappel_at: rappelAt });
+          if (!data?.ok) {
+            alert(data?.error || "Action impossible.");
+            return;
+          }
+          updateRow(row, data);
+        } catch (err) { alert("Action impossible."); }
+      });
+      wrap.querySelector(".js-terminer")?.addEventListener("click", async () => {
+        if (!(row.dataset.q1 && row.dataset.q2 && row.dataset.q3)) {
+          alert("Renseignez d'abord le formulaire via Demarrer ou en cliquant sur la ligne du formateur.");
+          return;
+        }
+        try {
+          const state = getRecordState(row);
+          if (state?.recorder && state.recorder.state !== "inactive") {
+            state.recorder.stop();
+            state.stream?.getTracks().forEach((track) => track.stop());
+          }
+          const data = await sendAction(row, "terminer");
+          if (!data?.ok) {
+            alert(data?.error || "Action impossible.");
+            return;
+          }
+          updateRow(row, data);
+        } catch (err) { alert("Action impossible."); }
+      });
+      const badge = row.querySelector("[data-badge]");
+      updateRow(row, { status: row.dataset.status, status_label: badge ? badge.textContent : "" });
+    });
+
+    document.querySelectorAll("tbody tr[data-id]").forEach((row) => {
+      row.style.cursor = "pointer";
+      row.addEventListener("click", async (event) => {
+        if (event.target.closest("button, input, a, .actions, canvas, audio")) return;
+        const modalResult = await openFormModal(row, "edit");
+        if (!modalResult) return;
+        try {
+          const data = await sendAction(row, modalResult.action, { survey: modalResult.survey });
+          if (!data?.ok) {
+            alert(data?.error || "Action impossible.");
+            return;
+          }
+          if (modalResult?.survey) {
+            row.dataset.q1 = String(modalResult.survey.q1_prerequis_apprenants || "");
+            row.dataset.q2 = String(modalResult.survey.q2_interaction_apprenants || "");
+            row.dataset.q3 = String(modalResult.survey.q3_competences_acquises || "");
+            row.dataset.q4 = modalResult.survey.q4_gestion_administrative || "";
+            row.dataset.q5 = modalResult.survey.q5_gestion_financiere || "";
+            row.dataset.q6 = modalResult.survey.q6_communication || "";
+            row.dataset.commentaires = modalResult.survey.commentaires || "";
+            row.dataset.recommandations = modalResult.survey.recommandations || "";
+          }
+          updateRow(row, data);
+        } catch (err) { alert("Action impossible."); }
+      });
+    });
+
+    document.querySelectorAll(".js-play").forEach((btn) => {
+      const row = btn.closest("tr[data-id]");
+      const audio = row.querySelector(".js-audio");
+      const fill = row.querySelector(".progress-fill");
+      const label = row.querySelector(".time-label");
+      function updateLabel() {
+        if (!audio.duration || isNaN(audio.duration)) {
+          label.textContent = "0:00";
+          fill.style.width = "0%";
+          return;
+        }
+        const remaining = Math.max(audio.duration - audio.currentTime, 0);
+        const mins = Math.floor(remaining / 60);
+        const secs = Math.floor(remaining % 60).toString().padStart(2, "0");
+        label.textContent = `${mins}:${secs}`;
+        fill.style.width = `${(audio.currentTime / audio.duration) * 100}%`;
+      }
+      audio.addEventListener("timeupdate", updateLabel);
+      audio.addEventListener("ended", () => { btn.textContent = "Play"; updateLabel(); });
+      btn.addEventListener("click", () => {
+        if (!audio.src) return;
+        if (audio.paused) {
+          audio.play();
+          btn.textContent = "Pause";
+        } else {
+          audio.pause();
+          btn.textContent = "Play";
+        }
+      });
+    });
+    document.querySelectorAll(".js-transcription").forEach((btn) => {
+      const row = btn.closest("tr[data-id]");
+      btn.addEventListener("click", async () => {
+        const id = row.dataset.id;
+        const name = row.dataset.name || "-";
+        if (transcriptionModal) transcriptionModal.hidden = false;
+        if (transcriptionName) transcriptionName.textContent = name;
+        if (transcriptionStatus) transcriptionStatus.textContent = "Chargement ou transcription en cours...";
+        if (transcriptionText) transcriptionText.textContent = "Veuillez patienter...";
+        if (transcriptionDownload) transcriptionDownload.href = `/appels-formateurs/${id}/transcription/download/`;
+        try {
+          const res = await fetch(`/appels-formateurs/${id}/transcription/`, {
+            method: "POST",
+            headers: { "X-CSRFToken": csrfToken },
+          });
+          const payload = await res.json();
+          if (!res.ok || !payload.ok) throw new Error(payload.error || "Transcription impossible.");
+          const data = payload.transcription || {};
+          if (transcriptionStatus) {
+            transcriptionStatus.textContent = payload.generated
+              ? `Transcription generee (${data.engine || "local"}).`
+              : `Transcription disponible (${data.engine || "local"}).`;
+          }
+          if (transcriptionText) transcriptionText.textContent = data.text || "Aucune transcription disponible.";
+        } catch (err) {
+          if (transcriptionStatus) transcriptionStatus.textContent = "Erreur";
+          if (transcriptionText) transcriptionText.textContent = err.message || "Transcription impossible.";
+        }
+      });
+    });
+
+    const downloadBtn = document.getElementById("js-download-audios");
+    const audioCheckboxes = Array.from(document.querySelectorAll(".js-audio-select"));
+    const selectAllCheckbox = document.getElementById("js-select-all");
+
+    function refreshSelectAllState() {
+      const available = audioCheckboxes.filter((cb) => !cb.disabled);
+      if (!available.length) {
+        selectAllCheckbox.checked = false;
+        selectAllCheckbox.indeterminate = false;
+        selectAllCheckbox.disabled = true;
+        return;
+      }
+      selectAllCheckbox.disabled = false;
+      const allChecked = available.every((cb) => cb.checked);
+      const anyChecked = available.some((cb) => cb.checked);
+      selectAllCheckbox.checked = allChecked;
+      selectAllCheckbox.indeterminate = !allChecked && anyChecked;
+    }
+
+    function updateDownloadState() {
+      downloadBtn.disabled = !audioCheckboxes.some((cb) => cb.checked);
+      refreshSelectAllState();
+    }
+
+    audioCheckboxes.forEach((cb) => cb.addEventListener("change", updateDownloadState));
+    selectAllCheckbox?.addEventListener("change", (event) => {
+      const shouldCheck = event.target.checked;
+      audioCheckboxes.forEach((cb) => {
+        if (!cb.disabled) cb.checked = shouldCheck;
+      });
+      updateDownloadState();
+    });
+
+    downloadBtn?.addEventListener("click", async () => {
+      const selected = audioCheckboxes.filter((cb) => cb.checked).map((cb) => cb.value);
+      if (!selected.length) return;
+      const form = new FormData();
+      selected.forEach((id) => form.append("ids", id));
+      try {
+        const response = await fetch("/appels-formateurs/audio-download/", {
+          method: "POST",
+          headers: { "X-CSRFToken": csrfToken },
+          body: form,
+        });
+        if (!response.ok) throw new Error("Telechargement impossible.");
+        const blob = await response.blob();
+        const disposition = response.headers.get("Content-Disposition") || "";
+        const nameMatch = /filename="?([^";]+)"?/.exec(disposition);
+        const filename = nameMatch?.[1] || "appels-formateurs-audios.zip";
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+      } catch (err) {
+        alert(err.message || "Impossible de telecharger les audios selectionnes.");
+      }
+    });
+
+    updateDownloadState();
+
+    const bulkBtn = document.getElementById("js-start-transcription");
+    const bulkStopBtn = document.getElementById("js-stop-transcription");
+    const bulkWrap = document.getElementById("bulk-progress-wrap");
+    const bulkBar = document.getElementById("bulk-progress-bar");
+    const bulkLabel = document.getElementById("bulk-progress-label");
+    const bulkSub = document.getElementById("bulk-progress-sub");
+    let bulkPoller = null;
+
+    function renderBulkStatus(status) {
+      if (!status) return;
+      const total = Number(status.total || 0);
+      const processed = Number(status.processed || 0);
+      const percent = total > 0 ? Math.round((processed / total) * 100) : 0;
+      if (bulkWrap) bulkWrap.style.display = (status.state === "idle" && !status.message) ? "none" : "flex";
+      if (bulkBar) bulkBar.style.width = `${Math.max(0, Math.min(percent, 100))}%`;
+      if (bulkLabel) bulkLabel.textContent = `${percent}%`;
+      if (bulkSub) bulkSub.textContent = `${status.message || "En attente."}${status.current_label ? " | " + status.current_label : ""}`;
+      const isBusy = ["running", "stopping"].includes(status.state);
+      if (bulkBtn) bulkBtn.disabled = isBusy;
+      if (bulkStopBtn) bulkStopBtn.style.display = isBusy ? "inline-flex" : "none";
+      if (bulkStopBtn) bulkStopBtn.disabled = status.state === "stopping";
+      if (!isBusy && bulkPoller) {
+        clearInterval(bulkPoller);
+        bulkPoller = null;
+      }
+    }
+
+    async function fetchBulkStatus() {
+      try {
+        const res = await fetch("{% url 'filtered_formateurs_transcription_status' %}");
+        const payload = await res.json();
+        renderBulkStatus(payload.status);
+      } catch (err) {
+        if (bulkSub) bulkSub.textContent = "Impossible de recuperer l'etat de transcription.";
+      }
+    }
+
+    bulkBtn?.addEventListener("click", async function () {
+      try {
+        const query = window.location.search || "";
+        const res = await fetch(`{% url 'start_filtered_formateurs_transcription' %}${query}`, {
+          method: "POST",
+          headers: { "X-CSRFToken": csrfToken },
+        });
+        const payload = await res.json();
+        if (!res.ok || !payload.ok) {
+          alert(payload.error || "Lancement impossible.");
+          return;
+        }
+        renderBulkStatus(payload.status);
+        if (!bulkPoller) bulkPoller = setInterval(fetchBulkStatus, 2000);
+      } catch (err) {
+        alert("Lancement impossible.");
+      }
+    });
+
+    bulkStopBtn?.addEventListener("click", async function () {
+      try {
+        const res = await fetch("{% url 'stop_filtered_formateurs_transcription' %}", {
+          method: "POST",
+          headers: { "X-CSRFToken": csrfToken },
+        });
+        const payload = await res.json();
+        if (!res.ok || !payload.ok) {
+          alert(payload.error || "Arret impossible.");
+          return;
+        }
+        renderBulkStatus(payload.status);
+        if (!bulkPoller) bulkPoller = setInterval(fetchBulkStatus, 2000);
+      } catch (err) {
+        alert("Arret impossible.");
+      }
+    });
+
+    fetchBulkStatus();
+  })();
+</script>
+{% endblock %}
+
+
+
+
+

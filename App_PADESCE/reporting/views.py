@@ -3,8 +3,9 @@ import csv
 import io
 import unicodedata
 from decimal import Decimal, InvalidOperation
+from urllib.parse import urlencode
 
-from openpyxl import load_workbook
+from openpyxl import load_workbook, Workbook
 
 from django.db.models import Avg, Count, Q, Sum
 from django.http import Http404, HttpResponse
@@ -15,6 +16,8 @@ from django.contrib import messages
 from django.utils.text import slugify
 
 from App_PADESCE.apprenants.models import Apprenant, SmsLog
+from App_PADESCE.appels.models import Appel
+from App_PADESCE.core.access import require_analysis_access, require_superadmin_access
 from App_PADESCE.environnement.models import EnqueteEnvironnement
 from App_PADESCE.formations.models import Classe, Formation, Prestation, Prestataire, Beneficiaire, Lieu
 from App_PADESCE.presences.models import Presence
@@ -94,6 +97,84 @@ CONSOLIDATION_HEADER_MAP = {
 
 
 SESSION_KEY_CONSO = "consolidation_upload"
+
+APPRENANT_COLUMNS = [
+    ("numero", "Numero"),
+    ("code", "Code"),
+    ("nom_complet", "Nom complet"),
+    ("beneficiaire", "Beneficiaire"),
+    ("genre", "Genre"),
+    ("age", "Age"),
+    ("fonction", "Fonction"),
+    ("qualification", "Qualification"),
+    ("nb_annees_experience", "Nb annees experience"),
+    ("ville_residence", "Ville residence"),
+    ("prestataire", "Prestataire"),
+    ("intitule_formation_solicitee", "Intitule formation sollicitee"),
+    ("intitule_formation_dispensee", "Intitule formation dispensee"),
+    ("fenetre", "Fenetre"),
+    ("ville_formation", "Ville formation"),
+    ("arrondissement", "Arrondissement"),
+    ("departement", "Departement"),
+    ("region", "Region"),
+    ("lieu_formation", "Lieu formation"),
+    ("precision_lieu", "Precision lieu"),
+    ("longitude", "Longitude"),
+    ("latitude", "Latitude"),
+    ("telephone1", "Telephone 1"),
+    ("telephone2", "Telephone 2"),
+    ("cohorte", "Cohorte"),
+    ("tel_formateur", "Tel formateur"),
+    ("classe_code", "Classe"),
+    ("formation_nom", "Formation"),
+    ("code_ville", "Code ville"),
+    ("appartenance_beneficiaire", "Appartenance beneficiaire"),
+    ("actif", "Actif"),
+]
+
+APPEL_TERMINE_COLUMNS = [
+    ("code", "Code"),
+    ("nom", "Nom"),
+    ("prestataire", "Prestataire"),
+    ("beneficiaire", "Beneficiaire"),
+    ("lieu", "Lieu"),
+    ("classe_label", "Classe (label)"),
+    ("classe_code", "Classe (code)"),
+    ("telephone1", "Telephone 1"),
+    ("telephone2", "Telephone 2"),
+    ("taux_presence", "Taux presence"),
+    ("type_formation_declaree", "Type formation declaree"),
+    ("formation_padesce", "Formation PADESCE"),
+    ("fenetre", "Fenetre"),
+    ("status", "Statut"),
+]
+
+
+def _apprenant_value(apprenant: Apprenant, key: str):
+    if key == "classe_code":
+        return apprenant.classe.code if apprenant.classe_id else ""
+    if key == "formation_nom":
+        return apprenant.formation.nom if apprenant.formation_id else ""
+    return getattr(apprenant, key, "")
+
+
+def _appel_value(appel: Appel, key: str):
+    if key == "classe_code":
+        return appel.classe.code if appel.classe_id else ""
+    return getattr(appel, key, "")
+
+
+def _excel_safe(value):
+    if value is None:
+        return ""
+    if isinstance(value, bool):
+        return "Oui" if value else "Non"
+    if isinstance(value, (int, float, Decimal)):
+        return value
+    text = str(value)
+    if text.startswith(("=", "+", "-", "@")):
+        return "'" + text
+    return text
 
 
 def _ensure_prestataire(name: str) -> Prestataire | None:
@@ -488,84 +569,7 @@ def _save_related_from_payload(payload: list[dict]):
     return created_apprenants
 
 
-def consolidation_view(request):
-    form = ConsolidationUploadForm(request.POST or None, request.FILES or None)
-    headers = []
-    preview_rows = []
-    analysis = {"mapped": [], "missing": [], "extras": []}
-    errors = []
-    file_meta = request.session.get(SESSION_KEY_CONSO, {}).get("meta", {})
-    save_requested = bool(request.POST.get("save"))
-    extract_requested = bool(request.POST.get("extract_classes"))
-    unique_classe_ids: list[str] = []
-
-    if request.method == "POST" and form.is_valid():
-        fichier = form.cleaned_data.get("fichier")
-        try:
-            content = None
-            if fichier:
-                content = fichier.read()
-                file_meta = {
-                    "name": getattr(fichier, "name", ""),
-                    "size": getattr(fichier, "size", 0),
-                }
-                request.session[SESSION_KEY_CONSO] = {
-                    "meta": file_meta,
-                    "b64": base64.b64encode(content).decode("ascii"),
-                }
-                request.session.modified = True
-            elif save_requested and request.session.get(SESSION_KEY_CONSO):
-                cached = request.session.get(SESSION_KEY_CONSO, {})
-                b64 = cached.get("b64")
-                if b64:
-                    content = base64.b64decode(b64)
-                    file_meta = cached.get("meta", {})
-            if not content:
-                raise ValueError("Veuillez charger un fichier consolidé avant de valider.")
-
-            buffer_preview = io.BytesIO(content)
-            headers, preview_rows = _read_consolidation_sheet(buffer_preview, max_rows=60)
-            analysis = _analyze_headers(headers)
-            if save_requested or extract_requested:
-                buffer_full = io.BytesIO(content)
-                full_headers, all_rows = _read_consolidation_sheet(buffer_full, max_rows=None)
-                records, payload = _rows_to_records(full_headers, all_rows)
-                if not records:
-                    raise ValueError("Aucune ligne valide à enregistrer.")
-                unique_classe_ids = _extract_unique_classe_ids(payload)
-                if save_requested:
-                    try:
-                        _reset_consolidation_tables()
-                        ConsolidationRecord.objects.all().delete()
-                        with transaction.atomic():
-                            ConsolidationRecord.objects.bulk_create(records, ignore_conflicts=False)
-                            created = _save_related_from_payload(payload)
-                        messages.success(request, f"{len(records)} lignes importées → {created} apprenants créés/mis à jour (remplacement complet).")
-                    except OperationalError:
-                        errors.append("Base de données occupée (database locked). Réessayez dans un instant.")
-        except Exception as exc:
-            errors.append(str(exc))
-            preview_rows = []
-
-    return render(
-        request,
-        "reporting/consolidation.html",
-        {
-            "form": form,
-            "headers": headers,
-            "preview_rows": preview_rows,
-            "analysis": analysis,
-        "errors": errors,
-        "file_meta": file_meta,
-        "unique_classe_ids": unique_classe_ids,
-        },
-    )
-
-
-# Les autres fonctions (reporting_home, get_table_data, etc.) restent inchangées
-# (je ne les ai pas recopiées ici pour ne pas alourdir, mais elles doivent rester dans le fichier)
-
-# Fonction d'analyse des headers (à conserver ou à réactiver pour debug)
+# Fonction d'analyse des headers (a conserver ou a reactiver pour debug)
 def _analyze_headers(headers):
     normalized_headers = [_normalize_header(h or "") for h in headers]
     mapped_fields = set()
@@ -768,6 +772,7 @@ def _save_related_from_payload(payload: list[dict]):
     return created_apprenants
 
 
+@require_superadmin_access
 def consolidation_view(request):
     form = ConsolidationUploadForm(request.POST or None, request.FILES or None)
     headers = []
@@ -776,6 +781,93 @@ def consolidation_view(request):
     errors = []
     file_meta = request.session.get(SESSION_KEY_CONSO, {}).get("meta", {})
     save_requested = bool(request.POST.get("save"))
+    prestataire_filter = (request.GET.get("prestataire") or "").strip()
+    beneficiaire_filter = (request.GET.get("beneficiaire") or "").strip()
+
+    prestataires = (
+        Apprenant.objects.exclude(prestataire__isnull=True)
+        .exclude(prestataire__exact="")
+        .values_list("prestataire", flat=True)
+        .distinct()
+        .order_by("prestataire")
+    )
+    beneficiaires = (
+        Apprenant.objects.exclude(beneficiaire__isnull=True)
+        .exclude(beneficiaire__exact="")
+        .values_list("beneficiaire", flat=True)
+        .distinct()
+        .order_by("beneficiaire")
+    )
+    apprenants_qs = Apprenant.objects.select_related("classe", "formation")
+    if prestataire_filter:
+        apprenants_qs = apprenants_qs.filter(prestataire=prestataire_filter)
+    if beneficiaire_filter:
+        apprenants_qs = apprenants_qs.filter(beneficiaire=beneficiaire_filter)
+    apprenants = list(apprenants_qs.order_by("nom_complet"))
+    apprenant_rows = [
+        [_apprenant_value(apprenant, key) for key, _ in APPRENANT_COLUMNS] for apprenant in apprenants
+    ]
+    appel_prestataire_filters = [p.strip() for p in request.GET.getlist("appel_prestataire") if p.strip()]
+    appel_beneficiaire_filter = (request.GET.get("appel_beneficiaire") or "").strip()
+    appel_filter_mode = (request.GET.get("appel_filter_mode") or "and").lower()
+    if appel_filter_mode not in {"and", "or"}:
+        appel_filter_mode = "and"
+    appel_status_filter = (request.GET.get("appel_status") or "termine").strip()
+    valid_statuses = {code for code, _ in Appel.STATUS_CHOICES}
+    if appel_status_filter not in valid_statuses:
+        appel_status_filter = "termine"
+
+    appel_prestataires = (
+        Appel.objects.filter(status=appel_status_filter)
+        .exclude(prestataire__isnull=True)
+        .exclude(prestataire__exact="")
+        .values_list("prestataire", flat=True)
+        .distinct()
+        .order_by("prestataire")
+    )
+    appel_beneficiaires = (
+        Appel.objects.filter(status=appel_status_filter)
+        .exclude(beneficiaire__isnull=True)
+        .exclude(beneficiaire__exact="")
+        .values_list("beneficiaire", flat=True)
+        .distinct()
+        .order_by("beneficiaire")
+    )
+
+    appels_termine_qs = Appel.objects.filter(status=appel_status_filter).select_related("classe")
+    if appel_prestataire_filters or appel_beneficiaire_filter:
+        q = Q()
+        if appel_filter_mode == "or":
+            if appel_prestataire_filters:
+                q |= Q(prestataire__in=appel_prestataire_filters)
+            if appel_beneficiaire_filter:
+                q |= Q(beneficiaire=appel_beneficiaire_filter)
+        else:
+            if appel_prestataire_filters:
+                q &= Q(prestataire__in=appel_prestataire_filters)
+            if appel_beneficiaire_filter:
+                q &= Q(beneficiaire=appel_beneficiaire_filter)
+        appels_termine_qs = appels_termine_qs.filter(q)
+    appels_termine = list(appels_termine_qs.order_by("nom"))
+    appels_termine_rows = [
+        [_appel_value(appel, key) for key, _ in APPEL_TERMINE_COLUMNS] for appel in appels_termine
+    ]
+    prestataire_appels_termine = (
+        appels_termine_qs.values("prestataire")
+        .annotate(total=Count("id"))
+        .order_by("-total", "prestataire")
+    )
+    appel_querystring = urlencode(
+        {
+            "appel_prestataire": appel_prestataire_filters,
+            "appel_beneficiaire": appel_beneficiaire_filter,
+            "appel_filter_mode": appel_filter_mode,
+            "appel_status": appel_status_filter,
+        },
+        doseq=True,
+    )
+    extract_requested = bool(request.POST.get("extract_classes"))
+    unique_classe_ids: list[str] = []
 
     if request.method == "POST" and form.is_valid():
         fichier = form.cleaned_data.get("fichier")
@@ -804,22 +896,24 @@ def consolidation_view(request):
             buffer_preview = io.BytesIO(content)
             headers, preview_rows = _read_consolidation_sheet(buffer_preview, max_rows=60)
             analysis = _analyze_headers(headers)
-            if save_requested:
+            if save_requested or extract_requested:
                 buffer_full = io.BytesIO(content)
                 full_headers, all_rows = _read_consolidation_sheet(buffer_full, max_rows=None)
                 records, payload = _rows_to_records(full_headers, all_rows)
                 if not records:
                     raise ValueError("Aucune ligne valide a enregistrer.")
-                try:
-                    # Always wipe before inserting, even if the insert later fails, to behave like a seed/replace.
-                    _reset_consolidation_tables()
-                    ConsolidationRecord.objects.all().delete()
-                    with transaction.atomic():
-                        ConsolidationRecord.objects.bulk_create(records, ignore_conflicts=False)
-                        _save_related_from_payload(payload)
-                    messages.success(request, f"{len(records)} lignes consolidees enregistrees (remplacement complet).")
-                except OperationalError:
-                    errors.append("Base de donnees occupee (database locked). Reessayez dans un instant.")
+                unique_classe_ids = _extract_unique_classe_ids(payload)
+                if save_requested:
+                    try:
+                        # Always wipe before inserting, even if the insert later fails, to behave like a seed/replace.
+                        _reset_consolidation_tables()
+                        ConsolidationRecord.objects.all().delete()
+                        with transaction.atomic():
+                            ConsolidationRecord.objects.bulk_create(records, ignore_conflicts=False)
+                            _save_related_from_payload(payload)
+                        messages.success(request, f"{len(records)} lignes consolidees enregistrees (remplacement complet).")
+                    except OperationalError:
+                        errors.append("Base de donnees occupee (database locked). Reessayez dans un instant.")
         except Exception as exc:  # pragma: no cover - runtime feedback
             errors.append(str(exc))
             preview_rows = []
@@ -834,14 +928,139 @@ def consolidation_view(request):
             "analysis": analysis,
             "errors": errors,
             "file_meta": file_meta,
+            "apprenant_columns": APPRENANT_COLUMNS,
+            "apprenant_rows": apprenant_rows,
+            "apprenant_count": len(apprenants),
+            "prestataires": prestataires,
+            "beneficiaires": beneficiaires,
+            "selected_prestataire": prestataire_filter,
+            "selected_beneficiaire": beneficiaire_filter,
+            "unique_classe_ids": unique_classe_ids,
+            "appels_termine_columns": APPEL_TERMINE_COLUMNS,
+            "appels_termine_rows": appels_termine_rows,
+            "appels_termine_count": len(appels_termine),
+            "prestataire_appels_termine": prestataire_appels_termine,
+            "appel_prestataires": appel_prestataires,
+            "appel_beneficiaires": appel_beneficiaires,
+            "selected_appel_prestataire": appel_prestataire_filters,
+            "selected_appel_beneficiaire": appel_beneficiaire_filter,
+            "selected_appel_filter_mode": appel_filter_mode,
+            "selected_appel_status": appel_status_filter,
+            "appel_status_choices": Appel.STATUS_CHOICES,
+            "appel_querystring": appel_querystring,
         },
     )
+
+
+@require_analysis_access
+def export_consolidation_apprenants_excel(request):
+    prestataire_filter = (request.GET.get("prestataire") or "").strip()
+    beneficiaire_filter = (request.GET.get("beneficiaire") or "").strip()
+
+    apprenants_qs = Apprenant.objects.select_related("classe", "formation")
+    if prestataire_filter:
+        apprenants_qs = apprenants_qs.filter(prestataire=prestataire_filter)
+    if beneficiaire_filter:
+        apprenants_qs = apprenants_qs.filter(beneficiaire=beneficiaire_filter)
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Apprenants"
+    ws.append([label for _, label in APPRENANT_COLUMNS])
+    for apprenant in apprenants_qs.order_by("nom_complet"):
+        ws.append([_excel_safe(_apprenant_value(apprenant, key)) for key, _ in APPRENANT_COLUMNS])
+
+    response = HttpResponse(
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+    response["Content-Disposition"] = "attachment; filename=apprenants_consolidation.xlsx"
+    wb.save(response)
+    return response
+
+
+@require_analysis_access
+def export_appels_termines_excel(request):
+    appel_prestataire_filters = [p.strip() for p in request.GET.getlist("appel_prestataire") if p.strip()]
+    appel_beneficiaire_filter = (request.GET.get("appel_beneficiaire") or "").strip()
+    appel_filter_mode = (request.GET.get("appel_filter_mode") or "and").lower()
+    if appel_filter_mode not in {"and", "or"}:
+        appel_filter_mode = "and"
+    appel_status_filter = (request.GET.get("appel_status") or "termine").strip()
+    valid_statuses = {code for code, _ in Appel.STATUS_CHOICES}
+    if appel_status_filter not in valid_statuses:
+        appel_status_filter = "termine"
+
+    appels_qs = Appel.objects.filter(status=appel_status_filter).select_related("classe")
+    if appel_prestataire_filters or appel_beneficiaire_filter:
+        q = Q()
+        if appel_filter_mode == "or":
+            if appel_prestataire_filters:
+                q |= Q(prestataire__in=appel_prestataire_filters)
+            if appel_beneficiaire_filter:
+                q |= Q(beneficiaire=appel_beneficiaire_filter)
+        else:
+            if appel_prestataire_filters:
+                q &= Q(prestataire__in=appel_prestataire_filters)
+            if appel_beneficiaire_filter:
+                q &= Q(beneficiaire=appel_beneficiaire_filter)
+        appels_qs = appels_qs.filter(q)
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Appels termines"
+    ws.append([label for _, label in APPEL_TERMINE_COLUMNS])
+    for appel in appels_qs.order_by("nom"):
+        ws.append([_excel_safe(_appel_value(appel, key)) for key, _ in APPEL_TERMINE_COLUMNS])
+
+    response = HttpResponse(
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+    response["Content-Disposition"] = "attachment; filename=appels_termines.xlsx"
+    wb.save(response)
+    return response
+
+
+@require_analysis_access
+def export_appels_termines_csv(request):
+    appel_prestataire_filters = [p.strip() for p in request.GET.getlist("appel_prestataire") if p.strip()]
+    appel_beneficiaire_filter = (request.GET.get("appel_beneficiaire") or "").strip()
+    appel_filter_mode = (request.GET.get("appel_filter_mode") or "and").lower()
+    if appel_filter_mode not in {"and", "or"}:
+        appel_filter_mode = "and"
+    appel_status_filter = (request.GET.get("appel_status") or "termine").strip()
+    valid_statuses = {code for code, _ in Appel.STATUS_CHOICES}
+    if appel_status_filter not in valid_statuses:
+        appel_status_filter = "termine"
+
+    appels_qs = Appel.objects.filter(status=appel_status_filter).select_related("classe")
+    if appel_prestataire_filters or appel_beneficiaire_filter:
+        q = Q()
+        if appel_filter_mode == "or":
+            if appel_prestataire_filters:
+                q |= Q(prestataire__in=appel_prestataire_filters)
+            if appel_beneficiaire_filter:
+                q |= Q(beneficiaire=appel_beneficiaire_filter)
+        else:
+            if appel_prestataire_filters:
+                q &= Q(prestataire__in=appel_prestataire_filters)
+            if appel_beneficiaire_filter:
+                q &= Q(beneficiaire=appel_beneficiaire_filter)
+        appels_qs = appels_qs.filter(q)
+
+    response = HttpResponse(content_type="text/csv")
+    response["Content-Disposition"] = "attachment; filename=appels_termines.csv"
+    writer = csv.writer(response)
+    writer.writerow([label for _, label in APPEL_TERMINE_COLUMNS])
+    for appel in appels_qs.order_by("nom"):
+        writer.writerow([_excel_safe(_appel_value(appel, key)) for key, _ in APPEL_TERMINE_COLUMNS])
+    return response
 
 
 def safe_rate(num: float, den: float) -> float:
     return round((num / den) * 100, 2) if den else 0.0
 
 
+@require_analysis_access
 def reporting_home(request):
     nb_classes = Classe.objects.count()
     nb_apprenants = Apprenant.objects.count()
@@ -1355,6 +1574,7 @@ def get_table_data(code: str) -> dict:
     raise Http404("Table inconnue")
 
 
+@require_analysis_access
 def export_csv(request):
     response = HttpResponse(content_type="text/csv")
     response["Content-Disposition"] = "attachment; filename=reporting_summary.csv"
@@ -1369,6 +1589,7 @@ def export_csv(request):
     return response
 
 
+@require_analysis_access
 def export_excel(request):
     # Simplified: reuse CSV content with .xls extension to keep it lightweight here.
     response = export_csv(request)
@@ -1376,14 +1597,122 @@ def export_excel(request):
     return response
 
 
+@require_analysis_access
 def reporting_embed(request, code: str):
+    response = render(request, "reporting/embed.html", {"code": code.upper()})
+    response["X-Frame-Options"] = "ALLOWALL"
     response = render(request, "reporting/embed.html", {"code": code.upper()})
     response["X-Frame-Options"] = "ALLOWALL"
     return response
 
 
+@require_analysis_access
 def reporting_embed_table(request, code: str):
     payload = get_table_data(code)
     response = render(request, "reporting/embed_table.html", payload)
     response["X-Frame-Options"] = "ALLOWALL"
     return response
+
+
+# ---------------------------------------------------------------------------
+# Section 7 – Vues Rapport Application
+# ---------------------------------------------------------------------------
+
+from django.contrib.auth.models import Group
+from django.contrib.auth import get_user_model as _get_user_model
+from django.shortcuts import redirect
+from django.urls import reverse
+
+from App_PADESCE.reporting.app_report import (
+    build_application_report,
+    export_application_report_csv,
+    export_application_report_excel,
+    export_application_report_word,
+    get_report_email_recipients,
+    parse_report_dates,
+    send_report_by_email,
+)
+
+
+def safe_rate(num: float, den: float) -> float:
+    return round((num / den) * 100, 2) if den else 0.0
+
+
+@require_analysis_access
+def application_report_view(request):
+    start_date, end_date = parse_report_dates(request.GET.get("start"), request.GET.get("end"))
+    selected_class_code = (request.GET.get("classe") or "").strip()
+    report = build_application_report(start_date, end_date, selected_class_code=selected_class_code)
+
+    user_model = _get_user_model()
+    download_params = {"start": start_date.isoformat(), "end": end_date.isoformat()}
+    if selected_class_code:
+        download_params["classe"] = selected_class_code
+    context = {
+        "report": report,
+        "start_value": start_date.isoformat(),
+        "end_value": end_date.isoformat(),
+        "selected_class_code": selected_class_code,
+        "class_options": report["anomalies"]["class_options"],
+        "download_query": urlencode(download_params),
+        "manual_send_enabled": request.user.is_superuser,
+        "user_groups_total": Group.objects.count(),
+        "user_managers_total": user_model.objects.filter(
+            groups__name__in=["manager_padesce", "manager_cga"]
+        ).distinct().count(),
+        "mail_recipients": get_report_email_recipients(),
+    }
+    return render(request, "reporting/rapport.html", context)
+
+
+@require_analysis_access
+def application_report_export_excel(request):
+    start_date, end_date = parse_report_dates(request.GET.get("start"), request.GET.get("end"))
+    report = build_application_report(start_date, end_date)
+    payload = export_application_report_excel(report)
+    filename = f"rapport_application_{start_date}_{end_date}.xlsx"
+    response = HttpResponse(
+        payload,
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return response
+
+
+@require_analysis_access
+def application_report_export_csv_view(request):
+    start_date, end_date = parse_report_dates(request.GET.get("start"), request.GET.get("end"))
+    report = build_application_report(start_date, end_date)
+    filename = f"rapport_application_{start_date}_{end_date}.csv"
+    response = HttpResponse(export_application_report_csv(report), content_type="text/csv; charset=utf-8")
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return response
+
+
+@require_analysis_access
+def application_report_export_word_view(request):
+    start_date, end_date = parse_report_dates(request.GET.get("start"), request.GET.get("end"))
+    report = build_application_report(start_date, end_date)
+    payload = export_application_report_word(report)
+    filename = f"rapport_application_{start_date}_{end_date}.docx"
+    response = HttpResponse(
+        payload,
+        content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    )
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return response
+
+
+@require_superadmin_access
+def application_report_send_mail_view(request):
+    if request.method != "POST":
+        return redirect("application_report")
+    start_date, end_date = parse_report_dates(request.POST.get("start"), request.POST.get("end"))
+    report = build_application_report(start_date, end_date)
+    result = send_report_by_email(report)
+    if result["ok"]:
+        messages.success(request, result["detail"])
+    else:
+        messages.warning(request, result["detail"])
+    query = urlencode({"start": start_date.isoformat(), "end": end_date.isoformat()})
+    return redirect(f"{reverse('application_report')}?{query}")
