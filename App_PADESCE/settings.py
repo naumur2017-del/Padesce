@@ -10,8 +10,10 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
+import importlib.util
 import os
 from pathlib import Path
+from urllib.parse import unquote, urlparse
 
 
 def load_env_file(env_path: Path) -> None:
@@ -23,18 +25,28 @@ def load_env_file(env_path: Path) -> None:
         return
     for line in env_path.read_text(encoding="utf-8").splitlines():
         line = line.strip()
-        if not line or line.startswith("#") or "=" not in line:
+        if (
+            not line
+            or line.startswith("#")
+            or line.startswith("<<<<<<<")
+            or line.startswith("=======")
+            or line.startswith(">>>>>>>")
+            or "=" not in line
+        ):
             continue
         key, value = line.split("=", 1)
-        key = key.strip()
+        key = key.strip().lstrip("\ufeff")
         value = value.strip()
+        if not key or any(char.isspace() for char in key):
+            continue
         os.environ.setdefault(key, value)
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# Charger .env local si present
-# load_env_file(BASE_DIR / ".env")
+# Charger les variables d'environnement locales si presentes.
+load_env_file(BASE_DIR / ".env")
+load_env_file(BASE_DIR / ".env.local")
 
 
 # Quick-start development settings - unsuitable for production
@@ -45,11 +57,14 @@ SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "dev-secret-key-change-me")
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv("DJANGO_DEBUG", "True").lower() in ("1", "true", "yes")
+PUBLIC_CONSULTANT_ACCESS = os.getenv("PUBLIC_CONSULTANT_ACCESS", "False").lower() in ("1", "true", "yes")
 
 ALLOWED_HOSTS_ENV = os.getenv("DJANGO_ALLOWED_HOSTS", "")
-ALLOWED_HOSTS=["*","https://app-padesce.onrender.com","app-padesce.onrender.com"]
+ALLOWED_HOSTS = [host.strip() for host in ALLOWED_HOSTS_ENV.split(",") if host.strip()]
+if not ALLOWED_HOSTS:
+    ALLOWED_HOSTS = ["*", "app-padesce.onrender.com", "call.naumur.com","192.168.1.162"]
 CSRF_TRUSTED_ORIGINS_ENV = os.getenv("DJANGO_CSRF_TRUSTED_ORIGINS", "")
-CSRF_TRUSTED_ORIGINS: list[str] = [o.strip() for o in CSRF_TRUSTED_ORIGINS_ENV.split(",") if o.strip()]
+CSRF_TRUSTED_ORIGINS = [origin.strip() for origin in CSRF_TRUSTED_ORIGINS_ENV.split(",") if origin.strip()]
 
 
 # Application definition
@@ -75,7 +90,12 @@ INSTALLED_APPS = [
     'App_PADESCE.appels',
 ]
 
+HAS_CHANNELS = importlib.util.find_spec("channels") is not None
+if HAS_CHANNELS:
+    INSTALLED_APPS.insert(6, 'channels')
+
 MIDDLEWARE = [
+    'App_PADESCE.core.middleware.FriendlyErrorPagesMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.middleware.http.ConditionalGetMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -107,17 +127,50 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'App_PADESCE.wsgi.application'
+if HAS_CHANNELS:
+    ASGI_APPLICATION = 'App_PADESCE.asgi.application'
+    CHANNEL_LAYERS = {
+        "default": {
+            "BACKEND": "channels.layers.InMemoryChannelLayer",
+        }
+    }
 
 
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+def _database_settings_from_env() -> dict:
+    database_url = str(os.getenv("DATABASE_URL", "") or "").strip()
+    if database_url:
+        parsed = urlparse(database_url)
+        if parsed.scheme in {"postgres", "postgresql"}:
+            return {
+                "ENGINE": "django.db.backends.postgresql",
+                "NAME": unquote(parsed.path.lstrip("/")) or str(os.getenv("POSTGRES_DB", "") or "postgres"),
+                "USER": unquote(parsed.username or os.getenv("POSTGRES_USER", "") or ""),
+                "PASSWORD": unquote(parsed.password or os.getenv("POSTGRES_PASSWORD", "") or ""),
+                "HOST": parsed.hostname or os.getenv("POSTGRES_HOST", "") or "localhost",
+                "PORT": str(parsed.port or os.getenv("POSTGRES_PORT", "") or "5432"),
+            }
+
+    engine = str(os.getenv("DB_ENGINE", "") or "").strip().lower()
+    if engine in {"postgres", "postgresql", "pgsql"}:
+        return {
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": str(os.getenv("POSTGRES_DB", "") or "postgres"),
+            "USER": str(os.getenv("POSTGRES_USER", "") or ""),
+            "PASSWORD": str(os.getenv("POSTGRES_PASSWORD", "") or ""),
+            "HOST": str(os.getenv("POSTGRES_HOST", "") or "localhost"),
+            "PORT": str(os.getenv("POSTGRES_PORT", "") or "5432"),
+        }
+
+    return {
+        "ENGINE": "django.db.backends.sqlite3",
+        "NAME": BASE_DIR / "db.sqlite3",
     }
-}
+
+
+DATABASES = {"default": _database_settings_from_env()}
 
 
 # Password validation
@@ -155,7 +208,8 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
 STATIC_URL = 'static/'
-STATICFILES_DIRS = [BASE_DIR / 'static']
+STATIC_DIR = BASE_DIR / 'static'
+STATICFILES_DIRS = [STATIC_DIR] if STATIC_DIR.exists() else []
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 
 MEDIA_URL = '/media/'
@@ -165,6 +219,34 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 LOGIN_URL = "/"
 LOGIN_REDIRECT_URL = "/dashboard/"
 LOGOUT_REDIRECT_URL = "/"
+CSRF_FAILURE_VIEW = "App_PADESCE.core.error_views.csrf_failure"
+
+# ---------------------------------------------------------------------------
+# Cache — In-process memory cache (fast, no external service needed).
+# For multi-server deployments replace with Redis or Memcached.
+# ---------------------------------------------------------------------------
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+        "LOCATION": "padesce-session-cache",
+        "TIMEOUT": 28800,  # 8 heures en secondes
+        "OPTIONS": {
+            "MAX_ENTRIES": 5000,  # nombre max d'entrées en mémoire
+        },
+    }
+}
+
+# ---------------------------------------------------------------------------
+# Sessions — cached_db : lecture ultra-rapide depuis le cache,
+# écriture persistante dans la base de données. Si le cache expire ou
+# est vidé, la session est rechargée depuis la DB automatiquement.
+# ---------------------------------------------------------------------------
+SESSION_ENGINE = "django.contrib.sessions.backends.cached_db"
+SESSION_CACHE_ALIAS = "default"
+SESSION_COOKIE_AGE = 28800          # 8 heures (en secondes)
+SESSION_SAVE_EVERY_REQUEST = False  # ne sauvegarder que si modifiée
+SESSION_EXPIRE_AT_BROWSER_CLOSE = False  # session survit à la fermeture du navigateur
+SESSION_COOKIE_HTTPONLY = True      # non accessible via JavaScript
 
 # Security headers (activated when DEBUG=False)
 if not DEBUG:
@@ -215,7 +297,24 @@ LOGGING = {
 }
 
 # SMS provider (Obit SMS)
-OBIT_API_KEY = os.getenv("OBIT_API_KEY", "613ylj929ogzcqg574ayla2sh4e5lhwa")
+OBIT_API_KEY = os.getenv("OBIT_API_KEY", "")
 OBIT_SENDER = os.getenv("OBIT_SENDER", "NAUMUR")
 OBIT_API_URL = os.getenv("OBIT_API_URL", "https://obitsms.com/api/v2/bulksms")
 OBIT_COUNTRY = os.getenv("OBIT_COUNTRY", "237")
+
+# ---------------------------------------------------------------------------
+# Email / SMTP — rapport journalier
+# ---------------------------------------------------------------------------
+EMAIL_BACKEND = os.getenv(
+    "EMAIL_BACKEND",
+    "django.core.mail.backends.smtp.EmailBackend" if not DEBUG else "django.core.mail.backends.console.EmailBackend",
+)
+EMAIL_HOST = os.getenv("EMAIL_HOST", "smtp.gmail.com")
+EMAIL_PORT = int(os.getenv("EMAIL_PORT", "587"))
+EMAIL_USE_TLS = os.getenv("EMAIL_USE_TLS", "True").lower() in ("1", "true", "yes")
+EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "")
+DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", EMAIL_HOST_USER)
+REPORT_EMAIL_TO = os.getenv("REPORT_EMAIL_TO", "")
+DEPLOYMENT_REPORT_EMAIL_TO = os.getenv("DEPLOYMENT_REPORT_EMAIL_TO", "jackbrayan1707@gmail.com")
+DEPLOYMENT_EMAIL_BACKEND = os.getenv("DEPLOYMENT_EMAIL_BACKEND", "django.core.mail.backends.smtp.EmailBackend")

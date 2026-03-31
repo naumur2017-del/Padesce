@@ -1,0 +1,95 @@
+name: Deploy Main to Gandi
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gandi-production-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy to Gandi
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://call.naumur.com/deploiement/
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Validate Django configuration
+        env:
+          DJANGO_SECRET_KEY: ${{ secrets.DJANGO_SECRET_KEY }}
+          DJANGO_DEBUG: "False"
+          DJANGO_ALLOWED_HOSTS: call.naumur.com
+          DJANGO_CSRF_TRUSTED_ORIGINS: https://call.naumur.com
+          EMAIL_BACKEND: django.core.mail.backends.smtp.EmailBackend
+          EMAIL_HOST: ${{ secrets.EMAIL_HOST }}
+          EMAIL_PORT: ${{ secrets.EMAIL_PORT }}
+          EMAIL_USE_TLS: ${{ secrets.EMAIL_USE_TLS }}
+          EMAIL_HOST_USER: ${{ secrets.EMAIL_HOST_USER }}
+          EMAIL_HOST_PASSWORD: ${{ secrets.EMAIL_HOST_PASSWORD }}
+          DEFAULT_FROM_EMAIL: ${{ secrets.DEFAULT_FROM_EMAIL }}
+          DEPLOYMENT_REPORT_EMAIL_TO: ${{ secrets.DEPLOYMENT_REPORT_EMAIL_TO }}
+          DEPLOYMENT_EMAIL_BACKEND: django.core.mail.backends.smtp.EmailBackend
+          GANDI_SFTP_HOST: ${{ secrets.GANDI_SFTP_HOST }}
+          GANDI_SFTP_PORT: ${{ secrets.GANDI_SFTP_PORT }}
+          GANDI_SFTP_DOMAIN: call.naumur.com
+          GANDI_SFTP_USERNAME: ${{ secrets.GANDI_SFTP_USERNAME }}
+          GANDI_SFTP_TOKEN: ${{ secrets.GANDI_SFTP_TOKEN }}
+          GANDI_SFTP_REMOTE_PATH: ${{ secrets.GANDI_SFTP_REMOTE_PATH }}
+          GANDI_DEPLOY_VERIFY_URL: https://call.naumur.com
+          GANDI_DEPLOY_INCLUDE_PATHS: App_PADESCE,templates,static,admin,manage.py,requirements.txt,Dockerfile,docker-compose.yml,start-command
+        run: python manage.py check
+
+      - name: Deploy application
+        env:
+          DJANGO_SECRET_KEY: ${{ secrets.DJANGO_SECRET_KEY }}
+          DJANGO_DEBUG: "False"
+          DJANGO_ALLOWED_HOSTS: call.naumur.com
+          DJANGO_CSRF_TRUSTED_ORIGINS: https://call.naumur.com
+          EMAIL_BACKEND: django.core.mail.backends.smtp.EmailBackend
+          EMAIL_HOST: ${{ secrets.EMAIL_HOST }}
+          EMAIL_PORT: ${{ secrets.EMAIL_PORT }}
+          EMAIL_USE_TLS: ${{ secrets.EMAIL_USE_TLS }}
+          EMAIL_HOST_USER: ${{ secrets.EMAIL_HOST_USER }}
+          EMAIL_HOST_PASSWORD: ${{ secrets.EMAIL_HOST_PASSWORD }}
+          DEFAULT_FROM_EMAIL: ${{ secrets.DEFAULT_FROM_EMAIL }}
+          DEPLOYMENT_REPORT_EMAIL_TO: ${{ secrets.DEPLOYMENT_REPORT_EMAIL_TO }}
+          DEPLOYMENT_EMAIL_BACKEND: django.core.mail.backends.smtp.EmailBackend
+          GANDI_SFTP_HOST: ${{ secrets.GANDI_SFTP_HOST }}
+          GANDI_SFTP_PORT: ${{ secrets.GANDI_SFTP_PORT }}
+          GANDI_SFTP_DOMAIN: call.naumur.com
+          GANDI_SFTP_USERNAME: ${{ secrets.GANDI_SFTP_USERNAME }}
+          GANDI_SFTP_TOKEN: ${{ secrets.GANDI_SFTP_TOKEN }}
+          GANDI_SFTP_REMOTE_PATH: ${{ secrets.GANDI_SFTP_REMOTE_PATH }}
+          GANDI_DEPLOY_VERIFY_URL: https://call.naumur.com
+          GANDI_DEPLOY_INCLUDE_PATHS: App_PADESCE,templates,static,admin,manage.py,requirements.txt,Dockerfile,docker-compose.yml,start-command
+        run: python manage.py gandi_deploy --mode deploy
+
+      - name: Upload deployment logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gandi-deploy-${{ github.run_id }}
+          path: |
+            logs/
+          if-no-files-found: ignore
