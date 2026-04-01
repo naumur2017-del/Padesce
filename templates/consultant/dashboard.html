@@ -1,0 +1,231 @@
+{% extends "base.html" %}
+{% block title %}Consultant{% endblock %}
+{% block content %}
+<style>
+  .hero { border:1px solid var(--border); border-radius:18px; padding:18px; background:linear-gradient(135deg,#faf7ff,#fff); box-shadow:var(--shadow); margin-bottom:16px; }
+  .hero h1 { margin:0 0 6px; color:var(--accent-strong); }
+  .hero p { margin:0; color:var(--muted); }
+  .cards { display:grid; grid-template-columns: repeat(auto-fit,minmax(220px,1fr)); gap:12px; margin:16px 0; }
+  .card { border:1px solid var(--border); border-radius:16px; background:#fff; padding:16px; box-shadow:var(--shadow); }
+  .card .value { font-size:1.6rem; font-weight:800; color:var(--accent-strong); }
+  .card .label { color:var(--muted); font-weight:600; }
+  .panel { border:1px solid var(--border); border-radius:16px; background:#fff; padding:14px; box-shadow:var(--shadow); }
+  .panel-head { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:12px; }
+  .panel-head p { margin:0; color:var(--muted); }
+  .toolbar { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px; }
+  .input, select { padding:10px 12px; border-radius:12px; border:1px solid var(--border); background:#fff; }
+  .btn { display:inline-flex; align-items:center; justify-content:center; padding:10px 14px; border-radius:12px; border:1px solid var(--border); background:#faf7ff; color:var(--accent-strong); font-weight:700; text-decoration:none; cursor:pointer; }
+  .btn-primary { background:var(--accent); color:#fff; border-color:var(--accent); }
+  .table-wrap { max-height:62vh; overflow:auto; }
+  table { width:100%; border-collapse:collapse; }
+  th, td { border:1px solid var(--border); padding:8px; text-align:left; }
+  thead { background:#faf7ff; position:sticky; top:0; }
+  .clickable-row { cursor:pointer; }
+  .clickable-row:hover { background:rgba(111,60,195,0.05); }
+  .promoted-row { background:rgba(111,60,195,0.06); }
+  .badge.info { background:#eef2ff; color:#4338ca; border-color:#c7d2fe; }
+  .modal-backdrop { position:fixed; inset:0; background:rgba(15,23,42,0.55); display:flex; align-items:center; justify-content:center; z-index:1200; }
+  .modal-backdrop[hidden] { display:none; }
+  .modal-panel { width:min(1100px, 96vw); max-height:92vh; background:var(--panel); border-radius:18px; padding:18px; box-shadow:0 20px 60px rgba(15,23,42,0.35); border:1px solid var(--border); }
+  .modal-content { width:100%; max-height:min(82vh, 840px); overflow:auto; border-radius:14px; background:#fff; }
+  .pagination { display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; margin-top:12px; }
+  .pagination-info { color:var(--muted); font-weight:600; }
+  .pagination-actions { display:flex; gap:8px; flex-wrap:wrap; }
+</style>
+
+<section class="hero">
+  <h1>Enquete de satisfaction</h1>
+  <p>Padesce</p>
+</section>
+
+<section class="cards">
+  <article class="card"><div class="value">{{ card_prestataires_count }}</div><div class="label">Prestataires</div></article>
+  <article class="card"><div class="value">{{ card_beneficiaires_count }}</div><div class="label">Beneficiaires</div></article>
+  <article class="card"><div class="value">{{ card_total_apprenants }}</div><div class="label">Total Apprenants</div></article>
+</section>
+
+<section class="panel">
+  <div class="panel-head">
+    <div>
+      <h2 style="margin:0 0 4px; color:var(--accent-strong);">Appels PADESCE termines</h2>
+      <p>Les audios de plus d'une minute remontent en tete. Clique sur une ligne pour ouvrir le dossier complet.</p>
+    </div>
+
+  </div>
+  <div class="toolbar">
+    <input class="input" type="text" name="q" form="consultant-filter-form" placeholder="Recherche apprenant..." value="{{ filters.q }}">
+    <select class="input" name="classe" form="consultant-filter-form">
+      <option value="">Classe</option>
+      {% for item in filters.classes %}
+        <option value="{{ item.value }}" {% if filters.classe == item.value %}selected{% endif %}>{{ item.label }}</option>
+      {% endfor %}
+    </select>
+    <select class="input" name="prestation" form="consultant-filter-form">
+      <option value="">Prestataire</option>
+      {% for item in filters.prestataires %}
+        <option value="{{ item }}" {% if filters.prestation == item %}selected{% endif %}>{{ item }}</option>
+      {% endfor %}
+    </select>
+    <select class="input" name="beneficiaire" form="consultant-filter-form">
+      <option value="">Beneficiaire</option>
+      {% for item in filters.beneficiaires %}
+        <option value="{{ item }}" {% if filters.beneficiaire == item %}selected{% endif %}>{{ item }}</option>
+      {% endfor %}
+    </select>
+    <select class="input" name="fenetre" form="consultant-filter-form">
+      <option value="">Fenetre</option>
+      {% for item in filters.fenetres %}
+        <option value="{{ item }}" {% if filters.fenetre == item %}selected{% endif %}>{{ item }}</option>
+      {% endfor %}
+    </select>
+    <form id="consultant-filter-form" method="get"></form>
+    <button class="btn btn-primary" type="submit" form="consultant-filter-form">Filtrer</button>
+    <a class="btn" href="{% url 'consultant_dashboard' %}">Reset</a>
+    <a class="btn" href="{% url 'satisfaction_dashboard' %}">Voir analyse satisfaction</a>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Nom apprenant</th>
+          <th>Code</th>
+          <th>Classe</th>
+          <th>Prestataire</th>
+          <th>Beneficiaire</th>
+          <th>Telephone</th>
+          <th>Statut</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+          <tr class="clickable-row js-open-modal" data-detail-url="{% url 'consultant_call_detail' row.id %}" data-audio-url="{% if row.audio_file %}{{ row.audio_file.url }}{% endif %}">
+            <td>{{ row.nom }}</td>
+            <td>{{ row.code }}</td>
+            <td>{{ row.classe_label|default:"-" }}</td>
+            <td>{{ row.prestataire|default:"-" }}</td>
+            <td>{{ row.beneficiaire|default:"-" }}</td>
+            <td>{{ row.telephone1|default:row.telephone2|default:"-" }}</td>
+            <td>{{ row.get_status_display }}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="7">Aucun appel termine a consulter.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if page_obj %}
+    <div class="pagination">
+      <div class="pagination-info">
+        Page {{ page_obj.number }} / {{ paginator.num_pages }}
+      </div>
+      <div class="pagination-actions">
+        {% if page_obj.has_previous %}
+          <a class="btn" href="?q={{ filters.q|urlencode }}&classe={{ filters.classe|urlencode }}&prestation={{ filters.prestation|urlencode }}&beneficiaire={{ filters.beneficiaire|urlencode }}&fenetre={{ filters.fenetre|urlencode }}&page={{ page_obj.previous_page_number }}">Precedent</a>
+        {% endif %}
+        {% if page_obj.has_next %}
+          <a class="btn" href="?q={{ filters.q|urlencode }}&classe={{ filters.classe|urlencode }}&prestation={{ filters.prestation|urlencode }}&beneficiaire={{ filters.beneficiaire|urlencode }}&fenetre={{ filters.fenetre|urlencode }}&page={{ page_obj.next_page_number }}">Suivant</a>
+        {% endif %}
+      </div>
+    </div>
+  {% endif %}
+</section>
+
+<div class="modal-backdrop" id="consultant-modal" hidden>
+  <div class="modal-panel">
+    <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:10px;">
+      <div>
+        <div style="font-size:1rem; font-weight:800; color:var(--accent-strong);">Dossier consultant</div>
+        <div style="color:var(--muted); font-size:0.92rem;">Lecture des informations de l'appel, du formulaire et de l'audio.</div>
+      </div>
+      <button class="btn" type="button" id="consultant-modal-close">Fermer</button>
+    </div>
+    <div class="modal-content" id="consultant-modal-content"></div>
+  </div>
+</div>
+
+<script>
+  (function () {
+    const modal = document.getElementById("consultant-modal");
+    const content = document.getElementById("consultant-modal-content");
+    const closeBtn = document.getElementById("consultant-modal-close");
+    const tableBody = document.querySelector(".table-wrap tbody");
+
+    function loadAudioDuration(url) {
+      return new Promise((resolve) => {
+        if (!url) {
+          resolve(0);
+          return;
+        }
+        const audio = document.createElement("audio");
+        const timer = window.setTimeout(() => resolve(0), 8000);
+        audio.preload = "metadata";
+        audio.src = url;
+        audio.addEventListener("loadedmetadata", () => {
+          window.clearTimeout(timer);
+          resolve(Number.isFinite(audio.duration) ? audio.duration : 0);
+        }, { once: true });
+        audio.addEventListener("error", () => {
+          window.clearTimeout(timer);
+          resolve(0);
+        }, { once: true });
+      });
+    }
+
+    async function prioritizeLongAudios() {
+      if (!tableBody) return;
+      const rows = Array.from(tableBody.querySelectorAll(".clickable-row"));
+      await Promise.all(rows.map(async (row, index) => {
+        row.dataset.originalIndex = String(index);
+        row.dataset.audioPriority = row.dataset.audioUrl ? "1" : "0";
+        const duration = await loadAudioDuration(row.dataset.audioUrl || "");
+        row.dataset.audioDuration = String(duration || 0);
+        if (duration >= 60) {
+          row.dataset.audioPriority = "2";
+          row.classList.add("promoted-row");
+        }
+      }));
+
+      rows
+        .sort((left, right) => {
+          const priorityGap = Number(right.dataset.audioPriority || 0) - Number(left.dataset.audioPriority || 0);
+          if (priorityGap !== 0) return priorityGap;
+          return Number(left.dataset.originalIndex || 0) - Number(right.dataset.originalIndex || 0);
+        })
+        .forEach((row) => tableBody.appendChild(row));
+    }
+
+    function closeModal() {
+      modal.hidden = true;
+      content.innerHTML = "";
+    }
+
+    document.querySelectorAll(".js-open-modal").forEach((row) => {
+      row.addEventListener("click", async () => {
+        const url = row.getAttribute("data-detail-url");
+        if (!url) return;
+        content.innerHTML = "<div style='padding:18px; color:var(--muted);'>Chargement...</div>";
+        modal.hidden = false;
+        try {
+          const response = await fetch(`${url}?modal=1`, { headers: { "X-Requested-With": "XMLHttpRequest" } });
+          const html = await response.text();
+          content.innerHTML = html;
+        } catch (error) {
+          content.innerHTML = "<div style='padding:18px; color:#991b1b;'>Impossible de charger les details de l'appel.</div>";
+        }
+      });
+    });
+
+    closeBtn?.addEventListener("click", closeModal);
+    modal?.addEventListener("click", (event) => {
+      if (event.target === modal) closeModal();
+    });
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && !modal.hidden) closeModal();
+    });
+
+    prioritizeLongAudios();
+  })();
+</script>
+{% endblock %}

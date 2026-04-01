@@ -75,6 +75,8 @@
 
 <div class="panel" style="margin-top:14px;">
   <div style="display:flex; gap:8px; flex-wrap:wrap;">
+    <a class="btn btn-outline btn-sm" href="{% url 'application_report_view' %}">Rapport Journalier</a>
+    <a class="btn btn-outline btn-sm" href="{% url 'reporting_network_excel' %}">Classeur reseau</a>
     <a class="btn btn-primary btn-sm" href="{% url 'reporting_export_csv' %}">Export CSV</a>
     <a class="btn btn-ghost btn-sm" href="{% url 'reporting_export_excel' %}">Export Excel</a>
   </div>

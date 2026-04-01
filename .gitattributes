@@ -1,0 +1,6 @@
+*.mp3 filter=lfs diff=lfs merge=lfs -text
+*.db filter=lfs diff=lfs merge=lfs -text
+*.xlsx filter=lfs diff=lfs merge=lfs -text
+*.zip filter=lfs diff=lfs merge=lfs -text
+media/*.zip filter=lfs diff=lfs merge=lfs -text
+media/padesce[[:space:]](2).zip filter=lfs diff=lfs merge=lfs -text

@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ page_title }} | PADESCE</title>
+  <style>
+    :root {
+      --ink: #0f233d;
+      --muted: #5f7082;
+      --paper: #f7f1e6;
+      --panel: rgba(255, 252, 247, 0.88);
+      --line: rgba(15, 35, 61, 0.12);
+      --accent: #d15a32;
+      --accent-deep: #8d311d;
+      --sea: #0d6b64;
+      --shadow: 0 24px 60px rgba(15, 35, 61, 0.18);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Space Grotesk", "Segoe UI", sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at top right, rgba(209, 90, 50, 0.22), transparent 28%),
+        radial-gradient(circle at bottom left, rgba(13, 107, 100, 0.18), transparent 34%),
+        linear-gradient(140deg, #f8f1e6 0%, #edf5f1 54%, #f6eadf 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 28px;
+    }
+
+    .shell {
+      width: min(980px, 100%);
+      border: 1px solid var(--line);
+      border-radius: 28px;
+      background: var(--panel);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      backdrop-filter: blur(12px);
+    }
+
+    .hero {
+      position: relative;
+      padding: 28px 28px 22px;
+      background:
+        linear-gradient(135deg, rgba(15, 35, 61, 0.96), rgba(13, 107, 100, 0.92)),
+        linear-gradient(90deg, rgba(209, 90, 50, 0.24), transparent);
+      color: #fff6ef;
+    }
+
+    .hero::after {
+      content: "";
+      position: absolute;
+      inset: auto -60px -80px auto;
+      width: 220px;
+      height: 220px;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 34px;
+      transform: rotate(18deg);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 36px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .brand-mark {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      font-size: 0.84rem;
+    }
+
+    .brand-dot {
+      width: 14px;
+      height: 14px;
+      border-radius: 999px;
+      background: linear-gradient(135deg, #ffcca8, #d15a32);
+      box-shadow: 0 0 0 8px rgba(255, 255, 255, 0.08);
+    }
+
+    .env-tag,
+    .status-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 14px;
+      border-radius: 999px;
+      font-size: 0.82rem;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    .headline-wrap {
+      display: grid;
+      gap: 14px;
+      position: relative;
+      z-index: 1;
+      max-width: 720px;
+    }
+
+    .eyebrow {
+      font-size: 0.82rem;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: rgba(255, 246, 239, 0.74);
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(2rem, 4vw, 3.4rem);
+      line-height: 1.04;
+      letter-spacing: -0.04em;
+    }
+
+    .lead {
+      margin: 0;
+      font-size: 1.02rem;
+      line-height: 1.7;
+      color: rgba(255, 246, 239, 0.88);
+    }
+
+    .content {
+      display: grid;
+      grid-template-columns: 1.5fr 1fr;
+      gap: 20px;
+      padding: 24px 28px 28px;
+    }
+
+    .panel {
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      background: rgba(255, 255, 255, 0.72);
+      padding: 22px;
+    }
+
+    .panel h2,
+    .panel h3 {
+      margin: 0 0 10px;
+      font-size: 1rem;
+      letter-spacing: 0.02em;
+    }
+
+    .panel p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.7;
+    }
+
+    .panel-stack {
+      display: grid;
+      gap: 18px;
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 22px;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 13px 18px;
+      border-radius: 14px;
+      text-decoration: none;
+      font-weight: 700;
+      transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease;
+    }
+
+    .btn:hover {
+      transform: translateY(-1px);
+    }
+
+    .btn-primary {
+      color: #fff7f0;
+      background: linear-gradient(135deg, var(--accent), var(--accent-deep));
+      box-shadow: 0 16px 28px rgba(141, 49, 29, 0.22);
+    }
+
+    .btn-secondary {
+      color: var(--ink);
+      background: rgba(15, 35, 61, 0.06);
+      border: 1px solid var(--line);
+    }
+
+    .list {
+      display: grid;
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    .list-item {
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+      color: var(--muted);
+      line-height: 1.55;
+    }
+
+    .list-index {
+      flex: 0 0 auto;
+      width: 26px;
+      height: 26px;
+      border-radius: 999px;
+      background: rgba(13, 107, 100, 0.12);
+      color: var(--sea);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 0.85rem;
+    }
+
+    .meta {
+      margin-top: 16px;
+      padding-top: 14px;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 0.9rem;
+      display: grid;
+      gap: 6px;
+    }
+
+    .code-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 14px;
+      padding: 9px 12px;
+      border-radius: 12px;
+      background: rgba(15, 35, 61, 0.06);
+      border: 1px solid var(--line);
+      color: var(--ink);
+      font-size: 0.84rem;
+      font-family: Consolas, "Courier New", monospace;
+    }
+
+    @media (max-width: 820px) {
+      .content {
+        grid-template-columns: 1fr;
+      }
+
+      .brand {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <section class="hero">
+      <div class="brand">
+        <div class="brand-mark">
+          <span class="brand-dot"></span>
+          <span>PADESCE</span>
+        </div>
+        <span class="env-tag">{{ environment_label }}</span>
+      </div>
+
+      <div class="headline-wrap">
+        <span class="eyebrow">{{ eyebrow }}</span>
+        <h1>{{ headline }}</h1>
+        <p class="lead">{{ lead }}</p>
+      </div>
+    </section>
+
+    <section class="content">
+      <article class="panel">
+        <h2>Que faire maintenant ?</h2>
+        <p>{{ next_step }}</p>
+
+        <div class="actions">
+          <a class="btn btn-primary" href="{{ home_url }}">Revenir a une page stable</a>
+          {% if show_maintenance_link %}
+          <a class="btn btn-secondary" href="{{ maintenance_url }}">Contacter la maintenance</a>
+          {% endif %}
+        </div>
+
+        <div class="code-chip">Reference interne : {{ status_code }}</div>
+      </article>
+
+      <aside class="panel-stack">
+        <section class="panel">
+          <h3>Equipe de maintenance</h3>
+          <p>{{ maintenance_message }}</p>
+        </section>
+
+        <section class="panel">
+          <h3>Conseils rapides</h3>
+          <div class="list">
+            <div class="list-item">
+              <span class="list-index">1</span>
+              <span>Evitez de reexecuter plusieurs fois la meme action tant que la page n'est pas revenue a un etat stable.</span>
+            </div>
+            <div class="list-item">
+              <span class="list-index">2</span>
+              <span>Revenez a l'accueil, reconnectez-vous si besoin, puis reprenez le parcours depuis le menu principal.</span>
+            </div>
+            <div class="list-item">
+              <span class="list-index">3</span>
+              <span>Si l'incident persiste en developpement comme en production, contactez l'equipe de maintenance.</span>
+            </div>
+          </div>
+          <div class="meta">
+            <span>Chemin concerne : {{ request_path|default:"/" }}</span>
+            <span>Aucune information technique sensible n'est affichee sur cette page.</span>
+          </div>
+        </section>
+      </aside>
+    </section>
+  </main>
+</body>
+</html>

@@ -1,14 +1,19 @@
+import logging
 import threading
 from typing import Optional
 
 from django.conf import settings
 from django.contrib.auth.views import redirect_to_login
-from django.http import HttpRequest
+from django.core.exceptions import PermissionDenied, SuspiciousOperation
+from django.http import Http404
+from django.http import HttpRequest, HttpResponseRedirect
 from django.utils import timezone
 
+from App_PADESCE.core import error_views
 from App_PADESCE.core.models import UserActivity
 
 _thread_locals = threading.local()
+logger = logging.getLogger(__name__)
 
 
 def set_current_user(user):
@@ -33,6 +38,54 @@ class CurrentUserMiddleware:
         return response
 
 
+class FriendlyErrorPagesMiddleware:
+    """
+    Affiche des pages d'erreur sobres et stables en dev comme en production.
+    """
+
+    HANDLERS = {
+        400: error_views.bad_request,
+        403: error_views.permission_denied,
+        404: error_views.page_not_found,
+        500: error_views.server_error,
+    }
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request: HttpRequest):
+        try:
+            response = self.get_response(request)
+        except Http404 as exc:
+            return self._render_exception(request, 404, exc)
+        except PermissionDenied as exc:
+            return self._render_exception(request, 403, exc)
+        except SuspiciousOperation as exc:
+            logger.warning("Bad request on %s: %s", getattr(request, "path", ""), exc)
+            return self._render_exception(request, 400, exc)
+        except Exception:
+            logger.exception("Unhandled application error on %s", getattr(request, "path", ""))
+            return self._render_exception(request, 500, None)
+
+        return self._normalize_response(request, response)
+
+    def _render_exception(self, request: HttpRequest, status_code: int, exception):
+        if error_views.request_prefers_json(request):
+            return error_views.json_error_response(status_code)
+        return self.HANDLERS[status_code](request, exception)
+
+    def _normalize_response(self, request: HttpRequest, response):
+        if response.headers.get("X-Friendly-Error-Page") == "1":
+            return response
+        if response.status_code not in self.HANDLERS:
+            return response
+        if error_views.request_prefers_json(request, response=response):
+            return response
+        if "text/html" not in str(response.headers.get("Content-Type", "text/html")).lower():
+            return response
+        return self.HANDLERS[response.status_code](request, None)
+
+
 class LoginRequiredMiddleware:
     """
     Force l'authentification sur toutes les pages privees.
@@ -42,16 +95,40 @@ class LoginRequiredMiddleware:
         self.get_response = get_response
 
     def __call__(self, request: HttpRequest):
-        if request.user.is_authenticated:
-            return self.get_response(request)
-
-        path = request.path_info or "/"
-        login_url = settings.LOGIN_URL or "/"
-
         def _normalize_prefix(prefix: str | None) -> str:
             if not prefix:
                 return ""
             return prefix if prefix.startswith("/") else f"/{prefix}"
+
+        if request.user.is_authenticated:
+            user = request.user
+            path = request.path_info or "/"
+            try:
+                is_consultant_only = (
+                    not getattr(user, "is_superuser", False)
+                    and user.groups.filter(name="consultant").exists()
+                    and not user.groups.filter(name__in=["manager_padesce", "manager_cga"]).exists()
+                )
+            except Exception:
+                is_consultant_only = False
+            if is_consultant_only:
+                allowed_prefixes = [
+                    "/dashboard/",
+                    "/consultant/",
+                    "/deploiement/live/",
+                    "/satisfaction-apprenants/analyse/",
+                    "/accounts/logout/",
+                    "/messages/support/",
+                    "/guide-operateur/",
+                    _normalize_prefix(getattr(settings, "STATIC_URL", "")),
+                    _normalize_prefix(getattr(settings, "MEDIA_URL", "")),
+                ]
+                if path != "/dashboard/" and not any(path.startswith(p) for p in allowed_prefixes if p):
+                    return HttpResponseRedirect("/dashboard/")
+            return self.get_response(request)
+
+        path = request.path_info or "/"
+        login_url = settings.LOGIN_URL or "/"
 
         login_path = _normalize_prefix(login_url) or "/"
         static_prefix = _normalize_prefix(getattr(settings, "STATIC_URL", ""))
@@ -61,9 +138,12 @@ class LoginRequiredMiddleware:
             "/accounts/",
             "/admin/",
             "/beneficiaire/",
+            "/deploiement/live/",
             static_prefix,
             media_prefix,
         ]
+        if getattr(settings, "PUBLIC_CONSULTANT_ACCESS", False):
+            exempt_prefixes.append("/consultant/")
 
         if path in ("/", login_path) or any(path.startswith(p) for p in exempt_prefixes if p):
             return self.get_response(request)

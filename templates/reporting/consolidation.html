@@ -146,6 +146,163 @@
       </div>
     {% endif %}
   </div>
+
+  <div class="card-neo">
+    <div style="display:flex; justify-content:space-between; align-items:flex-end; gap:12px; margin-bottom:10px; flex-wrap:wrap;">
+      <div>
+        <div class="pill-soft">Apprenants</div>
+        <div class="subtitle">Table complete des apprenants presents dans le systeme.</div>
+      </div>
+      <div class="tags">
+        <span class="tag">Total : {{ apprenant_count }}</span>
+      </div>
+    </div>
+    <form method="get" style="display:flex; gap:10px; flex-wrap:wrap; align-items:end; margin-bottom:12px;">
+      <div style="display:grid; gap:6px; min-width:220px;">
+        <label for="filter-prestataire">Prestataire</label>
+        <select id="filter-prestataire" name="prestataire" style="border:1px solid var(--border); border-radius:10px; padding:8px;">
+          <option value="">Tous</option>
+          {% for p in prestataires %}
+            <option value="{{ p }}" {% if p == selected_prestataire %}selected{% endif %}>{{ p }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div style="display:grid; gap:6px; min-width:220px;">
+        <label for="filter-beneficiaire">Beneficiaire</label>
+        <select id="filter-beneficiaire" name="beneficiaire" style="border:1px solid var(--border); border-radius:10px; padding:8px;">
+          <option value="">Tous</option>
+          {% for b in beneficiaires %}
+            <option value="{{ b }}" {% if b == selected_beneficiaire %}selected{% endif %}>{{ b }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div style="display:flex; gap:10px; align-items:center;">
+        <button class="btn btn-ghost" type="submit">Filtrer</button>
+        <a class="btn" href="{% url 'consolidation_apprenants_excel' %}?prestataire={{ selected_prestataire|urlencode }}&beneficiaire={{ selected_beneficiaire|urlencode }}">Telecharger Excel</a>
+      </div>
+    </form>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            {% for col in apprenant_columns %}
+              <th>{{ col.1 }}</th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% if apprenant_rows %}
+            {% for row in apprenant_rows %}
+              <tr>{% for cell in row %}<td>{{ cell }}</td>{% endfor %}</tr>
+            {% endfor %}
+          {% else %}
+            <tr>
+              <td class="subtitle" colspan="{{ apprenant_columns|length }}">Aucun apprenant trouve pour ces filtres.</td>
+            </tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card-neo">
+    <div style="display:flex; justify-content:space-between; align-items:flex-end; gap:12px; margin-bottom:10px; flex-wrap:wrap;">
+      <div>
+        <div class="pill-soft">Appels termines</div>
+        <div class="subtitle">Table avec tous les apprenants issus des appels termines.</div>
+      </div>
+      <div class="tags">
+        <span class="tag">Total : {{ appels_termine_count }}</span>
+      </div>
+    </div>
+    <form method="get" style="display:flex; gap:10px; flex-wrap:wrap; align-items:end; margin-bottom:12px;">
+      <div style="display:grid; gap:6px; min-width:220px;">
+        <label for="filter-appel-prestataire">Prestataire</label>
+        <select id="filter-appel-prestataire" name="appel_prestataire" multiple size="6" style="border:1px solid var(--border); border-radius:10px; padding:8px;">
+          {% for p in appel_prestataires %}
+            <option value="{{ p }}" {% if p in selected_appel_prestataire %}selected{% endif %}>{{ p }}</option>
+          {% endfor %}
+        </select>
+        <div class="subtitle">Ctrl/Cmd pour selection multiple.</div>
+      </div>
+      <div style="display:grid; gap:6px; min-width:220px;">
+        <label for="filter-appel-beneficiaire">Beneficiaire</label>
+        <select id="filter-appel-beneficiaire" name="appel_beneficiaire" style="border:1px solid var(--border); border-radius:10px; padding:8px;">
+          <option value="">Tous</option>
+          {% for b in appel_beneficiaires %}
+            <option value="{{ b }}" {% if b == selected_appel_beneficiaire %}selected{% endif %}>{{ b }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div style="display:grid; gap:6px; min-width:180px;">
+        <label for="filter-appel-status">Statut</label>
+        <select id="filter-appel-status" name="appel_status" style="border:1px solid var(--border); border-radius:10px; padding:8px;">
+          {% for code, label in appel_status_choices %}
+            <option value="{{ code }}" {% if code == selected_appel_status %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div style="display:grid; gap:6px; min-width:180px;">
+        <label for="filter-appel-mode">Mode</label>
+        <select id="filter-appel-mode" name="appel_filter_mode" style="border:1px solid var(--border); border-radius:10px; padding:8px;">
+          <option value="and" {% if selected_appel_filter_mode == "and" %}selected{% endif %}>AND</option>
+          <option value="or" {% if selected_appel_filter_mode == "or" %}selected{% endif %}>OR</option>
+        </select>
+      </div>
+      <div style="display:flex; gap:10px; align-items:center;">
+        <button class="btn btn-ghost" type="submit">Filtrer</button>
+        <a class="btn" href="{% url 'consolidation_appels_termines_excel' %}?{{ appel_querystring }}">Telecharger Excel</a>
+        <a class="btn btn-ghost" href="{% url 'consolidation_appels_termines_csv' %}?{{ appel_querystring }}">Telecharger CSV</a>
+      </div>
+    </form>
+    <div class="table-wrap" style="max-height:360px; margin-bottom:12px;">
+      <table>
+        <thead>
+          <tr>
+            {% for col in appels_termine_columns %}
+              <th>{{ col.1 }}</th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% if appels_termine_rows %}
+            {% for row in appels_termine_rows %}
+              <tr>{% for cell in row %}<td>{{ cell }}</td>{% endfor %}</tr>
+            {% endfor %}
+          {% else %}
+            <tr>
+              <td class="subtitle" colspan="{{ appels_termine_columns|length }}">Aucun appel termine.</td>
+            </tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+    <div class="pill-soft" style="margin-bottom:8px;">Classement des prestataires (appels termines)</div>
+    <div class="table-wrap" style="max-height:260px;">
+      <table>
+        <thead>
+          <tr>
+            <th>Prestataire</th>
+            <th>Appels termines</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% if prestataire_appels_termine %}
+            {% for row in prestataire_appels_termine %}
+              <tr>
+                <td>{{ row.prestataire|default:"Non renseigne" }}</td>
+                <td>{{ row.total }}</td>
+              </tr>
+            {% endfor %}
+          {% else %}
+            <tr>
+              <td class="subtitle" colspan="2">Aucun appel termine.</td>
+            </tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+  </div>
 </div>
 <div class="loader-overlay" id="save-loader">
   <div class="loader-box">
