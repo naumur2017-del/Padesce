@@ -1,0 +1,13 @@
+# requirements.txt - Dépendances pour agent_padesce
+
+# Core
+pandas>=2.0.0
+openpyxl>=3.1.0
+
+# LangChain
+langchain>=0.2.0
+langchain-anthropic>=0.1.0
+langgraph>=0.1.0
+
+# Visualisation (optionnel)
+pillow>=10.0.0
