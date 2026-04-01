@@ -28,3 +28,9 @@ exclude = [
 
 [tool.ruff.lint]
 select = ["E", "F", "I"]
+
+[tool.ruff.lint.per-file-ignores]
+# app_report.py contains inline HTML template strings that cannot be split
+"App_PADESCE/reporting/app_report.py" = ["E501"]
+# satisfaction_apprenants/views.py has pre-existing long lines in string literals
+"App_PADESCE/satisfaction_apprenants/views.py" = ["E501"]

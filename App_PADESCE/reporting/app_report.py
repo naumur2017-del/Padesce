@@ -1280,14 +1280,11 @@ def export_application_report_csv(report: dict) -> bytes:
 def export_application_report_excel(report: dict) -> bytes:
     try:
         from openpyxl import Workbook
-        from openpyxl.styles import Font, PatternFill
+        from openpyxl.styles import Font
 
         wb = Workbook()
         ws = wb.active
         ws.title = "Rapport"
-
-        header_font = Font(bold=True, color="4C1D95")
-        header_fill = PatternFill(start_color="F5F3FF", end_color="F5F3FF", fill_type="solid")
 
         def add_section(title, rows_data):
             ws.append([title])
