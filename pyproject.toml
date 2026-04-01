@@ -32,5 +32,7 @@ select = ["E", "F", "I"]
 [tool.ruff.lint.per-file-ignores]
 # app_report.py contains inline HTML template strings that cannot be split
 "App_PADESCE/reporting/app_report.py" = ["E501"]
+# network_excel.py contains UNC network paths and long error message strings
+"App_PADESCE/reporting/network_excel.py" = ["E501"]
 # satisfaction_apprenants/views.py has pre-existing long lines in string literals
 "App_PADESCE/satisfaction_apprenants/views.py" = ["E501"]
