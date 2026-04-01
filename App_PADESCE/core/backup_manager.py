@@ -56,12 +56,16 @@ def load_history() -> list[dict]:
         return []
 
 
-def _append_history(entry: dict) -> None:
-    history = load_history()
-    history.insert(0, entry)
+def _save_history(history: list[dict]) -> None:
     _history_file().write_text(
         json.dumps(history[:200], ensure_ascii=False, indent=2), encoding="utf-8"
     )
+
+
+def _append_history(entry: dict) -> None:
+    history = load_history()
+    history.insert(0, entry)
+    _save_history(history)
 
 
 # ---------------------------------------------------------------------------
