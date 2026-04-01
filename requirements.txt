@@ -18,3 +18,10 @@ requests
 paramiko
 faster-whisper
 python-docx
+# Core
+pandas
+openpyxl
+langchain
+langchain-anthropic
+langgraph>=0.1.0
+pillow>=10.0.0
