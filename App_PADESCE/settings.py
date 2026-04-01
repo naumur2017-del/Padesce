@@ -41,6 +41,7 @@ def load_env_file(env_path: Path) -> None:
             continue
         os.environ.setdefault(key, value)
 
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -57,78 +58,84 @@ SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "dev-secret-key-change-me")
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv("DJANGO_DEBUG", "True").lower() in ("1", "true", "yes")
-PUBLIC_CONSULTANT_ACCESS = os.getenv("PUBLIC_CONSULTANT_ACCESS", "False").lower() in ("1", "true", "yes")
+PUBLIC_CONSULTANT_ACCESS = os.getenv("PUBLIC_CONSULTANT_ACCESS", "False").lower() in (
+    "1",
+    "true",
+    "yes",
+)
 
 ALLOWED_HOSTS_ENV = os.getenv("DJANGO_ALLOWED_HOSTS", "")
 ALLOWED_HOSTS = [host.strip() for host in ALLOWED_HOSTS_ENV.split(",") if host.strip()]
 if not ALLOWED_HOSTS:
-    ALLOWED_HOSTS = ["*", "app-padesce.onrender.com", "call.naumur.com","192.168.1.162"]
+    ALLOWED_HOSTS = ["*", "app-padesce.onrender.com", "call.naumur.com", "192.168.1.162"]
 CSRF_TRUSTED_ORIGINS_ENV = os.getenv("DJANGO_CSRF_TRUSTED_ORIGINS", "")
-CSRF_TRUSTED_ORIGINS = [origin.strip() for origin in CSRF_TRUSTED_ORIGINS_ENV.split(",") if origin.strip()]
+CSRF_TRUSTED_ORIGINS = [
+    origin.strip() for origin in CSRF_TRUSTED_ORIGINS_ENV.split(",") if origin.strip()
+]
 
 
 # Application definition
 
 INSTALLED_APPS = [
-    'django.contrib.admin',
-    'django.contrib.auth',
-    'django.contrib.contenttypes',
-    'django.contrib.sessions',
-    'django.contrib.messages',
-    'django.contrib.staticfiles',
+    "django.contrib.admin",
+    "django.contrib.auth",
+    "django.contrib.contenttypes",
+    "django.contrib.sessions",
+    "django.contrib.messages",
+    "django.contrib.staticfiles",
     # Applications métiers
-    'App_PADESCE.core',
-    'App_PADESCE.formations',
-    'App_PADESCE.apprenants',
-    'App_PADESCE.presences',
-    'App_PADESCE.satisfaction_apprenants',
-    'App_PADESCE.satisfaction_formateurs',
-    'App_PADESCE.environnement',
-    'App_PADESCE.messaging',
-    'App_PADESCE.reporting',
-    'App_PADESCE.beneficiaires',
-    'App_PADESCE.appels',
+    "App_PADESCE.core",
+    "App_PADESCE.formations",
+    "App_PADESCE.apprenants",
+    "App_PADESCE.presences",
+    "App_PADESCE.satisfaction_apprenants",
+    "App_PADESCE.satisfaction_formateurs",
+    "App_PADESCE.environnement",
+    "App_PADESCE.messaging",
+    "App_PADESCE.reporting",
+    "App_PADESCE.beneficiaires",
+    "App_PADESCE.appels",
 ]
 
 HAS_CHANNELS = importlib.util.find_spec("channels") is not None
 if HAS_CHANNELS:
-    INSTALLED_APPS.insert(6, 'channels')
+    INSTALLED_APPS.insert(6, "channels")
 
 MIDDLEWARE = [
-    'App_PADESCE.core.middleware.FriendlyErrorPagesMiddleware',
-    'django.middleware.security.SecurityMiddleware',
-    'django.middleware.http.ConditionalGetMiddleware',
-    'django.contrib.sessions.middleware.SessionMiddleware',
-    'django.middleware.common.CommonMiddleware',
-    'django.middleware.csrf.CsrfViewMiddleware',
-    'django.contrib.auth.middleware.AuthenticationMiddleware',
-    'App_PADESCE.core.middleware.LoginRequiredMiddleware',
-    'App_PADESCE.core.middleware.UserActivityMiddleware',
-    'App_PADESCE.core.middleware.CurrentUserMiddleware',
-    'django.contrib.messages.middleware.MessageMiddleware',
-    'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    "App_PADESCE.core.middleware.FriendlyErrorPagesMiddleware",
+    "django.middleware.security.SecurityMiddleware",
+    "django.middleware.http.ConditionalGetMiddleware",
+    "django.contrib.sessions.middleware.SessionMiddleware",
+    "django.middleware.common.CommonMiddleware",
+    "django.middleware.csrf.CsrfViewMiddleware",
+    "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "App_PADESCE.core.middleware.LoginRequiredMiddleware",
+    "App_PADESCE.core.middleware.UserActivityMiddleware",
+    "App_PADESCE.core.middleware.CurrentUserMiddleware",
+    "django.contrib.messages.middleware.MessageMiddleware",
+    "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
-ROOT_URLCONF = 'App_PADESCE.urls'
+ROOT_URLCONF = "App_PADESCE.urls"
 
 TEMPLATES = [
     {
-        'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [BASE_DIR / 'templates'],
-        'APP_DIRS': True,
-        'OPTIONS': {
-            'context_processors': [
-                'django.template.context_processors.request',
-                'django.contrib.auth.context_processors.auth',
-                'django.contrib.messages.context_processors.messages',
+        "BACKEND": "django.template.backends.django.DjangoTemplates",
+        "DIRS": [BASE_DIR / "templates"],
+        "APP_DIRS": True,
+        "OPTIONS": {
+            "context_processors": [
+                "django.template.context_processors.request",
+                "django.contrib.auth.context_processors.auth",
+                "django.contrib.messages.context_processors.messages",
             ],
         },
     },
 ]
 
-WSGI_APPLICATION = 'App_PADESCE.wsgi.application'
+WSGI_APPLICATION = "App_PADESCE.wsgi.application"
 if HAS_CHANNELS:
-    ASGI_APPLICATION = 'App_PADESCE.asgi.application'
+    ASGI_APPLICATION = "App_PADESCE.asgi.application"
     CHANNEL_LAYERS = {
         "default": {
             "BACKEND": "channels.layers.InMemoryChannelLayer",
@@ -139,6 +146,7 @@ if HAS_CHANNELS:
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
+
 def _database_settings_from_env() -> dict:
     database_url = str(os.getenv("DATABASE_URL", "") or "").strip()
     if database_url:
@@ -146,7 +154,8 @@ def _database_settings_from_env() -> dict:
         if parsed.scheme in {"postgres", "postgresql"}:
             return {
                 "ENGINE": "django.db.backends.postgresql",
-                "NAME": unquote(parsed.path.lstrip("/")) or str(os.getenv("POSTGRES_DB", "") or "postgres"),
+                "NAME": unquote(parsed.path.lstrip("/"))
+                or str(os.getenv("POSTGRES_DB", "") or "postgres"),
                 "USER": unquote(parsed.username or os.getenv("POSTGRES_USER", "") or ""),
                 "PASSWORD": unquote(parsed.password or os.getenv("POSTGRES_PASSWORD", "") or ""),
                 "HOST": parsed.hostname or os.getenv("POSTGRES_HOST", "") or "localhost",
@@ -181,16 +190,16 @@ BACKUP_TRIGGER_TOKEN = os.getenv("BACKUP_TRIGGER_TOKEN", "")
 
 AUTH_PASSWORD_VALIDATORS = [
     {
-        'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
+        "NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator",
     },
     {
-        'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
+        "NAME": "django.contrib.auth.password_validation.MinimumLengthValidator",
     },
     {
-        'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
+        "NAME": "django.contrib.auth.password_validation.CommonPasswordValidator",
     },
     {
-        'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
+        "NAME": "django.contrib.auth.password_validation.NumericPasswordValidator",
     },
 ]
 
@@ -198,9 +207,9 @@ AUTH_PASSWORD_VALIDATORS = [
 # Internationalization
 # https://docs.djangoproject.com/en/6.0/topics/i18n/
 
-LANGUAGE_CODE = 'fr'
+LANGUAGE_CODE = "fr"
 
-TIME_ZONE = 'Africa/Douala'
+TIME_ZONE = "Africa/Douala"
 
 USE_I18N = True
 
@@ -210,15 +219,15 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
-STATIC_URL = 'static/'
-STATIC_DIR = BASE_DIR / 'static'
+STATIC_URL = "static/"
+STATIC_DIR = BASE_DIR / "static"
 STATICFILES_DIRS = [STATIC_DIR] if STATIC_DIR.exists() else []
-STATIC_ROOT = BASE_DIR / 'staticfiles'
+STATIC_ROOT = BASE_DIR / "staticfiles"
 
-MEDIA_URL = '/media/'
-MEDIA_ROOT = BASE_DIR / 'media'
+MEDIA_URL = "/media/"
+MEDIA_ROOT = BASE_DIR / "media"
 
-DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 LOGIN_URL = "/"
 LOGIN_REDIRECT_URL = "/dashboard/"
 LOGOUT_REDIRECT_URL = "/"
@@ -246,10 +255,10 @@ CACHES = {
 # ---------------------------------------------------------------------------
 SESSION_ENGINE = "django.contrib.sessions.backends.cached_db"
 SESSION_CACHE_ALIAS = "default"
-SESSION_COOKIE_AGE = 28800          # 8 heures (en secondes)
+SESSION_COOKIE_AGE = 28800  # 8 heures (en secondes)
 SESSION_SAVE_EVERY_REQUEST = False  # ne sauvegarder que si modifiée
 SESSION_EXPIRE_AT_BROWSER_CLOSE = False  # session survit à la fermeture du navigateur
-SESSION_COOKIE_HTTPONLY = True      # non accessible via JavaScript
+SESSION_COOKIE_HTTPONLY = True  # non accessible via JavaScript
 
 # Security headers (activated when DEBUG=False)
 if not DEBUG:
@@ -294,7 +303,11 @@ LOGGING = {
     },
     "loggers": {
         "django": {"handlers": ["console", "app_file"], "level": "INFO"},
-        "django.server": {"handlers": ["access_file", "console"], "level": "INFO", "propagate": False},
+        "django.server": {
+            "handlers": ["access_file", "console"],
+            "level": "INFO",
+            "propagate": False,
+        },
         "App_PADESCE": {"handlers": ["console", "app_file"], "level": "INFO"},
     },
 }
@@ -310,7 +323,11 @@ OBIT_COUNTRY = os.getenv("OBIT_COUNTRY", "237")
 # ---------------------------------------------------------------------------
 EMAIL_BACKEND = os.getenv(
     "EMAIL_BACKEND",
-    "django.core.mail.backends.smtp.EmailBackend" if not DEBUG else "django.core.mail.backends.console.EmailBackend",
+    (
+        "django.core.mail.backends.smtp.EmailBackend"
+        if not DEBUG
+        else "django.core.mail.backends.console.EmailBackend"
+    ),
 )
 EMAIL_HOST = os.getenv("EMAIL_HOST", "smtp.gmail.com")
 EMAIL_PORT = int(os.getenv("EMAIL_PORT", "587"))
@@ -320,4 +337,6 @@ EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "")
 DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", EMAIL_HOST_USER)
 REPORT_EMAIL_TO = os.getenv("REPORT_EMAIL_TO", "")
 DEPLOYMENT_REPORT_EMAIL_TO = os.getenv("DEPLOYMENT_REPORT_EMAIL_TO", "jackbrayan1707@gmail.com")
-DEPLOYMENT_EMAIL_BACKEND = os.getenv("DEPLOYMENT_EMAIL_BACKEND", "django.core.mail.backends.smtp.EmailBackend")
+DEPLOYMENT_EMAIL_BACKEND = os.getenv(
+    "DEPLOYMENT_EMAIL_BACKEND", "django.core.mail.backends.smtp.EmailBackend"
+)
