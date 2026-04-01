@@ -3014,6 +3014,141 @@ _PHONE_RE_IMPORT = re.compile(r"[0-9]{7,}")
 
 
 @require_analysis_access
+def apprenants_manquants_page(request):
+    """Page dédiée : liste et import des apprenants des prestations manquantes."""
+    selected_source = normalize_workbook_source_key(request.GET.get("source", ""))
+    source_options = get_workbook_source_options()
+
+    try:
+        source_bundle = build_padesce_source_index(source_key=selected_source)
+    except Exception as exc:
+        return render(
+            request,
+            "satisfaction_apprenants/apprenants_manquants.html",
+            {
+                "error": f"Fichier source inaccessible : {exc}",
+                "source_options": source_options,
+                "selected_source": selected_source,
+            },
+        )
+
+    if not source_bundle:
+        return render(
+            request,
+            "satisfaction_apprenants/apprenants_manquants.html",
+            {
+                "error": "Fichier source non disponible.",
+                "source_options": source_options,
+                "selected_source": selected_source,
+            },
+        )
+
+    all_rows = [
+        _dashboard_row_from_answer(answer) for answer in _satisfaction_dashboard_base_queryset()
+    ]
+    all_rows = [row for row in all_rows if row["fenetre"] in {"2", "3"}]
+    classe_apprenant_counts = dict(
+        Classe.objects.annotate(_nb=Count("apprenants")).values_list("code", "_nb")
+    )
+    _, classe_stats_all = _thresholded_dashboard_rows(all_rows, {}, classe_apprenant_counts)
+
+    terminated_codes = _terminated_prestation_codes_from_source({}, source_bundle)
+    qualified_codes = _qualified_prestation_codes_from_source({}, classe_stats_all, source_bundle)
+    missing_keys = terminated_codes - qualified_codes
+
+    existing_codes: set[str] = set(
+        Appel.objects.filter(is_active=True).values_list("code", flat=True)
+    )
+
+    source_prestations: dict = source_bundle.get("prestations", {})
+    records: dict = source_bundle.get("records", {})
+
+    prestations_with_importable: list[dict] = []
+    prestations_sans_importable: list[dict] = []
+    total_importable = 0
+    total_already_loaded = 0
+
+    for p_key in sorted(missing_keys):
+        p_info = source_prestations.get(p_key, {})
+        prestation_id_display = p_info.get("prestation_id", "") or p_key
+
+        importable: list[dict] = []
+        loaded_count = 0
+        no_phone_count = 0
+
+        for rec in records.values():
+            if normalize_network_lookup(rec.get("prestation_id", "")) != p_key:
+                continue
+            code = (rec.get("code") or "").strip()
+            if not code:
+                continue
+            numero = (
+                rec.get("telephone1") or rec.get("telephone2") or rec.get("numero") or ""
+            ).strip()
+            has_phone = bool(_PHONE_RE_IMPORT.search(numero))
+
+            if code in existing_codes:
+                loaded_count += 1
+                continue
+            if has_phone:
+                importable.append(
+                    {
+                        "code": code,
+                        "nom": (rec.get("nom_individu") or "").strip(),
+                        "classe_id": (rec.get("classe_id") or "").strip(),
+                        "telephone": numero,
+                        "prestataire": (
+                            rec.get("prestataire") or p_info.get("prestataire") or ""
+                        ).strip(),
+                        "beneficiaire": (
+                            rec.get("beneficiaire") or p_info.get("beneficiaire") or ""
+                        ).strip(),
+                        "fenetre": (rec.get("fenetre") or "").strip(),
+                    }
+                )
+            else:
+                no_phone_count += 1
+
+        importable.sort(key=lambda r: (r["classe_id"], r["code"]))
+        importable_count = len(importable)
+        total_importable += importable_count
+        total_already_loaded += loaded_count
+
+        entry = {
+            "prestation_id": prestation_id_display,
+            "p_key": p_key,
+            "prestataire": p_info.get("prestataire", ""),
+            "beneficiaire": p_info.get("beneficiaire", ""),
+            "formation": p_info.get("formation", ""),
+            "importable_count": importable_count,
+            "loaded_count": loaded_count,
+            "no_phone_count": no_phone_count,
+            "apprenants": importable,
+        }
+        if importable_count > 0:
+            prestations_with_importable.append(entry)
+        else:
+            prestations_sans_importable.append(entry)
+
+    return render(
+        request,
+        "satisfaction_apprenants/apprenants_manquants.html",
+        {
+            "source_options": source_options,
+            "selected_source": selected_source,
+            "filter_source": selected_source or "principal",
+            "prestations": prestations_with_importable,
+            "prestations_sans_importable": prestations_sans_importable,
+            "total_importable": total_importable,
+            "total_already_loaded": total_already_loaded,
+            "total_missing_prestations": len(missing_keys),
+            "import_url": "analyse/import-manquants/",
+            "notif_url": "analyse/import-notifications/",
+        },
+    )
+
+
+@require_analysis_access
 def import_missing_apprenants(request):
     """POST – importe un lot de 20 apprenants depuis le fichier réseau consolidé.
 
