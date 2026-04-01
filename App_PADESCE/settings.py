@@ -172,6 +172,9 @@ def _database_settings_from_env() -> dict:
 
 DATABASES = {"default": _database_settings_from_env()}
 
+# Token secret pour le déclenchement automatique des backups (GitHub Actions)
+BACKUP_TRIGGER_TOKEN = os.getenv("BACKUP_TRIGGER_TOKEN", "")
+
 
 # Password validation
 # https://docs.djangoproject.com/en/6.0/ref/settings/#auth-password-validators

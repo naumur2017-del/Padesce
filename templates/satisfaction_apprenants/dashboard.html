@@ -211,6 +211,26 @@
       {% endfor %}
     </div>
   </div>
+  <div class="analysis-card" style="border-color:rgba(220,38,38,.25); background:rgba(255,241,242,.45);">
+    <h3 style="color:#991b1b;">&#9888; Prestations manquantes</h3>
+    {% if missing_analysis.available %}
+    <div class="count" style="color:#dc2626;">{{ missing_analysis.total_missing }}</div>
+    <div style="font-size:0.78rem;color:#7f1d1d;margin-bottom:10px;">Prestations terminées dans la source non encore présentes dans l'analyse ({{ missing_analysis.total_qualified }}/{{ missing_analysis.total_source }}).</div>
+    <div class="analysis-list">
+      {% for cat, cnt in missing_analysis.by_category.items %}
+      {% if cnt %}
+      <div class="analysis-item" style="background:rgba(220,38,38,.07);">
+        <span>{{ missing_analysis.category_labels|get_item:cat }}</span>
+        <strong style="color:#dc2626;">{{ cnt }}</strong>
+      </div>
+      {% endif %}
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="count">—</div>
+    <div style="font-size:0.82rem;color:var(--muted);">Source réseau non disponible.</div>
+    {% endif %}
+  </div>
   <div class="analysis-card">
     <h3>Fenêtres analysées</h3>
     <div class="count">{{ analyzed_fenetres_count }}</div>
@@ -256,6 +276,87 @@
     </div>
   </div>
 </div>
+
+{% if missing_analysis.available and missing_analysis.total_missing %}
+<div class="panel" style="border-color:rgba(220,38,38,.2); background:rgba(255,241,242,.25);">
+  <div class="dash-header" style="margin-bottom:10px;">
+    <div>
+      <div class="section-title" style="color:#991b1b;">
+        &#9888; Prestations manquantes — {{ missing_analysis.total_missing }} sur {{ missing_analysis.total_source }}
+      </div>
+      <p style="margin:0;font-size:0.85rem;color:#7f1d1d;">
+        Ces prestations sont terminées dans la source <strong>{{ filter_source }}</strong> mais n'apparaissent pas encore dans l'analyse.
+      </p>
+    </div>
+    <button class="btn btn-ghost btn-sm" onclick="toggleMissing()" id="btn-toggle-missing">Afficher le détail ▼</button>
+  </div>
+
+  <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px;">
+    {% for cat, cnt in missing_analysis.by_category.items %}
+    {% if cnt %}
+    <div style="padding:10px 16px;border-radius:10px;border:1px solid rgba(220,38,38,.2);background:#fff;text-align:center;min-width:160px;">
+      <div style="font-size:1.4rem;font-weight:800;color:#dc2626;">{{ cnt }}</div>
+      <div style="font-size:0.8rem;color:#7f1d1d;margin-top:4px;">{{ missing_analysis.category_labels|get_item:cat }}</div>
+    </div>
+    {% endif %}
+    {% endfor %}
+  </div>
+
+  <div id="missing-detail-table" style="display:none;">
+    <div class="table-scroll" style="max-height:480px;">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Prestation</th>
+            <th>Prestataire</th>
+            <th>Bénéficiaire</th>
+            <th>Formation</th>
+            <th>Classes source</th>
+            <th>Problème</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in missing_analysis.details %}
+          <tr>
+            <td>{{ forloop.counter }}</td>
+            <td><code style="font-size:.82rem">{{ item.prestation_id }}</code></td>
+            <td>{{ item.prestataire|default:"—" }}</td>
+            <td>{{ item.beneficiaire|default:"—" }}</td>
+            <td>{{ item.formation|default:"—" }}</td>
+            <td style="text-align:center;">{{ item.classe_count }}</td>
+            <td>
+              {% if item.category == "pas_disponible" %}
+              <span style="background:rgba(239,68,68,.12);color:#991b1b;padding:3px 9px;border-radius:999px;font-size:.8rem;font-weight:700;">Pas sur le site</span>
+              {% elif item.category == "pas_seuil_atteint" %}
+              <span style="background:rgba(245,158,11,.12);color:#92400e;padding:3px 9px;border-radius:999px;font-size:.8rem;font-weight:700;">Seuil non atteint</span>
+              {% elif item.category == "pas_de_numero" %}
+              <span style="background:rgba(59,130,246,.12);color:#1e40af;padding:3px 9px;border-radius:999px;font-size:.8rem;font-weight:700;">Pas de numéro</span>
+              {% else %}
+              <span style="background:rgba(107,114,128,.12);color:#374151;padding:3px 9px;border-radius:999px;font-size:.8rem;font-weight:700;">Autres</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+<script>
+function toggleMissing() {
+  var tbl = document.getElementById('missing-detail-table');
+  var btn = document.getElementById('btn-toggle-missing');
+  if (tbl.style.display === 'none') {
+    tbl.style.display = 'block';
+    btn.textContent = 'Masquer le détail ▲';
+  } else {
+    tbl.style.display = 'none';
+    btn.textContent = 'Afficher le détail ▼';
+  }
+}
+</script>
+{% endif %}
 
 <div class="kpi-row">
   <div class="kpi-card">

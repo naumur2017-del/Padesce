@@ -34,6 +34,10 @@ urlpatterns = [
     path('cga/', include('App_PADESCE.appels.cga_urls')),
     path('reporting/', include('App_PADESCE.reporting.urls')),
     path('beneficiaire/', include('App_PADESCE.beneficiaires.urls')),
+    path('backup/', lazy_view('App_PADESCE.core.backup_views.backup_dashboard'), name='backup_dashboard'),
+    path('backup/api/start/', lazy_view('App_PADESCE.core.backup_views.backup_start'), name='backup_start'),
+    path('backup/api/status/<str:job_id>/', lazy_view('App_PADESCE.core.backup_views.backup_status'), name='backup_status'),
+    path('backup/api/trigger/', lazy_view('App_PADESCE.core.backup_views.backup_trigger'), name='backup_trigger'),
 ]
 
 if settings.DEBUG:
