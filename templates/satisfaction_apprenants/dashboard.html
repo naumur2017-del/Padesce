@@ -286,11 +286,28 @@
       </div>
       <p style="margin:0;font-size:0.85rem;color:#7f1d1d;">
         Ces prestations sont terminées dans la source <strong>{{ filter_source }}</strong> mais n'apparaissent pas encore dans l'analyse.
+        {% if missing_analysis.total_importable %}
+        <strong style="color:#7c3aed;"> · {{ missing_analysis.total_importable }} apprenant(s) avec numéro prêts à importer.</strong>
+        {% endif %}
       </p>
     </div>
-    <button class="btn btn-ghost btn-sm" onclick="toggleMissing()" id="btn-toggle-missing">Afficher le détail ▼</button>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+      {% if missing_analysis.total_importable %}
+      <button class="btn btn-sm" id="btn-import-lot"
+        style="background:var(--accent);color:#fff;border:none;"
+        onclick="importNextBatch()">
+        &#8659; Charger lot de 20
+        <span id="import-remaining-badge"
+          style="background:rgba(255,255,255,.25);border-radius:999px;padding:1px 7px;font-size:.78rem;margin-left:4px;">
+          {{ missing_analysis.total_importable }} restants
+        </span>
+      </button>
+      {% endif %}
+      <button class="btn btn-ghost btn-sm" onclick="toggleMissing()" id="btn-toggle-missing">Afficher le détail ▼</button>
+    </div>
   </div>
 
+  <!-- Catégories -->
   <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px;">
     {% for cat, cnt in missing_analysis.by_category.items %}
     {% if cnt %}
@@ -302,6 +319,22 @@
     {% endfor %}
   </div>
 
+  <!-- Zone de progression de l'import -->
+  <div id="import-progress-area" style="display:none;margin-bottom:12px;">
+    <div style="display:flex;justify-content:space-between;font-size:.88rem;font-weight:600;margin-bottom:5px;">
+      <span id="import-status-label">Import en cours…</span>
+      <span id="import-count-label"></span>
+    </div>
+    <div style="height:8px;background:rgba(111,60,195,.1);border-radius:999px;overflow:hidden;">
+      <div id="import-progress-bar"
+        style="height:100%;background:linear-gradient(90deg,#7c3aed,#4c1d95);border-radius:999px;transition:width .4s ease;width:0%;">
+      </div>
+    </div>
+    <div id="import-classes-result"
+      style="margin-top:8px;font-size:.83rem;color:var(--accent-strong);min-height:1.2em;"></div>
+  </div>
+
+  <!-- Tableau de détail -->
   <div id="missing-detail-table" style="display:none;">
     <div class="table-scroll" style="max-height:480px;">
       <table>
@@ -312,19 +345,23 @@
             <th>Prestataire</th>
             <th>Bénéficiaire</th>
             <th>Formation</th>
-            <th>Classes source</th>
+            <th>Classes</th>
+            <th style="color:var(--accent-strong);">Importables</th>
             <th>Problème</th>
           </tr>
         </thead>
-        <tbody>
+        <tbody id="missing-detail-tbody">
           {% for item in missing_analysis.details %}
-          <tr>
+          <tr data-prestation-id="{{ item.prestation_id }}" data-importable="{{ item.importable_count }}">
             <td>{{ forloop.counter }}</td>
             <td><code style="font-size:.82rem">{{ item.prestation_id }}</code></td>
             <td>{{ item.prestataire|default:"—" }}</td>
             <td>{{ item.beneficiaire|default:"—" }}</td>
             <td>{{ item.formation|default:"—" }}</td>
             <td style="text-align:center;">{{ item.classe_count }}</td>
+            <td style="text-align:center;font-weight:700;color:var(--accent-strong);">
+              {% if item.importable_count %}{{ item.importable_count }}{% else %}—{% endif %}
+            </td>
             <td>
               {% if item.category == "pas_disponible" %}
               <span style="background:rgba(239,68,68,.12);color:#991b1b;padding:3px 9px;border-radius:999px;font-size:.8rem;font-weight:700;">Pas sur le site</span>
@@ -343,20 +380,195 @@
     </div>
   </div>
 </div>
-<script>
-function toggleMissing() {
-  var tbl = document.getElementById('missing-detail-table');
-  var btn = document.getElementById('btn-toggle-missing');
-  if (tbl.style.display === 'none') {
-    tbl.style.display = 'block';
-    btn.textContent = 'Masquer le détail ▲';
-  } else {
-    tbl.style.display = 'none';
-    btn.textContent = 'Afficher le détail ▼';
-  }
-}
-</script>
 {% endif %}
+
+<!-- ======================================================
+     Toast notification global (visible par tous les users)
+     ====================================================== -->
+<div id="import-toast"
+  style="display:none;position:fixed;bottom:22px;right:22px;z-index:9999;
+         min-width:260px;max-width:360px;background:var(--accent-strong);color:#fff;
+         border-radius:14px;padding:14px 18px;box-shadow:0 8px 32px rgba(76,29,149,.35);
+         font-size:.9rem;line-height:1.5;animation:toast-in .25s ease;">
+  <div style="display:flex;align-items:flex-start;gap:10px;">
+    <span style="font-size:1.2rem;">&#10003;</span>
+    <div>
+      <div id="import-toast-msg" style="font-weight:700;"></div>
+      <div id="import-toast-classes" style="font-size:.82rem;opacity:.85;margin-top:3px;"></div>
+    </div>
+    <button onclick="document.getElementById('import-toast').style.display='none'"
+      style="background:none;border:none;color:#fff;font-size:1rem;cursor:pointer;margin-left:auto;opacity:.7;line-height:1;">✕</button>
+  </div>
+</div>
+<style>
+@keyframes toast-in { from { opacity:0;transform:translateY(12px); } to { opacity:1;transform:none; } }
+</style>
+
+<script>
+(function () {
+  // ---------- CSRF ----------
+  function getCsrf() {
+    const m = document.cookie.match(/csrftoken=([^;]+)/);
+    return m ? m[1] : '';
+  }
+
+  // ---------- Toast ----------
+  let _toastTimer = null;
+  function showImportToast(message, classes) {
+    const toast = document.getElementById('import-toast');
+    document.getElementById('import-toast-msg').textContent = message;
+    const cl = document.getElementById('import-toast-classes');
+    if (classes && classes.length) {
+      cl.textContent = 'Classes : ' + classes.join(', ');
+      cl.style.display = 'block';
+    } else {
+      cl.style.display = 'none';
+    }
+    toast.style.display = 'block';
+    toast.style.animation = 'none';
+    void toast.offsetWidth; // reflow
+    toast.style.animation = 'toast-in .25s ease';
+    clearTimeout(_toastTimer);
+    _toastTimer = setTimeout(() => { toast.style.display = 'none'; }, 5000);
+  }
+
+  // ---------- Notification polling (all users) ----------
+  let _notifSince = Date.now() / 1000;
+  const _notifUrl = '{% url "import_notifications_poll" %}';
+
+  function pollNotifications() {
+    fetch(_notifUrl + '?since=' + _notifSince, {
+      headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
+      .then(r => r.json())
+      .then(data => {
+        const notifs = data.notifications || [];
+        notifs.forEach(function (n) {
+          if (n.ts > _notifSince) {
+            _notifSince = n.ts;
+            showImportToast(n.message, n.classes);
+          }
+        });
+      })
+      .catch(function () {});
+  }
+  setInterval(pollNotifications, 3000);
+
+  // ---------- Import batch ----------
+  let _importOffset = 0;
+  let _importTotal = {{ missing_analysis.total_importable|default:0 }};
+  let _importDone = false;
+
+  // Collect prestation IDs from rendered table rows
+  function _getPrestationIds() {
+    const rows = document.querySelectorAll('#missing-detail-tbody tr[data-prestation-id]');
+    const ids = [];
+    rows.forEach(function (r) { ids.push(r.dataset.prestationId); });
+    return ids;
+  }
+
+  // Current source param from URL
+  const _sourceParam = (new URLSearchParams(window.location.search)).get('source') || '';
+  const _importUrl = '{% url "import_missing_apprenants" %}' +
+    (_sourceParam ? '?source=' + encodeURIComponent(_sourceParam) : '');
+
+  function _updateImportBtn(remaining) {
+    const btn = document.getElementById('btn-import-lot');
+    if (!btn) return;
+    const badge = document.getElementById('import-remaining-badge');
+    if (remaining <= 0) {
+      btn.disabled = true;
+      btn.innerHTML = '&#10003; Tout importé';
+    } else {
+      btn.disabled = false;
+      badge.textContent = remaining + ' restants';
+    }
+  }
+
+  function _setProgress(pct, label, countLabel, classesText) {
+    const area = document.getElementById('import-progress-area');
+    if (area) area.style.display = 'block';
+    const bar = document.getElementById('import-progress-bar');
+    if (bar) bar.style.width = pct + '%';
+    const sl = document.getElementById('import-status-label');
+    if (sl) sl.textContent = label;
+    const cl = document.getElementById('import-count-label');
+    if (cl) cl.textContent = countLabel;
+    const cr = document.getElementById('import-classes-result');
+    if (cr) cr.textContent = classesText || '';
+  }
+
+  window.importNextBatch = function () {
+    if (_importDone) return;
+    const btn = document.getElementById('btn-import-lot');
+    if (btn) { btn.disabled = true; btn.innerHTML = '&#8987; Chargement…'; }
+    _setProgress(0, 'Import en cours…', '', '');
+
+    fetch(_importUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': getCsrf(),
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+      body: JSON.stringify({
+        offset: _importOffset,
+        prestation_ids: _getPrestationIds(),
+      }),
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (data.error) {
+          _setProgress(0, '&#10007; ' + data.error, '', '');
+          if (btn) { btn.disabled = false; btn.innerHTML = '&#8659; Réessayer'; }
+          return;
+        }
+        const total = data.total_importable || _importTotal;
+        _importTotal = total;
+        _importOffset = data.next_offset || (_importOffset + 20);
+        const imported = data.imported || 0;
+        const remaining = data.total_remaining || 0;
+        const pct = total > 0 ? Math.min(100, Math.round((_importOffset / total) * 100)) : 100;
+
+        _setProgress(
+          pct,
+          data.done ? '&#10003; Import terminé' : 'En cours…',
+          imported + ' importé(s) ce lot · ' + remaining + ' restants',
+          data.classes && data.classes.length ? 'Classes : ' + data.classes.join(', ') : ''
+        );
+
+        _updateImportBtn(remaining);
+
+        if (data.done) {
+          _importDone = true;
+        } else {
+          if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '&#8659; Charger lot suivant';
+          }
+        }
+      })
+      .catch(function (err) {
+        _setProgress(0, '&#10007; Erreur réseau : ' + err.message, '', '');
+        if (btn) { btn.disabled = false; btn.innerHTML = '&#8659; Réessayer'; }
+      });
+  };
+
+  // ---------- Toggle missing detail ----------
+  window.toggleMissing = function () {
+    var tbl = document.getElementById('missing-detail-table');
+    var btn2 = document.getElementById('btn-toggle-missing');
+    if (!tbl) return;
+    if (tbl.style.display === 'none') {
+      tbl.style.display = 'block';
+      if (btn2) btn2.textContent = 'Masquer le détail ▲';
+    } else {
+      tbl.style.display = 'none';
+      if (btn2) btn2.textContent = 'Afficher le détail ▼';
+    }
+  };
+})();
+</script>
 
 <div class="kpi-row">
   <div class="kpi-card">
