@@ -44,7 +44,7 @@ class Formation(TimeStampedModel):
         ("termine", "Terminé"),
     ]
 
-    code = models.CharField(max_length=50, unique=True)
+    code = models.CharField(max_length=255, unique=True)
     nom = models.CharField(max_length=255)
     nom_harmonise = models.CharField(max_length=255, blank=True)
     statut = models.CharField(max_length=20, choices=STATUT_CHOICES, default="non_demarre")
@@ -104,14 +104,14 @@ class Prestation(TimeStampedModel):
 
 
 class Lieu(TimeStampedModel):
-    code = models.CharField(max_length=50, unique=True)
+    code = models.CharField(max_length=255, unique=True)
     nom_lieu = models.CharField(max_length=255)
     region = models.CharField(max_length=120, blank=True)
     departement = models.CharField(max_length=120, blank=True)
     arrondissement = models.CharField(max_length=120, blank=True)
     ville = models.CharField(max_length=120, blank=True)
-    longitude = models.CharField(max_length=60, blank=True)
-    latitude = models.CharField(max_length=60, blank=True)
+    longitude = models.CharField(max_length=255, blank=True)
+    latitude = models.CharField(max_length=255, blank=True)
     precision = models.CharField(max_length=255, blank=True)
     actif = models.BooleanField(default=True)
 

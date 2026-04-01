@@ -3,6 +3,7 @@ from typing import Any, Dict, List
 from django.db.models import Avg, Count, Q, Sum
 from django.http import JsonResponse, Http404
 
+from App_PADESCE.core.access import require_analysis_access
 from App_PADESCE.apprenants.models import Apprenant
 from App_PADESCE.environnement.models import EnqueteEnvironnement
 from App_PADESCE.formations.models import Formation, Prestation
@@ -134,6 +135,7 @@ def get_chart_data(code: str) -> Dict[str, Any]:
     raise Http404(f"Code {code} non pris en charge")
 
 
+@require_analysis_access
 def api_chart(request, code: str):
     data = get_chart_data(code)
     return JsonResponse(data, safe=False)

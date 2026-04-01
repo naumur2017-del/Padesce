@@ -23,7 +23,7 @@ def load_env_file(env_path: Path) -> None:
     """
     if not env_path.exists():
         return
-    for line in env_path.read_text(encoding="utf-8").splitlines():
+    for line in env_path.read_text(encoding="utf-8", errors="replace").splitlines():
         line = line.strip()
         if (
             not line

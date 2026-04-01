@@ -1,0 +1,989 @@
+{% extends "base.html" %}
+{% block title %}CGA{% endblock %}
+{% block content %}
+<style>
+  .btn, .btn-small {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    padding: 10px 14px; border-radius: 12px; border: 1px solid transparent;
+    font-weight: 600; cursor: pointer; transition: transform .15s ease, box-shadow .15s ease, background .2s ease;
+  }
+  .btn-sm { padding: 8px 12px; font-size: 0.9rem; }
+  .btn:disabled, .btn-small:disabled { opacity: .6; cursor: not-allowed; transform: none; box-shadow: none; }
+  .btn-primary { background: var(--accent); color: #fff; box-shadow: 0 8px 18px rgba(76,29,149,0.2); }
+  .btn-secondary { background: #fff; color: var(--accent-strong); border: 1px solid rgba(111,60,195,0.3); }
+  .btn-ghost { background: rgba(111,60,195,0.08); color: var(--accent-strong); border: 1px solid rgba(111,60,195,0.2); }
+  .btn-small.primary { background: var(--accent); color: #fff; }
+  .btn:hover, .btn-small:hover { transform: translateY(-1px); box-shadow: 0 10px 22px rgba(15,23,42,0.12); }
+  .input, select, input[type="text"], input[type="number"], input[type="datetime-local"] {
+    padding: 10px 12px; border-radius: 12px; border: 1px solid var(--border); background: #fff;
+    box-shadow: inset 0 1px 2px rgba(0,0,0,0.04); font-weight: 500;
+    transition: border-color .2s ease, box-shadow .2s ease;
+  }
+  .input:focus, select:focus, input[type="text"]:focus, input[type="number"]:focus, input[type="datetime-local"]:focus {
+    outline: none; border-color: rgba(111,60,195,0.6); box-shadow: 0 0 0 3px rgba(111,60,195,0.12);
+  }
+  .input-file {
+    display: inline-flex; align-items: center; gap: 10px; padding: 12px 16px; border-radius: 14px;
+    border: 1px dashed rgba(111,60,195,0.3); background: rgba(111,60,195,0.08);
+  }
+  .input-file input[type="file"] { background: transparent; border: none; padding: 4px; }
+  .input-file input[type="file"]::file-selector-button {
+    margin-right: 10px; padding: 8px 12px; border-radius: 10px; border: 1px solid rgba(111,60,195,0.3);
+    background: #fff; font-weight: 600; cursor: pointer;
+  }
+  .file-label { font-weight: 700; color: var(--accent-strong); }
+  .import-panel { display: grid; gap: 12px; }
+  .import-title { font-weight: 700; font-size: 1rem; }
+  .import-divider { height: 1px; background: var(--border); }
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 14px; box-shadow: var(--shadow); margin-bottom: 12px; }
+  .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; margin-bottom: 10px; }
+  .stat { border: 1px solid var(--border); border-radius: 12px; background: #faf7ff; padding: 12px; }
+  .stat strong { display: block; font-size: 1.25rem; color: var(--accent-strong); }
+  .stat small { color: var(--muted); }
+  .stat.ok { background: rgba(34,197,94,0.08); border-color: rgba(34,197,94,0.2); }
+  .stat.warn { background: rgba(245,158,11,0.1); border-color: rgba(245,158,11,0.22); }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { padding: 8px; border: 1px solid var(--border); font-size: 0.92rem; }
+  thead { background: rgba(111,60,195,0.08); }
+  .actions { display: flex; gap: 6px; flex-wrap: wrap; }
+  .checkbox-cell { text-align: center; }
+  .checkbox-cell input { width: 18px; height: 18px; }
+  .search-bar { flex: 1; min-width: 180px; }
+  .selection-bar { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
+  .selection-bar .subtitle { margin: 0; }
+  .progress { position: relative; height: 8px; background: #eef2f7; border-radius: 999px; overflow: hidden; width: 140px; }
+  .progress-fill { position: absolute; top:0; left:0; height:100%; background: var(--accent); width:0%; transition: width .1s linear; }
+  .time-label { font-size: 0.82rem; color: var(--muted); min-width: 72px; text-align: right; }
+  .badge { padding: 6px 10px; border-radius: 999px; font-weight: 700; font-size: 0.9rem; border: 1px solid var(--border); }
+  .badge.wait { background: rgba(234,179,8,0.18); color: #92400e; }
+  .badge.run { background: rgba(34,197,94,0.15); color: #15803d; }
+  .badge.pause { background: rgba(59,130,246,0.15); color: #1d4ed8; }
+  .badge.done { background: rgba(107,114,128,0.18); color: #374151; }
+  .table-wrap { max-height: 540px; overflow: auto; }
+  .form-inline { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .pill { display: inline-block; padding: 6px 10px; border-radius: 999px; border: 1px solid var(--border); }
+  .modal-backdrop { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(15,23,42,0.55); z-index: 1200; }
+  .modal-panel { background: var(--panel); border-radius: 18px; padding: 26px 28px; width: min(460px, 90%); box-shadow: 0 20px 60px rgba(15,23,42,0.35); border: 1px solid var(--border); }
+  .modal-panel h2 { margin: 0 0 12px; font-size: 1.1rem; }
+  .modal-field { margin-bottom: 10px; display: flex; flex-direction: column; gap: 6px; font-size: 0.95rem; }
+  .modal-field input[type="datetime-local"] { padding: 8px 10px; border-radius: 10px; border: 1px solid var(--border); background: #fff; }
+  .modal-detail { display: flex; gap: 6px; font-size: 0.95rem; margin-bottom: 8px; }
+  .modal-detail .modal-label { font-weight: 700; }
+  .modal-hint { font-size: 0.8rem; color: var(--muted); }
+  .modal-backdrop[hidden] { display: none; }
+  .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px; }
+  .transcript-box { max-height: 320px; overflow: auto; white-space: pre-wrap; border: 1px solid var(--border); border-radius: 12px; padding: 12px; background: #fff; }
+  .bulk-progress-wrap { display:none; flex-direction:column; gap:8px; margin-bottom:10px; padding:10px 12px; border-radius:12px; border:1px solid rgba(15,139,141,0.2); background: rgba(15,139,141,0.05); }
+  .bulk-progress-head { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+  .bulk-progress-track { height:10px; border-radius:999px; overflow:hidden; background: rgba(15,139,141,0.12); border:1px solid rgba(15,139,141,0.2); }
+  .bulk-progress-bar { height:100%; width:0%; background: linear-gradient(90deg, #18b0ac, #f6c453); transition: width .2s ease; }
+</style>
+
+<h1 class="h4 mb-2">CGA</h1>
+{% if user.is_superuser %}
+  <p class="subtitle" style="color:var(--muted);">Uploader le fichier CGA (Sheet1) pour charger les colonnes N, raison sociale, sigle, NIU, activite, regime, CRI, centre, ville et telephone.</p>
+  <div class="panel import-panel">
+    <div class="import-title">Importation CGA</div>
+    <form method="post" enctype="multipart/form-data" class="form-inline" style="gap:12px; flex-wrap:wrap;">
+      {% csrf_token %}
+      <input type="hidden" name="update_mode" value="append">
+      <div class="input-file">
+        <span class="file-label">Choisir fichier (Sheet1)</span>
+        <input type="file" name="file" accept=".xlsx,.xlsm" required />
+      </div>
+      <button type="submit" class="btn btn-primary btn-sm">Uploader (ajouter/combiner)</button>
+    </form>
+    <div class="import-divider"></div>
+    <form method="post" enctype="multipart/form-data" class="form-inline" style="gap:12px; flex-wrap:wrap;">
+      {% csrf_token %}
+      <input type="hidden" name="update_mode" value="replace">
+      <div class="input-file">
+        <span class="file-label">Choisir fichier (Sheet1)</span>
+        <input type="file" name="file" accept=".xlsx,.xlsm" required />
+      </div>
+      <button type="submit" class="btn btn-secondary btn-sm">Uploader (ecrase l'existant)</button>
+    </form>
+    <p class="subtitle" style="color:var(--muted); margin:6px 0 0;">Le mode replace recharge tout. Le mode append ajoute seulement les NIU absents.</p>
+  </div>
+  <div class="panel">
+    <p class="subtitle" style="color:var(--muted); margin-bottom:8px;">Nettoyage global des doublons de numeros sur toutes les tables d'appels. Les doublons detectes sont desactives pour conserver l'historique.</p>
+    <form method="post" action="{% url 'deduplicate_all_call_tables' %}">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-ghost btn-sm">Detecter et supprimer les doublons numeros</button>
+    </form>
+  </div>
+{% endif %}
+
+<div class="panel">
+  <div class="stats-grid">
+    <div class="stat">
+      Total filtre<strong>{{ stats.total|default:0 }}</strong>
+      <small>Base courante apres filtres</small>
+    </div>
+    <div class="stat">
+      Appels termines<strong>{{ stats.completion_label|default:"0 / 0" }}</strong>
+      <small>{{ stats.completion_rate|default:0 }}% termines</small>
+    </div>
+    <div class="stat">
+      Restants<strong>{{ stats.remaining|default:0 }}</strong>
+      <small>Appels encore a finaliser</small>
+    </div>
+    <div class="stat {% if stats.threshold_reached %}ok{% else %}warn{% endif %}">
+      Seuil 50%<strong>{% if stats.threshold_reached %}Atteint{% else %}En cours{% endif %}</strong>
+      <small>{{ stats.threshold_message }}</small>
+    </div>
+  </div>
+
+  <form method="get" class="form-inline" style="gap:8px; margin-bottom:10px; flex-wrap:wrap;">
+    <input type="text" name="q" class="input search-bar" placeholder="Recherche raison sociale / NIU / tel..." value="{{ filters.q }}">
+    <input type="datetime-local" name="date_from" class="input" placeholder="Du" value="{{ filters.date_from }}">
+    <input type="datetime-local" name="date_to" class="input" placeholder="Au" value="{{ filters.date_to }}">
+    <select name="status" class="input">
+      <option value="">Statut</option>
+      <option value="en_attente" {% if filters.status == "en_attente" %}selected{% endif %}>En attente</option>
+      <option value="en_cours" {% if filters.status == "en_cours" %}selected{% endif %}>En cours</option>
+      <option value="pause" {% if filters.status == "pause" %}selected{% endif %}>Pause</option>
+      <option value="a_rappeler" {% if filters.status == "a_rappeler" %}selected{% endif %}>A rappeler</option>
+      <option value="termine" {% if filters.status == "termine" %}selected{% endif %}>Termine</option>
+    </select>
+    <select name="regime" class="input">
+      <option value="">Regime</option>
+      {% for p in filters.regimes %}
+        <option value="{{ p }}" {% if filters.regime == p %}selected{% endif %}>{{ p }}</option>
+      {% endfor %}
+    </select>
+    <select name="cri" class="input">
+      <option value="">CRI</option>
+      {% for p in filters.cris %}
+        <option value="{{ p }}" {% if filters.cri == p %}selected{% endif %}>{{ p }}</option>
+      {% endfor %}
+    </select>
+    <select name="centre" class="input">
+      <option value="">Centre</option>
+      {% for p in filters.centres %}
+        <option value="{{ p }}" {% if filters.centre == p %}selected{% endif %}>{{ p }}</option>
+      {% endfor %}
+    </select>
+    <select name="ville" class="input">
+      <option value="">Ville</option>
+      {% for p in filters.villes %}
+        <option value="{{ p }}" {% if filters.ville == p %}selected{% endif %}>{{ p }}</option>
+      {% endfor %}
+    </select>
+    <select name="agent" class="input">
+      <option value="">Utilisateur</option>
+      {% for p in filters.agents %}
+        <option value="{{ p }}" {% if filters.agent == p %}selected{% endif %}>{{ p }}</option>
+      {% endfor %}
+    </select>
+    <select name="page_size" class="input">
+      <option value="50" {% if page_size == 50 %}selected{% endif %}>50 / page</option>
+      <option value="100" {% if page_size == 100 %}selected{% endif %}>100 / page</option>
+      <option value="200" {% if page_size == 200 %}selected{% endif %}>200 / page</option>
+      <option value="500" {% if page_size == 500 %}selected{% endif %}>500 / page</option>
+    </select>
+    <button type="submit" class="btn btn-primary btn-sm" style="padding:10px 14px;">Filtrer</button>
+    <a class="btn btn-ghost btn-sm" style="padding:10px 14px;" href="/cga/">Reset</a>
+  </form>
+
+  <div class="selection-bar">
+    <p class="subtitle" style="color:var(--muted); margin:0;">
+      Transcription rapide: lignes filtrees, deja appelees, avec audio, sans repasser sur les transcriptions deja en base.
+    </p>
+    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+      <button type="button" id="js-start-filtered-transcription" class="btn btn-ghost btn-sm">Transcrire le tableau filtre</button>
+      <button type="button" id="js-stop-filtered-transcription" class="btn btn-ghost btn-sm" style="display:none;">Stopper</button>
+    </div>
+  </div>
+  <div id="filtered-transcription-progress-wrap" class="bulk-progress-wrap" aria-live="polite">
+    <div class="bulk-progress-head">
+      <strong>Transcription locale</strong>
+      <span id="filtered-transcription-progress-label">0%</span>
+    </div>
+    <div class="bulk-progress-track">
+      <div id="filtered-transcription-progress-bar" class="bulk-progress-bar"></div>
+    </div>
+    <div id="filtered-transcription-progress-sub" class="subtitle">En attente.</div>
+  </div>
+
+  <div class="selection-bar">
+    <p class="subtitle" style="color:var(--muted); margin:0;">
+      Lignes CGA affichees : <strong>{{ rows_count }}</strong>
+      {% if page_obj %} | Page {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}{% endif %}
+    </p>
+    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+      <a class="btn btn-ghost btn-sm" href="{% url 'cga_export_filtered_csv' %}{% if request.GET.urlencode %}?{{ request.GET.urlencode }}{% endif %}">Exporter le tableau filtre (CSV)</a>
+      <a class="btn btn-ghost btn-sm" href="{% url 'cga_export_xlsx' %}">Exporter toutes les donnees (XLSX)</a>
+      <button type="button" id="js-download-audios" class="btn btn-primary btn-sm" disabled>
+        Telecharger les audios selectionnes
+      </button>
+    </div>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th class="checkbox-cell">
+            <input type="checkbox" id="js-select-all" aria-label="Selectionner tous les audios">
+          </th>
+          <th>N</th>
+          <th>Raison sociale</th>
+          <th>Sigle</th>
+          <th>NIU</th>
+          <th>Activite principale</th>
+          <th>Regime</th>
+          <th>CRI</th>
+          <th>Centre de rattachement</th>
+          <th>Ville</th>
+          <th>Telephone</th>
+          <th>Statut</th>
+          <th>Action</th>
+          <th>Audio</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for a in rows %}
+        <tr data-id="{{ a.id }}" data-status="{{ a.status }}" data-locked-by="{{ a.locked_by.username|default:'' }}" data-name="{{ a.raison_sociale }}" data-phone="{{ a.telephone|default:'' }}">
+          <td class="checkbox-cell">
+            <input
+              type="checkbox"
+              class="js-audio-select"
+              value="{{ a.id }}"
+              aria-label="Selection audio pour {{ a.raison_sociale }}"
+              {% if not a.has_audio_file %}disabled title="{% if a.audio_file_missing %}Audio introuvable{% else %}Pas d'audio disponible{% endif %}"{% endif %}
+            />
+          </td>
+          <td>{{ a.numero|default:"-" }}</td>
+          <td>{{ a.raison_sociale }}</td>
+          <td>{{ a.sigle|default:"-" }}</td>
+          <td>{{ a.niu }}</td>
+          <td>{{ a.activite_principale|default:"-" }}</td>
+          <td>{{ a.regime|default:"-" }}</td>
+          <td>{{ a.cri|default:"-" }}</td>
+          <td>{{ a.centre_de_rattachement|default:"-" }}</td>
+          <td>{{ a.ville|default:"-" }}</td>
+          <td>{{ a.telephone|default:"-" }}</td>
+          <td>
+            <span class="badge {% if a.status == 'en_cours' %}run{% elif a.status == 'pause' %}pause{% elif a.status == 'termine' %}done{% else %}wait{% endif %}" data-badge>{{ a.get_status_display }}</span>
+            {% if a.locked_by %}<div class="subtitle">Par {{ a.locked_by.username }}</div>{% endif %}
+          </td>
+          <td>
+            <div class="actions js-actions">
+              <button
+                type="button"
+                class="btn-small primary js-start"
+                {% if a.status not in "en_attente,a_rappeler" %}hidden{% endif %}
+              >Demarrer</button>
+              <button type="button" class="btn-small js-pause" {% if a.status != "en_cours" %}hidden{% endif %}>Pause</button>
+              <button type="button" class="btn-small js-resume" {% if a.status != "pause" %}hidden{% endif %}>Reprendre</button>
+              <button
+                type="button"
+                class="btn-small js-terminer"
+                {% if a.status not in "en_cours,pause" %}hidden{% endif %}
+              >Terminer</button>
+            </div>
+          </td>
+          <td>
+            <div class="actions">
+              <div class="visual" style="width:120px; height:32px; border:1px solid var(--border); border-radius:8px; overflow:hidden;">
+                <canvas width="120" height="32" class="js-visual"></canvas>
+              </div>
+              <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+                <button type="button" class="btn-small js-play" {% if a.status != 'termine' or not a.has_audio_file %}disabled{% endif %}>Play</button>
+                <button type="button" class="btn-small js-transcription" {% if not a.has_audio_file %}disabled{% endif %}>Transcription</button>
+                {% if a.has_audio_file %}
+                  <a class="btn-small" href="{{ a.audio_file.url }}" download="cga-{{ a.niu }}.mp3" style="font-size:0.85rem;" title="Telecharger l'audio en MP3">Telecharger</a>
+                {% endif %}
+                <div class="progress"><div class="progress-fill"></div></div>
+                <span class="time-label">0:00</span>
+              </div>
+              <audio class="js-audio" style="display:none;" {% if a.has_audio_file %}src="{{ a.audio_file_url }}"{% endif %}></audio>
+            </div>
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="14" style="text-align:center; color:var(--muted);">Aucune ligne CGA.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if page_obj and page_obj.paginator.num_pages > 1 %}
+    <div class="selection-bar" style="margin-top:10px;">
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        {% if page_obj.has_previous %}
+          <a class="btn btn-ghost btn-sm" href="?{% if querystring_no_page %}{{ querystring_no_page }}&{% endif %}page=1">Premiere</a>
+          <a class="btn btn-ghost btn-sm" href="?{% if querystring_no_page %}{{ querystring_no_page }}&{% endif %}page={{ page_obj.previous_page_number }}">Precedente</a>
+        {% endif %}
+        {% if page_obj.has_next %}
+          <a class="btn btn-ghost btn-sm" href="?{% if querystring_no_page %}{{ querystring_no_page }}&{% endif %}page={{ page_obj.next_page_number }}">Suivante</a>
+          <a class="btn btn-ghost btn-sm" href="?{% if querystring_no_page %}{{ querystring_no_page }}&{% endif %}page={{ page_obj.paginator.num_pages }}">Derniere</a>
+        {% endif %}
+      </div>
+    </div>
+  {% endif %}
+</div>
+
+<div id="js-termination-modal" class="modal-backdrop" hidden>
+  <div class="modal-panel">
+    <h2>Cloturer l'appel</h2>
+    <div class="modal-detail">
+      <span class="modal-label">Nom :</span>
+      <span id="js-modal-nom">-</span>
+    </div>
+    <div class="modal-detail">
+      <span class="modal-label">Telephone :</span>
+      <span id="js-modal-phone">-</span>
+    </div>
+    <label class="modal-field">
+      <input type="checkbox" id="js-modal-rappel" />
+      A rappeler
+    </label>
+    <label class="modal-field">
+      <span>Quand :</span>
+      <input type="datetime-local" id="js-modal-rappel-at" disabled placeholder="mm/dd/yyyy --:-- --">
+      <span class="modal-hint">mm/dd/yyyy --:-- --</span>
+    </label>
+    <label class="modal-field">
+      <input type="checkbox" id="js-modal-deja-forme" />
+      Deja forme
+    </label>
+    <div class="modal-actions">
+      <button type="button" class="btn btn-ghost btn-sm" data-modal-action="cancel">Annuler</button>
+      <button type="button" class="btn btn-primary btn-sm" data-modal-action="confirm">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<div id="js-transcription-modal" class="modal-backdrop" hidden>
+  <div class="modal-panel">
+    <h2>Transcription</h2>
+    <div class="modal-detail"><span class="modal-label">Appel :</span><span id="js-transcription-name">-</span></div>
+    <div id="js-transcription-status" class="modal-hint">Chargement...</div>
+    <div id="js-transcription-text" class="transcript-box" style="margin-top:10px;">Aucune transcription.</div>
+    <div class="modal-actions">
+      <a id="js-transcription-download" class="btn btn-ghost btn-sm" href="#" download>Telecharger</a>
+      <button type="button" class="btn btn-primary btn-sm" data-transcription-close>Fermer</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function() {
+    function getCookie(name) {
+      const value = `; ${document.cookie}`;
+      const parts = value.split(`; ${name}=`);
+      if (parts.length === 2) return parts.pop().split(";").shift();
+      return "";
+    }
+    const csrfToken = getCookie("csrftoken");
+    const offlineScope = "cga";
+    const offlineUserKey = "{{ request.user.pk|default:'anon' }}";
+    const offlineDbName = "padesce-offline-cache";
+    const offlineStoreName = "jobs";
+
+    function buildStatusLabel(status) {
+      const labels = { en_attente: "En attente", en_cours: "En cours", pause: "Pause", a_rappeler: "A rappeler", termine: "Termine" };
+      return labels[status] || status || "";
+    }
+
+    function optimisticStatusFromAction(action) {
+      if (action === "start" || action === "resume") return "en_cours";
+      if (action === "pause") return "pause";
+      if (action === "rappeler") return "a_rappeler";
+      if (action === "terminer") return "termine";
+      return "";
+    }
+
+    function openOfflineDb() {
+      return new Promise((resolve, reject) => {
+        const request = indexedDB.open(offlineDbName, 1);
+        request.onupgradeneeded = () => {
+          const db = request.result;
+          if (!db.objectStoreNames.contains(offlineStoreName)) {
+            const store = db.createObjectStore(offlineStoreName, { keyPath: "id", autoIncrement: true });
+            store.createIndex("scope", ["scope", "userKey"], { unique: false });
+          }
+        };
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+    }
+
+    async function queueOfflineJob(job) {
+      const db = await openOfflineDb();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(offlineStoreName, "readwrite");
+        tx.objectStore(offlineStoreName).add({ ...job, scope: offlineScope, userKey: offlineUserKey, createdAt: Date.now() });
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+      });
+    }
+
+    async function loadOfflineJobs() {
+      const db = await openOfflineDb();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(offlineStoreName, "readonly");
+        const request = tx.objectStore(offlineStoreName).getAll();
+        request.onsuccess = () => {
+          const jobs = (request.result || []).filter((job) => job.scope === offlineScope && job.userKey === offlineUserKey);
+          jobs.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+          resolve(jobs);
+        };
+        request.onerror = () => reject(request.error);
+      });
+    }
+
+    async function deleteOfflineJob(id) {
+      const db = await openOfflineDb();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(offlineStoreName, "readwrite");
+        tx.objectStore(offlineStoreName).delete(id);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+      });
+    }
+
+    async function processOfflineJob(job) {
+      if (job.kind === "action") {
+        const form = new FormData();
+        form.append("action", job.action);
+        if (job.extra?.rappel_at) form.append("rappel_at", job.extra.rappel_at);
+        if (job.extra?.deja_forme !== undefined) form.append("deja_forme", job.extra.deja_forme ? "1" : "0");
+        const res = await fetch(job.url, { method: "POST", headers: { "X-CSRFToken": csrfToken }, body: form });
+        if (!res.ok) throw new Error("sync action failed");
+        const data = await res.json();
+        const row = document.querySelector(`tr[data-id="${job.rowId}"]`);
+        if (row) updateRow(row, data);
+        return;
+      }
+      if (job.kind === "audio") {
+        const form = new FormData();
+        form.append("audio", job.blob, job.filename);
+        const res = await fetch(job.url, { method: "POST", headers: { "X-CSRFToken": csrfToken }, body: form });
+        if (!res.ok) throw new Error("sync audio failed");
+        const payload = await res.json();
+        const row = document.querySelector(`tr[data-id="${job.rowId}"]`);
+        if (row && payload?.audio_url) {
+          const audio = row.querySelector(".js-audio");
+          if (audio) audio.src = payload.audio_url;
+        }
+      }
+    }
+
+    async function syncOfflineJobs() {
+      if (!navigator.onLine) return;
+      try {
+        const jobs = await loadOfflineJobs();
+        for (const job of jobs) {
+          await processOfflineJob(job);
+          await deleteOfflineJob(job.id);
+        }
+      } catch (err) {
+        // leave pending jobs in IndexedDB
+      }
+    }
+
+    window.addEventListener("online", syncOfflineJobs);
+    syncOfflineJobs();
+
+    const terminationModal = document.getElementById("js-termination-modal");
+    const modalRappelCheckbox = document.getElementById("js-modal-rappel");
+    const modalRappelAt = document.getElementById("js-modal-rappel-at");
+    const modalDejaForme = document.getElementById("js-modal-deja-forme");
+    const modalConfirmBtn = document.querySelector("[data-modal-action=\"confirm\"]");
+    const modalCancelBtn = document.querySelector("[data-modal-action=\"cancel\"]");
+    const modalName = document.getElementById("js-modal-nom");
+    const modalPhone = document.getElementById("js-modal-phone");
+    const transcriptionModal = document.getElementById("js-transcription-modal");
+    const transcriptionName = document.getElementById("js-transcription-name");
+    const transcriptionStatus = document.getElementById("js-transcription-status");
+    const transcriptionText = document.getElementById("js-transcription-text");
+    const transcriptionDownload = document.getElementById("js-transcription-download");
+    let modalResolve = null;
+    let currentRow = null;
+
+    function toggleRappelInput() {
+      if (!modalRappelCheckbox || !modalRappelAt) return;
+      if (modalRappelCheckbox.checked) {
+        modalRappelAt.disabled = false;
+      } else {
+        modalRappelAt.disabled = true;
+        modalRappelAt.value = "";
+      }
+    }
+
+    function resetTerminationModal() {
+      modalRappelCheckbox && (modalRappelCheckbox.checked = false);
+      modalDejaForme && (modalDejaForme.checked = false);
+      if (modalRappelAt) {
+        modalRappelAt.value = "";
+        modalRappelAt.disabled = true;
+      }
+    }
+
+    function closeTerminationModal(result) {
+      if (terminationModal) terminationModal.hidden = true;
+      modalResolve?.(result);
+      modalResolve = null;
+      currentRow = null;
+      if (modalName) modalName.textContent = "-";
+      if (modalPhone) modalPhone.textContent = "-";
+    }
+
+    function askTermination(row) {
+      if (!terminationModal) return Promise.resolve(null);
+      resetTerminationModal();
+      currentRow = row;
+      modalName && (modalName.textContent = row?.dataset?.name || "-");
+      modalPhone && (modalPhone.textContent = row?.dataset?.phone || "-");
+      terminationModal.hidden = false;
+      return new Promise((resolve) => {
+        modalResolve = resolve;
+      });
+    }
+
+    modalRappelCheckbox?.addEventListener("change", toggleRappelInput);
+    modalConfirmBtn?.addEventListener("click", () => {
+      const shouldRappeler = !!modalRappelCheckbox?.checked;
+      if (shouldRappeler && modalRappelAt && !modalRappelAt.value) {
+        alert("Merci de preciser la date et l'heure du rappel.");
+        return;
+      }
+      closeTerminationModal({
+        action: shouldRappeler ? "rappeler" : "terminer",
+        rappel_at: shouldRappeler ? modalRappelAt?.value : "",
+        deja_forme: !!modalDejaForme?.checked,
+      });
+    });
+    modalCancelBtn?.addEventListener("click", () => closeTerminationModal(null));
+    terminationModal?.addEventListener("click", (event) => {
+      if (event.target === terminationModal) closeTerminationModal(null);
+    });
+    document.querySelector("[data-transcription-close]")?.addEventListener("click", () => { if (transcriptionModal) transcriptionModal.hidden = true; });
+    transcriptionModal?.addEventListener("click", (event) => {
+      if (event.target === transcriptionModal) transcriptionModal.hidden = true;
+    });
+
+    async function sendAction(row, action, extra = {}) {
+      const id = row.dataset.id;
+      const url = `/cga/${id}/action/`;
+      const form = new FormData();
+      form.append("action", action);
+      if (extra.rappel_at) form.append("rappel_at", extra.rappel_at);
+      if (extra.deja_forme !== undefined) form.append("deja_forme", extra.deja_forme ? "1" : "0");
+      try {
+        if (!navigator.onLine) throw new Error("offline");
+        const res = await fetch(url, { method: "POST", headers: { "X-CSRFToken": csrfToken }, body: form });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) return data;
+        return data;
+      } catch (err) {
+        await queueOfflineJob({ kind: "action", rowId: id, url, action, extra });
+        const status = optimisticStatusFromAction(action);
+        return { ok: true, queued: true, status, status_label: buildStatusLabel(status) };
+      }
+    }
+
+    function updateRow(row, data) {
+      if (!data) return;
+      row.dataset.status = data.status || row.dataset.status;
+      const badge = row.querySelector("[data-badge]");
+      if (badge && data.status_label) badge.textContent = data.status_label;
+      badge?.classList.toggle("run", data.status === "en_cours");
+      badge?.classList.toggle("pause", data.status === "pause");
+      badge?.classList.toggle("done", data.status === "termine");
+      badge?.classList.toggle("wait", !["en_cours","pause","termine"].includes(data.status));
+      const actions = row.querySelector(".js-actions");
+      if (actions) {
+        const start = actions.querySelector(".js-start");
+        const pause = actions.querySelector(".js-pause");
+        const resume = actions.querySelector(".js-resume");
+        const terminer = actions.querySelector(".js-terminer");
+        const canStart = ["en_attente", "a_rappeler"].includes(data.status);
+        if (canStart) {
+          start.hidden = false; pause.hidden = true; resume.hidden = true; terminer.hidden = true;
+        } else if (data.status === "en_cours") {
+          start.hidden = true; pause.hidden = false; resume.hidden = true; terminer.hidden = false;
+        } else if (data.status === "pause") {
+          start.hidden = true; pause.hidden = true; resume.hidden = false; terminer.hidden = false;
+        } else {
+          start.hidden = true; pause.hidden = true; resume.hidden = true; terminer.hidden = true;
+        }
+      }
+      const playBtn = row.querySelector(".js-play");
+      if (playBtn) {
+        const audio = row.querySelector(".js-audio");
+        playBtn.disabled = !(data.status === "termine" && audio?.src);
+      }
+    }
+
+    const recordState = new Map();
+
+    function getRecordState(row) {
+      return recordState.get(row.dataset.id);
+    }
+
+    document.querySelectorAll(".js-actions").forEach((wrap) => {
+      const row = wrap.closest("tr[data-id]");
+      const start = wrap.querySelector(".js-start");
+      const pause = wrap.querySelector(".js-pause");
+      const resume = wrap.querySelector(".js-resume");
+      const terminer = wrap.querySelector(".js-terminer");
+
+      start?.addEventListener("click", async () => {
+        try {
+          const data = await sendAction(row, "start");
+          updateRow(row, data);
+          if (!getRecordState(row)) {
+            await startRecording(row);
+          }
+        } catch (err) { alert("Action impossible."); }
+      });
+      pause?.addEventListener("click", async () => {
+        try {
+          const data = await sendAction(row, "pause");
+          updateRow(row, data);
+          const state = getRecordState(row);
+          if (state?.recorder && state.recorder.state === "recording") {
+            state.recorder.pause();
+          }
+        } catch (err) { alert("Action impossible."); }
+      });
+      resume?.addEventListener("click", async () => {
+        try {
+          const data = await sendAction(row, "resume");
+          updateRow(row, data);
+          const state = getRecordState(row);
+          if (state?.recorder && state.recorder.state === "paused") {
+            state.recorder.resume();
+          } else if (!state) {
+            await startRecording(row);
+          }
+        } catch (err) { alert("Action impossible."); }
+      });
+      terminer?.addEventListener("click", async () => {
+        const modalResult = await askTermination(row);
+        if (!modalResult) return;
+        try {
+          const state = getRecordState(row);
+          if (state?.recorder && state.recorder.state !== "inactive") {
+            state.recorder.stop();
+            state.stream?.getTracks().forEach(t => t.stop());
+          }
+          const data = await sendAction(row, modalResult.action, {
+            rappel_at: modalResult.rappel_at,
+            deja_forme: modalResult.deja_forme,
+          });
+          updateRow(row, data);
+        } catch (err) { alert("Action impossible."); }
+      });
+    });
+    document.querySelectorAll("tr[data-id]").forEach((row) => {
+      const badge = row.querySelector("[data-badge]");
+      updateRow(row, { status: row.dataset.status, status_label: badge ? badge.textContent : "" });
+    });
+
+    async function startRecording(row) {
+      const id = row.dataset.id;
+      let stream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      } catch (err) {
+        const reason = (err && err.message) ? `(${err.message})` : "";
+        const insecure = location.protocol !== "https:" && location.hostname !== "localhost";
+        const hint = insecure ? "\\nActivez HTTPS ou utilisez http://localhost pour autoriser le micro." : "\\nVerifiez les permissions micro dans le navigateur.";
+        alert(`Micro non accessible ${reason}. ${hint}`);
+        return;
+      }
+      const audioCtx = new AudioContext();
+      const source = audioCtx.createMediaStreamSource(stream);
+      const analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 256;
+      source.connect(analyser);
+      const canvas = row.querySelector(".js-visual");
+      const ctx = canvas.getContext("2d");
+      const bufferLength = analyser.frequencyBinCount;
+      const dataArray = new Uint8Array(bufferLength);
+      let raf;
+      function draw() {
+        raf = requestAnimationFrame(draw);
+        analyser.getByteFrequencyData(dataArray);
+        ctx.fillStyle = "#f8fafc";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        const barWidth = (canvas.width / bufferLength) * 2.5;
+        let x = 0;
+        for (let i = 0; i < bufferLength; i++) {
+          const barHeight = dataArray[i] / 3;
+          ctx.fillStyle = "rgba(24,176,172,0.8)";
+          ctx.fillRect(x, canvas.height - barHeight, barWidth, barHeight);
+          x += barWidth + 1;
+        }
+      }
+      draw();
+      const mimeType = MediaRecorder.isTypeSupported("audio/mpeg") ? "audio/mpeg" : "audio/webm";
+      const recorder = new MediaRecorder(stream, { mimeType });
+      const chunks = [];
+      recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
+      recorder.onstop = async () => {
+        const blob = new Blob(chunks, { type: mimeType });
+        const audio = row.querySelector(".js-audio");
+        audio.src = URL.createObjectURL(blob);
+        row.querySelector(".js-play").disabled = false;
+        recordState.set(id, { recorder: null, chunks: [], blob });
+        await uploadAudio(row, blob);
+        cancelAnimationFrame(raf);
+        ctx.clearRect(0,0,canvas.width, canvas.height);
+        audioCtx.close();
+      };
+      recorder.start();
+      recordState.set(id, { recorder, chunks, stream, raf, ctx, canvas, audioCtx });
+    }
+
+    async function uploadAudio(row, blob) {
+      const id = row.dataset.id;
+      const form = new FormData();
+      form.append("audio", blob, `cga-${id}.mp3`);
+      try {
+        if (!navigator.onLine) throw new Error("offline");
+        const res = await fetch(`/cga/${id}/upload/`, {
+          method: "POST",
+          headers: { "X-CSRFToken": csrfToken },
+          body: form,
+        });
+        if (!res.ok) throw new Error();
+      } catch (err) {
+        await queueOfflineJob({
+          kind: "audio",
+          rowId: id,
+          url: `/cga/${id}/upload/`,
+          filename: `cga-${id}.mp3`,
+          blob,
+        });
+      }
+    }
+
+    document.querySelectorAll(".js-play").forEach((btn) => {
+      const row = btn.closest("tr[data-id]");
+      const audio = row.querySelector(".js-audio");
+      const fill = row.querySelector(".progress-fill");
+      const label = row.querySelector(".time-label");
+      function updateLabel() {
+        if (!audio.duration || isNaN(audio.duration)) {
+          label.textContent = "0:00";
+          fill.style.width = "0%";
+          return;
+        }
+        const remaining = Math.max(audio.duration - audio.currentTime, 0);
+        const mins = Math.floor(remaining / 60);
+        const secs = Math.floor(remaining % 60).toString().padStart(2, "0");
+        label.textContent = `${mins}:${secs}`;
+        fill.style.width = `${(audio.currentTime / audio.duration) * 100}%`;
+      }
+      audio.addEventListener("timeupdate", updateLabel);
+      audio.addEventListener("ended", () => { btn.textContent = "Play"; updateLabel(); });
+      btn.addEventListener("click", () => {
+        if (!audio.src) return;
+        if (audio.paused) {
+          audio.play();
+          btn.textContent = "Pause";
+        } else {
+          audio.pause();
+          btn.textContent = "Play";
+        }
+      });
+    });
+    document.querySelectorAll(".js-transcription").forEach((btn) => {
+      const row = btn.closest("tr[data-id]");
+      btn.addEventListener("click", async () => {
+        const id = row.dataset.id;
+        const name = row.dataset.name || "-";
+        if (transcriptionModal) transcriptionModal.hidden = false;
+        if (transcriptionName) transcriptionName.textContent = name;
+        if (transcriptionStatus) transcriptionStatus.textContent = "Chargement ou transcription en cours...";
+        if (transcriptionText) transcriptionText.textContent = "Veuillez patienter...";
+        if (transcriptionDownload) transcriptionDownload.href = `/cga/${id}/transcription/download/`;
+        try {
+          const res = await fetch(`/cga/${id}/transcription/`, {
+            method: "POST",
+            headers: { "X-CSRFToken": csrfToken },
+          });
+          const payload = await res.json();
+          if (!res.ok || !payload.ok) throw new Error(payload.error || "Transcription impossible.");
+          const data = payload.transcription || {};
+          if (transcriptionStatus) {
+            transcriptionStatus.textContent = payload.generated
+              ? `Transcription generee (${data.engine || "local"}).`
+              : `Transcription disponible (${data.engine || "local"}).`;
+          }
+          if (transcriptionText) transcriptionText.textContent = data.text || "Aucune transcription disponible.";
+        } catch (err) {
+          if (transcriptionStatus) transcriptionStatus.textContent = "Erreur";
+          if (transcriptionText) transcriptionText.textContent = err.message || "Transcription impossible.";
+        }
+      });
+    });
+    const downloadBtn = document.getElementById("js-download-audios");
+    const audioCheckboxes = Array.from(document.querySelectorAll(".js-audio-select"));
+    const selectAllCheckbox = document.getElementById("js-select-all");
+    const downloadUrl = "/cga/audio-download/";
+
+    function refreshSelectAllState() {
+      if (!selectAllCheckbox) return;
+      const available = audioCheckboxes.filter((cb) => !cb.disabled);
+      if (!available.length) {
+        selectAllCheckbox.checked = false;
+        selectAllCheckbox.indeterminate = false;
+        selectAllCheckbox.disabled = true;
+        return;
+      }
+      selectAllCheckbox.disabled = false;
+      const allChecked = available.every((cb) => cb.checked);
+      const anyChecked = available.some((cb) => cb.checked);
+      selectAllCheckbox.checked = allChecked;
+      selectAllCheckbox.indeterminate = !allChecked && anyChecked;
+    }
+
+    function updateDownloadButtonState() {
+      const hasSelection = audioCheckboxes.some((cb) => cb.checked);
+      if (downloadBtn) downloadBtn.disabled = !hasSelection;
+      refreshSelectAllState();
+    }
+
+    audioCheckboxes.forEach((checkbox) => {
+      checkbox.addEventListener("change", updateDownloadButtonState);
+    });
+    if (selectAllCheckbox) {
+      selectAllCheckbox.addEventListener("change", (event) => {
+        const shouldCheck = event.target.checked;
+        audioCheckboxes.forEach((cb) => {
+          if (!cb.disabled) cb.checked = shouldCheck;
+        });
+        updateDownloadButtonState();
+      });
+    }
+
+    async function downloadSelectedAudios() {
+      const selectedIds = audioCheckboxes.filter((cb) => cb.checked).map((cb) => cb.value);
+      if (!selectedIds.length) {
+        alert("Selectionnez au moins un audio avant de lancer le telechargement.");
+        return;
+      }
+      const formData = new FormData();
+      selectedIds.forEach((id) => formData.append("ids", id));
+      try {
+        const response = await fetch(downloadUrl, {
+          method: "POST",
+          headers: { "X-CSRFToken": csrfToken },
+          body: formData,
+        });
+        if (!response.ok) {
+          let errorText = "Telechargement impossible.";
+          try {
+            const payload = await response.json();
+            if (payload?.error) errorText = payload.error;
+          } catch (err) {
+            // ignore parse errors
+          }
+          throw new Error(errorText);
+        }
+        const blob = await response.blob();
+        const disposition = response.headers.get("Content-Disposition") || "";
+        const nameMatch = /filename="?([^";]+)"?/.exec(disposition);
+        const filename = nameMatch?.[1] || (selectedIds.length === 1 ? `appel-${selectedIds[0]}.mp3` : "cga-audios.zip");
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+      } catch (err) {
+        alert(err.message || "Impossible de telecharger les audios selectionnes.");
+      }
+    }
+
+    downloadBtn?.addEventListener("click", downloadSelectedAudios);
+    updateDownloadButtonState();
+
+    const filteredStartBtn = document.getElementById("js-start-filtered-transcription");
+    const filteredStopBtn = document.getElementById("js-stop-filtered-transcription");
+    const filteredWrap = document.getElementById("filtered-transcription-progress-wrap");
+    const filteredBar = document.getElementById("filtered-transcription-progress-bar");
+    const filteredLabel = document.getElementById("filtered-transcription-progress-label");
+    const filteredSub = document.getElementById("filtered-transcription-progress-sub");
+    let filteredPoller = null;
+
+    function renderFilteredStatus(status) {
+      if (!status) return;
+      const total = Number(status.total || 0);
+      const processed = Number(status.processed || 0);
+      const percent = total > 0 ? Math.round((processed / total) * 100) : 0;
+      if (filteredWrap) filteredWrap.style.display = (status.state === "idle" && !status.message) ? "none" : "flex";
+      if (filteredBar) filteredBar.style.width = `${Math.max(0, Math.min(percent, 100))}%`;
+      if (filteredLabel) filteredLabel.textContent = `${percent}%`;
+      if (filteredSub) {
+        const detail = status.current_label ? ` | ${status.current_label}` : "";
+        filteredSub.textContent = `${status.message || "En attente."}${detail}`;
+      }
+      const isBusy = ["running", "stopping"].includes(status.state);
+      if (filteredStartBtn) filteredStartBtn.disabled = isBusy;
+      if (filteredStopBtn) filteredStopBtn.style.display = isBusy ? "inline-flex" : "none";
+      if (filteredStopBtn) filteredStopBtn.disabled = status.state === "stopping";
+      if (!isBusy && filteredPoller) {
+        clearInterval(filteredPoller);
+        filteredPoller = null;
+      }
+    }
+
+    async function fetchFilteredStatus() {
+      try {
+        const res = await fetch("{% url 'filtered_cga_transcription_status' %}");
+        const payload = await res.json();
+        renderFilteredStatus(payload.status);
+      } catch (err) {
+        if (filteredSub) filteredSub.textContent = "Impossible de recuperer l'etat de transcription.";
+      }
+    }
+
+    filteredStartBtn?.addEventListener("click", async function () {
+      try {
+        const query = window.location.search || "";
+        const res = await fetch(`{% url 'start_filtered_cga_transcription' %}${query}`, {
+          method: "POST",
+          headers: { "X-CSRFToken": csrfToken },
+        });
+        const payload = await res.json();
+        if (!res.ok || !payload.ok) {
+          alert(payload.error || "Lancement impossible.");
+          return;
+        }
+        renderFilteredStatus(payload.status);
+        if (!filteredPoller) filteredPoller = setInterval(fetchFilteredStatus, 2000);
+      } catch (err) {
+        alert("Lancement impossible.");
+      }
+    });
+
+    filteredStopBtn?.addEventListener("click", async function () {
+      try {
+        const res = await fetch("{% url 'stop_filtered_cga_transcription' %}", {
+          method: "POST",
+          headers: { "X-CSRFToken": csrfToken },
+        });
+        const payload = await res.json();
+        if (!res.ok || !payload.ok) {
+          alert(payload.error || "Arret impossible.");
+          return;
+        }
+        renderFilteredStatus(payload.status);
+        if (!filteredPoller) filteredPoller = setInterval(fetchFilteredStatus, 2000);
+      } catch (err) {
+        alert("Arret impossible.");
+      }
+    });
+
+    fetchFilteredStatus();
+  })();
+</script>
+{% endblock %}
