@@ -10,10 +10,8 @@ from App_PADESCE.core import chat_views
 
 urlpatterns = [
     path('', auth_views.LoginView.as_view(template_name="registration/login.html", redirect_authenticated_user=True), name='login'),
-    # --- API Chat Agent ---
     path('api/chat/', chat_views.chat_query, name='chat_query'),
     path('api/chat/download/<str:filename>/', chat_views.download_export, name='download_export'),
-    # ----------------------
     path('dashboard/', lazy_view('App_PADESCE.core.views.home'), name='home'),
     path('deploiement/', lazy_view('App_PADESCE.core.deployment_views.deployment_dashboard'), name='deployment_dashboard'),
     path('deploiement/live/', lazy_view('App_PADESCE.core.deployment_views.deployment_live_status'), name='deployment_live_status'),
