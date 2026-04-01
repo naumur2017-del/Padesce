@@ -18,4 +18,3 @@ requests
 paramiko
 faster-whisper
 python-docx
-torch
