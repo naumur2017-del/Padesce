@@ -96,6 +96,16 @@ urlpatterns = [
         lazy_view("App_PADESCE.core.backup_views.backup_trigger"),
         name="backup_trigger",
     ),
+    path(
+        "backup/download/<str:filename>/",
+        lazy_view("App_PADESCE.core.backup_views.backup_download"),
+        name="backup_download",
+    ),
+    path(
+        "backup/delete/<str:filename>/",
+        lazy_view("App_PADESCE.core.backup_views.backup_delete"),
+        name="backup_delete",
+    ),
 ]
 
 if settings.DEBUG:

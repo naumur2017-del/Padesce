@@ -249,11 +249,12 @@
             <th>Terminé le</th>
             <th>Taille</th>
             <th>Tables</th>
+            <th>Actions</th>
           </tr>
         </thead>
         <tbody id="history-body">
           {% for entry in history %}
-          <tr>
+          <tr id="row-{{ entry.backup_file|default:forloop.counter }}">
             <td>
               {% if entry.status == "success" %}
                 <span class="status-badge badge-success">&#10003; Succès</span>
@@ -275,6 +276,23 @@
             <td style="white-space:nowrap">{{ entry.finished_at|default:"—"|truncatechars:19 }}</td>
             <td>{% if entry.file_size %}{{ entry.file_size|filesizeformat }}{% else %}—{% endif %}</td>
             <td>{{ entry.tables_count|default:"—" }}</td>
+            <td style="white-space:nowrap;">
+              {% if entry.backup_file %}
+              <a href="{% url 'backup_download' entry.backup_file %}"
+                 style="display:inline-flex;align-items:center;gap:4px;padding:5px 10px;
+                        border-radius:8px;background:var(--accent);color:#fff;
+                        font-size:0.8rem;font-weight:600;text-decoration:none;border:none;">
+                &#8659; Télécharger
+              </a>
+              <button onclick="deleteBackup('{{ entry.backup_file }}')"
+                style="display:inline-flex;align-items:center;gap:4px;padding:5px 10px;
+                       border-radius:8px;background:transparent;color:#dc2626;
+                       font-size:0.8rem;font-weight:600;border:1px solid #fca5a5;
+                       cursor:pointer;margin-left:4px;">
+                &#128465; Supprimer
+              </button>
+              {% else %}—{% endif %}
+            </td>
           </tr>
           {% endfor %}
         </tbody>
@@ -376,7 +394,7 @@
           <thead>
             <tr>
               <th>Statut</th><th>Fichier</th><th>Déclenché par</th>
-              <th>Démarré le</th><th>Terminé le</th><th>Taille</th><th>Tables</th>
+              <th>Démarré le</th><th>Terminé le</th><th>Taille</th><th>Tables</th><th>Actions</th>
             </tr>
           </thead>
           <tbody id="history-body"></tbody>
@@ -391,8 +409,23 @@
     };
     const badge = badgeMap[job.status] || `<span class="status-badge badge-pending">${job.status}</span>`;
     const fileCell = job.backup_file ? `<code style="font-size:.82rem">${job.backup_file}</code>` : '—';
+    const actionsCell = job.backup_file ? `
+      <a href="/backup/download/${job.backup_file}/"
+         style="display:inline-flex;align-items:center;gap:4px;padding:5px 10px;
+                border-radius:8px;background:var(--accent);color:#fff;
+                font-size:0.8rem;font-weight:600;text-decoration:none;border:none;">
+        &#8659; Télécharger
+      </a>
+      <button onclick="deleteBackup('${job.backup_file}')"
+        style="display:inline-flex;align-items:center;gap:4px;padding:5px 10px;
+               border-radius:8px;background:transparent;color:#dc2626;
+               font-size:0.8rem;font-weight:600;border:1px solid #fca5a5;
+               cursor:pointer;margin-left:4px;">
+        &#128465; Supprimer
+      </button>` : '—';
 
     const tr = document.createElement('tr');
+    tr.id = job.backup_file ? `row-${job.backup_file}` : '';
     tr.innerHTML = `
       <td>${badge}</td>
       <td>${fileCell}</td>
@@ -400,7 +433,8 @@
       <td style="white-space:nowrap">${fmtDate(job.started_at)}</td>
       <td style="white-space:nowrap">${fmtDate(job.finished_at)}</td>
       <td>${fmtSize(job.file_size)}</td>
-      <td>${job.tables_count || '—'}</td>`;
+      <td>${job.tables_count || '—'}</td>
+      <td style="white-space:nowrap">${actionsCell}</td>`;
     tbody.insertBefore(tr, tbody.firstChild);
   }
 
@@ -424,6 +458,29 @@
         // réseau temporairement indisponible, on réessaie
       });
   }
+
+  window.deleteBackup = function (filename) {
+    if (!confirm(`Supprimer définitivement "${filename}" ?`)) return;
+    fetch(`/backup/delete/${filename}/`, {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': getCsrf(),
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+    })
+      .then(r => r.json())
+      .then(data => {
+        if (data.error) { alert('Erreur : ' + data.error); return; }
+        const row = document.getElementById(`row-${filename}`);
+        if (row) row.remove();
+        const tbody = document.getElementById('history-body');
+        if (tbody && tbody.rows.length === 0) {
+          document.getElementById('history-container').innerHTML =
+            '<p class="empty-history" id="empty-msg">Aucun backup enregistré pour le moment.</p>';
+        }
+      })
+      .catch(() => alert('Erreur réseau lors de la suppression.'));
+  };
 
   window.startBackup = function () {
     const btn = document.getElementById('btn-start');
