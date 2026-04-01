@@ -294,18 +294,25 @@
       </p>
     </div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+      <a href="{% url 'apprenants_manquants_page' %}{% if filter_source %}?source={{ filter_source }}{% endif %}"
+         class="btn btn-sm" style="background:var(--accent);color:#fff;text-decoration:none;">
+        &#128100; Voir la liste complète &amp; importer
+        {% if missing_analysis.total_importable %}
+        <span style="background:rgba(255,255,255,.25);border-radius:999px;padding:1px 8px;font-size:.78rem;margin-left:4px;">
+          {{ missing_analysis.total_importable }}
+        </span>
+        {% endif %}
+      </a>
       {% if missing_analysis.total_importable %}
-      <button class="btn btn-sm" id="btn-import-lot"
-        style="background:var(--accent);color:#fff;border:none;"
+      <button class="btn btn-ghost btn-sm" id="btn-import-lot"
         onclick="importNextBatch()">
-        &#8659; Charger lot de 20
+        &#8659; Lot de 20
         <span id="import-remaining-badge"
-          style="background:rgba(255,255,255,.25);border-radius:999px;padding:1px 7px;font-size:.78rem;margin-left:4px;">
-          {{ missing_analysis.total_importable }} restants
+          style="border-radius:999px;padding:1px 7px;font-size:.78rem;margin-left:4px;">
         </span>
       </button>
       {% endif %}
-      <button class="btn btn-ghost btn-sm" onclick="toggleMissing()" id="btn-toggle-missing">Afficher le détail ▼</button>
+      <button class="btn btn-ghost btn-sm" onclick="toggleMissing()" id="btn-toggle-missing">Détail ▼</button>
     </div>
   </div>
 
