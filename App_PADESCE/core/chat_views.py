@@ -1,6 +1,5 @@
 import json
 import os
-import torch  # Fix for [WinError 1114] DLL initialization failed when loading in a thread
 from django.http import JsonResponse, FileResponse, Http404
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
@@ -14,6 +13,12 @@ def init_agent_if_needed():
     if not _agent_initialized:
         print("[Agent Padesce] Initialisation du chat...")
         try:
+            # Import lazy de torch pour éviter un crash au démarrage si non installé
+            try:
+                import torch  # noqa: F401  # Fix for [WinError 1114] DLL init in thread
+            except ImportError:
+                pass
+
             # Charger les clés d'API depuis NAUMUR/.env s'il n'est pas déjà chargé
             env_path = os.path.join(settings.BASE_DIR.parent.parent, ".env")
             if os.path.exists(env_path):
