@@ -1968,7 +1968,7 @@ def _build_missing_prestations_analysis(
         p_key = normalize_network_lookup(rec.get("prestation_id", ""))
         if not p_key:
             continue
-        numero = (rec.get("numero") or "").strip()
+        numero = (rec.get("telephone1") or rec.get("telephone2") or rec.get("numero") or "").strip()
         code = (rec.get("code") or "").strip()
         if _phone_re.search(numero) and code and code not in existing_appel_codes:
             source_records_by_prestation[p_key] = source_records_by_prestation.get(p_key, 0) + 1
@@ -3081,7 +3081,7 @@ def import_missing_apprenants(request):
         p_key = normalize_network_lookup(rec.get("prestation_id", ""))
         if p_key not in target_keys:
             continue
-        numero = (rec.get("numero") or "").strip()
+        numero = (rec.get("telephone1") or rec.get("telephone2") or rec.get("numero") or "").strip()
         if not _PHONE_RE_IMPORT.search(numero):
             continue
         code = (rec.get("code") or "").strip()
@@ -3129,7 +3129,9 @@ def import_missing_apprenants(request):
                 lieu=(rec.get("lieu") or "").strip(),
                 classe_label=classe_id,
                 fenetre=(rec.get("fenetre") or "").strip(),
-                telephone1=(rec.get("numero") or "").strip(),
+                telephone1=(
+                    rec.get("telephone1") or rec.get("telephone2") or rec.get("numero") or ""
+                ).strip(),
                 formation_padesce=(rec.get("formation") or "").strip(),
                 status="en_attente",
                 is_active=True,

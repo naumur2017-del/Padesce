@@ -201,7 +201,9 @@
   </div>
   <div class="analysis-card">
     <h3>Prestations analysées</h3>
-    <div class="count">{{ analyzed_prestations_ratio }}</div>
+    <div class="count">
+      {% if missing_analysis.available %}{{ missing_analysis.total_qualified }}/{{ missing_analysis.total_source }}{% else %}{{ analyzed_prestations_ratio }}{% endif %}
+    </div>
     <div style="font-size:0.78rem; color:var(--muted); margin-bottom:10px;">Prestations terminées analysées sur le total des prestations terminées dans la source choisie.</div>
     <div class="analysis-list">
       {% for item in analyzed_prestations %}
