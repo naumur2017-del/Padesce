@@ -3072,6 +3072,16 @@ def apprenants_manquants_page(request):
         for code, tel in Appel.objects.filter(is_active=True).values_list("code", "telephone1")
     }
 
+    # -- Index classe_label → prestation_key depuis le fichier source ------
+    # La feuille Consolidation n'a pas de colonne Prestation ID : on passe par
+    # classe_label → classes_by_id → prestation_id (feuilles Classes/Prestations)
+    classes_data: dict = source_bundle.get("classes", {}) if source_bundle else {}
+    classe_to_presta_key: dict[str, str] = {}
+    for cls_key, cls_info in classes_data.items():
+        presta_key = normalize_network_lookup(cls_info.get("prestation_id", ""))
+        if presta_key:
+            classe_to_presta_key[cls_key] = presta_key
+
     # -- Index des records Consolidation par code --------------------------
     # consol_bundle["records"] est une LISTE (pas un dict)
     consol_records: list[dict] = consol_bundle.get("records", []) if consol_bundle else []
@@ -3081,7 +3091,12 @@ def apprenants_manquants_page(request):
         code = (rec.get("code") or "").strip()
         if code:
             consol_by_code[code] = rec
+        # 1. Prestation ID direct (colonne optionnelle dans Consolidation)
         p_key = normalize_network_lookup(rec.get("prestation_id", ""))
+        # 2. Fallback : classe_label → prestation via feuille Classes
+        if not p_key:
+            cls_key = normalize_network_lookup(rec.get("classe_label", ""))
+            p_key = classe_to_presta_key.get(cls_key, "")
         if p_key:
             consol_by_prestation[p_key].append(rec)
 
@@ -3232,15 +3247,38 @@ def import_missing_apprenants(request):
     if not consol_bundle:
         return JsonResponse({"error": "Feuille Consolidation non disponible."}, status=400)
 
+    # -- Index classe_label → prestation_key via feuille Classes -----------
+    # La feuille Consolidation n'a pas de colonne Prestation ID :
+    # on résout via classe_label → Classes sheet → prestation_id
+    try:
+        src_bundle_import = build_padesce_source_index(source_key=selected_source)
+    except Exception:
+        src_bundle_import = None
+    _classes_import: dict = src_bundle_import.get("classes", {}) if src_bundle_import else {}
+    _cls_to_presta: dict[str, str] = {}
+    for _ck, _ci in _classes_import.items():
+        _pk = normalize_network_lookup(_ci.get("prestation_id", ""))
+        if _pk:
+            _cls_to_presta[_ck] = _pk
+
+    def _get_presta_key_for_rec(rec: dict) -> str:
+        # Direct prestation_id column (optional in Consolidation)
+        pk = normalize_network_lookup(rec.get("prestation_id", ""))
+        if pk:
+            return pk
+        # Fallback via classe_label
+        ck = normalize_network_lookup(rec.get("classe_label", ""))
+        return _cls_to_presta.get(ck, "")
+
     # Détermine les prestations cibles
     if prestation_ids:
         target_keys = {normalize_network_lookup(p) for p in prestation_ids}
     else:
-        # Si pas de filtre : toutes les prestations présentes dans la feuille Consolidation
+        # Toutes les prestations résolvables depuis la Consolidation
         target_keys = {
-            normalize_network_lookup(rec.get("prestation_id", ""))
+            _get_presta_key_for_rec(rec)
             for rec in consol_bundle.get("records", [])
-            if rec.get("prestation_id")
+            if _get_presta_key_for_rec(rec)
         }
 
     if not target_keys:
@@ -3263,7 +3301,7 @@ def import_missing_apprenants(request):
     # consol_bundle["records"] est une LISTE
     importable: list[dict] = []
     for rec in consol_bundle.get("records", []):
-        p_key = normalize_network_lookup(rec.get("prestation_id", ""))
+        p_key = _get_presta_key_for_rec(rec)
         if p_key not in target_keys:
             continue
         numero = (rec.get("telephone1") or rec.get("telephone2") or rec.get("numero") or "").strip()
@@ -3275,7 +3313,7 @@ def import_missing_apprenants(request):
         importable.append(rec)
 
     # Stable ordering for consistent pagination
-    importable.sort(key=lambda r: (r.get("prestation_id", ""), r.get("code", "")))
+    importable.sort(key=lambda r: (r.get("classe_label", ""), r.get("code", "")))
 
     total_importable = len(importable)
     batch = importable[offset : offset + 20]
