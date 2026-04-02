@@ -614,6 +614,8 @@ def _build_appel_class_progress_snapshot(source_bundle: dict | None = None) -> d
     callable_termines_by_key: dict[str, int] = defaultdict(int)
     fallback_callable_counts_by_key: dict[str, int] = defaultdict(int)
     fallback_phone_summary_by_key: dict[str, dict[str, int]] = {}
+    # Total DB appels per class (regardless of phone) – used for coherence check
+    total_db_appels_by_key: dict[str, int] = defaultdict(int)
 
     for classe_label, summary in _callable_phone_summary_from_appel_rows(appel_rows).items():
         classe_key = normalize_network_lookup(classe_label)
@@ -630,6 +632,7 @@ def _build_appel_class_progress_snapshot(source_bundle: dict | None = None) -> d
         if classe_label:
             label_by_key.setdefault(classe_key, classe_label)
             raw_labels_by_key[classe_key].add(classe_label)
+        total_db_appels_by_key[classe_key] += 1
         if row.get("status") == "termine" and has_usable_phone(row.get("telephone1"), row.get("telephone2")):
             callable_termines_by_key[classe_key] += 1
 
@@ -671,15 +674,30 @@ def _build_appel_class_progress_snapshot(source_bundle: dict | None = None) -> d
     for classe_key in sorted(classe_keys, key=lambda item: (label_by_key.get(item, item)).casefold()):
         display_label = label_by_key.get(classe_key, classe_key).strip() or classe_key
         raw_labels_by_key[classe_key].add(display_label)
-        callable_total = max(
-            int(source_callable_counts_by_key.get(classe_key) or 0),
-            int(fallback_callable_counts_by_key.get(classe_key) or 0),
-        )
+        db_total = int(total_db_appels_by_key.get(classe_key) or 0)
+        db_with_phone = int(fallback_callable_counts_by_key.get(classe_key) or 0)
+        src_count = int(source_callable_counts_by_key.get(classe_key) or 0)
+        # Coherence: when DB has records use DB phone count as denominator so that
+        # the "X/Y joignables" stat matches what the user actually sees in the list.
+        # Only fall back to source count when no DB records exist yet (import pending).
+        if db_total > 0:
+            callable_total = db_with_phone
+            phone_summary = (
+                fallback_phone_summary_by_key.get(classe_key)
+                or source_phone_summary_by_key.get(classe_key)
+                or {}
+            )
+        else:
+            callable_total = src_count
+            phone_summary = (
+                source_phone_summary_by_key.get(classe_key)
+                or fallback_phone_summary_by_key.get(classe_key)
+                or {}
+            )
         termines = int(callable_termines_by_key.get(classe_key) or 0)
         target = (callable_total + 1) // 2 if callable_total else 0
         reached = callable_total > 0 and termines >= target
         remaining_to_target = max(target - termines, 0)
-        phone_summary = source_phone_summary_by_key.get(classe_key) or fallback_phone_summary_by_key.get(classe_key) or {}
         progress = {
             "classe": display_label,
             "total": callable_total,

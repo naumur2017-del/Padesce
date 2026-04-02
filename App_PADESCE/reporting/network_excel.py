@@ -691,6 +691,9 @@ def _build_consolidation_call_candidates_cached(cache_key: tuple[str, int, str, 
                     "Statut prestation",
                 ),
                 "classe_label": _sheet_get(row, header_lookup, "Classe", "Classe ID"),
+                "prestation_id": _sheet_get(
+                    row, header_lookup, "ID Prestation", "Prestation ID", "PRESTATION ID"
+                ),
                 "arrondissement": _sheet_get(row, header_lookup, "Arrondissement"),
                 "departement": _sheet_get(row, header_lookup, "Département", "Departement"),
                 "region": _sheet_get(row, header_lookup, "Région", "Region"),
