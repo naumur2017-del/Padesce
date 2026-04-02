@@ -42,6 +42,7 @@ from App_PADESCE.core.call_metrics import (
     count_callable_source_records_by_class,
     normalize_phone_digits,
 )
+from App_PADESCE.core.fast_stats import build_fast_stats_context
 from App_PADESCE.formations.models import Classe
 from App_PADESCE.reporting.network_excel import (
     build_consolidation_call_candidates,
@@ -2952,6 +2953,7 @@ def satisfaction_dashboard(request):
     ctx["active_table_details"] = ctx["tab_details"].get(
         ctx["active_tab"], ctx["tab_details"]["tab-apprenants"]
     )
+    ctx.update(build_fast_stats_context(request, default_mode="apprenant"))
     return render(request, "satisfaction_apprenants/dashboard.html", ctx)
 
 

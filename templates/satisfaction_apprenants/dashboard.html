@@ -101,6 +101,7 @@
     <p style="color:var(--muted); margin:4px 0 0; font-size:0.9rem;">Vue apprenants : cartes et tableaux basés sur les questionnaires d'appels sauvegardés.</p>
   </div>
   <div class="filter-actions">
+    <button type="button" class="btn btn-ghost btn-sm" id="js-open-fast-stats">FAST STATS</button>
     <a class="btn btn-primary btn-sm" href="{% url 'satisfaction_dashboard_daily_report_xlsx' %}?source={{ filter_source|urlencode }}">Télécharger le rapport quotidien (Excel)</a>
     <a class="btn btn-ghost btn-sm" href="{% url 'satisfaction_apprenants_index' %}">Retour enquêtes</a>
   </div>
@@ -113,6 +114,8 @@
   </div>
   <div class="scope-note">Basculer entre les tableaux apprenants et formateurs depuis le module d'analyse.</div>
 </div>
+
+{% include "includes/fast_stats_modal.html" %}
 
 <form method="get" class="filter-bar">
   <input type="hidden" name="tab" id="js-active-tab-input" value="{{ active_tab }}">

@@ -43,6 +43,7 @@
     <p style="color:var(--muted);margin:4px 0 0;font-size:0.9rem;">Vue formateurs : statistiques Q1-Q3 et résumé qualitatif Q4-Q6 issus des appels plateforme.</p>
   </div>
   <div style="display:flex;gap:8px;flex-wrap:wrap;">
+    <button type="button" class="btn btn-ghost btn-sm" id="js-open-fast-stats">FAST STATS</button>
     <a class="btn btn-ghost btn-sm" href="{% url 'satisfaction_formateurs_index' %}">Retour enquêtes</a>
   </div>
 </div>
@@ -54,6 +55,8 @@
   </div>
   <div class="scope-note">Basculer entre les tableaux apprenants et formateurs depuis le module d'analyse.</div>
 </div>
+
+{% include "includes/fast_stats_modal.html" %}
 
 <form method="get" class="filter-bar">
   <div class="filter-field">

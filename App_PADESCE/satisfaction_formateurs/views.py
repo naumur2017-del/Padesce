@@ -17,6 +17,7 @@ from django.shortcuts import redirect, render
 
 from App_PADESCE.appels.models import AppelFormateur
 from App_PADESCE.core.access import require_analysis_access
+from App_PADESCE.core.fast_stats import build_fast_stats_context
 from App_PADESCE.formations.models import Classe, Formateur
 from App_PADESCE.satisfaction_formateurs.forms import SatisfactionFormateurForm
 from App_PADESCE.satisfaction_formateurs.models import SatisfactionFormateur
@@ -524,4 +525,5 @@ def satisfaction_formateurs_dashboard(request):
         "f_cohorte": f_cohorte,
         "rows": records[:200],
     }
+    context.update(build_fast_stats_context(request, default_mode="formateur"))
     return render(request, "satisfaction_formateurs/dashboard.html", context)

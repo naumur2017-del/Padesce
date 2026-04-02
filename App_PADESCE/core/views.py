@@ -30,9 +30,11 @@ from App_PADESCE.apprenants.models import Apprenant
 from App_PADESCE.core.access import (
     has_analysis_access,
     has_consultant_access,
+    require_analysis_access,
     require_consultant_access,
 )
 from App_PADESCE.core.call_metrics import has_usable_phone
+from App_PADESCE.core.fast_stats import build_fast_stats_export_response
 from App_PADESCE.core.models import UserActivity
 from App_PADESCE.environnement.models import EnqueteEnvironnement
 from App_PADESCE.formations.models import Classe
@@ -927,6 +929,11 @@ def home(request):
 
 def operator_guide(request):
     return render(request, "guide_operateur.html")
+
+
+@require_analysis_access
+def fast_stats_export_xlsx(request):
+    return build_fast_stats_export_response(request)
 
 
 @require_consultant_access
