@@ -1,9 +1,12 @@
+import json
+import os
 from collections import defaultdict
 from datetime import date, timedelta
 from functools import lru_cache
 from types import SimpleNamespace
 from urllib.parse import urlencode
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
 from django.db.models import Count, Q
@@ -13,7 +16,6 @@ from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.clickjacking import xframe_options_sameorigin
 
-from App_PADESCE.apprenants.models import Apprenant
 from App_PADESCE.appels.models import (
     APPEL_ANSWER_QUESTION_FIELDS,
     Appel,
@@ -24,14 +26,19 @@ from App_PADESCE.appels.models import (
     appel_answers_modified_completion_q,
     padesce_form_tracking_cutoff,
 )
-from App_PADESCE.core.access import has_analysis_access, has_consultant_access, require_consultant_access
+from App_PADESCE.apprenants.models import Apprenant
+from App_PADESCE.core.access import (
+    has_analysis_access,
+    has_consultant_access,
+    require_consultant_access,
+)
 from App_PADESCE.core.call_metrics import has_usable_phone
 from App_PADESCE.core.models import UserActivity
+from App_PADESCE.environnement.models import EnqueteEnvironnement
 from App_PADESCE.formations.models import Classe
 from App_PADESCE.presences.models import Presence
 from App_PADESCE.satisfaction_apprenants.models import SatisfactionApprenant
 from App_PADESCE.satisfaction_formateurs.models import SatisfactionFormateur
-from App_PADESCE.environnement.models import EnqueteEnvironnement
 
 
 def _normalize_dashboard_fenetre(value: str) -> str:
@@ -143,6 +150,31 @@ def _consultant_dashboard_fenetre(appel: Appel) -> str:
     return ""
 
 
+@lru_cache(maxsize=1)
+def _load_conformity_ranking_priorities():
+    path = os.path.join(settings.BASE_DIR, "conformity_ranking.json")
+    if not os.path.exists(path):
+        return {}
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        priorities = {}
+        for item in data:
+            sugg = item.get("reponses_suggerees_audio")
+            if sugg and all(v is not None for v in sugg.values()):
+                # Calculate average satisfaction
+                vals = [float(v) for v in sugg.values() if v is not None]
+                avg = sum(vals) / len(vals) if vals else 0
+                priorities[item["code"]] = {
+                    "responses": sugg,
+                    "avg_satisfaction": avg,
+                    "name": item.get("name"),
+                }
+        return priorities
+    except Exception:
+        return {}
+
+
 def _consultant_answers_complete(answers: AppelAnswers | None) -> bool:
     if not answers:
         return False
@@ -176,17 +208,37 @@ def _consultant_simulated_answers_payload(appel: Appel) -> dict[str, object]:
     scores = profiles[seed % len(profiles)]
     has_phone = _consultant_has_phone(appel)
     return {
-        **{field_name: scores[index] for index, field_name in enumerate(APPEL_ANSWER_QUESTION_FIELDS)},
+        **{
+            field_name: scores[index]
+            for index, field_name in enumerate(APPEL_ANSWER_QUESTION_FIELDS)
+        },
         "commentaire": (
             "Satisfaction globalement positive, avec quelques points mineurs a consolider."
             if has_phone
-            else "Satisfaction estimee positive malgre l'absence de numero joignable dans le dossier."
+            else (
+                "Satisfaction estimee positive malgre l'absence de numero "
+                "joignable dans le dossier."
+            )
         ),
-        "recommandations": "Maintenir l'accompagnement, renforcer le suivi pratique et clarifier les points logistiques.",
+        "recommandations": (
+            "Maintenir l'accompagnement, renforcer le suivi pratique et "
+            "clarifier les points logistiques."
+        ),
     }
 
 
 def _consultant_display_answers(appel: Appel, answers: AppelAnswers | None) -> tuple[object, bool]:
+    priorities = _load_conformity_ranking_priorities()
+    if appel.code in priorities:
+        p_data = priorities[appel.code]
+        # Map JSON keys ('q1', 'q2', etc.) to model fields
+        payload = {
+            field: p_data["responses"].get(field[:2]) for field in APPEL_ANSWER_QUESTION_FIELDS
+        }
+        payload["commentaire"] = "Réponses extraites de l'audio par analyse de conformité."
+        payload["recommandations"] = "N/A (Calculé via analyse audio)"
+        return SimpleNamespace(**payload), False
+
     if answers and _consultant_answers_complete(answers):
         commentaire = str(getattr(answers, "commentaire", "") or "").strip()
         recommandations = str(getattr(answers, "recommandations", "") or "").strip()
@@ -272,8 +324,12 @@ def _consultant_row_sort_key(appel: Appel) -> tuple:
 def _fallback_consultant_analysis_snapshot(rows: list[Appel]) -> dict:
     class_options = []
     seen_classes: set[str] = set()
-    prestataire_options = sorted({(row.prestataire or "").strip() for row in rows if (row.prestataire or "").strip()})
-    beneficiaire_options = sorted({(row.beneficiaire or "").strip() for row in rows if (row.beneficiaire or "").strip()})
+    prestataire_options = sorted(
+        {(row.prestataire or "").strip() for row in rows if (row.prestataire or "").strip()}
+    )
+    beneficiaire_options = sorted(
+        {(row.beneficiaire or "").strip() for row in rows if (row.beneficiaire or "").strip()}
+    )
     fenetre_options = sorted(
         {
             _consultant_dashboard_fenetre(row)
@@ -283,7 +339,9 @@ def _fallback_consultant_analysis_snapshot(rows: list[Appel]) -> dict:
     )
     prestation_codes = sorted(
         {
-            str(getattr(getattr(getattr(row, "classe", None), "prestation", None), "code", "") or "").strip()
+            str(
+                getattr(getattr(getattr(row, "classe", None), "prestation", None), "code", "") or ""
+            ).strip()
             for row in rows
             if getattr(getattr(getattr(row, "classe", None), "prestation", None), "code", "")
         }
@@ -315,7 +373,9 @@ def _fallback_consultant_analysis_snapshot(rows: list[Appel]) -> dict:
     }
 
 
-def _consultant_analysis_snapshot(user, *, classe_filter: str = "", prestataire_filter: str = "") -> dict | None:
+def _consultant_analysis_snapshot(
+    user, *, classe_filter: str = "", prestataire_filter: str = ""
+) -> dict | None:
     try:
         from App_PADESCE.satisfaction_apprenants.views import _build_satisfaction_dashboard_data
 
@@ -388,14 +448,17 @@ def home(request):
     cga_total = AppelCGA.objects.filter(is_active=True).count()
     cga_effectues = AppelCGA.objects.filter(is_active=True).exclude(status="en_attente").count()
     formateurs_total = AppelFormateur.objects.filter(is_active=True).count()
-    formateurs_effectues = AppelFormateur.objects.filter(is_active=True).exclude(status="en_attente").count()
+    formateurs_effectues = (
+        AppelFormateur.objects.filter(is_active=True).exclude(status="en_attente").count()
+    )
 
     is_superuser = bool(request.user.is_authenticated and request.user.is_superuser)
     is_cga_manager = bool(
         request.user.is_authenticated and request.user.groups.filter(name="manager_cga").exists()
     )
     is_padesce_manager = bool(
-        request.user.is_authenticated and request.user.groups.filter(name="manager_padesce").exists()
+        request.user.is_authenticated
+        and request.user.groups.filter(name="manager_padesce").exists()
     )
     is_consultant_only = bool(
         has_consultant_access(request.user)
@@ -438,9 +501,21 @@ def home(request):
             {"label": "Classes", "value": Classe.objects.count(), "color": "primary"},
             {"label": "Apprenants", "value": Apprenant.objects.count(), "color": "success"},
             {"label": "Enquêtes présence", "value": Presence.objects.count(), "color": "info"},
-            {"label": "Sat. apprenants", "value": SatisfactionApprenant.objects.count(), "color": "warning"},
-            {"label": "Sat. formateurs", "value": SatisfactionFormateur.objects.count(), "color": "danger"},
-            {"label": "Environnement", "value": EnqueteEnvironnement.objects.count(), "color": "secondary"},
+            {
+                "label": "Sat. apprenants",
+                "value": SatisfactionApprenant.objects.count(),
+                "color": "warning",
+            },
+            {
+                "label": "Sat. formateurs",
+                "value": SatisfactionFormateur.objects.count(),
+                "color": "danger",
+            },
+            {
+                "label": "Environnement",
+                "value": EnqueteEnvironnement.objects.count(),
+                "color": "secondary",
+            },
         ],
     }
     if can_view_padesce_dashboard or can_view_cga_dashboard:
@@ -467,7 +542,9 @@ def home(request):
                 )
             }
             formulaires_remplis_by_user = _group_appel_ids_by_user(
-                Appel.objects.filter(is_active=True, locked_by__isnull=False).filter(completed_answers_filter).distinct(),
+                Appel.objects.filter(is_active=True, locked_by__isnull=False)
+                .filter(completed_answers_filter)
+                .distinct(),
                 "locked_by_id",
             )
             formulaires_modifies_by_user = _group_appel_ids_by_user(
@@ -495,15 +572,17 @@ def home(request):
                 "locked_by_id",
             )
             current_calls_by_user = {}
-            for appel in (
-                Appel.objects.filter(is_active=True, status="en_cours", locked_by__isnull=False)
-                .order_by("locked_by__username", "nom")
-            ):
+            for appel in Appel.objects.filter(
+                is_active=True, status="en_cours", locked_by__isnull=False
+            ).order_by("locked_by__username", "nom"):
+                query_params = urlencode(
+                    {"agent": appel.locked_by.username, "status": "en_cours", "q": appel.code}
+                )
                 current_calls_by_user.setdefault(appel.locked_by_id, []).append(
                     {
                         "code": appel.code,
                         "nom": appel.nom,
-                        "url": f"{appels_index_url}?{urlencode({'agent': appel.locked_by.username, 'status': 'en_cours', 'q': appel.code})}",
+                        "url": f"{appels_index_url}?{query_params}",
                     }
                 )
 
@@ -544,8 +623,12 @@ def home(request):
                         "total_url": build_appels_url(agent=username),
                         "rappel_url": build_appels_url(agent=username, status="a_rappeler"),
                         "formulaires_url": build_appels_url(agent=username, formulaire="rempli"),
-                        "modifies_url": build_appels_url(modified_by=username, formulaire="modifie"),
-                        "termines_url": build_appels_url(tracking_termine=1, tracking_user=username),
+                        "modifies_url": build_appels_url(
+                            modified_by=username, formulaire="modifie"
+                        ),
+                        "termines_url": build_appels_url(
+                            tracking_termine=1, tracking_user=username
+                        ),
                         "en_cours_url": build_appels_url(agent=username, status="en_cours"),
                     }
                 )
@@ -563,11 +646,13 @@ def home(request):
         if can_view_padesce_dashboard:
             padesce_called_qs = Appel.objects.filter(is_active=True).exclude(status="en_attente")
             padesce_all_qs = Appel.objects.filter(is_active=True)
-            
+
             # --- KPIs 24h ---
-            padesce_24h_qs = Appel.objects.filter(is_active=True, status="termine", updated_at__gte=since_24h)
+            padesce_24h_qs = Appel.objects.filter(
+                is_active=True, status="termine", updated_at__gte=since_24h
+            )
             context["kpi_24h_total_termines"] = padesce_24h_qs.count()
-            
+
             kpi_24h_users = list(
                 padesce_24h_qs.filter(locked_by__isnull=False)
                 .values("locked_by__username")
@@ -577,7 +662,7 @@ def home(request):
             for row in kpi_24h_users:
                 row["username"] = row.get("locked_by__username") or "Inconnu"
             context["kpi_24h_users"] = kpi_24h_users
-            
+
             kpi_24h_classe_prestation = list(
                 padesce_24h_qs.values("classe_label", "prestataire", "beneficiaire")
                 .annotate(termines_24h=Count("id"))
@@ -585,19 +670,27 @@ def home(request):
             )
             for row in kpi_24h_classe_prestation:
                 classe = (row.get("classe_label") or "Classe inconnue").strip() or "Classe inconnue"
-                prestataire = (row.get("prestataire") or "Sans prestataire").strip() or "Sans prestataire"
-                beneficiaire = (row.get("beneficiaire") or "Sans beneficiaire").strip() or "Sans beneficiaire"
+                prestataire = (
+                    row.get("prestataire") or "Sans prestataire"
+                ).strip() or "Sans prestataire"
+                beneficiaire = (
+                    row.get("beneficiaire") or "Sans beneficiaire"
+                ).strip() or "Sans beneficiaire"
                 row["label"] = f"{classe} {prestataire}-{beneficiaire}"
             context["kpi_24h_classe_prestation"] = kpi_24h_classe_prestation
-            
+
             kpi_24h_prestation = list(
                 padesce_24h_qs.values("prestataire", "beneficiaire")
                 .annotate(termines_24h=Count("id"))
                 .order_by("-termines_24h", "prestataire", "beneficiaire")
             )
             for row in kpi_24h_prestation:
-                prestataire = (row.get("prestataire") or "Sans prestataire").strip() or "Sans prestataire"
-                beneficiaire = (row.get("beneficiaire") or "Sans beneficiaire").strip() or "Sans beneficiaire"
+                prestataire = (
+                    row.get("prestataire") or "Sans prestataire"
+                ).strip() or "Sans prestataire"
+                beneficiaire = (
+                    row.get("beneficiaire") or "Sans beneficiaire"
+                ).strip() or "Sans beneficiaire"
                 row["label"] = f"{prestataire}-{beneficiaire}"
             context["kpi_24h_prestation"] = kpi_24h_prestation
             # -----------------
@@ -612,7 +705,9 @@ def home(request):
                 .order_by("-total_termines", "-total_appeles", "prestataire")
             )
             for row in padesce_prestataire_ranking:
-                row["prestataire"] = (row.get("prestataire") or "Non renseigne").strip() or "Non renseigne"
+                row["prestataire"] = (
+                    row.get("prestataire") or "Non renseigne"
+                ).strip() or "Non renseigne"
             context["padesce_prestataire_ranking"] = padesce_prestataire_ranking
 
             prestation_progress_rows = list(
@@ -625,8 +720,12 @@ def home(request):
                 .order_by("prestataire", "beneficiaire")
             )
             for row in prestation_progress_rows:
-                prestataire = (row.get("prestataire") or "Sans prestataire").strip() or "Sans prestataire"
-                beneficiaire = (row.get("beneficiaire") or "Sans beneficiaire").strip() or "Sans beneficiaire"
+                prestataire = (
+                    row.get("prestataire") or "Sans prestataire"
+                ).strip() or "Sans prestataire"
+                beneficiaire = (
+                    row.get("beneficiaire") or "Sans beneficiaire"
+                ).strip() or "Sans beneficiaire"
                 total = int(row.get("total_apprenants") or 0)
                 appeles = int(row.get("total_appeles") or 0)
                 restants = max(total - appeles, 0)
@@ -674,12 +773,22 @@ def home(request):
                     total_appeles=Count("id"),
                     total_termines=Count("id", filter=Q(status="termine")),
                 )
-                .order_by("-total_termines", "-total_appeles", "classe_label", "prestataire", "beneficiaire")
+                .order_by(
+                    "-total_termines",
+                    "-total_appeles",
+                    "classe_label",
+                    "prestataire",
+                    "beneficiaire",
+                )
             )
             for row in prestation_global_rows:
                 classe = (row.get("classe_label") or "Classe inconnue").strip() or "Classe inconnue"
-                prestataire = (row.get("prestataire") or "Sans prestataire").strip() or "Sans prestataire"
-                beneficiaire = (row.get("beneficiaire") or "Sans beneficiaire").strip() or "Sans beneficiaire"
+                prestataire = (
+                    row.get("prestataire") or "Sans prestataire"
+                ).strip() or "Sans prestataire"
+                beneficiaire = (
+                    row.get("beneficiaire") or "Sans beneficiaire"
+                ).strip() or "Sans beneficiaire"
                 row["prestation_label"] = f"{classe} {prestataire}-{beneficiaire}"
             context["padesce_prestation_ranking"] = prestation_global_rows
 
@@ -690,16 +799,24 @@ def home(request):
                     total_appeles=Count("id"),
                     total_termines=Count("id", filter=Q(status="termine")),
                 )
-                .order_by("-total_termines", "-total_appeles", "locked_by__username", "classe_label")
+                .order_by(
+                    "-total_termines", "-total_appeles", "locked_by__username", "classe_label"
+                )
             )
             for row in prestation_user_rows:
                 classe = (row.get("classe_label") or "Classe inconnue").strip() or "Classe inconnue"
-                prestataire = (row.get("prestataire") or "Sans prestataire").strip() or "Sans prestataire"
-                beneficiaire = (row.get("beneficiaire") or "Sans beneficiaire").strip() or "Sans beneficiaire"
+                prestataire = (
+                    row.get("prestataire") or "Sans prestataire"
+                ).strip() or "Sans prestataire"
+                beneficiaire = (
+                    row.get("beneficiaire") or "Sans beneficiaire"
+                ).strip() or "Sans beneficiaire"
                 row["prestation_label"] = f"{classe} {prestataire}-{beneficiaire}"
             context["padesce_prestation_user_ranking"] = prestation_user_rows
 
-            formateurs_called_qs = AppelFormateur.objects.filter(is_active=True).exclude(status="en_attente")
+            formateurs_called_qs = AppelFormateur.objects.filter(is_active=True).exclude(
+                status="en_attente"
+            )
             formateurs_all_qs = AppelFormateur.objects.filter(is_active=True)
 
             formateurs_prestataire_ranking = list(
@@ -711,7 +828,9 @@ def home(request):
                 .order_by("-total_termines", "-total_appels", "prestataire")
             )
             for row in formateurs_prestataire_ranking:
-                row["prestataire"] = (row.get("prestataire") or "Non renseigne").strip() or "Non renseigne"
+                row["prestataire"] = (
+                    row.get("prestataire") or "Non renseigne"
+                ).strip() or "Non renseigne"
             context["formateurs_prestataire_ranking"] = formateurs_prestataire_ranking
 
             formateurs_cohorte_rows = list(
@@ -723,7 +842,9 @@ def home(request):
                 .order_by("-total", "cohorte")
             )
             for row in formateurs_cohorte_rows:
-                row["cohorte"] = (row.get("cohorte") or "Non renseignee").strip() or "Non renseignee"
+                row["cohorte"] = (
+                    row.get("cohorte") or "Non renseignee"
+                ).strip() or "Non renseignee"
             context["formateurs_cohorte_rows"] = formateurs_cohorte_rows
 
             formateurs_date_rows = list(
@@ -732,8 +853,10 @@ def home(request):
                 .order_by("session_date", "date_label")
             )
             for row in formateurs_date_rows:
-                row["date_display"] = row.get("session_date").isoformat() if row.get("session_date") else (
-                    (row.get("date_label") or "Date inconnue").strip() or "Date inconnue"
+                row["date_display"] = (
+                    row.get("session_date").isoformat()
+                    if row.get("session_date")
+                    else ((row.get("date_label") or "Date inconnue").strip() or "Date inconnue")
                 )
             context["formateurs_date_rows"] = formateurs_date_rows
 
@@ -753,7 +876,10 @@ def home(request):
 
             cga_regime_ranking = list(
                 cga_called_qs.values("regime")
-                .annotate(total_appeles=Count("id"), total_termines=Count("id", filter=Q(status="termine")))
+                .annotate(
+                    total_appeles=Count("id"),
+                    total_termines=Count("id", filter=Q(status="termine")),
+                )
                 .order_by("-total_termines", "-total_appeles", "regime")
             )
             for row in cga_regime_ranking:
@@ -762,7 +888,10 @@ def home(request):
 
             cga_cri_ranking = list(
                 cga_called_qs.values("cri")
-                .annotate(total_appeles=Count("id"), total_termines=Count("id", filter=Q(status="termine")))
+                .annotate(
+                    total_appeles=Count("id"),
+                    total_termines=Count("id", filter=Q(status="termine")),
+                )
                 .order_by("-total_termines", "-total_appeles", "cri")
             )
             for row in cga_cri_ranking:
@@ -771,19 +900,25 @@ def home(request):
 
             cga_centre_ranking = list(
                 cga_called_qs.values("centre_de_rattachement")
-                .annotate(total_appeles=Count("id"), total_termines=Count("id", filter=Q(status="termine")))
+                .annotate(
+                    total_appeles=Count("id"),
+                    total_termines=Count("id", filter=Q(status="termine")),
+                )
                 .order_by("-total_termines", "-total_appeles", "centre_de_rattachement")
             )
             for row in cga_centre_ranking:
                 row["centre_de_rattachement"] = (
-                    (row.get("centre_de_rattachement") or "Non renseigne").strip() or "Non renseigne"
-                )
+                    row.get("centre_de_rattachement") or "Non renseigne"
+                ).strip() or "Non renseigne"
             context["cga_centre_ranking"] = cga_centre_ranking
 
             cga_user_ranking = list(
                 cga_called_qs.filter(locked_by__isnull=False)
                 .values("locked_by__username")
-                .annotate(total_appeles=Count("id"), total_termines=Count("id", filter=Q(status="termine")))
+                .annotate(
+                    total_appeles=Count("id"),
+                    total_termines=Count("id", filter=Q(status="termine")),
+                )
                 .order_by("-total_termines", "-total_appeles", "locked_by__username")
             )
             context["cga_user_ranking"] = cga_user_ranking
@@ -818,28 +953,64 @@ def consultant_dashboard(request):
             | Q(beneficiaire__icontains=search)
         )
     if classe_filter:
-        rows_qs = rows_qs.filter(Q(classe__code__iexact=classe_filter) | Q(classe_label__icontains=classe_filter))
+        rows_qs = rows_qs.filter(
+            Q(classe__code__iexact=classe_filter) | Q(classe_label__icontains=classe_filter)
+        )
     if prestation_filter:
         rows_qs = rows_qs.filter(prestataire__iexact=prestation_filter)
     if beneficiaire_filter:
         rows_qs = rows_qs.filter(beneficiaire__iexact=beneficiaire_filter)
 
-    rows = [app for app in rows_qs.order_by("nom", "pk") if _consultant_dashboard_fenetre(app) in {"2", "3"}]
+    priorities = _load_conformity_ranking_priorities()
+    priority_rows = []
+    other_rows = []
+
+    for app in rows_qs:
+        if _consultant_dashboard_fenetre(app) not in {"2", "3"}:
+            continue
+        if app.code in priorities:
+            app.priority_avg = priorities[app.code]["avg_satisfaction"]
+            priority_rows.append(app)
+        else:
+            other_rows.append(app)
+
+    priority_rows.sort(key=lambda x: x.priority_avg, reverse=True)
+    other_rows.sort(key=lambda x: ((x.nom or "").casefold(), x.pk))
+    rows = priority_rows + other_rows
+
     if fenetre_filter:
         rows = [app for app in rows if _consultant_dashboard_fenetre(app) == fenetre_filter]
 
     # Unfiltered snapshot for card counts (must match satisfaction analysis page)
-    card_snapshot = _consultant_analysis_snapshot(getattr(request, "user", None)) or _fallback_consultant_analysis_snapshot(
-        [app for app in Appel.objects.filter(is_active=True, status="termine").select_related(
-            "classe", "classe__prestation__beneficiaire", "classe__prestation__prestataire",
-        ).order_by("nom", "pk") if _consultant_dashboard_fenetre(app) in {"2", "3"}]
+    card_snapshot = _consultant_analysis_snapshot(
+        getattr(request, "user", None)
+    ) or _fallback_consultant_analysis_snapshot(
+        [
+            app
+            for app in Appel.objects.filter(is_active=True, status="termine")
+            .select_related(
+                "classe",
+                "classe__prestation__beneficiaire",
+                "classe__prestation__prestataire",
+            )
+            .order_by("nom", "pk")
+            if _consultant_dashboard_fenetre(app) in {"2", "3"}
+        ]
     )
 
     # Filtered snapshot for filter dropdown options
     analysis_snapshot = _fallback_consultant_analysis_snapshot(
-        [app for app in Appel.objects.filter(is_active=True, status="termine").select_related(
-            "classe", "classe__prestation__beneficiaire", "classe__prestation__prestataire",
-        ).order_by("nom", "pk") if _consultant_dashboard_fenetre(app) in {"2", "3"}]
+        [
+            app
+            for app in Appel.objects.filter(is_active=True, status="termine")
+            .select_related(
+                "classe",
+                "classe__prestation__beneficiaire",
+                "classe__prestation__prestataire",
+            )
+            .order_by("nom", "pk")
+            if _consultant_dashboard_fenetre(app) in {"2", "3"}
+        ]
     )
 
     paginator = Paginator(rows, 25)
@@ -889,17 +1060,27 @@ def consultant_call_detail(request, pk: int):
     except AppelAnswers.DoesNotExist:
         answers = None
     display_answers, consultant_answers_simulated = _consultant_display_answers(appel, answers)
-    question_rows = [(label, getattr(display_answers, field_name, None)) for label, field_name in CONSULTANT_QUESTION_LABELS]
+    question_rows = [
+        (label, getattr(display_answers, field_name, None))
+        for label, field_name in CONSULTANT_QUESTION_LABELS
+    ]
     has_audio = bool(getattr(appel, "audio_file", None) and getattr(appel.audio_file, "name", ""))
     try:
         audio_url = appel.audio_file.url if has_audio else ""
     except Exception:
         audio_url = ""
         has_audio = False
-    modal_mode = request.GET.get("modal") == "1" or request.headers.get("X-Requested-With") == "XMLHttpRequest"
+    modal_mode = (
+        request.GET.get("modal") == "1"
+        or request.headers.get("X-Requested-With") == "XMLHttpRequest"
+    )
     return render(
         request,
-        "consultant/partials/call_detail_content.html" if modal_mode else "consultant/call_detail.html",
+        (
+            "consultant/partials/call_detail_content.html"
+            if modal_mode
+            else "consultant/call_detail.html"
+        ),
         {
             "appel": appel,
             "answers": display_answers,

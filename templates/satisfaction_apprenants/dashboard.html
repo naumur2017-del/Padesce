@@ -1,7 +1,11 @@
 {% extends "base.html" %}
 {% load filters %}
+{% load static %}
 {% block title %}Analyse Satisfaction Apprenants{% endblock %}
 {% block content %}
+<!-- Leaflet Assets -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
   .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 18px; box-shadow: var(--shadow); margin-bottom: 16px; }
   .dash-header { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:16px; }
@@ -592,6 +596,92 @@
   {% endfor %}
 </div>
 
+{% if toutes_prestations_classees %}
+<div class="kpi-row" style="grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));">
+  {% if toutes_prestations_classees %}
+  <div class="panel" style="margin-bottom:0px;">
+    <div class="section-title" style="color: #166534;">Top 5 des meilleures prestations</div>
+    <p style="margin:0 0 12px; color:var(--muted); font-size:0.85rem;">Score Global = 70% Taux de réponse + 30% Satisfaction Globale normalisée.</p>
+    <div class="table-scroll">
+      <table style="font-size: 0.8rem;" id="js-top-best-table">
+        <thead>
+          <tr>
+            <th>Prestation</th>
+            <th>Effectif</th>
+            <th>Rép.</th>
+            <th title="Taux de réponse">T.R.</th>
+            <th title="Satisfaction">Sat.</th>
+            <th>Score</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in toutes_prestations_classees %}
+          <tr class="presta-row js-best-col" data-region="{{ p.region }}" data-index="{{ forloop.counter0 }}">
+            <td title="{{ p.intitule }}"><strong>{{ p.code }}</strong><br><span style="font-size:0.75rem; color:var(--muted);">{{ p.prestataire|truncatechars:35 }} | {{ p.beneficiaire|truncatechars:35 }}</span></td>
+            <td>{{ p.effectif }}</td>
+            <td>{{ p.nb_reponses }}</td>
+            <td>{{ p.taux_reponse|floatformat:1 }}%</td>
+            <td>{{ p.avg_satisfaction|floatformat:1 }}</td>
+            <td style="color:var(--accent-strong); font-weight:800;">{{ p.score_global|floatformat:1 }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+  
+  {% if toutes_prestations_classees %}
+  <div class="panel" style="margin-bottom:0px;">
+    <div class="section-title" style="color: #991b1b;">Top 5 des prestations à améliorer</div>
+    <p style="margin:0 0 12px; color:var(--muted); font-size:0.85rem;">Score Global = 70% Taux de réponse + 30% Satisfaction Globale normalisée.</p>
+    <div class="table-scroll">
+      <table style="font-size: 0.8rem;" id="js-top-worst-table">
+        <thead>
+          <tr>
+            <th>Prestation</th>
+            <th>Effectif</th>
+            <th>Rép.</th>
+            <th title="Taux de réponse">T.R.</th>
+            <th title="Satisfaction">Sat.</th>
+            <th>Score</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in toutes_prestations_classees reversed %}
+          <tr class="presta-row js-worst-col" data-region="{{ p.region }}" data-score="{{ p.score_global }}">
+            <td title="{{ p.intitule }}"><strong>{{ p.code }}</strong><br><span style="font-size:0.75rem; color:var(--muted);">{{ p.prestataire|truncatechars:35 }} | {{ p.beneficiaire|truncatechars:35 }}</span></td>
+            <td>{{ p.effectif }}</td>
+            <td>{{ p.nb_reponses }}</td>
+            <td>{{ p.taux_reponse|floatformat:1 }}%</td>
+            <td>{{ p.avg_satisfaction|floatformat:1 }}</td>
+            <td style="color:var(--accent-strong); font-weight:800;">{{ p.score_global|floatformat:1 }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+</div>
+<div id="js-filter-indicator" style="display:none; justify-content:center; padding:10px; margin-top:-10px; margin-bottom:10px;">
+    <span style="background:var(--accent); color:#fff; padding:6px 14px; border-radius:999px; font-size:0.85rem; display:flex; align-items:center; gap:8px; box-shadow:var(--shadow);">
+        Filtré par région : <strong id="js-filtered-region-name"></strong>
+        <button onclick="resetRegionFilter()" style="background:rgba(255,255,255,0.2); border:none; color:#fff; cursor:pointer; padding:2px 8px; border-radius:5px; font-size:0.75rem; font-weight:700;">Annuler</button>
+    </span>
+</div>
+
+<div class="panel" style="padding: 0; overflow: hidden; border-radius: 14px; border: 1px solid var(--border); box-shadow: var(--shadow); margin-bottom: 20px;">
+  <div style="padding: 14px; border-bottom: 1px solid var(--border); background: rgba(111,60,195,0.05); display: flex; justify-content: space-between; align-items: center;">
+    <div style="font-weight: 700; color: var(--accent-strong); font-size: 1rem;">Performance Géographique (Régions)</div>
+    <div style="font-size: 0.8rem; color: var(--muted);">Survoler pour le Top 5, Cliquer pour filtrer</div>
+  </div>
+  <div id="cameroon-map" style="height: 520px; width: 100%; z-index: 1;"></div>
+</div>
+
+<div style="margin-bottom:16px;"></div> <!-- Spacing -->
+{% endif %}
+
 <div class="panel" id="js-dashboard-panel">
   <div class="dash-header" style="margin-bottom:12px;">
     <div>
@@ -1162,5 +1252,183 @@
 
   activateTab(activeTabInput?.value || 'tab-apprenants', false);
 })();
+</script>
+
+<script>
+    /**
+     * Map Region (GeoJSON shapeName) -> database Region Label (exactly as stored)
+     */
+    const REGION_MAPPING = {
+        'Far North': 'EXTRÊME-NORD',
+        'North': 'NORD',
+        'North-West': 'NORD-OUEST',
+        'Adamaoua': 'ADAMAOUA',
+        'East': 'EST',
+        'South': 'SUD',
+        'South-West': 'SUD-OUEST',
+        'West': 'OUEST',
+        'Littoral': 'LITTORAL',
+        'Centre': 'CENTRE'
+    };
+
+    let mapData = {};
+    let LMap, geojsonLayer;
+
+    function toTitleCase(str) {
+        if (!str) return '';
+        return str.toLowerCase().split(' ').map(s => s.charAt(0).toUpperCase() + s.substring(1)).join(' ');
+    }
+
+    /**
+     * Initialize Map
+     */
+    async function initCameroonMap() {
+        const mapEl = document.getElementById('cameroon-map');
+        if (!mapEl) return;
+
+        // Increased zoom slightly (7) and adjusted center
+        LMap = L.map('cameroon-map', {
+            zoomControl: true,
+            scrollWheelZoom: false
+        }).setView([7.3697, 12.3547], 7);
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; OpenStreetMap'
+        }).addTo(LMap);
+
+        try {
+            // 1. Fetch Ranking Data per region
+            const resp = await fetch('{% url "satisfaction_map_data" %}');
+            mapData = await resp.json();
+
+            // 2. Load GeoJSON
+            const geoResp = await fetch('{% static "geojson/cameroun-regions.geojson" %}');
+            const camData = await geoResp.json();
+
+            geojsonLayer = L.geoJSON(camData, {
+                style: function(feature) {
+                    return {
+                        fillColor: '#6f3cc3',
+                        weight: 2,
+                        opacity: 1,
+                        color: 'white',
+                        dashArray: '3',
+                        fillOpacity: 0.25
+                    };
+                },
+                onEachFeature: function(feature, layer) {
+                    const originalName = feature.properties.shapeName;
+                    const dbName = REGION_MAPPING[originalName] || originalName.toUpperCase();
+                    
+                    layer.on({
+                        mouseover: function(e) {
+                            const l = e.target;
+                            l.setStyle({ fillOpacity: 0.5, weight: 3, color: '#6f3cc3' });
+                            
+                            let html = `<div style="font-family:sans-serif; min-width:220px; padding:4px;">
+                                <strong style="font-size:1.05rem; color:var(--accent-strong); display:block; border-bottom:1px solid #eee; margin-bottom:8px; padding-bottom:4px;">Région ${toTitleCase(dbName)}</strong>`;
+                            
+                            // Try both mapped name and uppercase mapped name
+                            const top5 = mapData[dbName];
+                            if (top5 && top5.length > 0) {
+                                html += `<table style="width:100%; font-size:0.75rem; border-collapse:collapse;">
+                                    <tr style="color:var(--muted); text-transform:uppercase; font-size:0.65rem;">
+                                        <th align="left">Prestation</th>
+                                        <th align="right">Score</th>
+                                    </tr>`;
+                                top5.forEach(p => {
+                                    html += `<tr style="border-bottom:1px solid #f5f5f5;">
+                                        <td style="padding:4px 0;"><strong>${p.code}</strong></td>
+                                        <td align="right" style="color:var(--accent-strong); font-weight:700;">${p.score.toFixed(1)}</td>
+                                    </tr>`;
+                                });
+                                html += `</table>`;
+                            } else {
+                                html += `<p style="font-size:0.8rem; color:var(--muted); margin:10px 0;">Aucune prestation analysée dans cette région.</p>`;
+                            }
+                            html += `<div style="margin-top:8px; font-size:0.7rem; color:var(--muted); font-style:italic;">Cliquez pour filtrer les tableaux</div></div>`;
+                            
+                            l.bindTooltip(html, { sticky: true, opacity: 0.98 }).openTooltip();
+                        },
+                        mouseout: function(e) {
+                            geojsonLayer.resetStyle(e.target);
+                        },
+                        click: function(e) {
+                            filterTableByRegion(dbName);
+                        }
+                    });
+                }
+            }).addTo(LMap);
+
+            // Re-center but respect our preferred zoom
+            const bounds = geojsonLayer.getBounds();
+            LMap.fitBounds(bounds, { padding: [20, 20] });
+            if (LMap.getZoom() < 7) LMap.setZoom(7);
+
+        } catch (err) {
+            console.error("Map load error:", err);
+            mapEl.innerHTML = `<div style="display:flex; height:100%; align-items:center; justify-content:center; color:#991b1b; background:#fff1f2; font-size:0.85rem;">Impossible de charger les données cartographiques.</div>`;
+        }
+    }
+
+    function filterTableByRegion(name) {
+        const indicator = document.getElementById('js-filter-indicator');
+        const label = document.getElementById('js-filtered-region-name');
+        if (!indicator || !label) return;
+
+        label.textContent = name;
+        indicator.style.display = 'flex';
+        
+        const bestRows = document.querySelectorAll('.js-best-col');
+        const worstRows = document.querySelectorAll('.js-worst-col');
+        
+        // 1. First hide everything
+        bestRows.forEach(r => r.style.display = 'none');
+        worstRows.forEach(r => r.style.display = 'none');
+
+        // 2. Filter for the region
+        const regionalBest = Array.from(bestRows).filter(r => r.getAttribute('data-region') === name);
+        const regionalWorst = Array.from(worstRows).filter(r => r.getAttribute('data-region') === name);
+
+        if (regionalBest.length <= 5) {
+            // Rule: <= 5 items for a region -> all go to BEST table
+            regionalBest.forEach(r => r.style.display = '');
+        } else {
+            // Rule: > 5 items -> top 5 in BEST, the rest (worst first) in WORST
+            regionalBest.slice(0, 5).forEach(r => r.style.display = '');
+            // We show all except the top 5 in the WORST table. Since it's reversed, they are at the beginning.
+            regionalWorst.slice(0, regionalWorst.length - 5).forEach(r => r.style.display = '');
+        }
+        
+        // Scroll to the ranking tables area
+        const target = document.querySelector('#js-top-best-table')?.closest('.kpi-row');
+        if (target) {
+            target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    }
+
+    function resetRegionFilter() {
+        document.getElementById('js-filter-indicator').style.display = 'none';
+        
+        const bestRows = document.querySelectorAll('.js-best-col');
+        const worstRows = document.querySelectorAll('.js-worst-col');
+        const total = bestRows.length;
+
+        bestRows.forEach((r, idx) => {
+            r.style.display = (idx < 5) ? '' : 'none';
+        });
+        worstRows.forEach((r, idx) => {
+            // idx is now reversed (0 = absolute worst).
+            // We want to show the bottom 5 of the global list.
+            // idx < 5 shows the 5 worst. idx < total - 5 ensures no overlap with Top 5.
+            r.style.display = (idx < 5 && idx < total - 5) ? '' : 'none';
+        });
+    }
+
+    // Initial state: ensure only global top/bottom 5 are shown
+    document.addEventListener('DOMContentLoaded', () => {
+        initCameroonMap();
+        resetRegionFilter();
+    });
 </script>
 {% endblock %}

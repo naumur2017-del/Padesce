@@ -8,7 +8,6 @@ from django.contrib.auth.views import redirect_to_login
 from django.core.exceptions import PermissionDenied
 from django.http import JsonResponse
 
-
 ANALYSIS_GROUP_NAMES = ("manager_padesce", "manager_cga", "consultant")
 ANALYSIS_ACCESS_MESSAGE = "Acces reserve aux superadmins et aux managers PADESCE/CGA."
 SUPERADMIN_ACCESS_MESSAGE = "Action reservee au superadmin."
@@ -82,7 +81,9 @@ def _access_guard(view_func, predicate, denied_message: str):
     def wrapped(request, *args, **kwargs):
         user = getattr(request, "user", None)
         if not _is_authenticated(user):
-            return redirect_to_login(request.get_full_path(), redirect_field_name=REDIRECT_FIELD_NAME)
+            return redirect_to_login(
+                request.get_full_path(), redirect_field_name=REDIRECT_FIELD_NAME
+            )
         if not predicate(user):
             return _deny(request, denied_message)
         return view_func(request, *args, **kwargs)
@@ -106,7 +107,9 @@ def require_consultant_access(view_func):
 
         user = getattr(request, "user", None)
         if not _is_authenticated(user):
-            return redirect_to_login(request.get_full_path(), redirect_field_name=REDIRECT_FIELD_NAME)
+            return redirect_to_login(
+                request.get_full_path(), redirect_field_name=REDIRECT_FIELD_NAME
+            )
         if not has_consultant_access(user):
             return _deny(request, CONSULTANT_ACCESS_MESSAGE)
         return view_func(request, *args, **kwargs)

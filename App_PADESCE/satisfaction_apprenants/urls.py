@@ -48,23 +48,8 @@ urlpatterns = [
         name="satisfaction_dashboard_export_chapeau",
     ),
     path(
-        "analyse/apprenants-manquants/",
-        lazy_view("App_PADESCE.satisfaction_apprenants.views.apprenants_manquants_page"),
-        name="apprenants_manquants_page",
-    ),
-    path(
-        "analyse/import-manquants/",
-        lazy_view("App_PADESCE.satisfaction_apprenants.views.import_missing_apprenants"),
-        name="import_missing_apprenants",
-    ),
-    path(
-        "analyse/import-notifications/",
-        lazy_view("App_PADESCE.satisfaction_apprenants.views.import_notifications_poll"),
-        name="import_notifications_poll",
-    ),
-    path(
-        "analyse/sync-telephones/",
-        lazy_view("App_PADESCE.satisfaction_apprenants.views.sync_phones_from_consolidation"),
-        name="sync_phones_from_consolidation",
+        "analyse/map-data/",
+        lazy_view("App_PADESCE.satisfaction_apprenants.views.satisfaction_map_data"),
+        name="satisfaction_map_data",
     ),
 ]
