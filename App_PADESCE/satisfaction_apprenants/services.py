@@ -1,6 +1,4 @@
-import logging
-from collections import defaultdict
-from App_PADESCE.formations.models import Beneficiaire, Classe, Prestation
+from App_PADESCE.formations.models import Beneficiaire, Prestation
 
 
 def get_prestations_ranking(prestation_stats=None, order="desc"):

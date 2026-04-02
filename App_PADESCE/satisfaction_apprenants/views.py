@@ -11,22 +11,22 @@ from collections import Counter, defaultdict
 from datetime import date as date_cls
 from types import SimpleNamespace
 
-import requests
 import openpyxl
-from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
-from openpyxl.utils import get_column_letter
-from django.conf import settings
+import requests
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ObjectDoesNotExist
 from django.core.files.storage import default_storage
 from django.core.paginator import Paginator
+from django.db.models import Count
 from django.http import HttpResponse, JsonResponse, QueryDict
 from django.shortcuts import redirect, render
-from django.db.models import Count
 from django.utils import timezone
-from App_PADESCE.apprenants.models import Apprenant
+from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+from openpyxl.utils import get_column_letter
+
 from App_PADESCE.appels.models import APPEL_ANSWER_QUESTION_FIELDS, Appel, AppelAnswers
+from App_PADESCE.apprenants.models import Apprenant
 from App_PADESCE.core.access import require_analysis_access
 from App_PADESCE.core.call_metrics import (
     count_callable_source_records_by_class,
@@ -770,13 +770,14 @@ SATISFACTION_DASHBOARD_TAB_LABELS = {
 }
 
 SATISFACTION_DASHBOARD_TAB_DESCRIPTIONS = {
-    "tab-apprenants": "Détail des enquêtes visibles, enrichi avec la cohérence de la source réseau.",
+    "tab-apprenants": "Détail des enquêtes visibles, avec cohérence de la source réseau.",
     "tab-classe": "Synthèse des classes affichées dont le seuil d'appels est atteint.",
-    "tab-prestation": "Regroupement des résultats visibles par prestation, prestataire et bénéficiaire.",
+    "tab-prestation": "Résultats groupés par prestation, prestataire et bénéficiaire.",
     "tab-cohorte": "Vue agrégée des résultats visibles par cohorte.",
     "tab-ville": "Répartition des résultats visibles par ville.",
     "tab-user": "Répartition des résultats visibles par utilisateur.",
 }
+
 
 SOURCE_COMPARE_FIELDS = (
     ("apprenant_nom", "nom_individu", "Nom"),
@@ -1637,7 +1638,9 @@ def _attach_network_source_to_rows(
                     "source_status_label": "Absent source",
                     "source_status_tone": "danger",
                     "source_alerts": [],
-                    "source_alerts_label": "Code introuvable dans la feuille Apprenants du classeur réseau.",
+                    "source_alerts_label": (
+                        "Code introuvable dans la feuille réseau spécifiée ou accès refusé."
+                    ),
                     "formation_intitule": row.get("formation_intitule")
                     or row.get("classe_intitule")
                     or "-",

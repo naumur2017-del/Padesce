@@ -29,7 +29,11 @@ class SatisfactionApprenant(TimeStampedModel):
     )
     inspecteur = models.ForeignKey(Inspecteur, on_delete=models.SET_NULL, null=True, blank=True)
     enqueteur = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="sat_appr_saisies"
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="sat_appr_saisies",
     )
     date = models.DateField()
     heure = models.TimeField(null=True, blank=True)
@@ -42,7 +46,9 @@ class SatisfactionApprenant(TimeStampedModel):
     q7_utilite_formation = models.PositiveSmallIntegerField(validators=NOTE_VALIDATORS)
     q8_adequation_besoins = models.PositiveSmallIntegerField(validators=NOTE_VALIDATORS)
     q9_satisfaction_globale = models.PositiveSmallIntegerField(validators=NOTE_VALIDATORS)
-    audio_appel = models.FileField(upload_to="enquetes/satisfaction_apprenants/", null=True, blank=True)
+    audio_appel = models.FileField(
+        upload_to="enquetes/satisfaction_apprenants/", null=True, blank=True
+    )
     transcription = models.TextField(blank=True)
     commentaire = models.TextField(blank=True)
     recommandations = models.TextField(blank=True)
@@ -68,14 +74,22 @@ class Transcription(TimeStampedModel):
         Apprenant, on_delete=models.SET_NULL, null=True, blank=True, related_name="transcriptions"
     )
     appel = models.ForeignKey(
-        "appels.Appel", on_delete=models.SET_NULL, null=True, blank=True, related_name="transcriptions"
+        "appels.Appel",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="transcriptions",
     )
     audio_path = models.CharField(max_length=500, blank=True)
     transcript = models.TextField(blank=True)
     engine = models.CharField(max_length=120, blank=True)
     extracted_answers_json = models.JSONField(default=dict, blank=True)
     enqueteur = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="transcriptions_saisies"
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="transcriptions_saisies",
     )
 
     class Meta:

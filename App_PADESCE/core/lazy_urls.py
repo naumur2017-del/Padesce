@@ -6,7 +6,7 @@ from importlib import import_module
 
 @lru_cache(maxsize=None)
 def _resolve_view(dotted_path: str):
-    module_path, attr_name = dotted_path.rsplit('.', 1)
+    module_path, attr_name = dotted_path.rsplit(".", 1)
     module = import_module(module_path)
     return getattr(module, attr_name)
 
