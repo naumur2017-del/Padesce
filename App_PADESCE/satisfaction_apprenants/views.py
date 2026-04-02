@@ -44,6 +44,7 @@ from App_PADESCE.core.call_metrics import (
 )
 from App_PADESCE.formations.models import Classe
 from App_PADESCE.reporting.network_excel import (
+    build_consolidation_call_candidates,
     build_padesce_source_index,
     get_workbook_source_options,
     normalize_network_lookup,
@@ -3015,34 +3016,36 @@ _PHONE_RE_IMPORT = re.compile(r"[0-9]{7,}")
 
 @require_analysis_access
 def apprenants_manquants_page(request):
-    """Page dédiée : liste et import des apprenants des prestations manquantes."""
+    """Page dédiée : liste et import des apprenants des prestations manquantes.
+
+    Utilise la feuille Consolidation pour récupérer les téléphones réels,
+    et diagnostique pourquoi les prestations restent manquantes (téléphones vides,
+    apprenants non chargés, seuil non atteint).
+    """
     selected_source = normalize_workbook_source_key(request.GET.get("source", ""))
     source_options = get_workbook_source_options()
 
+    # -- Charge la feuille Consolidation (téléphones réels) ----------------
     try:
-        source_bundle = build_padesce_source_index(source_key=selected_source)
+        consol_bundle = build_consolidation_call_candidates(source_key=selected_source)
     except Exception as exc:
         return render(
             request,
             "satisfaction_apprenants/apprenants_manquants.html",
             {
-                "error": f"Fichier source inaccessible : {exc}",
+                "error": f"Feuille Consolidation inaccessible : {exc}",
                 "source_options": source_options,
                 "selected_source": selected_source,
             },
         )
 
-    if not source_bundle:
-        return render(
-            request,
-            "satisfaction_apprenants/apprenants_manquants.html",
-            {
-                "error": "Fichier source non disponible.",
-                "source_options": source_options,
-                "selected_source": selected_source,
-            },
-        )
+    # -- Charge aussi la feuille Prestations (méta-données) ----------------
+    try:
+        source_bundle = build_padesce_source_index(source_key=selected_source)
+    except Exception:
+        source_bundle = None
 
+    # -- Calcul des prestations manquantes ---------------------------------
     all_rows = [
         _dashboard_row_from_answer(answer) for answer in _satisfaction_dashboard_base_queryset()
     ]
@@ -3052,67 +3055,103 @@ def apprenants_manquants_page(request):
     )
     _, classe_stats_all = _thresholded_dashboard_rows(all_rows, {}, classe_apprenant_counts)
 
-    terminated_codes = _terminated_prestation_codes_from_source({}, source_bundle)
-    qualified_codes = _qualified_prestation_codes_from_source({}, classe_stats_all, source_bundle)
-    missing_keys = terminated_codes - qualified_codes
+    if source_bundle:
+        terminated_codes = _terminated_prestation_codes_from_source({}, source_bundle)
+        qualified_codes = _qualified_prestation_codes_from_source(
+            {}, classe_stats_all, source_bundle
+        )
+        missing_keys = terminated_codes - qualified_codes
+        source_prestations: dict = source_bundle.get("prestations", {})
+    else:
+        missing_keys = set()
+        source_prestations = {}
 
-    existing_codes: set[str] = set(
-        Appel.objects.filter(is_active=True).values_list("code", flat=True)
-    )
+    # -- Index des appels existants (code → telephone1 courant) ------------
+    existing_appels: dict[str, str] = {
+        code: (tel or "")
+        for code, tel in Appel.objects.filter(is_active=True).values_list("code", "telephone1")
+    }
 
-    source_prestations: dict = source_bundle.get("prestations", {})
-    records: dict = source_bundle.get("records", {})
+    # -- Index des records Consolidation par code --------------------------
+    # consol_bundle["records"] est une LISTE (pas un dict)
+    consol_records: list[dict] = consol_bundle.get("records", []) if consol_bundle else []
+    consol_by_code: dict[str, dict] = {}
+    consol_by_prestation: dict[str, list[dict]] = defaultdict(list)
+    for rec in consol_records:
+        code = (rec.get("code") or "").strip()
+        if code:
+            consol_by_code[code] = rec
+        p_key = normalize_network_lookup(rec.get("prestation_id", ""))
+        if p_key:
+            consol_by_prestation[p_key].append(rec)
 
     prestations_with_importable: list[dict] = []
     prestations_sans_importable: list[dict] = []
     total_importable = 0
     total_already_loaded = 0
+    total_needs_phone_sync = 0
 
     for p_key in sorted(missing_keys):
         p_info = source_prestations.get(p_key, {})
         prestation_id_display = p_info.get("prestation_id", "") or p_key
 
         importable: list[dict] = []
-        loaded_count = 0
+        loaded_with_phone: list[dict] = []
+        loaded_no_phone: list[dict] = []
         no_phone_count = 0
 
-        for rec in records.values():
-            if normalize_network_lookup(rec.get("prestation_id", "")) != p_key:
-                continue
+        recs_for_presta = consol_by_prestation.get(p_key, [])
+
+        for rec in recs_for_presta:
             code = (rec.get("code") or "").strip()
             if not code:
                 continue
+            # Téléphone depuis la feuille Consolidation
             numero = (
                 rec.get("telephone1") or rec.get("telephone2") or rec.get("numero") or ""
             ).strip()
             has_phone = bool(_PHONE_RE_IMPORT.search(numero))
+            classe_id = (
+                rec.get("classe_label") or rec.get("classe_id") or ""
+            ).strip()
 
-            if code in existing_codes:
-                loaded_count += 1
-                continue
-            if has_phone:
-                importable.append(
-                    {
-                        "code": code,
-                        "nom": (rec.get("nom_individu") or "").strip(),
-                        "classe_id": (rec.get("classe_id") or "").strip(),
-                        "telephone": numero,
-                        "prestataire": (
-                            rec.get("prestataire") or p_info.get("prestataire") or ""
-                        ).strip(),
-                        "beneficiaire": (
-                            rec.get("beneficiaire") or p_info.get("beneficiaire") or ""
-                        ).strip(),
-                        "fenetre": (rec.get("fenetre") or "").strip(),
-                    }
+            row = {
+                "code": code,
+                "nom": (rec.get("nom") or rec.get("nom_individu") or "").strip(),
+                "classe_id": classe_id,
+                "telephone": numero,
+                "prestataire": (
+                    rec.get("prestataire") or p_info.get("prestataire") or ""
+                ).strip(),
+                "beneficiaire": (
+                    rec.get("beneficiaire") or p_info.get("beneficiaire") or ""
+                ).strip(),
+                "fenetre": (rec.get("fenetre") or "").strip(),
+            }
+
+            if code in existing_appels:
+                current_tel = existing_appels[code]
+                current_has_phone = bool(
+                    _PHONE_RE_IMPORT.search(current_tel) if current_tel else False
                 )
+                if current_has_phone:
+                    loaded_with_phone.append({**row, "telephone": current_tel})
+                else:
+                    # Dans DB mais sans téléphone — peut être mis à jour
+                    loaded_no_phone.append({**row, "telephone_consol": numero})
+            elif has_phone:
+                importable.append(row)
             else:
                 no_phone_count += 1
 
         importable.sort(key=lambda r: (r["classe_id"], r["code"]))
+        loaded_no_phone.sort(key=lambda r: (r["classe_id"], r["code"]))
+
         importable_count = len(importable)
+        loaded_no_phone_count = len(loaded_no_phone)
         total_importable += importable_count
-        total_already_loaded += loaded_count
+        total_already_loaded += len(loaded_with_phone) + loaded_no_phone_count
+        total_needs_phone_sync += loaded_no_phone_count
 
         entry = {
             "prestation_id": prestation_id_display,
@@ -3121,11 +3160,14 @@ def apprenants_manquants_page(request):
             "beneficiaire": p_info.get("beneficiaire", ""),
             "formation": p_info.get("formation", ""),
             "importable_count": importable_count,
-            "loaded_count": loaded_count,
+            "loaded_count": len(loaded_with_phone) + loaded_no_phone_count,
+            "loaded_with_phone_count": len(loaded_with_phone),
+            "loaded_no_phone_count": loaded_no_phone_count,
             "no_phone_count": no_phone_count,
             "apprenants": importable,
+            "apprenants_loaded_no_phone": loaded_no_phone,
         }
-        if importable_count > 0:
+        if importable_count > 0 or loaded_no_phone_count > 0:
             prestations_with_importable.append(entry)
         else:
             prestations_sans_importable.append(entry)
@@ -3141,8 +3183,10 @@ def apprenants_manquants_page(request):
             "prestations_sans_importable": prestations_sans_importable,
             "total_importable": total_importable,
             "total_already_loaded": total_already_loaded,
+            "total_needs_phone_sync": total_needs_phone_sync,
             "total_missing_prestations": len(missing_keys),
             "import_url": "analyse/import-manquants/",
+            "sync_url": "analyse/sync-telephones/",
             "notif_url": "analyse/import-notifications/",
         },
     )
@@ -3181,18 +3225,23 @@ def import_missing_apprenants(request):
     selected_source = normalize_workbook_source_key(request.GET.get("source", ""))
 
     try:
-        source_bundle = build_padesce_source_index(source_key=selected_source)
+        consol_bundle = build_consolidation_call_candidates(source_key=selected_source)
     except Exception as exc:
-        return JsonResponse({"error": f"Fichier source inaccessible : {exc}"}, status=500)
+        return JsonResponse({"error": f"Fichier Consolidation inaccessible : {exc}"}, status=500)
 
-    if not source_bundle:
-        return JsonResponse({"error": "Fichier source non disponible."}, status=400)
+    if not consol_bundle:
+        return JsonResponse({"error": "Feuille Consolidation non disponible."}, status=400)
 
-    # Determine target prestation keys
+    # Détermine les prestations cibles
     if prestation_ids:
         target_keys = {normalize_network_lookup(p) for p in prestation_ids}
     else:
-        target_keys = _terminated_prestation_codes_from_source({}, source_bundle)
+        # Si pas de filtre : toutes les prestations présentes dans la feuille Consolidation
+        target_keys = {
+            normalize_network_lookup(rec.get("prestation_id", ""))
+            for rec in consol_bundle.get("records", [])
+            if rec.get("prestation_id")
+        }
 
     if not target_keys:
         return JsonResponse(
@@ -3211,8 +3260,9 @@ def import_missing_apprenants(request):
     )
 
     # Collect importable records: in target prestations, have phone, not already in DB
+    # consol_bundle["records"] est une LISTE
     importable: list[dict] = []
-    for rec in source_bundle.get("records", {}).values():
+    for rec in consol_bundle.get("records", []):
         p_key = normalize_network_lookup(rec.get("prestation_id", ""))
         if p_key not in target_keys:
             continue
@@ -3252,13 +3302,13 @@ def import_missing_apprenants(request):
 
     for rec in batch:
         code = rec["code"].strip()
-        classe_id = (rec.get("classe_id") or "").strip()
+        classe_id = (rec.get("classe_label") or rec.get("classe_id") or "").strip()
         local_classe = local_classes_map.get(normalize_network_lookup(classe_id))
 
         appels_to_create.append(
             Appel(
                 code=code,
-                nom=(rec.get("nom_individu") or "").strip(),
+                nom=(rec.get("nom") or rec.get("nom_individu") or "").strip(),
                 prestataire=(rec.get("prestataire") or "").strip(),
                 beneficiaire=(rec.get("beneficiaire") or "").strip(),
                 lieu=(rec.get("lieu") or "").strip(),
@@ -3300,6 +3350,88 @@ def import_missing_apprenants(request):
             "classes": classes_list,
             "next_offset": offset + 20,
             "done": remaining <= 0,
+        }
+    )
+
+
+@require_analysis_access
+def sync_phones_from_consolidation(request):
+    """POST – met à jour les téléphones vides des Appel existants depuis la feuille Consolidation.
+
+    Retourne :
+        {
+            "updated": int,
+            "total_checked": int,
+            "classes": [str, ...],
+            "done": bool
+        }
+    """
+    if request.method != "POST":
+        return JsonResponse({"error": "Méthode non autorisée."}, status=405)
+
+    selected_source = normalize_workbook_source_key(request.GET.get("source", ""))
+
+    try:
+        consol_bundle = build_consolidation_call_candidates(
+            source_key=selected_source, force_refresh=True
+        )
+    except Exception as exc:
+        return JsonResponse({"error": f"Feuille Consolidation inaccessible : {exc}"}, status=500)
+
+    if not consol_bundle:
+        return JsonResponse({"error": "Feuille Consolidation non disponible."}, status=400)
+
+    # Index code → téléphone depuis la feuille Consolidation
+    consol_phones: dict[str, str] = {}
+    for rec in consol_bundle.get("records", []):
+        code = (rec.get("code") or "").strip()
+        if not code:
+            continue
+        numero = (
+            rec.get("telephone1") or rec.get("telephone2") or rec.get("numero") or ""
+        ).strip()
+        if _PHONE_RE_IMPORT.search(numero):
+            consol_phones[code] = numero
+
+    # Récupère tous les Appel actifs sans téléphone
+    appels_sans_tel = list(
+        Appel.objects.filter(is_active=True).exclude(
+            telephone1__regex=r"[0-9]{7,}"
+        ).only("id", "code", "classe_label", "telephone1")
+    )
+
+    updated_count = 0
+    classes_touched: set[str] = set()
+    to_update: list = []
+
+    for appel in appels_sans_tel:
+        new_tel = consol_phones.get(appel.code, "")
+        if new_tel:
+            appel.telephone1 = new_tel
+            to_update.append(appel)
+            if appel.classe_label:
+                classes_touched.add(appel.classe_label)
+
+    if to_update:
+        try:
+            Appel.objects.bulk_update(to_update, ["telephone1"], batch_size=200)
+            updated_count = len(to_update)
+        except Exception as exc:
+            return JsonResponse({"error": f"Erreur mise à jour : {exc}"}, status=500)
+
+    classes_list = sorted(classes_touched)
+    if updated_count > 0:
+        _push_import_notif(
+            f"{updated_count} téléphone(s) mis à jour depuis la feuille Consolidation.",
+            classes_list,
+        )
+
+    return JsonResponse(
+        {
+            "updated": updated_count,
+            "total_checked": len(appels_sans_tel),
+            "classes": classes_list,
+            "done": True,
         }
     )
 
