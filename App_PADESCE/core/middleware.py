@@ -140,6 +140,8 @@ class LoginRequiredMiddleware:
             "/beneficiaire/",
             "/deploiement/live/",
             "/backup/api/trigger/",
+            "/service-worker.js",
+            "/manifest.webmanifest",
             static_prefix,
             media_prefix,
         ]

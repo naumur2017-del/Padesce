@@ -15,6 +15,16 @@ urlpatterns = [
         ),
         name="login",
     ),
+    path(
+        "service-worker.js",
+        lazy_view("App_PADESCE.core.pwa_views.service_worker"),
+        name="service_worker",
+    ),
+    path(
+        "manifest.webmanifest",
+        lazy_view("App_PADESCE.core.pwa_views.web_manifest"),
+        name="web_manifest",
+    ),
     path("api/chat/", lazy_view("App_PADESCE.core.chat_views.chat_query"), name="chat_query"),
     path(
         "api/chat/download/<str:filename>/",

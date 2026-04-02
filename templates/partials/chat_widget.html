@@ -1,0 +1,81 @@
+{% load static %}
+<div id="chatWidget" data-user="{{ user.get_username|escapejs }}">
+  <div class="app-sync-toast" id="appSyncToast" aria-live="polite" hidden>
+    <span class="app-sync-dot" aria-hidden="true"></span>
+    <span id="appSyncToastText">Le cache local se met à jour.</span>
+  </div>
+
+  <button class="chat-fab" id="chatFab" type="button" aria-label="Ouvrir le chat NAUMUR" title="Chat NAUMUR">
+    <span class="chat-fab-icon" aria-hidden="true">💬</span>
+    <span class="chat-fab-copy">
+      <span class="chat-fab-title">Chat NAUMUR</span>
+      <span class="chat-fab-subtitle">Assistant prêt</span>
+    </span>
+  </button>
+
+  <div class="chat-window" id="chatWindow" aria-hidden="true">
+    <div class="chat-header">
+      <div class="chat-header-left">
+        <div class="chat-header-avatar">🤖</div>
+        <div class="chat-header-info">
+          <h3>Chat NAUMUR</h3>
+          <div class="chat-status" id="chatStatus">
+            <span class="chat-status-dot" aria-hidden="true"></span>
+            <span id="chatStatusText">En ligne</span>
+          </div>
+        </div>
+      </div>
+      <div class="chat-header-actions">
+        <button class="chat-header-btn" id="chatFullscreen" type="button" aria-label="Plein écran" title="Plein écran">⛶</button>
+        <button class="chat-header-btn" id="chatClose" type="button" aria-label="Fermer le chat" title="Fermer">✕</button>
+      </div>
+    </div>
+
+    <div class="chat-messages" id="chatMessages">
+      <div class="chat-welcome" id="chatWelcome">
+        <div class="chat-welcome-emoji">👋</div>
+        <h4>Bienvenue sur l'Assistant NAUMUR</h4>
+        <p>Je peux générer des fiches, préparer des exports Excel et répondre aux questions sur vos données PADESCE.</p>
+      </div>
+    </div>
+
+    <div class="chat-quick-actions" id="chatQuickActions">
+      <div class="qa-category">
+        <div class="qa-category-label green"><span class="qa-dot green"></span>Fiche</div>
+        <div class="qa-category-hint">Demandez une fiche ou un résumé ciblé.</div>
+        <div class="qa-btns-row">
+          <button class="quick-action-btn green" type="button" data-msg="Donne-moi la fiche de prestation de CEW">📄 Fiche de CEW</button>
+          <button class="quick-action-btn green" type="button" data-msg="Donne-moi la fiche de prestation de l'Extrême Nord">🗺️ Extrême Nord</button>
+        </div>
+      </div>
+      <div class="qa-category">
+        <div class="qa-category-label blue"><span class="qa-dot blue"></span>Excel</div>
+        <div class="qa-category-hint">Générez rapidement un export ou un fichier de travail.</div>
+        <div class="qa-btns-row">
+          <button class="quick-action-btn blue" type="button" data-msg="Donne-moi le fichier Excel des prestations de F1">📊 Prestations F1</button>
+          <button class="quick-action-btn blue" type="button" data-msg="Donne-moi le fichier Excel des prestations du Centre">📥 Prestations Centre</button>
+        </div>
+      </div>
+      <div class="qa-category">
+        <div class="qa-category-label yellow"><span class="qa-dot yellow"></span>Analyse</div>
+        <div class="qa-category-hint">Les questions fréquentes sur le décompte restent disponibles même si l'agent avancé tombe.</div>
+        <div class="qa-btns-row">
+          <button class="quick-action-btn yellow" type="button" data-msg="Combien de prestataires dans le fichier décompte ?">🔢 Nb prestataires</button>
+          <button class="quick-action-btn yellow" type="button" data-msg="Quelle est la répartition par statut dans le décompte ?">📈 Par statut</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="chat-input-area">
+      <div class="chat-input-wrapper">
+        <textarea class="chat-input" id="chatInput" placeholder="Écrire un message…" rows="1"></textarea>
+      </div>
+      <button class="chat-send" id="chatSend" type="button" aria-label="Envoyer" title="Envoyer">
+        <svg viewBox="0 0 24 24"><path d="M22 2L11 13"></path><path d="M22 2L15 22L11 13L2 9L22 2Z"></path></svg>
+      </button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script src="{% static 'core/chat_widget.js' %}"></script>
