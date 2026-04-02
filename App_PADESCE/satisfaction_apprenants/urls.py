@@ -62,4 +62,9 @@ urlpatterns = [
         lazy_view("App_PADESCE.satisfaction_apprenants.views.import_notifications_poll"),
         name="import_notifications_poll",
     ),
+    path(
+        "analyse/sync-telephones/",
+        lazy_view("App_PADESCE.satisfaction_apprenants.views.sync_phones_from_consolidation"),
+        name="sync_phones_from_consolidation",
+    ),
 ]
