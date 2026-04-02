@@ -25,8 +25,20 @@ class DashboardVisibilityTests(TestCase):
             username="manager-user",
             password="test-pass-123",
         )
+        self.consultant = user_model.objects.create_user(
+            username="consultant-user",
+            password="test-pass-123",
+        )
+        self.superuser = user_model.objects.create_user(
+            username="nav-superuser",
+            password="test-pass-123",
+            is_superuser=True,
+            is_staff=True,
+        )
         manager_group, _ = Group.objects.get_or_create(name="manager_padesce")
+        consultant_group, _ = Group.objects.get_or_create(name="consultant")
         self.manager.groups.add(manager_group)
+        self.consultant.groups.add(consultant_group)
 
     def test_regular_user_does_not_see_analysis_links(self):
         self.client.force_login(self.user)
@@ -50,6 +62,40 @@ class DashboardVisibilityTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.context["can_view_analysis_pages"])
         self.assertContains(response, "Analyses Satisfaction")
+
+    def test_regular_user_nav_shows_only_call_links(self):
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("home"))
+
+        self.assertContains(response, "Appels Padesce")
+        self.assertContains(response, "Appel Formateur")
+        self.assertContains(response, "CGA")
+        self.assertNotContains(response, "Analyse Enquete Apprenants")
+        self.assertNotContains(response, "Backup")
+        self.assertNotContains(response, "Admin")
+
+    def test_consultant_only_nav_hides_restricted_links(self):
+        self.client.force_login(self.consultant)
+
+        response = self.client.get(reverse("home"))
+
+        self.assertContains(response, "Analyse Enquete Apprenants")
+        self.assertNotContains(response, "Appels Padesce")
+        self.assertNotContains(response, "Appel Formateur")
+        self.assertNotContains(response, "Analyse Enquete Formateur")
+        self.assertNotContains(response, "Rapport hebdomadaire")
+        self.assertNotContains(response, 'href="/cga/"', html=False)
+        self.assertNotContains(response, "Backup")
+
+    def test_superuser_nav_shows_superadmin_links(self):
+        self.client.force_login(self.superuser)
+
+        response = self.client.get(reverse("home"))
+
+        self.assertContains(response, "Backup")
+        self.assertContains(response, "Deploiement Gandi")
+        self.assertContains(response, "Admin")
 
 
 class SuperadminTrackingTests(TestCase):
