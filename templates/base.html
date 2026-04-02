@@ -4,7 +4,17 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{% block title %}PADESCE{% endblock %}</title>
+  <title>{% block title %}{{ nav_page_title|default:"PADESCE" }}{% endblock %} | PADESCE</title>
+  <meta
+    name="description"
+    content="PADESCE, plateforme de suivi des appels, des analyses et des operations de gestion."
+  >
+  <meta name="application-name" content="PADESCE">
+  <meta name="apple-mobile-web-app-title" content="PADESCE">
+  <meta name="theme-color" content="#7c3aed">
+  <meta name="msapplication-TileColor" content="#7c3aed">
+  <link rel="icon" type="image/png" href="{% static 'branding/logo.png' %}">
+  <link rel="apple-touch-icon" href="{% static 'branding/logo.png' %}">
   <style>
     :root {
       --bg: #fbf9ff;
@@ -31,20 +41,20 @@
       position: sticky;
       top: 0;
       z-index: 120;
-      padding: 14px 18px 0;
+      padding: 10px 16px 0;
       transition: padding 0.25s ease;
     }
     .app-nav-inner {
       max-width: 1180px;
       margin: 0 auto;
-      min-height: 78px;
-      padding: 14px 16px;
+      min-height: 64px;
+      padding: 10px 12px;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 16px;
+      gap: 12px;
       border: 1px solid rgba(109, 77, 168, 0.14);
-      border-radius: 24px;
+      border-radius: 20px;
       background: rgba(255, 255, 255, 0.92);
       backdrop-filter: blur(18px) saturate(1.3);
       -webkit-backdrop-filter: blur(18px) saturate(1.3);
@@ -55,7 +65,7 @@
         box-shadow 0.25s ease;
     }
     .app-nav.is-scrolled {
-      padding-top: 10px;
+      padding-top: 6px;
     }
     .app-nav.is-scrolled .app-nav-inner {
       background: rgba(255, 255, 255, 0.82);
@@ -67,44 +77,46 @@
       flex: 1 1 auto;
       display: flex;
       align-items: center;
-      gap: 14px;
+      gap: 10px;
     }
     .nav-logo {
-      width: 52px;
-      height: 52px;
-      border-radius: 16px;
+      width: 42px;
+      height: 42px;
+      border-radius: 14px;
       object-fit: cover;
       border: 1px solid var(--border);
       background: #fff;
-      padding: 4px;
-      box-shadow: 0 12px 28px rgba(76, 29, 149, 0.12);
+      padding: 3px;
+      box-shadow: 0 10px 22px rgba(76, 29, 149, 0.10);
     }
     .nav-title-wrap { min-width: 0; }
     .nav-title {
       margin: 0;
       color: var(--accent-strong);
-      font-size: clamp(1.02rem, 1.4vw + 0.7rem, 1.4rem);
+      font-size: clamp(0.94rem, 0.9vw + 0.72rem, 1.18rem);
       letter-spacing: 0.01em;
       font-weight: 800;
+      line-height: 1.15;
     }
     .nav-actions {
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 8px;
       flex-shrink: 0;
     }
     .nav-user {
       min-width: 0;
-      max-width: min(42vw, 280px);
+      max-width: min(38vw, 240px);
       display: inline-flex;
       align-items: center;
-      gap: 10px;
-      padding: 10px 14px;
+      gap: 8px;
+      padding: 8px 12px;
       border-radius: 999px;
       border: 1px solid rgba(124, 58, 237, 0.16);
       background: rgba(124, 58, 237, 0.09);
       color: var(--accent-strong);
       font-weight: 700;
+      font-size: 0.92rem;
     }
     .nav-user-name {
       min-width: 0;
@@ -113,29 +125,29 @@
       white-space: nowrap;
     }
     .online-dot {
-      width: 10px;
-      height: 10px;
+      width: 8px;
+      height: 8px;
       flex-shrink: 0;
       border-radius: 50%;
       background: #8b5cf6;
-      box-shadow: 0 0 0 4px rgba(139, 92, 246, 0.18);
+      box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.18);
     }
     .nav-menu {
       position: relative;
       flex-shrink: 0;
     }
     .nav-toggle {
-      width: 52px;
-      height: 52px;
+      width: 44px;
+      height: 44px;
       border: 1px solid rgba(109, 77, 168, 0.16);
-      border-radius: 18px;
+      border-radius: 14px;
       background: linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(248, 243, 255, 0.98));
       color: var(--accent-strong);
       display: inline-flex;
       align-items: center;
       justify-content: center;
       cursor: pointer;
-      box-shadow: 0 10px 24px rgba(76, 29, 149, 0.08);
+      box-shadow: 0 8px 20px rgba(76, 29, 149, 0.08);
       transition:
         transform 0.2s ease,
         box-shadow 0.2s ease,
@@ -153,10 +165,10 @@
     .nav-toggle-icon {
       display: inline-flex;
       flex-direction: column;
-      gap: 5px;
+      gap: 4px;
     }
     .nav-toggle-line {
-      width: 20px;
+      width: 18px;
       height: 2px;
       border-radius: 999px;
       background: currentColor;
@@ -165,17 +177,17 @@
         opacity 0.25s ease;
     }
     .nav-menu.open .nav-toggle-line:nth-child(1) {
-      transform: translateY(7px) rotate(45deg);
+      transform: translateY(6px) rotate(45deg);
     }
     .nav-menu.open .nav-toggle-line:nth-child(2) {
       opacity: 0;
     }
     .nav-menu.open .nav-toggle-line:nth-child(3) {
-      transform: translateY(-7px) rotate(-45deg);
+      transform: translateY(-6px) rotate(-45deg);
     }
     .nav-dropdown {
       position: absolute;
-      top: calc(100% + 12px);
+      top: calc(100% + 10px);
       right: 0;
       width: min(360px, calc(100vw - 36px));
       padding: 12px;
@@ -286,11 +298,11 @@
     }
     @media (max-width: 720px) {
       .app-nav {
-        padding: 12px 12px 0;
+        padding: 8px 10px 0;
       }
       .app-nav-inner {
         min-height: auto;
-        padding: 12px;
+        padding: 9px 10px;
         flex-wrap: wrap;
       }
       .nav-brand {
@@ -302,7 +314,7 @@
       }
       .nav-user {
         flex: 1 1 auto;
-        max-width: calc(100% - 62px);
+        max-width: calc(100% - 54px);
       }
       .nav-dropdown {
         width: min(100vw - 24px, 360px);
@@ -310,20 +322,21 @@
     }
     @media (max-width: 480px) {
       .nav-logo {
-        width: 48px;
-        height: 48px;
-        border-radius: 14px;
+        width: 38px;
+        height: 38px;
+        border-radius: 12px;
       }
       .nav-toggle {
-        width: 48px;
-        height: 48px;
-        border-radius: 16px;
+        width: 40px;
+        height: 40px;
+        border-radius: 12px;
       }
       .nav-title {
-        font-size: 1rem;
+        font-size: 0.92rem;
       }
       .nav-user {
-        padding: 10px 12px;
+        padding: 7px 10px;
+        font-size: 0.88rem;
       }
       .shell {
         padding-left: 12px;

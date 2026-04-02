@@ -1,9 +1,20 @@
+{% load static %}
 <!doctype html>
 <html lang="fr">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{% block title %}PADESCE{% endblock %}</title>
+  <title>{% block title %}PADESCE{% endblock %} | PADESCE</title>
+  <meta
+    name="description"
+    content="PADESCE, plateforme de suivi des appels, des analyses et des operations de gestion."
+  >
+  <meta name="application-name" content="PADESCE">
+  <meta name="apple-mobile-web-app-title" content="PADESCE">
+  <meta name="theme-color" content="#7c3aed">
+  <meta name="msapplication-TileColor" content="#7c3aed">
+  <link rel="icon" type="image/png" href="{% static 'branding/logo.png' %}">
+  <link rel="apple-touch-icon" href="{% static 'branding/logo.png' %}">
   <style>
     :root {
       --bg: #ffffff;
