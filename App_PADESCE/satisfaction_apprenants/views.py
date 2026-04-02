@@ -6,6 +6,12 @@ import json
 import logging
 import os
 import re
+
+# ---------------------------------------------------------------------------
+# Import-notification store – in-memory, global, polled by all active sessions
+# ---------------------------------------------------------------------------
+import threading as _threading
+import time as _time
 import uuid
 from collections import Counter, defaultdict
 from datetime import date as date_cls
@@ -46,6 +52,30 @@ from App_PADESCE.reporting.network_excel import (
 from App_PADESCE.satisfaction_apprenants.forms import SatisfactionApprenantForm
 from App_PADESCE.satisfaction_apprenants.models import SatisfactionApprenant
 from App_PADESCE.satisfaction_apprenants.rag import answer_dashboard_prompt
+
+_IMPORT_NOTIFS: list[dict] = []
+_IMPORT_NOTIFS_LOCK = _threading.Lock()
+
+
+def _push_import_notif(message: str, classes: list[str]) -> None:
+    entry = {
+        "id": uuid.uuid4().hex,
+        "ts": _time.time(),
+        "message": message,
+        "classes": classes,
+    }
+    with _IMPORT_NOTIFS_LOCK:
+        _IMPORT_NOTIFS.append(entry)
+        del _IMPORT_NOTIFS[:-200]
+
+
+def _get_import_notifs_since(since_ts: float) -> list[dict]:
+    cutoff = _time.time() - 300  # discard entries older than 5 min
+    with _IMPORT_NOTIFS_LOCK:
+        return [n for n in _IMPORT_NOTIFS if n["ts"] > max(since_ts, cutoff)]
+
+
+# ---------------------------------------------------------------------------
 
 SESSION_KEY = "sat_appr_workflow"
 REASON_KEYWORDS = [
@@ -1927,6 +1957,22 @@ def _build_missing_prestations_analysis(
         if item.get("threshold_reached") and item.get("code")
     }
 
+    # Pre-fetch existing Appel codes (for importable_count computation)
+    existing_appel_codes: set[str] = set(
+        Appel.objects.filter(is_active=True).values_list("code", flat=True)
+    )
+    # Source records indexed by normalized prestation key (phone + not-in-appel filter)
+    _phone_re = re.compile(r"[0-9]{7,}")
+    source_records_by_prestation: dict[str, int] = {}
+    for rec in source_bundle.get("records", {}).values():
+        p_key = normalize_network_lookup(rec.get("prestation_id", ""))
+        if not p_key:
+            continue
+        numero = (rec.get("numero") or "").strip()
+        code = (rec.get("code") or "").strip()
+        if _phone_re.search(numero) and code and code not in existing_appel_codes:
+            source_records_by_prestation[p_key] = source_records_by_prestation.get(p_key, 0) + 1
+
     source_classes: dict = source_bundle.get("classes", {})
     source_prestations: dict = source_bundle.get("prestations", {})
 
@@ -1985,6 +2031,9 @@ def _build_missing_prestations_analysis(
             else:
                 category = "autres"
 
+        importable_count = source_records_by_prestation.get(
+            normalize_network_lookup(prestation_id), 0
+        )
         by_category[category] += 1
         details.append(
             {
@@ -1995,16 +2044,19 @@ def _build_missing_prestations_analysis(
                 "category": category,
                 "category_label": CATEGORY_LABELS[category],
                 "classe_count": len(source_cls_list),
+                "importable_count": importable_count,
             }
         )
 
     details.sort(key=lambda x: (x["category"], x["prestataire"], x["prestation_id"]))
+    total_importable = sum(d["importable_count"] for d in details)
 
     return {
         "available": True,
         "total_source": len(terminated_prestation_codes),
         "total_qualified": len(qualified_prestation_codes),
         "total_missing": len(missing_keys),
+        "total_importable": total_importable,
         "by_category": by_category,
         "category_labels": CATEGORY_LABELS,
         "details": details,
@@ -2952,3 +3004,180 @@ def satisfaction_dashboard_export_csv(request):
     for export_row in export_rows:
         writer.writerow(export_row)
     return response
+
+
+# ---------------------------------------------------------------------------
+# Import apprenants manquants depuis le fichier réseau
+# ---------------------------------------------------------------------------
+
+_PHONE_RE_IMPORT = re.compile(r"[0-9]{7,}")
+
+
+@require_analysis_access
+def import_missing_apprenants(request):
+    """POST – importe un lot de 20 apprenants depuis le fichier réseau consolidé.
+
+    Body JSON attendu :
+        {
+            "offset": int,                  # position de départ dans la liste triée
+            "prestation_ids": [str, ...]    # IDs bruts des prestations manquantes à traiter
+        }
+
+    Retourne :
+        {
+            "imported": int,
+            "total_importable": int,
+            "total_remaining": int,
+            "classes": [str, ...],
+            "next_offset": int | null,
+            "done": bool
+        }
+    """
+    if request.method != "POST":
+        return JsonResponse({"error": "Méthode non autorisée."}, status=405)
+
+    try:
+        body = json.loads(request.body.decode("utf-8") or "{}")
+    except (ValueError, UnicodeDecodeError):
+        body = {}
+
+    offset = max(0, int(body.get("offset") or 0))
+    prestation_ids: list[str] = [str(p) for p in (body.get("prestation_ids") or []) if p]
+    selected_source = normalize_workbook_source_key(request.GET.get("source", ""))
+
+    try:
+        source_bundle = build_padesce_source_index(source_key=selected_source)
+    except Exception as exc:
+        return JsonResponse({"error": f"Fichier source inaccessible : {exc}"}, status=500)
+
+    if not source_bundle:
+        return JsonResponse({"error": "Fichier source non disponible."}, status=400)
+
+    # Determine target prestation keys
+    if prestation_ids:
+        target_keys = {normalize_network_lookup(p) for p in prestation_ids}
+    else:
+        target_keys = _terminated_prestation_codes_from_source({}, source_bundle)
+
+    if not target_keys:
+        return JsonResponse(
+            {
+                "imported": 0,
+                "total_importable": 0,
+                "total_remaining": 0,
+                "classes": [],
+                "done": True,
+            }
+        )
+
+    # Pre-fetch existing Appel codes to avoid duplicates
+    existing_codes: set[str] = set(
+        Appel.objects.filter(is_active=True).values_list("code", flat=True)
+    )
+
+    # Collect importable records: in target prestations, have phone, not already in DB
+    importable: list[dict] = []
+    for rec in source_bundle.get("records", {}).values():
+        p_key = normalize_network_lookup(rec.get("prestation_id", ""))
+        if p_key not in target_keys:
+            continue
+        numero = (rec.get("numero") or "").strip()
+        if not _PHONE_RE_IMPORT.search(numero):
+            continue
+        code = (rec.get("code") or "").strip()
+        if not code or code in existing_codes:
+            continue
+        importable.append(rec)
+
+    # Stable ordering for consistent pagination
+    importable.sort(key=lambda r: (r.get("prestation_id", ""), r.get("code", "")))
+
+    total_importable = len(importable)
+    batch = importable[offset : offset + 20]
+
+    if not batch:
+        return JsonResponse(
+            {
+                "imported": 0,
+                "total_importable": total_importable,
+                "total_remaining": 0,
+                "classes": [],
+                "done": True,
+            }
+        )
+
+    # Pre-fetch all local Classe objects once (avoid N+1)
+    local_classes_map: dict[str, object] = {
+        normalize_network_lookup(c.code): c
+        for c in Classe.objects.select_related("prestation", "formation")
+    }
+
+    classes_touched: set[str] = set()
+    appels_to_create: list = []
+
+    for rec in batch:
+        code = rec["code"].strip()
+        classe_id = (rec.get("classe_id") or "").strip()
+        local_classe = local_classes_map.get(normalize_network_lookup(classe_id))
+
+        appels_to_create.append(
+            Appel(
+                code=code,
+                nom=(rec.get("nom_individu") or "").strip(),
+                prestataire=(rec.get("prestataire") or "").strip(),
+                beneficiaire=(rec.get("beneficiaire") or "").strip(),
+                lieu=(rec.get("lieu") or "").strip(),
+                classe_label=classe_id,
+                fenetre=(rec.get("fenetre") or "").strip(),
+                telephone1=(rec.get("numero") or "").strip(),
+                formation_padesce=(rec.get("formation") or "").strip(),
+                status="en_attente",
+                is_active=True,
+                classe=local_classe,
+            )
+        )
+        label = (local_classe.code if local_classe else classe_id) or code
+        if label:
+            classes_touched.add(label)
+
+    try:
+        created = Appel.objects.bulk_create(appels_to_create, ignore_conflicts=True)
+        imported_count = len(created)
+    except Exception as exc:
+        return JsonResponse({"error": f"Erreur lors de l'import : {exc}"}, status=500)
+
+    remaining = max(0, total_importable - offset - 20)
+    classes_list = sorted(classes_touched)
+
+    if imported_count > 0:
+        _push_import_notif(
+            f"{imported_count} appel(s) importé(s) depuis le fichier réseau consolidé.",
+            classes_list,
+        )
+
+    return JsonResponse(
+        {
+            "imported": imported_count,
+            "total_importable": total_importable,
+            "total_remaining": remaining,
+            "classes": classes_list,
+            "next_offset": offset + 20,
+            "done": remaining <= 0,
+        }
+    )
+
+
+@require_analysis_access
+def import_notifications_poll(request):
+    """GET – retourne les notifications d'import depuis un timestamp donné.
+
+    Paramètre : since=<float unix timestamp>
+    Utilisé par tous les clients pour afficher les notifications en temps réel.
+    """
+    try:
+        since = float(request.GET.get("since", 0))
+    except (ValueError, TypeError):
+        since = 0.0
+
+    notifications = _get_import_notifs_since(since)
+    return JsonResponse({"notifications": notifications})
