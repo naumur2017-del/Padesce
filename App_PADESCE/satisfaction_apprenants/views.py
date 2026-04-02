@@ -28,7 +28,10 @@ from django.utils import timezone
 from App_PADESCE.apprenants.models import Apprenant
 from App_PADESCE.appels.models import APPEL_ANSWER_QUESTION_FIELDS, Appel, AppelAnswers
 from App_PADESCE.core.access import require_analysis_access
-from App_PADESCE.core.call_metrics import count_callable_source_records_by_class, normalize_phone_digits
+from App_PADESCE.core.call_metrics import (
+    count_callable_source_records_by_class,
+    normalize_phone_digits,
+)
 from App_PADESCE.formations.models import Classe
 from App_PADESCE.reporting.network_excel import (
     build_padesce_source_index,
@@ -44,8 +47,14 @@ from App_PADESCE.satisfaction_apprenants.services import get_prestations_ranking
 SESSION_KEY = "sat_appr_workflow"
 REASON_KEYWORDS = [
     ("ProblÃ¨mes de transport", ["transport", "vÃ©hicule", "route", "panne", "dÃ©placement"]),
-    ("DisponibilitÃ© / santÃ©", ["malade", "santÃ©", "disponibilitÃ©", "maladie", "absent", "repos"]),
-    ("Pas au courant / notification", ["pas au courant", "notification", "notifiÃ©", "ignorÃ©", "erreur"]),
+    (
+        "DisponibilitÃ© / santÃ©",
+        ["malade", "santÃ©", "disponibilitÃ©", "maladie", "absent", "repos"],
+    ),
+    (
+        "Pas au courant / notification",
+        ["pas au courant", "notification", "notifiÃ©", "ignorÃ©", "erreur"],
+    ),
     ("Conditions / Ã©ligibilitÃ©", ["diplÃ´me", "condition", "Ã©ligibilitÃ©", "inscription"]),
     ("Pas intÃ©ressÃ©", ["intÃ©ressÃ©", "ne souhaite pas", "dÃ©sintÃ©ressÃ©", "pas de formation"]),
 ]
@@ -65,9 +74,13 @@ def _detect_participation(text: str) -> str:
         return "IndÃ©terminÃ©"
     if re.search(r"\b(?:pas|n['â€™]?a)\b.*\b(particip|assist|prÃ©sent|venu)\b", text):
         return "Absents"
-    if any(kw in text for kw in ["participÃ©", "assistÃ©", "prÃ©sent", "Ã©tÃ© lÃ ", "prÃ©sente", "participant"]):
+    if any(
+        kw in text
+        for kw in ["participÃ©", "assistÃ©", "prÃ©sent", "Ã©tÃ© lÃ ", "prÃ©sente", "participant"]
+    ):
         return "PrÃ©sents"
     return "IndÃ©terminÃ©"
+
 
 OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
 DEFAULT_TRANSCRIBE_MODEL = "google/gemini-2.5-flash"
@@ -258,9 +271,9 @@ def _ai_results_apprenant(audio_path: str) -> tuple[dict | None, str | None, str
 
 def satisfaction_apprenants(request):
     filter_classe = request.GET.get("classe")
-    qs = SatisfactionApprenant.objects.select_related("classe", "apprenant", "appel", "inspecteur", "enqueteur").order_by(
-        "-date", "-created_at"
-    )
+    qs = SatisfactionApprenant.objects.select_related(
+        "classe", "apprenant", "appel", "inspecteur", "enqueteur"
+    ).order_by("-date", "-created_at")
     if filter_classe:
         qs = qs.filter(classe_id=filter_classe)
 
@@ -288,7 +301,9 @@ def satisfaction_apprenants(request):
 
         if action == "identify":
             if not posted_classe or not identifiant:
-                messages.error(request, "Renseignez la classe et le code ou telephone de l'apprenant.")
+                messages.error(
+                    request, "Renseignez la classe et le code ou telephone de l'apprenant."
+                )
             else:
                 apprenant = _find_apprenant(posted_classe, identifiant)
                 if apprenant:
@@ -321,7 +336,9 @@ def satisfaction_apprenants(request):
                     else:
                         workflow["ai_results"] = results
                         workflow["transcription"] = transcript
-                        messages.success(request, "Transcription terminee et traitement vocal actualise.")
+                        messages.success(
+                            request, "Transcription terminee et traitement vocal actualise."
+                        )
         elif action == "save":
             if not workflow.get("apprenant_id"):
                 messages.error(request, "Identifiez un apprenant avant d'enregistrer.")
@@ -351,7 +368,11 @@ def satisfaction_apprenants(request):
                     obj.save()
                     messages.success(request, "Satisfaction apprenant enregistree.")
                     request.session.pop(SESSION_KEY, None)
-                    return redirect(request.path_info + f"?classe={filter_classe}" if filter_classe else request.path_info)
+                    return redirect(
+                        request.path_info + f"?classe={filter_classe}"
+                        if filter_classe
+                        else request.path_info
+                    )
                 else:
                     save_errors = save_form.errors
 
@@ -425,7 +446,9 @@ def satisfaction_apprenants(request):
         "identifiant": workflow.get("identifiant", ""),
         "ai_results": workflow.get("ai_results"),
         "transcription": workflow.get("transcription"),
-        "audio_name": os.path.basename(workflow.get("audio_path")) if workflow.get("audio_path") else None,
+        "audio_name": (
+            os.path.basename(workflow.get("audio_path")) if workflow.get("audio_path") else None
+        ),
         "save_errors": save_errors,
         "enquetes": page_obj,
         "page_obj": page_obj,
@@ -440,7 +463,9 @@ def satisfaction_apprenants(request):
 
 def satisfaction_apprenants_export_csv(request):
     filter_classe = request.GET.get("classe")
-    qs = SatisfactionApprenant.objects.select_related("classe", "apprenant", "appel", "inspecteur", "enqueteur").order_by("-date")
+    qs = SatisfactionApprenant.objects.select_related(
+        "classe", "apprenant", "appel", "inspecteur", "enqueteur"
+    ).order_by("-date")
     if filter_classe:
         qs = qs.filter(classe_id=filter_classe)
 
@@ -543,7 +568,9 @@ def _autosize_worksheet(worksheet, max_width: int = 40):
         values = [len(str(cell.value or "")) for cell in column_cells]
         if not values:
             continue
-        worksheet.column_dimensions[get_column_letter(index)].width = min(max(values) + 2, max_width)
+        worksheet.column_dimensions[get_column_letter(index)].width = min(
+            max(values) + 2, max_width
+        )
 
 
 def _dashboard_row_from_answer(answer_or_appel) -> dict:
@@ -557,16 +584,18 @@ def _dashboard_row_from_answer(answer_or_appel) -> dict:
     classe = appel.classe
     prestation = getattr(classe, "prestation", None) if classe else None
     survey = getattr(appel, "satisfaction_apprenant", None)
-    prestataire = getattr(getattr(prestation, "prestataire", None), "raison_sociale", "") or appel.prestataire or "-"
+    prestataire = (
+        getattr(getattr(prestation, "prestataire", None), "raison_sociale", "")
+        or appel.prestataire
+        or "-"
+    )
     beneficiaire_obj = getattr(prestation, "beneficiaire", None) if prestation else None
     beneficiaire = getattr(beneficiaire_obj, "nom_structure", "") or appel.beneficiaire or "-"
     beneficiaire_type = str(getattr(beneficiaire_obj, "type_structure", "") or "").lower()
     ville = getattr(getattr(classe, "lieu", None), "ville", "") or appel.lieu or "Non renseignée"
 
     raw_fenetre = (
-        str(appel.fenetre or "").strip()
-        or str(getattr(classe, "fenetre", "") or "").strip()
-        or ""
+        str(appel.fenetre or "").strip() or str(getattr(classe, "fenetre", "") or "").strip() or ""
     )
 
     # Mapping logic for window (Entreprises -> 2, Associations/GIC -> 3)
@@ -584,13 +613,15 @@ def _dashboard_row_from_answer(answer_or_appel) -> dict:
         else:
             fenetre = "Non renseignée"
 
-    cohorte = (
-        str(getattr(classe, "cohorte", "") or "").strip()
-        or "Non renseignée"
-    )
+    cohorte = str(getattr(classe, "cohorte", "") or "").strip() or "Non renseignée"
 
     # Handle potentially missing answer data
-    timestamp = getattr(answer, "modified_at", None) or getattr(answer, "created_at", None) or appel.updated_at or appel.created_at
+    timestamp = (
+        getattr(answer, "modified_at", None)
+        or getattr(answer, "created_at", None)
+        or appel.updated_at
+        or appel.created_at
+    )
     survey_date = getattr(survey, "date", None) or timestamp.date()
     survey_time = getattr(survey, "heure", None) or timestamp.time().replace(microsecond=0)
     inspecteur = getattr(survey, "inspecteur", None)
@@ -616,7 +647,11 @@ def _dashboard_row_from_answer(answer_or_appel) -> dict:
         "apprenant_code": appel.code or "",
         "apprenant_nom": appel.nom or "",
         "status": appel.status or "",
-        "user": getattr(getattr(answer, "modified_by", None), "username", "") if answer else "Non renseigné",
+        "user": (
+            getattr(getattr(answer, "modified_by", None), "username", "")
+            if answer
+            else "Non renseigné"
+        ),
         "commentaire": getattr(answer, "commentaire", "") if answer else "",
         "recommandations": getattr(answer, "recommandations", "") if answer else "",
         **{field: getattr(answer, field, None) if answer else None for field, _ in Q_FIELDS},
@@ -658,7 +693,9 @@ def _source_class_apprenant_counts(source_bundle: dict | None) -> dict[str, int]
     return count_callable_source_records_by_class(source_bundle)
 
 
-def _merge_class_apprenant_counts(local_counts: dict[str, int], source_bundle: dict | None) -> dict[str, int]:
+def _merge_class_apprenant_counts(
+    local_counts: dict[str, int], source_bundle: dict | None
+) -> dict[str, int]:
     merged = dict(local_counts)
     for classe_code, source_count in _source_class_apprenant_counts(source_bundle).items():
         merged[classe_code] = max(int(merged.get(classe_code) or 0), int(source_count or 0))
@@ -673,7 +710,13 @@ def _source_class_is_finished(source_class: dict) -> bool:
 
 
 def _sorted_unique(values):
-    return sorted({str(value).strip() for value in values if str(value or "").strip() and str(value).strip() != "-"})
+    return sorted(
+        {
+            str(value).strip()
+            for value in values
+            if str(value or "").strip() and str(value).strip() != "-"
+        }
+    )
 
 
 def _is_placeholder_dashboard_label(value: str) -> bool:
@@ -759,7 +802,9 @@ def _active_satisfaction_tab(request) -> str:
     return tab if tab in SATISFACTION_TABS else "tab-apprenants"
 
 
-def _source_compare_alert(row: dict, source_record: dict, row_key: str, source_key: str, label: str) -> str | None:
+def _source_compare_alert(
+    row: dict, source_record: dict, row_key: str, source_key: str, label: str
+) -> str | None:
     row_value = str(row.get(row_key) or "").strip()
     source_value = str(source_record.get(source_key) or "").strip()
     if not row_value and not source_value:
@@ -829,7 +874,9 @@ def _row_matches_dashboard_filters(row: dict, filters: dict, skip_field: str | N
     return True
 
 
-def _build_threshold_class_stats(filtered_rows: list[dict], classe_apprenant_counts: dict) -> tuple[list[dict], set[str]]:
+def _build_threshold_class_stats(
+    filtered_rows: list[dict], classe_apprenant_counts: dict
+) -> tuple[list[dict], set[str]]:
     classe_groups_pre_threshold = {}
     for row in filtered_rows:
         classe_key = row["classe_code"]
@@ -868,7 +915,8 @@ def _build_threshold_class_stats(filtered_rows: list[dict], classe_apprenant_cou
                 "avgs": _dashboard_bucket_avgs(item["metrics"]),
                 "total_apprenants": classe_apprenant_counts.get(item["code"], 0),
                 "threshold_reached": (
-                    item["metrics"]["nb"] >= ((classe_apprenant_counts.get(item["code"], 0) + 1) // 2)
+                    item["metrics"]["nb"]
+                    >= ((classe_apprenant_counts.get(item["code"], 0) + 1) // 2)
                     if classe_apprenant_counts.get(item["code"], 0) > 0
                     else item["metrics"]["nb"] > 0
                 ),
@@ -892,7 +940,9 @@ def _thresholded_dashboard_rows(
         for row in all_rows
         if _row_matches_dashboard_filters(row, filters, skip_field=skip_field)
     ]
-    classe_stats_all, threshold_class_codes = _build_threshold_class_stats(filtered_rows, classe_apprenant_counts)
+    classe_stats_all, threshold_class_codes = _build_threshold_class_stats(
+        filtered_rows, classe_apprenant_counts
+    )
     threshold_rows = [row for row in filtered_rows if row["classe_code"] in threshold_class_codes]
     return threshold_rows, classe_stats_all
 
@@ -929,7 +979,9 @@ def _build_class_filter_options(
     for item in classe_stats:
         if not item["threshold_reached"]:
             continue
-        target = ((item["total_apprenants"] or 0) + 1) // 2 if item["total_apprenants"] else item["nb"]
+        target = (
+            ((item["total_apprenants"] or 0) + 1) // 2 if item["total_apprenants"] else item["nb"]
+        )
         options.append(
             {
                 "value": item["code"],
@@ -963,7 +1015,13 @@ def _build_dashboard_active_filters_summary(filters: dict) -> list[dict]:
 
 def _dashboard_tab_headers(active_tab: str) -> list[str]:
     if active_tab == "tab-classe":
-        return ["Classe", "Intitulé de la formation", "Cohorte", "Nombre d'enquêtes", *[label for _, label in Q_FIELDS]]
+        return [
+            "Classe",
+            "Intitulé de la formation",
+            "Cohorte",
+            "Nombre d'enquêtes",
+            *[label for _, label in Q_FIELDS],
+        ]
     if active_tab == "tab-prestation":
         return [
             "Code prestation",
@@ -1063,7 +1121,14 @@ def _assign_enquete_ids(rows: list[dict]) -> list[dict]:
 
     enriched = []
     for index, row in enumerate(rows, start=1):
-        enriched.append({**row, "source_enquete_id": updates.get(index, _normalize_enquete_id("", fallback_index=index))})
+        enriched.append(
+            {
+                **row,
+                "source_enquete_id": updates.get(
+                    index, _normalize_enquete_id("", fallback_index=index)
+                ),
+            }
+        )
     return enriched
 
 
@@ -1071,10 +1136,18 @@ def _dashboard_export_filename_from_rows(rows: list[dict], filters: dict, extens
     ordered_rows = _ordered_survey_rows(rows)
     if ordered_rows:
         first_row = ordered_rows[0]
-        classe = _clean_export_part(first_row.get("classe_code") or filters.get("classe") or "TOUTES", "TOUTES")
-        prestataire = _clean_export_part(first_row.get("prestataire") or filters.get("prestataire") or "TOUS", "TOUS")
-        beneficiaire = _clean_export_part(first_row.get("beneficiaire") or filters.get("beneficiaire") or "TOUS", "TOUS")
-        cohorte = _clean_export_part(first_row.get("cohorte") or filters.get("cohorte") or "TOUTES", "TOUTES")
+        classe = _clean_export_part(
+            first_row.get("classe_code") or filters.get("classe") or "TOUTES", "TOUTES"
+        )
+        prestataire = _clean_export_part(
+            first_row.get("prestataire") or filters.get("prestataire") or "TOUS", "TOUS"
+        )
+        beneficiaire = _clean_export_part(
+            first_row.get("beneficiaire") or filters.get("beneficiaire") or "TOUS", "TOUS"
+        )
+        cohorte = _clean_export_part(
+            first_row.get("cohorte") or filters.get("cohorte") or "TOUTES", "TOUTES"
+        )
         return f"{classe}_{prestataire}_{beneficiaire}_{cohorte}.{extension}"
     return _dashboard_export_filename(filters, extension)
 
@@ -1086,7 +1159,9 @@ def _safe_related(instance, attr_name: str):
         return None
 
 
-def _source_class_matches_filters(source_class: dict, filters: dict, skip_field: str | None = None) -> bool:
+def _source_class_matches_filters(
+    source_class: dict, filters: dict, skip_field: str | None = None
+) -> bool:
     source_filter_map = {
         "prestation": "prestation_id",
         "fenetre": "fenetre",
@@ -1102,7 +1177,9 @@ def _source_class_matches_filters(source_class: dict, filters: dict, skip_field:
         filter_value = str(filters.get(filter_name) or "").strip()
         if not filter_value:
             continue
-        if normalize_network_lookup(source_class.get(source_key, "")) != normalize_network_lookup(filter_value):
+        if normalize_network_lookup(source_class.get(source_key, "")) != normalize_network_lookup(
+            filter_value
+        ):
             return False
     return True
 
@@ -1121,7 +1198,9 @@ def _fallback_qualified_prestation_codes(classe_stats_all: list[dict]) -> set[st
     }
 
 
-def _source_prestation_classes_from_source(filters: dict, source_bundle: dict | None) -> dict[str, dict[str, dict]]:
+def _source_prestation_classes_from_source(
+    filters: dict, source_bundle: dict | None
+) -> dict[str, dict[str, dict]]:
     if not source_bundle:
         return {}
 
@@ -1146,7 +1225,8 @@ def _terminated_prestation_codes_from_source(filters: dict, source_bundle: dict 
     return {
         prestation_key
         for prestation_key, class_map in prestation_classes.items()
-        if class_map and all(_source_class_is_finished(source_class) for source_class in class_map.values())
+        if class_map
+        and all(_source_class_is_finished(source_class) for source_class in class_map.values())
     }
 
 
@@ -1239,7 +1319,9 @@ def _excel_style(cell, *, fill=None, font=None, alignment=None, border=None, num
         cell.number_format = number_format
 
 
-def _style_excel_table_header(worksheet, row_number: int, fill: PatternFill, font: Font, border: Border):
+def _style_excel_table_header(
+    worksheet, row_number: int, fill: PatternFill, font: Font, border: Border
+):
     for cell in worksheet[row_number]:
         if cell.value in (None, ""):
             continue
@@ -1252,7 +1334,9 @@ def _style_excel_table_header(worksheet, row_number: int, fill: PatternFill, fon
         )
 
 
-def _style_excel_data_range(worksheet, start_row: int, border: Border, fill: PatternFill | None = None):
+def _style_excel_data_range(
+    worksheet, start_row: int, border: Border, fill: PatternFill | None = None
+):
     for row in worksheet.iter_rows(min_row=start_row, max_row=worksheet.max_row):
         for cell in row:
             if cell.value in (None, ""):
@@ -1292,7 +1376,9 @@ def _build_daily_report_row(appel: Appel, source_records: dict[str, dict]) -> di
     if appel.flag_deja_appele:
         failure_detail_parts.append("Le contact a deja ete traite dans la campagne.")
     if answer and _has_ras_only_form(answer):
-        failure_detail_parts.append("Le formulaire ne contient que 'RAS' dans les champs narratifs.")
+        failure_detail_parts.append(
+            "Le formulaire ne contient que 'RAS' dans les champs narratifs."
+        )
     if not answer:
         failure_detail_parts.append("Aucune reponse Q1-Q9 n'a ete enregistree.")
 
@@ -1301,8 +1387,13 @@ def _build_daily_report_row(appel: Appel, source_records: dict[str, dict]) -> di
         "nom": appel.nom or "",
         "vrai_nom": appel.flag_vrai_nom or "",
         "source_apprenant_id": source_record.get("apprenant_id", ""),
-        "classe": getattr(classe, "code", "") or appel.classe_label or source_record.get("classe_id", ""),
-        "formation": getattr(classe, "intitule_formation", "") or source_record.get("formation", "") or appel.formation_padesce or "",
+        "classe": getattr(classe, "code", "")
+        or appel.classe_label
+        or source_record.get("classe_id", ""),
+        "formation": getattr(classe, "intitule_formation", "")
+        or source_record.get("formation", "")
+        or appel.formation_padesce
+        or "",
         "prestation": getattr(prestation, "code", "") or source_record.get("prestation_id", ""),
         "prestataire": (
             getattr(getattr(prestation, "prestataire", None), "raison_sociale", "")
@@ -1316,23 +1407,39 @@ def _build_daily_report_row(appel: Appel, source_records: dict[str, dict]) -> di
         ),
         "fenetre": appel.fenetre or source_record.get("fenetre", ""),
         "cohorte": getattr(classe, "cohorte", "") or source_record.get("cohorte", ""),
-        "ville": getattr(getattr(classe, "lieu", None), "ville", "") or source_record.get("ville", "") or appel.lieu,
+        "ville": getattr(getattr(classe, "lieu", None), "ville", "")
+        or source_record.get("ville", "")
+        or appel.lieu,
         "lieu": appel.lieu or source_record.get("lieu", ""),
         "telephone1": appel.telephone1 or "",
         "telephone2": appel.telephone2 or "",
         "status": appel.get_status_display(),
         "taux_presence": float(appel.taux_presence or 0),
-        "inspecteur": getattr(inspecteur, "nom_complet", "") or source_record.get("inspecteur_label", ""),
-        "enqueteur": answer_user or survey_user or getattr(getattr(appel, "locked_by", None), "username", "") or "",
+        "inspecteur": getattr(inspecteur, "nom_complet", "")
+        or source_record.get("inspecteur_label", ""),
+        "enqueteur": answer_user
+        or survey_user
+        or getattr(getattr(appel, "locked_by", None), "username", "")
+        or "",
         "survey_date": _format_export_date(getattr(survey, "date", None)),
         "survey_time": _format_export_time(getattr(survey, "heure", None)),
         "commentaire": getattr(answer, "commentaire", "") if answer else "",
         "recommandations": getattr(answer, "recommandations", "") if answer else "",
         "transcription": getattr(survey, "transcription", "") if survey else "",
-        "audio_name": os.path.basename(getattr(getattr(appel, "audio_file", None), "name", "") or ""),
+        "audio_name": os.path.basename(
+            getattr(getattr(appel, "audio_file", None), "name", "") or ""
+        ),
         "source_status": "Trouve" if source_record else "Absent",
-        "created_at": timezone.localtime(appel.created_at).strftime("%d/%m/%Y %H:%M") if getattr(appel, "created_at", None) else "",
-        "updated_at": timezone.localtime(appel.updated_at).strftime("%d/%m/%Y %H:%M") if getattr(appel, "updated_at", None) else "",
+        "created_at": (
+            timezone.localtime(appel.created_at).strftime("%d/%m/%Y %H:%M")
+            if getattr(appel, "created_at", None)
+            else ""
+        ),
+        "updated_at": (
+            timezone.localtime(appel.updated_at).strftime("%d/%m/%Y %H:%M")
+            if getattr(appel, "updated_at", None)
+            else ""
+        ),
         "deja_forme": "Oui" if appel.deja_forme else "Non",
         "flag_pas_forme": "Oui" if appel.flag_pas_forme else "Non",
         "flag_faux_nom": "Oui" if appel.flag_faux_nom else "Non",
@@ -1346,7 +1453,10 @@ def _build_daily_report_row(appel: Appel, source_records: dict[str, dict]) -> di
         "apprenant_reference": str(apprenant) if apprenant else "",
         "is_success": is_success,
         "failure_reasons": failure_reasons,
-        **{field: getattr(answer, field, None) if answer else None for field in APPEL_ANSWER_QUESTION_FIELDS},
+        **{
+            field: getattr(answer, field, None) if answer else None
+            for field in APPEL_ANSWER_QUESTION_FIELDS
+        },
     }
 
 
@@ -1381,7 +1491,9 @@ def _append_daily_dashboard_sheet(
     worksheet.merge_cells("A1:D1")
     worksheet.merge_cells("A2:D2")
     worksheet.merge_cells("A3:D3")
-    _excel_style(worksheet["A1"], fill=header_fill, font=title_font, alignment=Alignment(horizontal="center"))
+    _excel_style(
+        worksheet["A1"], fill=header_fill, font=title_font, alignment=Alignment(horizontal="center")
+    )
     _excel_style(worksheet["A2"], fill=neutral_fill, border=body_border)
     _excel_style(worksheet["A3"], fill=neutral_fill, border=body_border)
 
@@ -1429,16 +1541,22 @@ def _append_daily_dashboard_sheet(
     worksheet.append(["Disponible", "Oui" if source_bundle else "Non"])
     worksheet.append(["Nom du fichier", source_meta.get("name", "Indisponible")])
     worksheet.append(["Derniere mise a jour", source_meta.get("modified_label", "")])
-    worksheet.append(["Apprenants source", (source_bundle or {}).get("counts", {}).get("apprenants", 0)])
+    worksheet.append(
+        ["Apprenants source", (source_bundle or {}).get("counts", {}).get("apprenants", 0)]
+    )
     worksheet.append(["Classes source", (source_bundle or {}).get("counts", {}).get("classes", 0)])
-    worksheet.append(["Prestations source", (source_bundle or {}).get("counts", {}).get("prestations", 0)])
+    worksheet.append(
+        ["Prestations source", (source_bundle or {}).get("counts", {}).get("prestations", 0)]
+    )
     _style_excel_data_range(worksheet, start_row + 1, body_border)
 
     worksheet.freeze_panes = "A5"
     _autosize_worksheet(worksheet)
 
 
-def _append_daily_detail_sheet(worksheet, title: str, headers: list[str], rows: list[list], fill_color: str):
+def _append_daily_detail_sheet(
+    worksheet, title: str, headers: list[str], rows: list[list], fill_color: str
+):
     fill = PatternFill("solid", fgColor=fill_color)
     white_font = Font(color="FFFFFF", bold=True)
     border = Border(
@@ -1479,7 +1597,9 @@ def _attach_network_source_to_rows(
                 "source_status_tone": "muted",
                 "source_alerts": [],
                 "source_alerts_label": str(exc),
-                "formation_intitule": row.get("formation_intitule") or row.get("classe_intitule") or "-",
+                "formation_intitule": row.get("formation_intitule")
+                or row.get("classe_intitule")
+                or "-",
                 "source_inspecteur_id": "",
                 "source_inspecteur_label": "",
                 "source_statut_prestation": "",
@@ -1518,7 +1638,9 @@ def _attach_network_source_to_rows(
                     "source_status_tone": "danger",
                     "source_alerts": [],
                     "source_alerts_label": "Code introuvable dans la feuille Apprenants du classeur réseau.",
-                    "formation_intitule": row.get("formation_intitule") or row.get("classe_intitule") or "-",
+                    "formation_intitule": row.get("formation_intitule")
+                    or row.get("classe_intitule")
+                    or "-",
                     "source_inspecteur_id": "",
                     "source_inspecteur_label": "",
                     "source_statut_prestation": "",
@@ -1571,9 +1693,9 @@ def _attach_network_source_to_rows(
                 "source_status_label": status_label,
                 "source_status_tone": status_tone,
                 "source_alerts": alerts,
-                "source_alerts_label": "; ".join(alerts)
-                if alerts
-                else "Aucun écart détecté avec le classeur réseau.",
+                "source_alerts_label": (
+                    "; ".join(alerts) if alerts else "Aucun écart détecté avec le classeur réseau."
+                ),
                 "formation_intitule": source_record.get("formation")
                 or row.get("formation_intitule")
                 or row.get("classe_intitule")
@@ -1617,6 +1739,7 @@ def _dashboard_export_filename(filters: dict, extension: str) -> str:
     cohorte = _clean_export_part(filters.get("cohorte") or "TOUTES", "TOUTES")
     return f"{classe}_{prestataire}_{beneficiaire}_{cohorte}.{extension}"
 
+
 def _dashboard_class_export_label(classe_code: str, rows: list[dict], filters: dict) -> str:
     for row in rows:
         if str(row.get("classe_code") or "").strip() == str(classe_code or "").strip():
@@ -1625,15 +1748,24 @@ def _dashboard_class_export_label(classe_code: str, rows: list[dict], filters: d
             return f"{classe_code}_{prestataire}_{beneficiaire}"
     return str(classe_code or "Non renseignée")
 
+
 def _dashboard_export_chapeau_filename(filters: dict, extension: str) -> str:
     base_name = _dashboard_export_filename(filters, extension)
     return f"EVALUATION_DES_CLASSES_{base_name}"
 
 
-def _tabular_dashboard_export(active_tab: str, context: dict, rows: list[dict]) -> tuple[list[str], list[list]]:
+def _tabular_dashboard_export(
+    active_tab: str, context: dict, rows: list[dict]
+) -> tuple[list[str], list[list]]:
     if active_tab == "tab-classe":
         return (
-            ["Classe", "Intitulé de la formation", "Cohorte", "Nombre d'enquêtes", *[label for _, label in Q_FIELDS]],
+            [
+                "Classe",
+                "Intitulé de la formation",
+                "Cohorte",
+                "Nombre d'enquêtes",
+                *[label for _, label in Q_FIELDS],
+            ],
             [
                 [item["code"], item["intitule"], item["cohorte"], item["nb"], *item["avgs"]]
                 for item in context["classe_stats"]
@@ -1641,16 +1773,33 @@ def _tabular_dashboard_export(active_tab: str, context: dict, rows: list[dict]) 
         )
     if active_tab == "tab-prestation":
         return (
-            ["Prestation", "Prestataire", "Bénéficiaire", "Nombre d'enquêtes", *[label for _, label in Q_FIELDS], "Global (Q9)"],
             [
-                [item["code"], item["prestataire"], item["beneficiaire"], item["nb"], *item["avgs"], item["avg"]]
+                "Prestation",
+                "Prestataire",
+                "Bénéficiaire",
+                "Nombre d'enquêtes",
+                *[label for _, label in Q_FIELDS],
+                "Global (Q9)",
+            ],
+            [
+                [
+                    item["code"],
+                    item["prestataire"],
+                    item["beneficiaire"],
+                    item["nb"],
+                    *item["avgs"],
+                    item["avg"],
+                ]
                 for item in context["prestation_stats"]
             ],
         )
     if active_tab == "tab-cohorte":
         return (
             ["Cohorte", "Nombre d'enquêtes", *[label for _, label in Q_FIELDS], "Global (Q9)"],
-            [[item["label"], item["nb"], *item["avgs"], item["avg"]] for item in context["cohorte_stats"]],
+            [
+                [item["label"], item["nb"], *item["avgs"], item["avg"]]
+                for item in context["cohorte_stats"]
+            ],
         )
     if active_tab == "tab-ville":
         return (
@@ -1687,7 +1836,9 @@ def _tabular_dashboard_export(active_tab: str, context: dict, rows: list[dict]) 
                 row["beneficiaire"],
                 row["prestataire"],
                 row.get("formation_intitule") or row["classe_intitule"],
-                row.get("inspecteur_code") or row.get("source_inspecteur_id") or row.get("source_inspecteur_label", ""),
+                row.get("inspecteur_code")
+                or row.get("source_inspecteur_id")
+                or row.get("source_inspecteur_label", ""),
                 row["classe_code"],
                 *[row.get(field) for field, _ in Q_FIELDS],
                 row["commentaire"],
@@ -1717,7 +1868,9 @@ def _build_satisfaction_dashboard_data(request):
         "cohorte": request.GET.get("cohorte", ""),
     }
 
-    all_rows = [_dashboard_row_from_answer(answer) for answer in _satisfaction_dashboard_base_queryset()]
+    all_rows = [
+        _dashboard_row_from_answer(answer) for answer in _satisfaction_dashboard_base_queryset()
+    ]
     # Filter only windows 2 and 3 for analysis
     all_rows = [row for row in all_rows if row["fenetre"] in {"2", "3"}]
 
@@ -1737,7 +1890,9 @@ def _build_satisfaction_dashboard_data(request):
     rows = _assign_enquete_ids(rows)
     total = len(rows)
     terminated_prestation_codes = _terminated_prestation_codes_from_source(filters, source_bundle)
-    qualified_prestation_codes = _qualified_prestation_codes_from_source(filters, classe_stats_all, source_bundle)
+    qualified_prestation_codes = _qualified_prestation_codes_from_source(
+        filters, classe_stats_all, source_bundle
+    )
 
     global_bucket = _dashboard_bucket()
     classe_groups = {}
@@ -1793,22 +1948,34 @@ def _build_satisfaction_dashboard_data(request):
         prestation_groups[prestation_key]["associated_classes"].add(row["classe_code"])
         _dashboard_bucket_add(prestation_groups[prestation_key]["metrics"], row)
 
-        fenetre_groups.setdefault(row["fenetre"], {"label": row["fenetre"], "metrics": _dashboard_bucket()})
+        fenetre_groups.setdefault(
+            row["fenetre"], {"label": row["fenetre"], "metrics": _dashboard_bucket()}
+        )
         _dashboard_bucket_add(fenetre_groups[row["fenetre"]]["metrics"], row)
 
-        ville_groups.setdefault(row["ville"], {"ville": row["ville"], "metrics": _dashboard_bucket()})
+        ville_groups.setdefault(
+            row["ville"], {"ville": row["ville"], "metrics": _dashboard_bucket()}
+        )
         _dashboard_bucket_add(ville_groups[row["ville"]]["metrics"], row)
 
-        user_groups.setdefault(row["user"], {"username": row["user"], "metrics": _dashboard_bucket()})
+        user_groups.setdefault(
+            row["user"], {"username": row["user"], "metrics": _dashboard_bucket()}
+        )
         _dashboard_bucket_add(user_groups[row["user"]]["metrics"], row)
 
-        cohorte_groups.setdefault(row["cohorte"], {"label": row["cohorte"], "metrics": _dashboard_bucket()})
+        cohorte_groups.setdefault(
+            row["cohorte"], {"label": row["cohorte"], "metrics": _dashboard_bucket()}
+        )
         _dashboard_bucket_add(cohorte_groups[row["cohorte"]]["metrics"], row)
 
-        prestataire_groups.setdefault(row["prestataire"], {"label": row["prestataire"], "metrics": _dashboard_bucket()})
+        prestataire_groups.setdefault(
+            row["prestataire"], {"label": row["prestataire"], "metrics": _dashboard_bucket()}
+        )
         _dashboard_bucket_add(prestataire_groups[row["prestataire"]]["metrics"], row)
 
-        beneficiaire_groups.setdefault(row["beneficiaire"], {"label": row["beneficiaire"], "metrics": _dashboard_bucket()})
+        beneficiaire_groups.setdefault(
+            row["beneficiaire"], {"label": row["beneficiaire"], "metrics": _dashboard_bucket()}
+        )
         _dashboard_bucket_add(beneficiaire_groups[row["beneficiaire"]]["metrics"], row)
 
     global_avgs = {label: _dashboard_bucket_avg(global_bucket, field) for field, label in Q_FIELDS}
@@ -1840,7 +2007,9 @@ def _build_satisfaction_dashboard_data(request):
                 "nb": item["metrics"]["nb"],
                 "avg": _dashboard_bucket_avg(item["metrics"], "q9_satisfaction_globale"),
                 "avgs": _dashboard_bucket_avgs(item["metrics"]),
-                "effectif": sum(classe_apprenant_counts.get(c, 0) for c in item["associated_classes"]),
+                "effectif": sum(
+                    classe_apprenant_counts.get(c, 0) for c in item["associated_classes"]
+                ),
             }
             for item in prestation_groups.values()
             if normalize_network_lookup(item["code"]) in qualified_prestation_codes
@@ -1858,7 +2027,9 @@ def _build_satisfaction_dashboard_data(request):
                 "nb": item["metrics"]["nb"],
                 "avg": _dashboard_bucket_avg(item["metrics"], "q9_satisfaction_globale"),
                 "avgs": _dashboard_bucket_avgs(item["metrics"]),
-                "effectif": sum(classe_apprenant_counts.get(c, 0) for c in item["associated_classes"]),
+                "effectif": sum(
+                    classe_apprenant_counts.get(c, 0) for c in item["associated_classes"]
+                ),
             }
             for item in prestation_groups.values()
         ],
@@ -1912,9 +2083,15 @@ def _build_satisfaction_dashboard_data(request):
         key=lambda item: item["label"],
     )
 
-    analyzed_classes = [{"label": f"{item['code']} - {item['intitule']}", "nb": item["nb"]} for item in classe_stats_seuil]
+    analyzed_classes = [
+        {"label": f"{item['code']} - {item['intitule']}", "nb": item["nb"]}
+        for item in classe_stats_seuil
+    ]
     analyzed_prestations = [
-        {"label": f"{item['code']} | {item['prestataire']} | {item['beneficiaire']}", "nb": item["nb"]}
+        {
+            "label": f"{item['code']} | {item['prestataire']} | {item['beneficiaire']}",
+            "nb": item["nb"],
+        }
         for item in prestation_stats
     ]
     analyzed_fenetres = [{"label": item["label"], "nb": item["nb"]} for item in fenetre_stats]
@@ -1930,7 +2107,11 @@ def _build_satisfaction_dashboard_data(request):
 
     filter_options = _build_dashboard_filter_options(all_rows, filters, classe_apprenant_counts)
     eligible_prestation_options = sorted(
-        {item["code"] for item in prestation_stats if str(item.get("code") or "").strip() and item["code"] != "-"}
+        {
+            item["code"]
+            for item in prestation_stats
+            if str(item.get("code") or "").strip() and item["code"] != "-"
+        }
     )
     if filters["prestation"] and filters["prestation"] not in eligible_prestation_options:
         eligible_prestation_options.append(filters["prestation"])
@@ -1944,7 +2125,9 @@ def _build_satisfaction_dashboard_data(request):
     )
 
     filter_query_string = request.GET.copy().urlencode()
-    analyzed_prestations_total_count = len(terminated_prestation_codes) if source_bundle else len(analyzed_prestations)
+    analyzed_prestations_total_count = (
+        len(terminated_prestation_codes) if source_bundle else len(analyzed_prestations)
+    )
     analyzed_prestations_ratio = f"{len(analyzed_prestations)}/{analyzed_prestations_total_count}"
     context = {
         "total": total,
@@ -2117,8 +2300,12 @@ def satisfaction_dashboard_export_xlsx(request):
     ws_summary.append(["Utilisateur", context["filter_user"] or "Tous"])
     ws_summary.append([])
     ws_summary.append(["Contrôle source réseau"])
-    ws_summary.append(["Source disponible", "Oui" if context["source_summary"]["available"] else "Non"])
-    ws_summary.append(["ApprenantID réseau trouvés", context["source_summary"]["apprenant_id_count"]])
+    ws_summary.append(
+        ["Source disponible", "Oui" if context["source_summary"]["available"] else "Non"]
+    )
+    ws_summary.append(
+        ["ApprenantID réseau trouvés", context["source_summary"]["apprenant_id_count"]]
+    )
     ws_summary.append(["Lignes reliées à la source", context["source_summary"]["matched_count"]])
     ws_summary.append(["Lignes cohérentes", context["source_summary"]["consistent_count"]])
     ws_summary.append(["Lignes à vérifier", context["source_summary"]["mismatch_count"]])
@@ -2180,17 +2367,47 @@ def satisfaction_dashboard_export_xlsx(request):
         )
 
     ws_classes = wb.create_sheet("Classes")
-    ws_classes.append(["Classe", "Intitulé de la formation", "Cohorte", "Nombre d'enquêtes", *[label for _, label in Q_FIELDS]])
+    ws_classes.append(
+        [
+            "Classe",
+            "Intitulé de la formation",
+            "Cohorte",
+            "Nombre d'enquêtes",
+            *[label for _, label in Q_FIELDS],
+        ]
+    )
     for item in context["classe_stats"]:
-        ws_classes.append([item["code"], item["intitule"], item["cohorte"], item["nb"], *item["avgs"]])
+        ws_classes.append(
+            [item["code"], item["intitule"], item["cohorte"], item["nb"], *item["avgs"]]
+        )
 
     ws_prestations = wb.create_sheet("Prestations")
-    ws_prestations.append(["Prestation", "Prestataire", "Bénéficiaire", "Nombre d'enquêtes", *[label for _, label in Q_FIELDS], "Global (Q9)"])
+    ws_prestations.append(
+        [
+            "Prestation",
+            "Prestataire",
+            "Bénéficiaire",
+            "Nombre d'enquêtes",
+            *[label for _, label in Q_FIELDS],
+            "Global (Q9)",
+        ]
+    )
     for item in context["prestation_stats"]:
-        ws_prestations.append([item["code"], item["prestataire"], item["beneficiaire"], item["nb"], *item["avgs"], item["avg"]])
+        ws_prestations.append(
+            [
+                item["code"],
+                item["prestataire"],
+                item["beneficiaire"],
+                item["nb"],
+                *item["avgs"],
+                item["avg"],
+            ]
+        )
 
     ws_cohortes = wb.create_sheet("Cohortes")
-    ws_cohortes.append(["Cohorte", "Nombre d'enquêtes", *[label for _, label in Q_FIELDS], "Global (Q9)"])
+    ws_cohortes.append(
+        ["Cohorte", "Nombre d'enquêtes", *[label for _, label in Q_FIELDS], "Global (Q9)"]
+    )
     for item in context["cohorte_stats"]:
         ws_cohortes.append([item["label"], item["nb"], *item["avgs"], item["avg"]])
 
@@ -2407,9 +2624,13 @@ def satisfaction_dashboard_daily_report_xlsx(request):
         source_bundle,
     )
     ws_success = wb.create_sheet("Appels reussis")
-    _append_daily_detail_sheet(ws_success, "Appels reussis", success_headers, success_sheet_rows, "166534")
+    _append_daily_detail_sheet(
+        ws_success, "Appels reussis", success_headers, success_sheet_rows, "166534"
+    )
     ws_failed = wb.create_sheet("Appels echoues")
-    _append_daily_detail_sheet(ws_failed, "Appels echoues", failed_headers, failed_sheet_rows, "B91C1C")
+    _append_daily_detail_sheet(
+        ws_failed, "Appels echoues", failed_headers, failed_sheet_rows, "B91C1C"
+    )
 
     output = io.BytesIO()
     wb.save(output)
@@ -2419,7 +2640,9 @@ def satisfaction_dashboard_daily_report_xlsx(request):
         output.getvalue(),
         content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
-    response["Content-Disposition"] = f'attachment; filename="{_daily_report_filename(generated_at)}"'
+    response["Content-Disposition"] = (
+        f'attachment; filename="{_daily_report_filename(generated_at)}"'
+    )
     return response
 
 
@@ -2428,13 +2651,17 @@ def satisfaction_dashboard(request):
     dashboard = _build_satisfaction_dashboard_data(request)
     ctx = dashboard["context"]
     # Pass the COMPLETE ranking (52 items) to the template using unfiltered stats
-    ctx["toutes_prestations_classees"] = get_prestations_ranking(ctx["prestation_stats_all"], order='desc')
+    ctx["toutes_prestations_classees"] = get_prestations_ranking(
+        ctx["prestation_stats_all"], order="desc"
+    )
     ctx["rows"] = [
         {**row, "q_values": [row.get(field) for field, _ in Q_FIELDS]}
         for row in sorted(dashboard["rows"], key=lambda r: r["modified_at"], reverse=True)
     ]
     ctx["active_tab"] = _active_satisfaction_tab(request)
-    ctx["active_table_details"] = ctx["tab_details"].get(ctx["active_tab"], ctx["tab_details"]["tab-apprenants"])
+    ctx["active_table_details"] = ctx["tab_details"].get(
+        ctx["active_tab"], ctx["tab_details"]["tab-apprenants"]
+    )
     return render(request, "satisfaction_apprenants/dashboard.html", ctx)
 
 
@@ -2446,26 +2673,28 @@ def satisfaction_map_data(request):
     """
     dashboard = _build_satisfaction_dashboard_data(request)
     prestation_stats_all = dashboard["context"]["prestation_stats_all"]
-    
+
     # Get all healthy prestations ranked by score_global descending
-    all_rankings = get_prestations_ranking(prestation_stats_all, order='desc')
-    
+    all_rankings = get_prestations_ranking(prestation_stats_all, order="desc")
+
     # Group by region
     region_data = defaultdict(list)
     for p in all_rankings:
-        reg = p.get('region', 'Inconnu')
+        reg = p.get("region", "Inconnu")
         if not reg:
-            reg = 'Inconnu'
-        
+            reg = "Inconnu"
+
         # We only keep the top 5 per region in this grouping for the map tooltip
         if len(region_data[reg]) < 5:
-            region_data[reg].append({
-                'code': p['code'],
-                'prestataire': p['prestataire'],
-                'beneficiaire': p['beneficiaire'],
-                'score': p['score_global'],
-            })
-            
+            region_data[reg].append(
+                {
+                    "code": p["code"],
+                    "prestataire": p["prestataire"],
+                    "beneficiaire": p["beneficiaire"],
+                    "score": p["score_global"],
+                }
+            )
+
     return JsonResponse(dict(region_data))
 
 
@@ -2543,7 +2772,7 @@ def satisfaction_dashboard_export_csv(request):
 
     response = HttpResponse(content_type="text/csv; charset=utf-8")
     response["Content-Disposition"] = f'attachment; filename="{filename}"'
-    response.write('\ufeff')
+    response.write("\ufeff")
     writer = csv.writer(response)
     writer.writerow(headers)
     for export_row in export_rows:
