@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -r \"def.*backup\\\\|url.*backup\\\\|path.*backup\" /c/Users/hp/Documents/CALL APP/Padesce/.claude/worktrees/dazzling-dewdney/App_PADESCE --include=*.py)",
+      "Bash(python -c \"import secrets; print\\(secrets.token_hex\\(32\\)\\)\")",
+      "Bash(python -m ruff check App_PADESCE/satisfaction_apprenants/views.py App_PADESCE/satisfaction_formateurs/views.py App_PADESCE/reporting/app_report.py App_PADESCE/core/backup_manager.py App_PADESCE/core/backup_views.py)",
+      "Bash(pip show:*)",
+      "Bash(python -m ruff check App_PADESCE/satisfaction_apprenants/views.py App_PADESCE/satisfaction_formateurs/views.py App_PADESCE/reporting/app_report.py App_PADESCE/core/backup_manager.py App_PADESCE/core/backup_views.py App_PADESCE/core/management/commands/backup_db.py)",
+      "Bash(python -m ruff check App_PADESCE/reporting/app_report.py)",
+      "Bash(python -m ruff check App_PADESCE/satisfaction_apprenants/views.py App_PADESCE/satisfaction_formateurs/views.py App_PADESCE/core/backup_manager.py App_PADESCE/core/backup_views.py App_PADESCE/core/management/commands/backup_db.py)",
+      "Bash(python -m ruff check --fix App_PADESCE/core/backup_views.py App_PADESCE/satisfaction_apprenants/views.py App_PADESCE/satisfaction_formateurs/views.py App_PADESCE/core/backup_manager.py App_PADESCE/core/management/commands/backup_db.py)",
+      "Bash(python -m ruff check App_PADESCE/satisfaction_apprenants/views.py)",
+      "Bash(python -m black App_PADESCE/core/backup_manager.py App_PADESCE/core/backup_views.py App_PADESCE/core/management/commands/backup_db.py App_PADESCE/satisfaction_apprenants/views.py App_PADESCE/satisfaction_formateurs/views.py App_PADESCE/reporting/app_report.py)",
+      "Bash(python -m ruff check App_PADESCE/core/backup_manager.py App_PADESCE/core/backup_views.py App_PADESCE/core/management/commands/backup_db.py App_PADESCE/satisfaction_formateurs/views.py)"
+    ]
+  }
+}

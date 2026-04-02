@@ -1,0 +1,56 @@
+name: Daily Database Backup
+
+# Déclenche le backup chaque jour à 17h00 UTC
+# Pour un fuseau horaire différent, ajustez le cron :
+#   17h UTC = 18h Paris (hiver) / 19h Paris (été)
+on:
+  schedule:
+    - cron: '0 17 * * *'
+  workflow_dispatch:          # Permet le déclenchement manuel depuis l'UI GitHub
+
+permissions:
+  contents: read
+
+concurrency:
+  group: daily-backup
+  cancel-in-progress: false   # Ne jamais annuler un backup en cours
+
+jobs:
+  trigger-backup:
+    name: Trigger Backup on Production
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+
+    steps:
+      - name: Trigger backup via API
+        run: |
+          echo "Envoi de la requete de backup a https://call.naumur.com/backup/api/trigger/"
+
+          HTTP_STATUS=$(curl -s \
+            -o /tmp/backup_response.json \
+            -w "%{http_code}" \
+            -X POST "https://call.naumur.com/backup/api/trigger/" \
+            -H "X-Backup-Token: ${{ secrets.BACKUP_TRIGGER_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            --max-time 30 \
+            --retry 2 \
+            --retry-delay 5)
+
+          echo "HTTP Status: $HTTP_STATUS"
+          echo "Response:"
+          cat /tmp/backup_response.json
+
+          if [ "$HTTP_STATUS" != "200" ]; then
+            echo "ERREUR : Le serveur a retourne le statut $HTTP_STATUS"
+            exit 1
+          fi
+
+          JOB_ID=$(python3 -c "import json,sys; d=json.load(open('/tmp/backup_response.json')); print(d.get('job_id',''))")
+          echo "Backup demarre avec le job_id: $JOB_ID"
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "::error::Le backup quotidien a echoue. Verifiez les logs ci-dessus."
+          echo "::notice::Assurez-vous que le secret BACKUP_TRIGGER_TOKEN est configure dans les secrets GitHub."
