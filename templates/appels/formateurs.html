@@ -2,18 +2,27 @@
 {% block title %}Appels formateurs{% endblock %}
 {% block content %}
 <style>
-  .btn, .btn-small {
+  .btn, .btn-small, .btn-icon {
     display: inline-flex; align-items: center; justify-content: center; gap: 8px;
     padding: 10px 14px; border-radius: 12px; border: 1px solid transparent;
     font-weight: 600; cursor: pointer; transition: transform .15s ease, box-shadow .15s ease, background .2s ease;
   }
   .btn-sm { padding: 8px 12px; font-size: 0.9rem; }
-  .btn:disabled, .btn-small:disabled { opacity: .6; cursor: not-allowed; transform: none; box-shadow: none; }
+  .btn:disabled, .btn-small:disabled, .btn-icon:disabled { opacity: .45; cursor: not-allowed; transform: none; box-shadow: none; }
   .btn-primary { background: var(--accent); color: #fff; box-shadow: 0 8px 18px rgba(76,29,149,0.2); }
   .btn-secondary { background: #fff; color: var(--accent-strong); border: 1px solid rgba(111,60,195,0.3); }
   .btn-ghost { background: rgba(111,60,195,0.08); color: var(--accent-strong); border: 1px solid rgba(111,60,195,0.2); }
   .btn-small.primary { background: var(--accent); color: #fff; }
-  .btn:hover, .btn-small:hover { transform: translateY(-1px); box-shadow: 0 10px 22px rgba(15,23,42,0.12); }
+  .btn-small.danger { background: #fee2e2; color: #991b1b; border-color: #fecaca; }
+  .btn-icon {
+    width: 38px;
+    height: 38px;
+    padding: 0;
+    border-color: rgba(111,60,195,0.2);
+    background: rgba(111,60,195,0.08);
+    color: var(--accent-strong);
+  }
+  .btn:hover, .btn-small:hover, .btn-icon:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 10px 22px rgba(15,23,42,0.12); }
   .input, select, input[type="text"], input[type="datetime-local"] {
     padding: 10px 12px; border-radius: 12px; border: 1px solid var(--border); background: #fff;
     box-shadow: inset 0 1px 2px rgba(0,0,0,0.04); font-weight: 500;
@@ -38,7 +47,9 @@
   th, td { padding: 8px; border: 1px solid var(--border); font-size: 0.92rem; vertical-align: top; }
   thead { background: rgba(111,60,195,0.08); }
   .table-wrap { max-height: 540px; overflow: auto; }
-  .actions { display: flex; gap: 6px; flex-wrap: wrap; }
+  .actions { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  .audio-meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .audio-meta[hidden], .btn-small[hidden], .btn-icon[hidden] { display: none !important; }
   .checkbox-cell { text-align: center; }
   .checkbox-cell input { width: 18px; height: 18px; }
   .selection-bar { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
@@ -232,7 +243,7 @@
       </thead>
       <tbody>
         {% for a in rows %}
-          <tr data-id="{{ a.id }}" data-status="{{ a.status }}" data-name="{{ a.prestataire }} / {{ a.beneficiaire }}" data-phone="{{ a.telephone|default:'-' }}" data-q1="{{ a.q1_prerequis_apprenants|default:'' }}" data-q2="{{ a.q2_interaction_apprenants|default:'' }}" data-q3="{{ a.q3_competences_acquises|default:'' }}" data-q4="{{ a.q4_gestion_administrative|default:''|escapejs }}" data-q5="{{ a.q5_gestion_financiere|default:''|escapejs }}" data-q6="{{ a.q6_communication|default:''|escapejs }}" data-commentaires="{{ a.commentaires|default:''|escapejs }}" data-recommandations="{{ a.recommandations|default:''|escapejs }}">
+          <tr data-id="{{ a.id }}" data-status="{{ a.status }}" data-name="{{ a.prestataire }} / {{ a.beneficiaire }}" data-phone="{{ a.telephone|default:'-' }}" data-audio-name="formateur-{{ a.reference_code }}" data-q1="{{ a.q1_prerequis_apprenants|default:'' }}" data-q2="{{ a.q2_interaction_apprenants|default:'' }}" data-q3="{{ a.q3_competences_acquises|default:'' }}" data-q4="{{ a.q4_gestion_administrative|default:''|escapejs }}" data-q5="{{ a.q5_gestion_financiere|default:''|escapejs }}" data-q6="{{ a.q6_communication|default:''|escapejs }}" data-commentaires="{{ a.commentaires|default:''|escapejs }}" data-recommandations="{{ a.recommandations|default:''|escapejs }}">
             <td class="checkbox-cell">
               <input type="checkbox" class="js-audio-select" value="{{ a.id }}" {% if not a.has_audio_file %}disabled title="{% if a.audio_file_missing %}Audio introuvable{% else %}Pas d'audio disponible{% endif %}"{% endif %}>
             </td>
@@ -251,11 +262,10 @@
             </td>
             <td>
               <div class="actions js-actions">
-                <button type="button" class="btn-small primary js-start" {% if a.status not in "en_attente,a_rappeler" %}hidden{% endif %}>Demarrer</button>
-                <button type="button" class="btn-small js-pause" {% if a.status != "en_cours" %}hidden{% endif %}>Pause</button>
-                <button type="button" class="btn-small js-resume" {% if a.status != "pause" %}hidden{% endif %}>Reprendre</button>
-                <button type="button" class="btn-small js-rappeler" {% if a.status not in "en_cours,pause" %}hidden{% endif %}>A rappeler</button>
-                <button type="button" class="btn-small js-terminer" {% if a.status not in "en_cours,pause" %}hidden{% endif %}>Terminer</button>
+                <button type="button" class="btn-small primary js-start" {% if a.status != "en_attente" and a.status != "a_rappeler" %}hidden{% endif %}><i class="fa-solid fa-phone"></i><span>Demarrer</span></button>
+                <button type="button" class="btn-icon js-pause" title="Mettre l'appel en pause" aria-label="Mettre l'appel en pause" {% if a.status != "en_cours" and a.status != "pause" %}hidden{% endif %} {% if a.status != "en_cours" %}disabled{% endif %}><i class="fa-solid fa-pause"></i></button>
+                <button type="button" class="btn-icon js-resume" title="Reprendre l'appel" aria-label="Reprendre l'appel" {% if a.status != "en_cours" and a.status != "pause" %}hidden{% endif %} {% if a.status != "pause" %}disabled{% endif %}><i class="fa-solid fa-play"></i></button>
+                <button type="button" class="btn-small danger js-terminer" {% if a.status != "en_cours" and a.status != "pause" %}hidden{% endif %}><i class="fa-solid fa-circle-stop"></i><span>Terminer</span></button>
               </div>
             </td>
             <td>
@@ -263,11 +273,12 @@
                 <div class="visual" style="width:120px; height:32px; border:1px solid var(--border); border-radius:8px; overflow:hidden;">
                   <canvas width="120" height="32" class="js-visual"></canvas>
                 </div>
-                <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
-                  <button type="button" class="btn-small js-play" {% if a.status != 'termine' or not a.has_audio_file %}disabled{% endif %}>Play</button>
-                  <button type="button" class="btn-small js-transcription" {% if not a.has_audio_file %}disabled{% endif %}>Transcription</button>
+                <div class="audio-meta js-audio-controls" {% if not a.has_audio_file %}hidden{% endif %}>
+                  <button type="button" class="btn-small js-play" {% if not a.has_audio_file %}disabled{% endif %}><i class="fa-solid fa-play"></i><span>Play</span></button>
+                  <button type="button" class="btn-icon js-stop" {% if not a.has_audio_file %}disabled{% endif %} title="Stopper l'audio" aria-label="Stopper l'audio"><i class="fa-solid fa-stop"></i></button>
+                  <button type="button" class="btn-small js-transcription" {% if not a.has_audio_file %}disabled{% endif %}><i class="fa-solid fa-file-lines"></i><span>Transcription</span></button>
                   {% if a.has_audio_file %}
-                    <a class="btn-small js-audio-download" href="{{ a.audio_file.url }}" download="formateur-{{ a.reference_code }}.mp3" style="font-size:0.85rem;">Telecharger</a>
+                    <a class="btn-icon js-audio-download" href="{{ a.audio_file_url }}" download="formateur-{{ a.reference_code }}.mp3" title="Telecharger l'audio" aria-label="Telecharger l'audio"><i class="fa-solid fa-download"></i></a>
                   {% endif %}
                   <div class="progress"><div class="progress-fill"></div></div>
                   <span class="time-label">0:00</span>
@@ -501,6 +512,11 @@
         if (row && payload?.audio_url) {
           const audio = row.querySelector(".js-audio");
           if (audio) audio.src = payload.audio_url;
+          const checkbox = row.querySelector(".js-audio-select");
+          if (checkbox) checkbox.disabled = false;
+          ensureDownloadLink(row, payload.audio_url);
+          syncAudioControls(row);
+          updateDownloadButtonState();
         }
       }
     }
@@ -523,6 +539,8 @@
     const terminationModal = document.getElementById("js-termination-modal");
     const modalRappelCheckbox = document.getElementById("js-modal-rappel");
     const modalRappelAt = document.getElementById("js-modal-rappel-at");
+    const modalRappelWrap = document.getElementById("js-modal-rappel-wrap");
+    const modalRappelAtWrap = document.getElementById("js-modal-rappel-at-wrap");
     const modalConfirmBtn = document.querySelector("[data-modal-action=\"confirm\"]");
     const modalCancelBtn = document.querySelector("[data-modal-action=\"cancel\"]");
     const modalTitle = document.getElementById("js-modal-title");
@@ -593,6 +611,8 @@
       if (terminationModal) terminationModal.hidden = true;
       if (modalName) modalName.textContent = "-";
       if (modalPhone) modalPhone.textContent = "-";
+      if (modalRappelWrap) modalRappelWrap.style.display = "none";
+      if (modalRappelAtWrap) modalRappelAtWrap.style.display = "none";
       if (modalRappelCheckbox) modalRappelCheckbox.checked = false;
       if (modalRappelAt) {
         modalRappelAt.value = "";
@@ -606,18 +626,30 @@
     function openFormModal(row, mode = "edit") {
       if (!terminationModal) return Promise.resolve(null);
       modalContext = { mode };
+      const isCloseMode = mode === "close";
       modalName.textContent = row?.dataset?.name || "-";
       modalPhone.textContent = row?.dataset?.phone || "-";
       populateSurveyFromRow(row);
+      if (modalRappelWrap) modalRappelWrap.style.display = isCloseMode ? "flex" : "none";
+      if (modalRappelAtWrap) modalRappelAtWrap.style.display = isCloseMode ? "flex" : "none";
+      if (modalRappelCheckbox) modalRappelCheckbox.checked = false;
+      if (modalRappelAt) {
+        modalRappelAt.value = "";
+        modalRappelAt.disabled = true;
+      }
       if (modalTitle) {
         modalTitle.textContent = mode === "start"
           ? "Demarrer l'appel formateur"
-          : "Modifier le formulaire du formateur";
+          : isCloseMode
+            ? "Cloturer l'appel formateur"
+            : "Modifier le formulaire du formateur";
       }
       if (modalConfirmBtn) {
         modalConfirmBtn.textContent = mode === "start"
           ? "Demarrer et enregistrer"
-          : "Enregistrer le formulaire";
+          : isCloseMode
+            ? "Enregistrer et cloturer"
+            : "Enregistrer le formulaire";
       }
       const savedLang = localStorage.getItem("padesce_lang_formateur_cc") || "fr";
       setFormateurModalLang(savedLang);
@@ -630,8 +662,18 @@
       btn.addEventListener("click", () => setFormateurModalLang(btn.dataset.lang || "fr"));
     });
     modalConfirmBtn?.addEventListener("click", () => {
+      const shouldRappeler = modalContext.mode === "close" && !!modalRappelCheckbox?.checked;
+      if (shouldRappeler && modalRappelAt && !modalRappelAt.value) {
+        alert("Merci de preciser la date et l'heure du rappel.");
+        return;
+      }
       closeFormModal({
-        action: modalContext.mode === "start" ? "start" : "update_form",
+        action: modalContext.mode === "start"
+          ? "start"
+          : modalContext.mode === "close"
+            ? (shouldRappeler ? "rappeler" : "terminer")
+            : "update_form",
+        rappel_at: shouldRappeler ? modalRappelAt?.value || "" : "",
         survey: {
           q1_prerequis_apprenants: modalQ1?.value || "",
           q2_interaction_apprenants: modalQ2?.value || "",
@@ -680,6 +722,104 @@
       }
     }
 
+    function hasAudioSource(audio) {
+      return !!(audio && (audio.currentSrc || audio.getAttribute("src") || audio.src));
+    }
+
+    function inferAudioExtension(source) {
+      if (!source) return "mp3";
+      const match = source.match(/\.([a-z0-9]+)(?:[\?#].*)?$/i);
+      return match ? match[1].toLowerCase() : "mp3";
+    }
+
+    function updatePlaybackProgress(row) {
+      const audio = row.querySelector(".js-audio");
+      const fill = row.querySelector(".progress-fill");
+      const label = row.querySelector(".time-label");
+      if (!audio || !fill || !label || !audio.duration || isNaN(audio.duration)) {
+        if (fill) fill.style.width = "0%";
+        if (label) label.textContent = "0:00";
+        return;
+      }
+      const remaining = Math.max(audio.duration - audio.currentTime, 0);
+      const mins = Math.floor(remaining / 60);
+      const secs = Math.floor(remaining % 60).toString().padStart(2, "0");
+      label.textContent = `${mins}:${secs}`;
+      fill.style.width = `${(audio.currentTime / audio.duration) * 100}%`;
+    }
+
+    function setPlayButtonState(row) {
+      const btn = row.querySelector(".js-play");
+      const audio = row.querySelector(".js-audio");
+      if (!btn || !audio) return;
+      const hasAudio = hasAudioSource(audio);
+      const isPlaying = hasAudio && !audio.paused && !audio.ended;
+      btn.disabled = !hasAudio;
+      btn.innerHTML = isPlaying
+        ? '<i class="fa-solid fa-pause"></i><span>Pause</span>'
+        : '<i class="fa-solid fa-play"></i><span>Play</span>';
+      const title = isPlaying ? "Mettre en pause la lecture" : "Lire l'audio";
+      btn.title = title;
+      btn.setAttribute("aria-label", title);
+    }
+
+    function ensureDownloadLink(row, sourceUrl = "") {
+      const controls = row.querySelector(".js-audio-controls");
+      if (!controls) return null;
+      const audio = row.querySelector(".js-audio");
+      const resolvedSource = sourceUrl || audio?.currentSrc || audio?.getAttribute("src") || audio?.src || "";
+      const hasAudio = !!resolvedSource;
+      let link = row.querySelector(".js-audio-download");
+      if (!link) {
+        link = document.createElement("a");
+        link.className = "btn-icon js-audio-download";
+        link.innerHTML = '<i class="fa-solid fa-download"></i>';
+        link.title = "Telecharger l'audio";
+        link.setAttribute("aria-label", "Telecharger l'audio");
+        const stopBtn = controls.querySelector(".js-stop");
+        if (stopBtn) {
+          stopBtn.insertAdjacentElement("afterend", link);
+        } else {
+          controls.appendChild(link);
+        }
+      }
+      link.hidden = !hasAudio;
+      if (hasAudio) {
+        const ext = inferAudioExtension(resolvedSource);
+        link.href = resolvedSource;
+        link.setAttribute("download", `${row.dataset.audioName || `formateur-${row.dataset.id}`}.${ext}`);
+      }
+      return link;
+    }
+
+    function syncAudioControls(row) {
+      const controls = row.querySelector(".js-audio-controls");
+      const audio = row.querySelector(".js-audio");
+      const stopBtn = row.querySelector(".js-stop");
+      const transcriptionBtn = row.querySelector(".js-transcription");
+      const hasAudio = hasAudioSource(audio);
+      if (controls) controls.hidden = !hasAudio;
+      if (stopBtn) stopBtn.disabled = !hasAudio || (audio.paused && audio.currentTime === 0);
+      if (transcriptionBtn) transcriptionBtn.disabled = !hasAudio;
+      updatePlaybackProgress(row);
+      setPlayButtonState(row);
+      if (hasAudio) ensureDownloadLink(row);
+    }
+
+    function stopPlayback(row, reset = true) {
+      const audio = row.querySelector(".js-audio");
+      if (!audio) return;
+      audio.pause();
+      if (reset) audio.currentTime = 0;
+      syncAudioControls(row);
+    }
+
+    function stopOtherPlayback(currentRow) {
+      document.querySelectorAll("tr[data-id]").forEach((row) => {
+        if (row !== currentRow) stopPlayback(row);
+      });
+    }
+
     function updateRow(row, data) {
       row.dataset.status = data.status || row.dataset.status;
       const badge = row.querySelector("[data-badge]");
@@ -691,17 +831,19 @@
       const start = row.querySelector(".js-start");
       const pause = row.querySelector(".js-pause");
       const resume = row.querySelector(".js-resume");
-      const rappeler = row.querySelector(".js-rappeler");
       const terminer = row.querySelector(".js-terminer");
       const canStart = ["en_attente", "a_rappeler"].includes(data.status);
       if (start) start.hidden = !canStart;
-      if (pause) pause.hidden = data.status !== "en_cours";
-      if (resume) resume.hidden = data.status !== "pause";
-      if (rappeler) rappeler.hidden = !["en_cours", "pause"].includes(data.status);
+      if (pause) {
+        pause.hidden = !["en_cours", "pause"].includes(data.status);
+        pause.disabled = data.status !== "en_cours";
+      }
+      if (resume) {
+        resume.hidden = !["en_cours", "pause"].includes(data.status);
+        resume.disabled = data.status !== "pause";
+      }
       if (terminer) terminer.hidden = !["en_cours", "pause"].includes(data.status);
-      const playBtn = row.querySelector(".js-play");
-      const audio = row.querySelector(".js-audio");
-      if (playBtn) playBtn.disabled = !(data.status === "termine" && audio?.src);
+      syncAudioControls(row);
     }
 
     const recordState = new Map();
@@ -737,17 +879,9 @@
         if (audio) audio.src = payload.audio_url;
         const checkbox = row.querySelector(".js-audio-select");
         if (checkbox) checkbox.disabled = false;
-        let link = row.querySelector(".js-audio-download");
-        if (!link) {
-          const playBtn = row.querySelector(".js-play");
-          link = document.createElement("a");
-          link.className = "btn-small js-audio-download";
-          link.style.fontSize = "0.85rem";
-          link.textContent = "Telecharger";
-          playBtn.insertAdjacentElement("afterend", link);
-        }
-        link.href = payload.audio_url;
-        link.setAttribute("download", `formateur-${id}.${ext}`);
+        ensureDownloadLink(row, payload.audio_url);
+        syncAudioControls(row);
+        updateDownloadButtonState();
       }
     }
 
@@ -792,12 +926,12 @@
         const blob = new Blob(chunks, { type: mimeType });
         const audio = row.querySelector(".js-audio");
         audio.src = URL.createObjectURL(blob);
-        row.querySelector(".js-play").disabled = false;
         recordState.set(row.dataset.id, { recorder: null, chunks: [], blob });
         await uploadAudio(row, blob);
         cancelAnimationFrame(raf);
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         audioCtx.close();
+        syncAudioControls(row);
       };
       recorder.start();
       recordState.set(row.dataset.id, { recorder, chunks, stream, raf });
@@ -856,43 +990,32 @@
           }
         } catch (err) { alert("Action impossible."); }
       });
-      wrap.querySelector(".js-rappeler")?.addEventListener("click", async () => {
-        if (!(row.dataset.q1 && row.dataset.q2 && row.dataset.q3)) {
-          alert("Renseignez d'abord le formulaire via Demarrer ou en cliquant sur la ligne du formateur.");
-          return;
-        }
-        const defaultReminder = new Date(Date.now() + 60 * 60 * 1000).toISOString().slice(0, 16);
-        const rappelAt = window.prompt("Date et heure du rappel (format AAAA-MM-JJTHH:MM)", defaultReminder);
-        if (!rappelAt) return;
-        try {
-          const state = getRecordState(row);
-          if (state?.recorder && state.recorder.state !== "inactive") {
-            state.recorder.stop();
-            state.stream?.getTracks().forEach((track) => track.stop());
-          }
-          const data = await sendAction(row, "rappeler", { rappel_at: rappelAt });
-          if (!data?.ok) {
-            alert(data?.error || "Action impossible.");
-            return;
-          }
-          updateRow(row, data);
-        } catch (err) { alert("Action impossible."); }
-      });
       wrap.querySelector(".js-terminer")?.addEventListener("click", async () => {
-        if (!(row.dataset.q1 && row.dataset.q2 && row.dataset.q3)) {
-          alert("Renseignez d'abord le formulaire via Demarrer ou en cliquant sur la ligne du formateur.");
-          return;
-        }
+        const modalResult = await openFormModal(row, "close");
+        if (!modalResult) return;
         try {
           const state = getRecordState(row);
           if (state?.recorder && state.recorder.state !== "inactive") {
             state.recorder.stop();
             state.stream?.getTracks().forEach((track) => track.stop());
           }
-          const data = await sendAction(row, "terminer");
+          const data = await sendAction(row, modalResult.action, {
+            survey: modalResult.survey,
+            rappel_at: modalResult.rappel_at,
+          });
           if (!data?.ok) {
             alert(data?.error || "Action impossible.");
             return;
+          }
+          if (modalResult?.survey) {
+            row.dataset.q1 = String(modalResult.survey.q1_prerequis_apprenants || "");
+            row.dataset.q2 = String(modalResult.survey.q2_interaction_apprenants || "");
+            row.dataset.q3 = String(modalResult.survey.q3_competences_acquises || "");
+            row.dataset.q4 = modalResult.survey.q4_gestion_administrative || "";
+            row.dataset.q5 = modalResult.survey.q5_gestion_financiere || "";
+            row.dataset.q6 = modalResult.survey.q6_communication || "";
+            row.dataset.commentaires = modalResult.survey.commentaires || "";
+            row.dataset.recommandations = modalResult.survey.recommandations || "";
           }
           updateRow(row, data);
         } catch (err) { alert("Action impossible."); }
@@ -928,35 +1051,34 @@
       });
     });
 
-    document.querySelectorAll(".js-play").forEach((btn) => {
-      const row = btn.closest("tr[data-id]");
+    document.querySelectorAll("tr[data-id]").forEach((row) => {
       const audio = row.querySelector(".js-audio");
-      const fill = row.querySelector(".progress-fill");
-      const label = row.querySelector(".time-label");
-      function updateLabel() {
-        if (!audio.duration || isNaN(audio.duration)) {
-          label.textContent = "0:00";
-          fill.style.width = "0%";
-          return;
-        }
-        const remaining = Math.max(audio.duration - audio.currentTime, 0);
-        const mins = Math.floor(remaining / 60);
-        const secs = Math.floor(remaining % 60).toString().padStart(2, "0");
-        label.textContent = `${mins}:${secs}`;
-        fill.style.width = `${(audio.currentTime / audio.duration) * 100}%`;
-      }
-      audio.addEventListener("timeupdate", updateLabel);
-      audio.addEventListener("ended", () => { btn.textContent = "Play"; updateLabel(); });
-      btn.addEventListener("click", () => {
-        if (!audio.src) return;
+      const playBtn = row.querySelector(".js-play");
+      const stopBtn = row.querySelector(".js-stop");
+      if (!audio || !playBtn) return;
+      ["timeupdate", "loadedmetadata", "play", "pause"].forEach((eventName) => {
+        audio.addEventListener(eventName, () => syncAudioControls(row));
+      });
+      audio.addEventListener("ended", () => {
+        audio.currentTime = 0;
+        syncAudioControls(row);
+      });
+      playBtn.addEventListener("click", async () => {
+        if (!hasAudioSource(audio)) return;
         if (audio.paused) {
-          audio.play();
-          btn.textContent = "Pause";
+          stopOtherPlayback(row);
+          try {
+            await audio.play();
+          } catch (err) {
+            return;
+          }
         } else {
           audio.pause();
-          btn.textContent = "Play";
         }
+        syncAudioControls(row);
       });
+      stopBtn?.addEventListener("click", () => stopPlayback(row));
+      syncAudioControls(row);
     });
     document.querySelectorAll(".js-transcription").forEach((btn) => {
       const row = btn.closest("tr[data-id]");
@@ -1129,8 +1251,3 @@
   })();
 </script>
 {% endblock %}
-
-
-
-
-
