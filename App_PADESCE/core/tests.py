@@ -444,6 +444,28 @@ class PublicConsultantAccessTests(TestCase):
         self.assertNotContains(response, "<td>-</td>", html=False)
 
 
+class BackupTriggerAccessTests(TestCase):
+    @override_settings(BACKUP_TRIGGER_TOKEN="expected-token")
+    @patch("App_PADESCE.core.backup_manager.start_backup", return_value="job-123")
+    def test_backup_trigger_is_not_redirected_to_login(self, mock_start_backup):
+        response = self.client.post(
+            reverse("backup_trigger"),
+            content_type="application/json",
+            HTTP_X_BACKUP_TOKEN="expected-token",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["job_id"], "job-123")
+        mock_start_backup.assert_called_once_with(triggered_by="scheduled/github-actions")
+
+    @override_settings(BACKUP_TRIGGER_TOKEN="expected-token")
+    def test_backup_trigger_returns_403_for_invalid_token(self):
+        response = self.client.post(reverse("backup_trigger"), HTTP_X_BACKUP_TOKEN="wrong-token")
+
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.json(), {"error": "Token invalide ou manquant."})
+
+
 class ConsultantAnalysisSnapshotTests(SimpleTestCase):
     @patch("App_PADESCE.satisfaction_apprenants.views._build_satisfaction_dashboard_data")
     def test_consultant_snapshot_reuses_satisfaction_dashboard_counts(self, mock_build_dashboard_data):

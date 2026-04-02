@@ -139,6 +139,7 @@ class LoginRequiredMiddleware:
             "/admin/",
             "/beneficiaire/",
             "/deploiement/live/",
+            "/backup/api/trigger/",
             static_prefix,
             media_prefix,
         ]
