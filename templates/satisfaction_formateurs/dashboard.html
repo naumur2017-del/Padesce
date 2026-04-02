@@ -29,17 +29,30 @@
   .tab-btn.active { color:var(--accent-strong); border-bottom-color:var(--accent); }
   .tab-panel { display:none; }
   .tab-panel.active { display:block; }
+  .scope-switch { display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:18px; }
+  .scope-tabs { display:inline-flex; align-items:center; gap:6px; padding:6px; border-radius:999px; border:1px solid var(--border); background:rgba(111,60,195,0.05); }
+  .scope-tab { display:inline-flex; align-items:center; justify-content:center; min-width:120px; padding:9px 18px; border-radius:999px; font-size:0.85rem; font-weight:700; color:var(--muted); text-decoration:none; transition:background .15s, color .15s, box-shadow .15s; }
+  .scope-tab:hover { background:rgba(111,60,195,0.08); color:var(--accent-strong); }
+  .scope-tab.active { background:var(--accent); color:#fff; box-shadow:0 8px 18px rgba(76,29,149,0.18); }
+  .scope-note { font-size:0.85rem; color:var(--muted); }
 </style>
 
 <div class="dash-header">
   <div>
-    <h1 style="margin:0;font-size:1.3rem;">Analyse de Satisfaction – Formateurs</h1>
-    <p style="color:var(--muted);margin:4px 0 0;font-size:0.9rem;">Statistiques Q1-Q3 et résumé qualitatif Q4-Q6 issus des appels formateurs.</p>
+    <h1 style="margin:0;font-size:1.3rem;">Analyses de Satisfaction</h1>
+    <p style="color:var(--muted);margin:4px 0 0;font-size:0.9rem;">Vue formateurs : statistiques Q1-Q3 et résumé qualitatif Q4-Q6 issus des appels plateforme.</p>
   </div>
   <div style="display:flex;gap:8px;flex-wrap:wrap;">
     <a class="btn btn-ghost btn-sm" href="{% url 'satisfaction_formateurs_index' %}">Retour enquêtes</a>
-    <a class="btn btn-ghost btn-sm" href="{% url 'satisfaction_apprenants_index' %}">Apprenants</a>
   </div>
+</div>
+
+<div class="scope-switch">
+  <div class="scope-tabs" role="tablist" aria-label="Navigation des analyses de satisfaction">
+    <a class="scope-tab" href="{% url 'satisfaction_dashboard' %}">Apprenant</a>
+    <a class="scope-tab active" href="{% url 'satisfaction_formateurs_dashboard' %}" aria-current="page">Formateur</a>
+  </div>
+  <div class="scope-note">Basculer entre les tableaux apprenants et formateurs depuis le module d'analyse.</div>
 </div>
 
 <form method="get" class="filter-bar">
