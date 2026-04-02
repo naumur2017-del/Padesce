@@ -53,6 +53,7 @@ from App_PADESCE.reporting.network_excel import (
 from App_PADESCE.satisfaction_apprenants.forms import SatisfactionApprenantForm
 from App_PADESCE.satisfaction_apprenants.models import SatisfactionApprenant
 from App_PADESCE.satisfaction_apprenants.rag import answer_dashboard_prompt
+from App_PADESCE.satisfaction_apprenants.services import get_prestations_ranking
 
 _IMPORT_NOTIFS: list[dict] = []
 _IMPORT_NOTIFS_LOCK = _threading.Lock()
@@ -2217,9 +2218,31 @@ def _build_satisfaction_dashboard_data(request):
                 "nb": item["metrics"]["nb"],
                 "avg": _dashboard_bucket_avg(item["metrics"], "q9_satisfaction_globale"),
                 "avgs": _dashboard_bucket_avgs(item["metrics"]),
+                "effectif": sum(
+                    classe_apprenant_counts.get(c, 0) for c in item["associated_classes"]
+                ),
             }
             for item in prestation_groups.values()
             if normalize_network_lookup(item["code"]) in qualified_prestation_codes
+        ],
+        key=lambda item: (item["code"], item["prestataire"], item["beneficiaire"]),
+    )
+
+    # Full list (unfiltered by qualified) — used for ranking/map features
+    prestation_stats_all = sorted(
+        [
+            {
+                "code": item["code"],
+                "prestataire": item["prestataire"],
+                "beneficiaire": item["beneficiaire"],
+                "nb": item["metrics"]["nb"],
+                "avg": _dashboard_bucket_avg(item["metrics"], "q9_satisfaction_globale"),
+                "avgs": _dashboard_bucket_avgs(item["metrics"]),
+                "effectif": sum(
+                    classe_apprenant_counts.get(c, 0) for c in item["associated_classes"]
+                ),
+            }
+            for item in prestation_groups.values()
         ],
         key=lambda item: (item["code"], item["prestataire"], item["beneficiaire"]),
     )
@@ -2330,6 +2353,7 @@ def _build_satisfaction_dashboard_data(request):
         "q_labels": [label for _, label in Q_FIELDS],
         "classe_stats": classe_stats_seuil,
         "prestation_stats": prestation_stats,
+        "prestation_stats_all": prestation_stats_all,
         "ville_stats": ville_stats,
         "user_stats": user_stats,
         "cohorte_stats": cohorte_stats,
@@ -2914,6 +2938,10 @@ def satisfaction_dashboard_daily_report_xlsx(request):
 def satisfaction_dashboard(request):
     dashboard = _build_satisfaction_dashboard_data(request)
     ctx = dashboard["context"]
+    # Ranking complet (non filtré) pour la carte et le classement des prestations
+    ctx["toutes_prestations_classees"] = get_prestations_ranking(
+        ctx.get("prestation_stats_all", []), order="desc"
+    )
     ctx["rows"] = [
         {**row, "q_values": [row.get(field) for field, _ in Q_FIELDS]}
         for row in sorted(dashboard["rows"], key=lambda r: r["modified_at"], reverse=True)
@@ -2923,6 +2951,28 @@ def satisfaction_dashboard(request):
         ctx["active_tab"], ctx["tab_details"]["tab-apprenants"]
     )
     return render(request, "satisfaction_apprenants/dashboard.html", ctx)
+
+
+@require_analysis_access
+def satisfaction_map_data(request):
+    """Retourne le top 5 des meilleures prestations par région (carte Leaflet)."""
+    dashboard = _build_satisfaction_dashboard_data(request)
+    prestation_stats_all = dashboard["context"].get("prestation_stats_all", [])
+    all_rankings = get_prestations_ranking(prestation_stats_all, order="desc")
+
+    region_data: dict = defaultdict(list)
+    for p in all_rankings:
+        reg = p.get("region") or "Inconnu"
+        if len(region_data[reg]) < 5:
+            region_data[reg].append(
+                {
+                    "code": p["code"],
+                    "prestataire": p["prestataire"],
+                    "beneficiaire": p["beneficiaire"],
+                    "score": p.get("score_global"),
+                }
+            )
+    return JsonResponse(dict(region_data))
 
 
 @require_analysis_access

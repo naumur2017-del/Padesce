@@ -48,6 +48,11 @@ urlpatterns = [
         name="satisfaction_dashboard_export_chapeau",
     ),
     path(
+        "analyse/map-data/",
+        lazy_view("App_PADESCE.satisfaction_apprenants.views.satisfaction_map_data"),
+        name="satisfaction_map_data",
+    ),
+    path(
         "analyse/apprenants-manquants/",
         lazy_view("App_PADESCE.satisfaction_apprenants.views.apprenants_manquants_page"),
         name="apprenants_manquants_page",
