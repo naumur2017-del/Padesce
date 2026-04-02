@@ -47,6 +47,7 @@ except ImportError:  # pragma: no cover
 # Utilitaires dates / config
 # ---------------------------------------------------------------------------
 
+
 def parse_report_dates(start_str: str | None, end_str: str | None) -> tuple[date, date]:
     today = timezone.localdate()
     try:
@@ -65,7 +66,7 @@ def parse_report_dates(start_str: str | None, end_str: str | None) -> tuple[date
 def get_report_email_recipients() -> list[str]:
     raw = (getattr(settings, "REPORT_EMAIL_TO", "") or "").strip()
     if not raw:
-        raw = (settings.__dict__.get("REPORT_EMAIL_TO") or "")
+        raw = settings.__dict__.get("REPORT_EMAIL_TO") or ""
     return [addr.strip() for addr in raw.split(",") if addr.strip()]
 
 
@@ -76,7 +77,12 @@ def _build_report_email_connection() -> tuple[object | None, str | None]:
 
     missing = [
         field_name
-        for field_name in ("EMAIL_HOST", "EMAIL_HOST_USER", "EMAIL_HOST_PASSWORD", "DEFAULT_FROM_EMAIL")
+        for field_name in (
+            "EMAIL_HOST",
+            "EMAIL_HOST_USER",
+            "EMAIL_HOST_PASSWORD",
+            "DEFAULT_FROM_EMAIL",
+        )
         if not getattr(settings, field_name, "")
     ]
     if missing:
@@ -106,7 +112,10 @@ def _build_report_email_connection() -> tuple[object | None, str | None]:
 # Section 3 — Moteur principal
 # ---------------------------------------------------------------------------
 
-def build_application_report(start_date: date, end_date: date, selected_class_code: str | None = None) -> dict:
+
+def build_application_report(
+    start_date: date, end_date: date, selected_class_code: str | None = None
+) -> dict:
     tz = timezone.get_current_timezone()
     start_dt = timezone.make_aware(datetime.combine(start_date, time.min), tz)
     end_dt = timezone.make_aware(datetime.combine(end_date, time.max), tz)
@@ -115,11 +124,17 @@ def build_application_report(start_date: date, end_date: date, selected_class_co
     selected_class = _get_selected_class(selected_class_code)
 
     user_model = get_user_model()
-    active_period_users = UserActivity.objects.filter(last_seen__gte=start_dt, last_seen__lte=end_dt)
+    active_period_users = UserActivity.objects.filter(
+        last_seen__gte=start_dt, last_seen__lte=end_dt
+    )
     active_24h_users = UserActivity.objects.filter(last_seen__gte=now - timedelta(hours=24))
 
-    padesce_qs = Appel.objects.filter(is_active=True, updated_at__gte=start_dt, updated_at__lte=end_dt)
-    formateur_qs = AppelFormateur.objects.filter(is_active=True, updated_at__gte=start_dt, updated_at__lte=end_dt)
+    padesce_qs = Appel.objects.filter(
+        is_active=True, updated_at__gte=start_dt, updated_at__lte=end_dt
+    )
+    formateur_qs = AppelFormateur.objects.filter(
+        is_active=True, updated_at__gte=start_dt, updated_at__lte=end_dt
+    )
 
     call_sources = [
         _build_call_source_summary("PADESCE", padesce_qs),
@@ -135,24 +150,34 @@ def build_application_report(start_date: date, end_date: date, selected_class_co
     }
     processed_total = sum(source["processed"] for source in call_sources)
     call_totals["processed"] = processed_total
-    call_totals["completion_rate"] = round((call_totals["completed"] / processed_total) * 100, 2) if processed_total else 0.0
+    call_totals["completion_rate"] = (
+        round((call_totals["completed"] / processed_total) * 100, 2) if processed_total else 0.0
+    )
 
     hourly_rows = _build_hourly_rows(
         _hourly_completed_counts(padesce_qs),
         _hourly_completed_counts(formateur_qs),
     )
-    best_hour = max(hourly_rows, key=lambda row: (row["completed"], row["total"], -row["hour"])) if hourly_rows else None
+    best_hour = (
+        max(hourly_rows, key=lambda row: (row["completed"], row["total"], -row["hour"]))
+        if hourly_rows
+        else None
+    )
 
     bug_summary = _build_bug_summary(start_dt, end_dt)
-    anomaly_summary = _build_anomaly_summary(selected_class, selected_class_code=selected_class_code)
+    anomaly_summary = _build_anomaly_summary(
+        selected_class, selected_class_code=selected_class_code
+    )
     analysis_summary = _build_analysis_summary(padesce_qs)
+    formateurs_summary = _build_formateurs_satisfaction_summary(start_dt, end_dt)
     user_call_rows = _build_user_call_rows(padesce_qs, formateur_qs)
 
     recipients = get_report_email_recipients()
     mail_status = {
         "configured_recipients": recipients,
         "missing_configuration": not bool(recipients),
-        "smtp_ready": bool(getattr(settings, "EMAIL_HOST", "")) and bool(getattr(settings, "DEFAULT_FROM_EMAIL", "")),
+        "smtp_ready": bool(getattr(settings, "EMAIL_HOST", ""))
+        and bool(getattr(settings, "DEFAULT_FROM_EMAIL", "")),
     }
 
     return {
@@ -178,6 +203,7 @@ def build_application_report(start_date: date, end_date: date, selected_class_co
         "bugs": bug_summary,
         "anomalies": anomaly_summary,
         "analysis": analysis_summary,
+        "formateurs_summary": formateurs_summary,
         "user_call_rows": user_call_rows,
         "mail_status": mail_status,
         "selected_class_code": selected_class.code if selected_class else selected_class_code,
@@ -187,6 +213,7 @@ def build_application_report(start_date: date, end_date: date, selected_class_co
 # ---------------------------------------------------------------------------
 # Section 4 — Export Word
 # ---------------------------------------------------------------------------
+
 
 def export_application_report_word(report: dict) -> bytes:
     if not HAS_DOCX:
@@ -223,7 +250,9 @@ def export_application_report_word(report: dict) -> bytes:
 
     meta = text_cell.add_paragraph()
     meta.alignment = WD_ALIGN_PARAGRAPH.LEFT
-    meta.add_run(f"Date de generation: {timezone.localtime(report['generated_at']).strftime('%d/%m/%Y a %H:%M')}")
+    meta.add_run(
+        f"Date de generation: {timezone.localtime(report['generated_at']).strftime('%d/%m/%Y a %H:%M')}"
+    )
 
     best_hour_label = report["best_hour"]["label"] if report["best_hour"] else "Aucune donnee"
     best_hour_value = report["best_hour"]["completed"] if report["best_hour"] else 0
@@ -262,7 +291,16 @@ def export_application_report_word(report: dict) -> bytes:
     users_table = document.add_table(rows=1, cols=6)
     users_table.style = "Table Grid"
     users_table.alignment = WD_TABLE_ALIGNMENT.CENTER
-    for idx, label in enumerate(["Utilisateur", "Appels effectues", "Appels termines", "Temps estime", "Premiere activite", "Derniere activite"]):
+    for idx, label in enumerate(
+        [
+            "Utilisateur",
+            "Appels effectues",
+            "Appels termines",
+            "Temps estime",
+            "Premiere activite",
+            "Derniere activite",
+        ]
+    ):
         _write_header_cell(users_table.rows[0].cells[idx], label)
     for item in report["user_call_rows"]:
         row = users_table.add_row().cells
@@ -279,14 +317,16 @@ def export_application_report_word(report: dict) -> bytes:
     hourly_table.alignment = WD_TABLE_ALIGNMENT.CENTER
     for idx, label in enumerate(["Heure", "Total", "Termines"]):
         _write_header_cell(hourly_table.rows[0].cells[idx], label)
-    top_hour_rows = sorted(report["hourly_rows"], key=lambda row: (-row["completed"], -row["total"], row["hour"]))[:8]
+    top_hour_rows = sorted(
+        report["hourly_rows"], key=lambda row: (-row["completed"], -row["total"], row["hour"])
+    )[:8]
     for row_data in top_hour_rows:
         row = hourly_table.add_row().cells
         row[0].text = row_data["label"]
         row[1].text = str(row_data["total"])
         row[2].text = str(row_data["completed"])
 
-    _add_heading(document, "5. Analyse satisfaction")
+    _add_heading(document, "5. Analyse satisfaction – Apprenants")
     _add_metric_table(
         document,
         [
@@ -297,7 +337,34 @@ def export_application_report_word(report: dict) -> bytes:
         ],
     )
 
-    _add_heading(document, "6. Incidents")
+    fs = report.get("formateurs_summary", {})
+    if fs:
+        _add_heading(document, "6. Analyse satisfaction – Formateurs")
+        _add_metric_table(
+            document,
+            [
+                ("Appels formateurs termines (periode)", fs.get("total_termines", 0)),
+                ("Avec scores Q1-Q3", fs.get("with_scores", 0)),
+                ("Moy. Q1 – Prerequis apprenants", fs.get("avg_q1", 0)),
+                ("Moy. Q2 – Interaction apprenants", fs.get("avg_q2", 0)),
+                ("Moy. Q3 – Competences acquises", fs.get("avg_q3", 0)),
+            ],
+        )
+        if fs.get("by_prestataire"):
+            form_table = document.add_table(rows=1, cols=5)
+            form_table.style = "Table Grid"
+            form_table.alignment = WD_TABLE_ALIGNMENT.CENTER
+            for idx, label in enumerate(["Prestataire", "Nb appels", "Q1", "Q2", "Q3"]):
+                _write_header_cell(form_table.rows[0].cells[idx], label)
+            for row_data in fs["by_prestataire"]:
+                row = form_table.add_row().cells
+                row[0].text = row_data["prestataire"]
+                row[1].text = str(row_data["nb"])
+                row[2].text = str(row_data["avg_q1"])
+                row[3].text = str(row_data["avg_q2"])
+                row[4].text = str(row_data["avg_q3"])
+
+    _add_heading(document, "7. Incidents")
     _add_metric_table(
         document,
         [
@@ -330,6 +397,7 @@ def export_application_report_word(report: dict) -> bytes:
 # Section 5 — Envoi mail + HTML
 # ---------------------------------------------------------------------------
 
+
 def send_report_by_email(report: dict) -> dict:
     recipients = get_report_email_recipients()
     if not recipients:
@@ -342,7 +410,9 @@ def send_report_by_email(report: dict) -> dict:
     if connection_error:
         return {"ok": False, "detail": connection_error}
 
-    subject = f"Rapport application NAUMUR CALL APP - {report['start_date']} au {report['end_date']}"
+    subject = (
+        f"Rapport application NAUMUR CALL APP - {report['start_date']} au {report['end_date']}"
+    )
     body = build_report_email_html(report)
     message = EmailMessage(
         subject=subject,
@@ -478,12 +548,23 @@ def build_report_email_html(report: dict) -> str:
       </div>
 
       <div style="border:1px solid #dfe1ea;padding:16px 18px;margin-bottom:18px;">
-        <div style="font-size:16px;font-weight:700;color:#4c1d95;margin-bottom:10px;">2. Analyse satisfaction</div>
+        <div style="font-size:16px;font-weight:700;color:#4c1d95;margin-bottom:10px;">2. Analyse satisfaction – Apprenants</div>
         <table role="presentation" style="width:100%;border-collapse:collapse;">
           <tr><td style="padding:8px 0;border-bottom:1px solid #ececf2;">Classes analysees</td><td style="padding:8px 0;border-bottom:1px solid #ececf2;text-align:right;font-weight:700;">{report['analysis']['classes_count']}</td></tr>
           <tr><td style="padding:8px 0;border-bottom:1px solid #ececf2;">Prestations analysees</td><td style="padding:8px 0;border-bottom:1px solid #ececf2;text-align:right;font-weight:700;">{report['analysis']['prestations_count']}</td></tr>
           <tr><td style="padding:8px 0;border-bottom:1px solid #ececf2;">Prestataires analyses</td><td style="padding:8px 0;border-bottom:1px solid #ececf2;text-align:right;font-weight:700;">{report['analysis']['prestataires_count']}</td></tr>
           <tr><td style="padding:8px 0;">Beneficiaires analyses</td><td style="padding:8px 0;text-align:right;font-weight:700;">{report['analysis']['beneficiaires_count']}</td></tr>
+        </table>
+      </div>
+
+      <div style="border:1px solid #dfe1ea;padding:16px 18px;margin-bottom:18px;">
+        <div style="font-size:16px;font-weight:700;color:#4c1d95;margin-bottom:10px;">3. Analyse satisfaction – Formateurs</div>
+        <table role="presentation" style="width:100%;border-collapse:collapse;">
+          <tr><td style="padding:8px 0;border-bottom:1px solid #ececf2;">Appels formateurs termines (periode)</td><td style="padding:8px 0;border-bottom:1px solid #ececf2;text-align:right;font-weight:700;">{report['formateurs_summary']['total_termines']}</td></tr>
+          <tr><td style="padding:8px 0;border-bottom:1px solid #ececf2;">Avec scores Q1-Q3</td><td style="padding:8px 0;border-bottom:1px solid #ececf2;text-align:right;font-weight:700;">{report['formateurs_summary']['with_scores']}</td></tr>
+          <tr><td style="padding:8px 0;border-bottom:1px solid #ececf2;">Moy. Q1 – Prerequis apprenants</td><td style="padding:8px 0;border-bottom:1px solid #ececf2;text-align:right;font-weight:700;">{report['formateurs_summary']['avg_q1']}/5</td></tr>
+          <tr><td style="padding:8px 0;border-bottom:1px solid #ececf2;">Moy. Q2 – Interaction apprenants</td><td style="padding:8px 0;border-bottom:1px solid #ececf2;text-align:right;font-weight:700;">{report['formateurs_summary']['avg_q2']}/5</td></tr>
+          <tr><td style="padding:8px 0;">Moy. Q3 – Competences acquises</td><td style="padding:8px 0;text-align:right;font-weight:700;">{report['formateurs_summary']['avg_q3']}/5</td></tr>
         </table>
       </div>
 
@@ -518,6 +599,7 @@ def build_report_email_html(report: dict) -> str:
 # ---------------------------------------------------------------------------
 # Section 6 — Helpers de calcul
 # ---------------------------------------------------------------------------
+
 
 def _source_class_apprenant_counts(source_bundle: dict | None) -> dict[str, int]:
     counts: dict[str, int] = {}
@@ -599,15 +681,25 @@ def _extract_class_code(classe, classe_label: str | None) -> str:
     return (match.group(1) if match else raw_label.split()[0]).strip()
 
 
-def _selected_class_code_matches(class_code: str, selected_class, selected_class_code: str | None) -> bool:
-    effective_code = (selected_class.code if selected_class else (selected_class_code or "")).strip().lower()
+def _selected_class_code_matches(
+    class_code: str, selected_class, selected_class_code: str | None
+) -> bool:
+    effective_code = (
+        (selected_class.code if selected_class else (selected_class_code or "")).strip().lower()
+    )
     if not effective_code:
         return True
     return str(class_code or "").strip().lower() == effective_code
 
 
-def _build_not_formed_rows(selected_class=None, selected_class_code: str | None = None) -> list[dict]:
-    queryset = Appel.objects.filter(is_active=True, flag_pas_forme=True).select_related("classe").order_by("classe_label", "nom")
+def _build_not_formed_rows(
+    selected_class=None, selected_class_code: str | None = None
+) -> list[dict]:
+    queryset = (
+        Appel.objects.filter(is_active=True, flag_pas_forme=True)
+        .select_related("classe")
+        .order_by("classe_label", "nom")
+    )
     rows: list[dict] = []
     for appel in queryset:
         class_code = _extract_class_code(appel.classe, appel.classe_label)
@@ -628,8 +720,14 @@ def _build_not_formed_rows(selected_class=None, selected_class_code: str | None 
     return rows
 
 
-def _build_false_name_rows(selected_class=None, selected_class_code: str | None = None) -> list[dict]:
-    queryset = Appel.objects.filter(is_active=True, flag_faux_nom=True).select_related("classe").order_by("classe_label", "nom")
+def _build_false_name_rows(
+    selected_class=None, selected_class_code: str | None = None
+) -> list[dict]:
+    queryset = (
+        Appel.objects.filter(is_active=True, flag_faux_nom=True)
+        .select_related("classe")
+        .order_by("classe_label", "nom")
+    )
     rows: list[dict] = []
     for appel in queryset:
         class_code = _extract_class_code(appel.classe, appel.classe_label)
@@ -650,8 +748,14 @@ def _build_false_name_rows(selected_class=None, selected_class_code: str | None 
     return rows
 
 
-def _build_duplicate_phone_rows(selected_class=None, selected_class_code: str | None = None) -> list[dict]:
-    queryset = Appel.objects.filter(is_active=True, flag_numero_double=True).select_related("classe").order_by("classe_label", "nom")
+def _build_duplicate_phone_rows(
+    selected_class=None, selected_class_code: str | None = None
+) -> list[dict]:
+    queryset = (
+        Appel.objects.filter(is_active=True, flag_numero_double=True)
+        .select_related("classe")
+        .order_by("classe_label", "nom")
+    )
     duplicate_rows: list[dict] = []
     for appel in queryset:
         normalized_phone = _normalize_phone_number(appel.telephone1)
@@ -678,19 +782,20 @@ def _build_duplicate_phone_rows(selected_class=None, selected_class_code: str | 
 def _build_anomaly_summary(selected_class=None, selected_class_code: str | None = None) -> dict:
     classes_qs = Classe.objects.filter(actif=True)
     classes_not_trained_count = classes_qs.exclude(statut="termine").count()
-    
+
     not_formed_rows_all = _build_not_formed_rows()
     false_name_rows_all = _build_false_name_rows()
     duplicate_rows_all = _build_duplicate_phone_rows()
-    
+
     selected_not_formed = _build_not_formed_rows(selected_class, selected_class_code)
     selected_false_name = _build_false_name_rows(selected_class, selected_class_code)
     selected_duplicate = _build_duplicate_phone_rows(selected_class, selected_class_code)
-    
+
     anomaly_options: dict[str, dict] = {}
-    for row in (not_formed_rows_all + false_name_rows_all + duplicate_rows_all):
+    for row in not_formed_rows_all + false_name_rows_all + duplicate_rows_all:
         code = row["class_code"]
-        if not code: continue
+        if not code:
+            continue
         if code not in anomaly_options:
             anomaly_options[code] = {
                 "code": code,
@@ -699,9 +804,12 @@ def _build_anomaly_summary(selected_class=None, selected_class_code: str | None 
                 "has_duplicate": False,
                 "has_false_name": False,
             }
-        if row["anomaly_label"] == "Pas forme": anomaly_options[code]["has_not_formed"] = True
-        if row["anomaly_label"] == "Doublon": anomaly_options[code]["has_duplicate"] = True
-        if row["anomaly_label"] == "Faux nom": anomaly_options[code]["has_false_name"] = True
+        if row["anomaly_label"] == "Pas forme":
+            anomaly_options[code]["has_not_formed"] = True
+        if row["anomaly_label"] == "Doublon":
+            anomaly_options[code]["has_duplicate"] = True
+        if row["anomaly_label"] == "Faux nom":
+            anomaly_options[code]["has_false_name"] = True
 
     anomaly_rows = sorted(
         selected_duplicate + selected_false_name + selected_not_formed,
@@ -710,17 +818,21 @@ def _build_anomaly_summary(selected_class=None, selected_class_code: str | None 
             row["class_label"],
             row["code"],
             row["call_id"],
-            ),
-        )
-    
-    effective_selected_code = (selected_class.code if selected_class else (selected_class_code or "")).strip()
+        ),
+    )
+
+    effective_selected_code = (
+        selected_class.code if selected_class else (selected_class_code or "")
+    ).strip()
     selected_class_summary = {
         "code": effective_selected_code,
         "label": _class_display_label(selected_class, effective_selected_code),
         "not_formed_count": len(selected_not_formed),
         "duplicate_numbers_count": len(selected_duplicate),
         "false_name_count": len(selected_false_name),
-        "total_anomalies_count": len(selected_not_formed) + len(selected_duplicate) + len(selected_false_name),
+        "total_anomalies_count": len(selected_not_formed)
+        + len(selected_duplicate)
+        + len(selected_false_name),
     }
 
     return {
@@ -742,7 +854,8 @@ def _class_display_label(classe, label: str | None) -> str:
 
 
 def _normalize_phone_number(val) -> str:
-    if not val: return ""
+    if not val:
+        return ""
     digits = "".join(filter(str.isdigit, str(val)))
     if len(digits) == 9 and digits.startswith(("6", "2")):
         return f"237{digits}"
@@ -751,9 +864,27 @@ def _normalize_phone_number(val) -> str:
 
 def _build_analysis_summary(padesce_qs) -> dict:
     terminated_rows = list(padesce_qs.filter(status="termine").select_related("classe__prestation"))
-    classes = sorted({(row.classe_label or "").strip() for row in terminated_rows if (row.classe_label or "").strip()})
-    prestataires = sorted({(row.prestataire or "").strip() for row in terminated_rows if (row.prestataire or "").strip()})
-    beneficiaires = sorted({(row.beneficiaire or "").strip() for row in terminated_rows if (row.beneficiaire or "").strip()})
+    classes = sorted(
+        {
+            (row.classe_label or "").strip()
+            for row in terminated_rows
+            if (row.classe_label or "").strip()
+        }
+    )
+    prestataires = sorted(
+        {
+            (row.prestataire or "").strip()
+            for row in terminated_rows
+            if (row.prestataire or "").strip()
+        }
+    )
+    beneficiaires = sorted(
+        {
+            (row.beneficiaire or "").strip()
+            for row in terminated_rows
+            if (row.beneficiaire or "").strip()
+        }
+    )
     try:
         source_bundle = build_padesce_source_index()
     except Exception:
@@ -776,6 +907,60 @@ def _build_analysis_summary(padesce_qs) -> dict:
         "prestations_count": len(prestations),
         "prestataires_count": len(prestataires),
         "beneficiaires_count": len(beneficiaires),
+    }
+
+
+def _build_formateurs_satisfaction_summary(start_dt, end_dt) -> dict:
+    """Résumé satisfaction formateurs (Q1-Q3) pour le rapport quotidien."""
+    from django.db.models import Avg as DjAvg
+
+    qs = AppelFormateur.objects.filter(
+        is_active=True,
+        status="termine",
+        updated_at__gte=start_dt,
+        updated_at__lte=end_dt,
+    )
+    total = qs.count()
+    with_scores = qs.filter(
+        q1_prerequis_apprenants__isnull=False,
+        q2_interaction_apprenants__isnull=False,
+        q3_competences_acquises__isnull=False,
+    ).count()
+
+    avgs = qs.aggregate(
+        avg_q1=DjAvg("q1_prerequis_apprenants"),
+        avg_q2=DjAvg("q2_interaction_apprenants"),
+        avg_q3=DjAvg("q3_competences_acquises"),
+    )
+
+    # Par prestataire
+    by_prestataire = list(
+        qs.values("prestataire")
+        .annotate(
+            nb=Count("id"),
+            avg_q1=DjAvg("q1_prerequis_apprenants"),
+            avg_q2=DjAvg("q2_interaction_apprenants"),
+            avg_q3=DjAvg("q3_competences_acquises"),
+        )
+        .order_by("prestataire")[:10]
+    )
+
+    return {
+        "total_termines": total,
+        "with_scores": with_scores,
+        "avg_q1": round(avgs["avg_q1"] or 0, 2),
+        "avg_q2": round(avgs["avg_q2"] or 0, 2),
+        "avg_q3": round(avgs["avg_q3"] or 0, 2),
+        "by_prestataire": [
+            {
+                "prestataire": row["prestataire"] or "—",
+                "nb": row["nb"],
+                "avg_q1": round(row["avg_q1"] or 0, 2),
+                "avg_q2": round(row["avg_q2"] or 0, 2),
+                "avg_q3": round(row["avg_q3"] or 0, 2),
+            }
+            for row in by_prestataire
+        ],
     }
 
 
@@ -806,11 +991,13 @@ def _build_user_call_rows(*querysets) -> list[dict]:
             merged[user_id]["calls_made"] += int(row["calls_made"] or 0)
             merged[user_id]["completed_calls"] += int(row["completed_calls"] or 0)
             if row["first_activity"] and (
-                not merged[user_id]["first_activity"] or row["first_activity"] < merged[user_id]["first_activity"]
+                not merged[user_id]["first_activity"]
+                or row["first_activity"] < merged[user_id]["first_activity"]
             ):
                 merged[user_id]["first_activity"] = row["first_activity"]
             if row["last_activity"] and (
-                not merged[user_id]["last_activity"] or row["last_activity"] > merged[user_id]["last_activity"]
+                not merged[user_id]["last_activity"]
+                or row["last_activity"] > merged[user_id]["last_activity"]
             ):
                 merged[user_id]["last_activity"] = row["last_activity"]
 
@@ -818,7 +1005,9 @@ def _build_user_call_rows(*querysets) -> list[dict]:
     for item in merged.values():
         first_activity = item["first_activity"]
         last_activity = item["last_activity"]
-        duration = (last_activity - first_activity) if (first_activity and last_activity) else timedelta(0)
+        duration = (
+            (last_activity - first_activity) if (first_activity and last_activity) else timedelta(0)
+        )
         results.append(
             {
                 "username": item["username"],
@@ -826,8 +1015,12 @@ def _build_user_call_rows(*querysets) -> list[dict]:
                 "completed_calls": item["completed_calls"],
                 "time_spent_seconds": int(max(duration.total_seconds(), 0)),
                 "time_spent_label": _format_duration(duration),
-                "first_activity_label": timezone.localtime(first_activity).strftime("%H:%M") if first_activity else "-",
-                "last_activity_label": timezone.localtime(last_activity).strftime("%H:%M") if last_activity else "-",
+                "first_activity_label": (
+                    timezone.localtime(first_activity).strftime("%H:%M") if first_activity else "-"
+                ),
+                "last_activity_label": (
+                    timezone.localtime(last_activity).strftime("%H:%M") if last_activity else "-"
+                ),
             }
         )
     return sorted(results, key=lambda row: (-row["calls_made"], row["username"].lower()))
@@ -894,6 +1087,7 @@ def _clear_cell_border(cell) -> None:
 # Helpers internes — construction du rapport
 # ---------------------------------------------------------------------------
 
+
 def _build_call_source_summary(label: str, queryset) -> dict:
     total = queryset.count()
     completed = queryset.filter(status="termine").count()
@@ -921,7 +1115,9 @@ def _hourly_completed_counts(queryset) -> dict[int, int]:
     for updated_at in queryset.filter(status="termine").values_list("updated_at", flat=True):
         if updated_at is None:
             continue
-        local_dt = timezone.localtime(updated_at, tz) if timezone.is_aware(updated_at) else updated_at
+        local_dt = (
+            timezone.localtime(updated_at, tz) if timezone.is_aware(updated_at) else updated_at
+        )
         hour = local_dt.hour
         counts[hour] = counts.get(hour, 0) + 1
     return counts
@@ -932,7 +1128,12 @@ def _build_hourly_rows(*hourly_counts_list) -> list[dict]:
     for hourly_counts in hourly_counts_list:
         for hour, count in hourly_counts.items():
             if hour not in merged:
-                merged[hour] = {"hour": hour, "label": f"{hour:02d}h00 - {hour:02d}h59", "total": 0, "completed": 0}
+                merged[hour] = {
+                    "hour": hour,
+                    "label": f"{hour:02d}h00 - {hour:02d}h59",
+                    "total": 0,
+                    "completed": 0,
+                }
             merged[hour]["completed"] += count
             merged[hour]["total"] += count
     return sorted(merged.values(), key=lambda row: row["hour"])
@@ -997,6 +1198,7 @@ def _count_log_level(level: str, start_dt, end_dt) -> int:
 # Helpers Word — document
 # ---------------------------------------------------------------------------
 
+
 def _configure_report_document(document) -> None:
     if not HAS_DOCX:
         return
@@ -1045,6 +1247,7 @@ def _write_header_cell(cell, text: str) -> None:
 # Exports CSV / Excel
 # ---------------------------------------------------------------------------
 
+
 def export_application_report_csv(report: dict) -> bytes:
     import csv
     import io as _io
@@ -1064,22 +1267,24 @@ def export_application_report_csv(report: dict) -> bytes:
     writer.writerow(["Analyse", "Prestataires", report["analysis"]["prestataires_count"]])
     writer.writerow(["Analyse", "Beneficiaires", report["analysis"]["beneficiaires_count"]])
     for row in report["user_call_rows"]:
-        writer.writerow(["Utilisateur", row["username"],
-                          f"{row['calls_made']} appels, {row['completed_calls']} termines, {row['time_spent_label']}"])
+        writer.writerow(
+            [
+                "Utilisateur",
+                row["username"],
+                f"{row['calls_made']} appels, {row['completed_calls']} termines, {row['time_spent_label']}",
+            ]
+        )
     return output.getvalue().encode("utf-8-sig")
 
 
 def export_application_report_excel(report: dict) -> bytes:
     try:
         from openpyxl import Workbook
-        from openpyxl.styles import Font, PatternFill
+        from openpyxl.styles import Font
 
         wb = Workbook()
         ws = wb.active
         ws.title = "Rapport"
-
-        header_font = Font(bold=True, color="4C1D95")
-        header_fill = PatternFill(start_color="F5F3FF", end_color="F5F3FF", fill_type="solid")
 
         def add_section(title, rows_data):
             ws.append([title])
@@ -1087,26 +1292,40 @@ def export_application_report_excel(report: dict) -> bytes:
             for row in rows_data:
                 ws.append(list(row))
 
-        add_section("Appels", [
-            ("Termines", report["calls"]["completed"]),
-            ("Effectues", report["calls"]["processed"]),
-            ("En attente", report["calls"]["pending"]),
-            ("En cours", report["calls"]["in_progress"]),
-            ("A rappeler", report["calls"]["callbacks"]),
-            ("Avec audio", report["calls"]["with_audio"]),
-        ])
+        add_section(
+            "Appels",
+            [
+                ("Termines", report["calls"]["completed"]),
+                ("Effectues", report["calls"]["processed"]),
+                ("En attente", report["calls"]["pending"]),
+                ("En cours", report["calls"]["in_progress"]),
+                ("A rappeler", report["calls"]["callbacks"]),
+                ("Avec audio", report["calls"]["with_audio"]),
+            ],
+        )
         ws.append([])
-        add_section("Analyse satisfaction", [
-            ("Classes", report["analysis"]["classes_count"]),
-            ("Prestations", report["analysis"]["prestations_count"]),
-            ("Prestataires", report["analysis"]["prestataires_count"]),
-            ("Beneficiaires", report["analysis"]["beneficiaires_count"]),
-        ])
+        add_section(
+            "Analyse satisfaction",
+            [
+                ("Classes", report["analysis"]["classes_count"]),
+                ("Prestations", report["analysis"]["prestations_count"]),
+                ("Prestataires", report["analysis"]["prestataires_count"]),
+                ("Beneficiaires", report["analysis"]["beneficiaires_count"]),
+            ],
+        )
         ws.append([])
-        add_section("Activite utilisateurs", [
-            (row["username"], row["calls_made"], row["completed_calls"], row["time_spent_label"])
-            for row in report["user_call_rows"]
-        ])
+        add_section(
+            "Activite utilisateurs",
+            [
+                (
+                    row["username"],
+                    row["calls_made"],
+                    row["completed_calls"],
+                    row["time_spent_label"],
+                )
+                for row in report["user_call_rows"]
+            ],
+        )
 
         output = io.BytesIO()
         wb.save(output)

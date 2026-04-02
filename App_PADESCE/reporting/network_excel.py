@@ -17,7 +17,6 @@ from openpyxl import load_workbook
 
 from App_PADESCE.core.access import require_analysis_access
 
-
 NETWORK_WORKBOOK_DIRECTORY = Path(
     r"\\192.168.1.162\naumur - travaux en cours\Projets\PROJET PADESCE\Cellule informatique\Operation"
 )
@@ -208,7 +207,10 @@ def _build_headers(raw_header: tuple | list | None, column_count: int) -> list[s
 
 def _build_row(raw_row: tuple | list | None, column_count: int) -> list[str]:
     raw_row = list(raw_row or [])
-    cells = [_display_cell(raw_row[index]) if index < len(raw_row) else "" for index in range(column_count)]
+    cells = [
+        _display_cell(raw_row[index]) if index < len(raw_row) else ""
+        for index in range(column_count)
+    ]
     return cells
 
 
@@ -326,8 +328,7 @@ def _build_padesce_source_index_cached(cache_key: tuple[str, int, str, str]) -> 
         ]
         if missing_sheets:
             raise ValueError(
-                "Feuilles source manquantes dans le classeur reseau: "
-                + ", ".join(missing_sheets)
+                "Feuilles source manquantes dans le classeur reseau: " + ", ".join(missing_sheets)
             )
 
         classes_by_id: dict[str, dict] = {}
@@ -378,7 +379,9 @@ def _build_padesce_source_index_cached(cache_key: tuple[str, int, str, str]) -> 
                 continue
             prestations_by_id[prestation_key] = {
                 "prestation_id": prestation_id,
-                "prestataire": _sheet_get(row, prestation_headers, "Prestataire", "Nom du prestataire"),
+                "prestataire": _sheet_get(
+                    row, prestation_headers, "Prestataire", "Nom du prestataire"
+                ),
                 "beneficiaire": _sheet_get(
                     row,
                     prestation_headers,
@@ -408,10 +411,16 @@ def _build_padesce_source_index_cached(cache_key: tuple[str, int, str, str]) -> 
                     continue
                 inspecteurs_by_code[inspecteur_key] = {
                     "inspecteur_id": inspecteur_id,
-                    "inspecteur_label": _sheet_get(row, inspecteur_headers, "Nom et Prenom", "Nom et Prénom"),
-                    "telephone": _sheet_get(row, inspecteur_headers, "Numéro de Téléphone", "Numero de Telephone"),
+                    "inspecteur_label": _sheet_get(
+                        row, inspecteur_headers, "Nom et Prenom", "Nom et Prénom"
+                    ),
+                    "telephone": _sheet_get(
+                        row, inspecteur_headers, "Numéro de Téléphone", "Numero de Telephone"
+                    ),
                     "ville": _sheet_get(row, inspecteur_headers, "Ville"),
-                    "departement": _sheet_get(row, inspecteur_headers, "Departement", "Département"),
+                    "departement": _sheet_get(
+                        row, inspecteur_headers, "Departement", "Département"
+                    ),
                 }
 
         if "ListesDV" in workbook.sheetnames:
@@ -422,12 +431,17 @@ def _build_padesce_source_index_cached(cache_key: tuple[str, int, str, str]) -> 
                 classe_key = _normalize_lookup(classe_id)
                 if not classe_key:
                     continue
-                inspecteur_display = _sheet_get(row, list_headers, "Inspecteurs_Display", "Inspecteur")
-                inspecteur_code = inspecteur_display.split(" - ", 1)[0].strip() if inspecteur_display else ""
+                inspecteur_display = _sheet_get(
+                    row, list_headers, "Inspecteurs_Display", "Inspecteur"
+                )
+                inspecteur_code = (
+                    inspecteur_display.split(" - ", 1)[0].strip() if inspecteur_display else ""
+                )
                 inspecteur_info = inspecteurs_by_code.get(_normalize_lookup(inspecteur_code), {})
                 class_inspecteurs[classe_key] = {
                     "inspecteur_id": inspecteur_code or inspecteur_info.get("inspecteur_id", ""),
-                    "inspecteur_label": inspecteur_info.get("inspecteur_label", "") or inspecteur_display,
+                    "inspecteur_label": inspecteur_info.get("inspecteur_label", "")
+                    or inspecteur_display,
                 }
 
         if "PATH Presence" in workbook.sheetnames:
@@ -472,13 +486,18 @@ def _build_padesce_source_index_cached(cache_key: tuple[str, int, str, str]) -> 
                 "code": code,
                 "apprenant_id": _sheet_get(row, apprenant_headers, "ApprenantID", "Apprenant ID"),
                 "individu_id": _sheet_get(row, apprenant_headers, "ID_Individu", "IndividuID"),
-                "beneficiaire_id": _sheet_get(row, apprenant_headers, "ID_Beneficiaire", "BeneficiaireID"),
+                "beneficiaire_id": _sheet_get(
+                    row, apprenant_headers, "ID_Beneficiaire", "BeneficiaireID"
+                ),
                 "nom_individu": _sheet_get(row, apprenant_headers, "Nom_Individu", "Nom Individu"),
-                "beneficiaire": _sheet_get(row, apprenant_headers, "Nom_Beneficiaire", "Nom Beneficiaire")
+                "beneficiaire": _sheet_get(
+                    row, apprenant_headers, "Nom_Beneficiaire", "Nom Beneficiaire"
+                )
                 or classe_info.get("beneficiaire", "")
                 or prestation_info.get("beneficiaire", ""),
                 "classe_id": classe_id,
-                "cohorte": _sheet_get(row, apprenant_headers, "Cohorte") or classe_info.get("cohorte", ""),
+                "cohorte": _sheet_get(row, apprenant_headers, "Cohorte")
+                or classe_info.get("cohorte", ""),
                 "statut_apprenant": _sheet_get(
                     row,
                     apprenant_headers,
@@ -486,15 +505,55 @@ def _build_padesce_source_index_cached(cache_key: tuple[str, int, str, str]) -> 
                     "Statut",
                 ),
                 "numero": _sheet_get(row, apprenant_headers, "N°", "No", "N"),
+                "telephone1": _sheet_get(
+                    row,
+                    apprenant_headers,
+                    "N° Tél",
+                    "N° Tel",
+                    "N°Tél",
+                    "N°Tel",
+                    "Téléphone",
+                    "Telephone",
+                    "Tel",
+                    "Tél",
+                    "Numéro de téléphone",
+                    "Numero de telephone",
+                    "N° de téléphone",
+                    "N° de telephone",
+                    "1er No tél 0 Tel No Apprenant",
+                    "1er No tel 0 Tel No Apprenant",
+                    "1er No tél Apprenant",
+                    "1er No tel Apprenant",
+                    "N°",
+                    "No",
+                    "N",
+                ),
+                "telephone2": _sheet_get(
+                    row,
+                    apprenant_headers,
+                    "2e No tél 0 Tel No Apprenant (si disponible)",
+                    "2e No tel 0 Tel No Apprenant (si disponible)",
+                    "2e No tél Apprenant",
+                    "2e No tel Apprenant",
+                    "2e No tél Apprenant (si disponible)",
+                    "2e No tel Apprenant (si disponible)",
+                    "Téléphone 2",
+                    "Telephone 2",
+                    "Tel 2",
+                    "Tél 2",
+                ),
                 "sexe": _sheet_get(row, apprenant_headers, "Sexe", "Genre"),
                 "prestation_id": prestation_id or prestation_info.get("prestation_id", ""),
-                "prestataire": classe_info.get("prestataire", "") or prestation_info.get("prestataire", ""),
-                "formation": classe_info.get("formation", "") or prestation_info.get("formation", ""),
+                "prestataire": classe_info.get("prestataire", "")
+                or prestation_info.get("prestataire", ""),
+                "formation": classe_info.get("formation", "")
+                or prestation_info.get("formation", ""),
                 "lieu": classe_info.get("lieu", ""),
                 "ville": classe_info.get("ville", ""),
                 "fenetre": prestation_info.get("fenetre", ""),
                 "region": classe_info.get("region", "") or prestation_info.get("region", ""),
-                "statut_prestation": classe_info.get("statut_prestation", "") or prestation_info.get("statut_prestation", ""),
+                "statut_prestation": classe_info.get("statut_prestation", "")
+                or prestation_info.get("statut_prestation", ""),
                 "inspecteur_id": inspecteur_info.get("inspecteur_id", ""),
                 "inspecteur_label": inspecteur_info.get("inspecteur_label", ""),
                 "enquete_ids": class_enquetes.get(_normalize_lookup(classe_id), []),
@@ -602,18 +661,27 @@ def _build_consolidation_call_candidates_cached(cache_key: tuple[str, int, str, 
                 "telephone1": _sheet_get(
                     row,
                     header_lookup,
+                    "1er No tél Apprenant",
+                    "1er No tel Apprenant",
                     "1er No tél 0 Tel No Apprenant",
                     "1er No tél 0 Tel No\nApprenant",
                     "1er No tel 0 Tel No Apprenant",
                     "1er No tel 0 Tel No\nApprenant",
+                    "Téléphone", "Telephone", "Tel", "Tél",
+                    "N° Tél", "N° Tel", "N°Tél", "N°Tel",
                 ),
                 "telephone2": _sheet_get(
                     row,
                     header_lookup,
+                    "2e No tél Apprenant",
+                    "2e No tel Apprenant",
+                    "2e No tél Apprenant (si disponible)",
+                    "2e No tel Apprenant (si disponible)",
                     "2e No tél 0 Tel No Apprenant (si disponible)",
                     "2e No tél 0 Tel No\nApprenant (si disponible)",
                     "2e No tel 0 Tel No Apprenant (si disponible)",
                     "2e No tel 0 Tel No\nApprenant (si disponible)",
+                    "Téléphone 2", "Telephone 2", "Tel 2", "Tél 2",
                 ),
                 "cohorte": _sheet_get(row, header_lookup, "cohorte", "Cohorte"),
                 "statut_prestation": _sheet_get(
@@ -671,7 +739,10 @@ def build_network_excel_payload(
     source_key: str = DEFAULT_WORKBOOK_SOURCE,
 ) -> dict:
     normalized_source_key = normalize_workbook_source_key(source_key)
-    with _open_cached_workbook(source_key=normalized_source_key, force_refresh=force_refresh) as (source, workbook):
+    with _open_cached_workbook(source_key=normalized_source_key, force_refresh=force_refresh) as (
+        source,
+        workbook,
+    ):
         sheet_names = list(workbook.sheetnames)
         if not sheet_names:
             raise ValueError("Le classeur reseau ne contient aucune feuille exploitable.")

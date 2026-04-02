@@ -1,0 +1,603 @@
+{% extends "base.html" %}
+{% block title %}Apprenants Manquants — Import{% endblock %}
+{% block content %}
+<style>
+  .page-shell { display:grid; gap:18px; }
+  .hero { border:1px solid var(--border); border-radius:18px; padding:22px;
+          background: radial-gradient(circle at top right, rgba(111,60,195,.12), transparent 36%),
+                      linear-gradient(135deg,#f5f0ff 0%,#fff 72%);
+          box-shadow:var(--shadow); }
+  .hero h1 { margin:0 0 6px; color:var(--accent-strong); font-size:1.7rem; }
+  .hero p  { margin:0; color:var(--muted); font-size:.92rem; }
+  .card { background:#fff; border:1px solid var(--border); border-radius:16px;
+          box-shadow:var(--shadow); padding:20px; }
+  .kpi-row { display:grid; gap:12px;
+             grid-template-columns:repeat(auto-fit,minmax(160px,1fr));
+             margin-bottom:4px; }
+  .kpi { text-align:center; padding:16px 12px; border-radius:12px;
+         border:1px solid var(--border); background:rgba(111,60,195,.04); }
+  .kpi .val { font-size:1.9rem; font-weight:800; color:var(--accent-strong); }
+  .kpi .lbl { font-size:.78rem; color:var(--muted); margin-top:4px; }
+  .kpi-warn .val { color:#b45309; }
+  .kpi-warn { background:rgba(251,191,36,.07); border-color:rgba(251,191,36,.35); }
+  .source-bar { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:4px; }
+  .source-bar label { font-size:.85rem; color:var(--muted); }
+  .source-bar select { padding:7px 10px; border:1px solid var(--border); border-radius:10px;
+                       background:#fff; color:var(--text); }
+  .btn { display:inline-flex; align-items:center; gap:6px; padding:10px 16px; border-radius:12px;
+         font-weight:700; border:none; cursor:pointer; font-size:.9rem; transition:transform .15s; }
+  .btn:hover { transform:translateY(-1px); }
+  .btn-accent { background:var(--accent); color:#fff; }
+  .btn-accent:disabled { opacity:.5; cursor:not-allowed; transform:none; }
+  .btn-warn { background:#d97706; color:#fff; }
+  .btn-warn:disabled { opacity:.5; cursor:not-allowed; transform:none; }
+  .btn-ghost { background:transparent; border:1px solid var(--border); color:var(--text); }
+  .btn-sm { padding:6px 12px; font-size:.82rem; border-radius:8px; }
+
+  /* Progress bar */
+  .prog-wrap { display:none; margin:12px 0; }
+  .prog-label { display:flex; justify-content:space-between; font-size:.85rem;
+                font-weight:600; margin-bottom:5px; }
+  .prog-track { height:10px; background:rgba(111,60,195,.1); border-radius:999px; overflow:hidden; }
+  .prog-fill  { height:100%; background:linear-gradient(90deg,#7c3aed,#4c1d95);
+                border-radius:999px; transition:width .4s ease; width:0%; }
+  .prog-msg   { font-size:.83rem; color:var(--accent-strong); margin-top:6px; min-height:1.2em; }
+  .prog-fill-warn { background:linear-gradient(90deg,#d97706,#92400e) !important; }
+
+  /* Diagnostic alert */
+  .diag-alert { border:1px solid #fcd34d; border-radius:14px; padding:16px 20px;
+                background:linear-gradient(135deg,#fffbeb,#fef3c7 80%);
+                display:flex; gap:14px; align-items:flex-start; }
+  .diag-alert .icon { font-size:1.6rem; flex-shrink:0; }
+  .diag-alert .body h3 { margin:0 0 6px; font-size:1rem; color:#78350f; }
+  .diag-alert .body p  { margin:0; font-size:.88rem; color:#92400e; line-height:1.5; }
+
+  /* Prestation accordion */
+  .presta-block { border:1px solid var(--border); border-radius:14px; margin-bottom:10px;
+                  overflow:hidden; }
+  .presta-header { display:flex; justify-content:space-between; align-items:center;
+                   padding:13px 16px; cursor:pointer; background:#fff;
+                   transition:background .12s; gap:12px; flex-wrap:wrap; }
+  .presta-header:hover { background:rgba(111,60,195,.04); }
+  .presta-title { font-weight:700; font-size:.95rem; color:var(--text); }
+  .presta-meta  { font-size:.82rem; color:var(--muted); margin-top:2px; }
+  .badge { display:inline-flex; align-items:center; padding:3px 10px; border-radius:999px;
+           font-size:.78rem; font-weight:700; white-space:nowrap; }
+  .badge-imp  { background:rgba(111,60,195,.12); color:var(--accent-strong); }
+  .badge-done { background:rgba(34,197,94,.12); color:#166534; }
+  .badge-warn { background:rgba(251,191,36,.18); color:#78350f; }
+  .badge-none { background:rgba(156,163,175,.12); color:#374151; }
+  .presta-body { display:none; padding:0 16px 16px; border-top:1px solid #f0f0f0; }
+  .presta-body.open { display:block; }
+
+  /* Sub-section inside accordion */
+  .sub-section { margin-top:14px; }
+  .sub-section h4 { font-size:.85rem; font-weight:700; color:var(--muted);
+                    text-transform:uppercase; letter-spacing:.05em; margin:0 0 8px; }
+  .sub-section.warn-section h4 { color:#b45309; }
+
+  /* Apprenant table */
+  .appr-table { width:100%; border-collapse:collapse; font-size:.84rem; margin-top:4px; }
+  .appr-table th { text-align:left; padding:6px 10px; color:var(--muted);
+                   font-size:.77rem; text-transform:uppercase; letter-spacing:.05em;
+                   font-weight:700; border-bottom:1px solid var(--border); }
+  .appr-table td { padding:7px 10px; border-bottom:1px solid #f5f5f5; vertical-align:middle; }
+  .appr-table tr:last-child td { border-bottom:none; }
+  .appr-table tr:hover td { background:rgba(111,60,195,.03); }
+  .phone-chip { background:rgba(34,197,94,.1); color:#166534; padding:2px 8px;
+                border-radius:6px; font-family:monospace; font-size:.82rem; }
+  .phone-chip-warn { background:rgba(251,191,36,.15); color:#78350f; padding:2px 8px;
+                     border-radius:6px; font-family:monospace; font-size:.82rem; }
+  .phone-empty { color:#dc2626; font-size:.82rem; font-style:italic; }
+
+  /* Empty prestations section */
+  .sans-section { border:1px solid rgba(156,163,175,.3); border-radius:12px;
+                  background:#fafafa; padding:14px 18px; }
+  .sans-header  { font-size:.9rem; font-weight:700; color:var(--muted); margin-bottom:8px;
+                  display:flex; align-items:center; gap:8px; }
+  .sans-list    { display:flex; flex-wrap:wrap; gap:8px; }
+  .sans-tag     { background:#fff; border:1px solid var(--border); border-radius:8px;
+                  padding:4px 10px; font-size:.82rem; color:var(--muted); }
+
+  /* Toast */
+  #import-toast {
+    display:none; position:fixed; bottom:22px; right:22px; z-index:9999;
+    min-width:280px; max-width:380px; background:var(--accent-strong); color:#fff;
+    border-radius:14px; padding:14px 18px;
+    box-shadow:0 8px 32px rgba(76,29,149,.35); font-size:.9rem; line-height:1.5;
+    animation:toast-in .25s ease;
+  }
+  @keyframes toast-in { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:none} }
+</style>
+
+<div class="page-shell">
+
+  <!-- Hero -->
+  <div class="hero">
+    <h1>&#128100; Apprenants Manquants</h1>
+    <p>Diagnostic complet des prestations non analysées — source : feuille <strong>Consolidation</strong>.
+       Identifiez les apprenants à importer et ceux dont le téléphone doit être synchronisé.</p>
+  </div>
+
+  {% if error %}
+  <div style="padding:16px;border-radius:12px;background:#fff1f2;border:1px solid #fecdd3;color:#991b1b;font-weight:600;">
+    &#10007; {{ error }}
+  </div>
+  {% else %}
+
+  <!-- Source selector -->
+  <div class="card" style="padding:14px 18px;">
+    <form method="get" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+      <div class="source-bar">
+        <label for="source-sel">Source :</label>
+        <select id="source-sel" name="source" onchange="this.form.submit()">
+          {% for opt in source_options %}
+          <option value="{{ opt.value }}" {% if opt.value == selected_source %}selected{% endif %}>{{ opt.label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <a href="{% url 'satisfaction_dashboard' %}{% if selected_source %}?source={{ selected_source }}{% endif %}"
+         class="btn btn-ghost btn-sm">&#8592; Retour à l'analyse</a>
+    </form>
+  </div>
+
+  <!-- KPIs -->
+  <div class="kpi-row">
+    <div class="kpi">
+      <div class="val">{{ total_missing_prestations }}</div>
+      <div class="lbl">Prestations manquantes</div>
+    </div>
+    <div class="kpi">
+      <div class="val" style="color:#7c3aed;">{{ total_importable }}</div>
+      <div class="lbl">Apprenants à importer</div>
+    </div>
+    {% if total_needs_phone_sync %}
+    <div class="kpi kpi-warn">
+      <div class="val">{{ total_needs_phone_sync }}</div>
+      <div class="lbl">Sans téléphone (sync requis)</div>
+    </div>
+    {% endif %}
+    <div class="kpi">
+      <div class="val" style="color:#166534;">{{ total_already_loaded }}</div>
+      <div class="lbl">Déjà chargés (DB)</div>
+    </div>
+    <div class="kpi">
+      <div class="val">{{ prestations|length }}</div>
+      <div class="lbl">Prestations avec action</div>
+    </div>
+  </div>
+
+  <!-- Diagnostic alert: why 980 loaded but 0 importable -->
+  {% if total_needs_phone_sync %}
+  <div class="diag-alert">
+    <div class="icon">&#9888;&#65039;</div>
+    <div class="body">
+      <h3>Diagnostic : apprenants chargés sans téléphone</h3>
+      <p>
+        <strong>{{ total_needs_phone_sync }} apprenant(s)</strong> sont déjà dans la base PADESCE
+        mais ont un champ téléphone vide — ils ont été importés avant la correction des noms de colonnes.
+        Sans numéro valide, le seuil de 50% de joignables ne peut jamais être atteint et la prestation reste &laquo; manquante &raquo;.<br><br>
+        Cliquez sur <strong>&#128260; Synchroniser les téléphones</strong> ci-dessous pour mettre à jour
+        ces {{ total_needs_phone_sync }} enregistrements depuis la feuille Consolidation.
+      </p>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Sync phones controls -->
+  {% if total_needs_phone_sync %}
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:14px;">
+      <div>
+        <div style="font-weight:700;font-size:1.05rem;color:var(--text);">&#128260; Synchronisation des téléphones</div>
+        <div style="font-size:.84rem;color:var(--muted);margin-top:2px;">
+          Met à jour les {{ total_needs_phone_sync }} appel(s) avec téléphone vide depuis la feuille Consolidation.
+        </div>
+      </div>
+      <button id="btn-sync" class="btn btn-warn" onclick="syncPhones()">
+        &#128260; Synchroniser les téléphones
+        <span style="background:rgba(255,255,255,.25);border-radius:999px;padding:1px 8px;font-size:.78rem;margin-left:4px;">
+          {{ total_needs_phone_sync }}
+        </span>
+      </button>
+    </div>
+    <div id="sync-prog-wrap" class="prog-wrap">
+      <div class="prog-label">
+        <span id="sync-prog-status">Synchronisation en cours…</span>
+        <span id="sync-prog-count"></span>
+      </div>
+      <div class="prog-track"><div class="prog-fill prog-fill-warn" id="sync-prog-fill" style="width:0%;"></div></div>
+      <div class="prog-msg" id="sync-prog-msg"></div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Import global controls -->
+  {% if total_importable %}
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:14px;">
+      <div>
+        <div style="font-weight:700;font-size:1.05rem;color:var(--text);">&#8659; Import en lots</div>
+        <div style="font-size:.84rem;color:var(--muted);margin-top:2px;">
+          {{ total_importable }} apprenant(s) avec numéro de téléphone prêts à charger dans PADESCE.
+        </div>
+      </div>
+      <button id="btn-import" class="btn btn-accent" onclick="importNextBatch()">
+        &#8659; Charger lot de 20
+        <span id="badge-remaining"
+          style="background:rgba(255,255,255,.25);border-radius:999px;padding:1px 8px;font-size:.78rem;margin-left:4px;">
+          {{ total_importable }} restants
+        </span>
+      </button>
+    </div>
+
+    <!-- Progress -->
+    <div id="prog-wrap" class="prog-wrap">
+      <div class="prog-label">
+        <span id="prog-status">Import en cours…</span>
+        <span id="prog-count"></span>
+      </div>
+      <div class="prog-track"><div class="prog-fill" id="prog-fill"></div></div>
+      <div class="prog-msg" id="prog-msg"></div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Per-prestation accordion -->
+  {% if prestations %}
+  <div class="card">
+    <div style="font-weight:700;font-size:1.05rem;margin-bottom:14px;display:flex;align-items:center;gap:8px;">
+      &#9888; Prestations avec actions disponibles
+      <span class="badge badge-imp">{{ prestations|length }}</span>
+    </div>
+
+    {% for presta in prestations %}
+    <div class="presta-block" id="presta-block-{{ forloop.counter }}">
+      <div class="presta-header" onclick="togglePresta({{ forloop.counter }})">
+        <div>
+          <div class="presta-title">
+            <code style="font-size:.85rem;color:var(--accent-strong);">{{ presta.prestation_id }}</code>
+            {% if presta.prestataire %} — {{ presta.prestataire }}{% endif %}
+          </div>
+          <div class="presta-meta">
+            {% if presta.beneficiaire %}{{ presta.beneficiaire }}{% endif %}
+            {% if presta.formation %} · {{ presta.formation }}{% endif %}
+          </div>
+        </div>
+        <div style="display:flex;gap:6px;align-items:center;flex-shrink:0;">
+          {% if presta.importable_count %}<span class="badge badge-imp">{{ presta.importable_count }} à importer</span>{% endif %}
+          {% if presta.loaded_with_phone_count %}<span class="badge badge-done">{{ presta.loaded_with_phone_count }} ✓ avec tél</span>{% endif %}
+          {% if presta.loaded_no_phone_count %}<span class="badge badge-warn">{{ presta.loaded_no_phone_count }} ⚠ sans tél</span>{% endif %}
+          {% if presta.no_phone_count %}<span class="badge badge-none">{{ presta.no_phone_count }} sans tél Consolidation</span>{% endif %}
+          <span id="arrow-{{ forloop.counter }}" style="color:var(--muted);font-size:.9rem;">▼</span>
+        </div>
+      </div>
+      <div class="presta-body" id="body-{{ forloop.counter }}">
+
+        <!-- Apprenants à importer -->
+        {% if presta.apprenants %}
+        <div class="sub-section">
+          <h4>&#8659; À importer ({{ presta.importable_count }})</h4>
+          <div style="overflow-x:auto;">
+            <table class="appr-table">
+              <thead>
+                <tr>
+                  <th>#</th><th>Nom</th><th>Code</th><th>Classe</th>
+                  <th>Téléphone (Consolidation)</th><th>Bénéficiaire</th><th>Fenêtre</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for appr in presta.apprenants %}
+                <tr data-prestation-id="{{ presta.p_key }}" data-code="{{ appr.code }}">
+                  <td style="color:var(--muted);">{{ forloop.counter }}</td>
+                  <td style="font-weight:600;">{{ appr.nom|default:"—" }}</td>
+                  <td><code style="font-size:.8rem;">{{ appr.code }}</code></td>
+                  <td><code style="font-size:.8rem;color:var(--accent-strong);">{{ appr.classe_id|default:"—" }}</code></td>
+                  <td><span class="phone-chip">{{ appr.telephone }}</span></td>
+                  <td style="font-size:.82rem;color:var(--muted);">{{ appr.beneficiaire|default:"—" }}</td>
+                  <td style="text-align:center;">{{ appr.fenetre|default:"—" }}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        {% endif %}
+
+        <!-- Apprenants chargés mais sans téléphone -->
+        {% if presta.apprenants_loaded_no_phone %}
+        <div class="sub-section warn-section">
+          <h4>&#9888; Chargés sans téléphone — sync requis ({{ presta.loaded_no_phone_count }})</h4>
+          <p style="font-size:.83rem;color:#92400e;margin:0 0 8px;">
+            Ces apprenants sont dans la base mais leur téléphone est vide.
+            La feuille Consolidation contient
+            {% for appr in presta.apprenants_loaded_no_phone %}{% if appr.telephone_consol %}un numéro{% endif %}{% endfor %}.
+            Utilisez le bouton <em>Synchroniser les téléphones</em> pour les mettre à jour.
+          </p>
+          <div style="overflow-x:auto;">
+            <table class="appr-table">
+              <thead>
+                <tr>
+                  <th>#</th><th>Nom</th><th>Code</th><th>Classe</th>
+                  <th>Tél dans DB</th><th>Tél Consolidation</th><th>Fenêtre</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for appr in presta.apprenants_loaded_no_phone %}
+                <tr>
+                  <td style="color:var(--muted);">{{ forloop.counter }}</td>
+                  <td style="font-weight:600;">{{ appr.nom|default:"—" }}</td>
+                  <td><code style="font-size:.8rem;">{{ appr.code }}</code></td>
+                  <td><code style="font-size:.8rem;color:var(--accent-strong);">{{ appr.classe_id|default:"—" }}</code></td>
+                  <td><span class="phone-empty">vide</span></td>
+                  <td>
+                    {% if appr.telephone_consol %}
+                    <span class="phone-chip-warn">{{ appr.telephone_consol }}</span>
+                    {% else %}
+                    <span class="phone-empty">non trouvé</span>
+                    {% endif %}
+                  </td>
+                  <td style="text-align:center;">{{ appr.fenetre|default:"—" }}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        {% endif %}
+
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <!-- Prestations sans importables -->
+  {% if prestations_sans_importable %}
+  <div class="sans-section">
+    <div class="sans-header">
+      &#128683; Prestations sans action disponible ({{ prestations_sans_importable|length }})
+      <span style="font-size:.8rem;color:var(--muted);font-weight:400;">— tous chargés avec téléphone ou aucun dans Consolidation</span>
+    </div>
+    <div class="sans-list">
+      {% for presta in prestations_sans_importable %}
+      <div class="sans-tag" title="Chargés avec tél: {{ presta.loaded_with_phone_count }} · Sans tél Conso: {{ presta.no_phone_count }}">
+        {{ presta.prestation_id }}
+        {% if presta.loaded_with_phone_count %}<span style="color:#166534;"> ✓{{ presta.loaded_with_phone_count }}</span>{% endif %}
+        {% if presta.no_phone_count %}<span style="color:#dc2626;"> ✗{{ presta.no_phone_count }}</span>{% endif %}
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  {% if not prestations and not prestations_sans_importable %}
+  <div class="card" style="text-align:center;padding:40px;color:var(--muted);">
+    &#10003; Aucune prestation manquante pour cette source.
+  </div>
+  {% endif %}
+
+  {% endif %}{# /error #}
+
+</div>{# /page-shell #}
+
+<!-- Toast -->
+<div id="import-toast">
+  <div style="display:flex;align-items:flex-start;gap:10px;">
+    <span style="font-size:1.2rem;">&#10003;</span>
+    <div>
+      <div id="toast-msg" style="font-weight:700;"></div>
+      <div id="toast-classes" style="font-size:.82rem;opacity:.85;margin-top:3px;"></div>
+    </div>
+    <button onclick="document.getElementById('import-toast').style.display='none'"
+      style="background:none;border:none;color:#fff;font-size:1rem;cursor:pointer;margin-left:auto;opacity:.7;">✕</button>
+  </div>
+</div>
+
+<script>
+(function () {
+  // ── CSRF ──
+  function getCsrf() {
+    const m = document.cookie.match(/csrftoken=([^;]+)/);
+    return m ? m[1] : '';
+  }
+
+  // ── Accordion ──
+  window.togglePresta = function (n) {
+    const body  = document.getElementById('body-' + n);
+    const arrow = document.getElementById('arrow-' + n);
+    if (!body) return;
+    const open = body.classList.contains('open');
+    body.classList.toggle('open', !open);
+    if (arrow) arrow.textContent = open ? '▼' : '▲';
+  };
+
+  // ── Toast ──
+  let _toastTimer = null;
+  function showToast(message, classes) {
+    const el = document.getElementById('import-toast');
+    document.getElementById('toast-msg').textContent = message;
+    const cl = document.getElementById('toast-classes');
+    if (classes && classes.length) {
+      cl.textContent = 'Classes : ' + classes.join(', ');
+      cl.style.display = 'block';
+    } else {
+      cl.style.display = 'none';
+    }
+    el.style.display = 'block';
+    el.style.animation = 'none';
+    void el.offsetWidth;
+    el.style.animation = 'toast-in .25s ease';
+    clearTimeout(_toastTimer);
+    _toastTimer = setTimeout(function () { el.style.display = 'none'; }, 6000);
+  }
+
+  // ── Notification polling ──
+  let _notifSince = Date.now() / 1000;
+  const _notifUrl = '{% url "import_notifications_poll" %}';
+  function pollNotifications() {
+    fetch(_notifUrl + '?since=' + _notifSince, {
+      headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        (data.notifications || []).forEach(function (n) {
+          if (n.ts > _notifSince) {
+            _notifSince = n.ts;
+            showToast(n.message, n.classes);
+          }
+        });
+      })
+      .catch(function () {});
+  }
+  setInterval(pollNotifications, 3000);
+
+  // ── Source param helper ──
+  const _sourceParam = (new URLSearchParams(window.location.search)).get('source') || '';
+  function _sourceQs() {
+    return _sourceParam ? '?source=' + encodeURIComponent(_sourceParam) : '';
+  }
+
+  // ── Sync phones ──
+  const _syncUrl = '{% url "sync_phones_from_consolidation" %}';
+  window.syncPhones = function () {
+    const btn = document.getElementById('btn-sync');
+    if (btn) { btn.disabled = true; btn.innerHTML = '&#8987; Synchronisation…'; }
+    const wrap = document.getElementById('sync-prog-wrap');
+    if (wrap) wrap.style.display = 'block';
+    const fill = document.getElementById('sync-prog-fill');
+    const st   = document.getElementById('sync-prog-status');
+    const ct   = document.getElementById('sync-prog-count');
+    const mt   = document.getElementById('sync-prog-msg');
+    if (fill) fill.style.width = '0%';
+    if (st)   st.textContent  = 'Lecture de la feuille Consolidation…';
+
+    fetch(_syncUrl + _sourceQs(), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': getCsrf(),
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+      body: JSON.stringify({}),
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (data.error) {
+          if (st) st.textContent = '✗ ' + data.error;
+          if (btn) { btn.disabled = false; btn.innerHTML = '&#128260; Réessayer'; }
+          return;
+        }
+        if (fill) fill.style.width = '100%';
+        if (st)   st.textContent = '✓ Synchronisation terminée';
+        if (ct)   ct.textContent = data.updated + ' mis à jour / ' + data.total_checked + ' vérifiés';
+        if (mt)   mt.textContent = data.classes && data.classes.length
+          ? 'Classes : ' + data.classes.join(', ')
+          : '';
+        if (btn) { btn.disabled = true; btn.innerHTML = '&#10003; Synchronisé'; }
+        showToast(data.updated + ' téléphone(s) synchronisé(s) depuis Consolidation.', data.classes);
+        // Reload after 2s to reflect updated data
+        setTimeout(function () { window.location.reload(); }, 2000);
+      })
+      .catch(function (err) {
+        if (st) st.textContent = '✗ Erreur : ' + err.message;
+        if (btn) { btn.disabled = false; btn.innerHTML = '&#128260; Réessayer'; }
+      });
+  };
+
+  // ── Import batch ──
+  let _offset = 0;
+  let _total  = {{ total_importable|default:0 }};
+  let _done   = false;
+
+  const _importUrl = '{% url "import_missing_apprenants" %}' + _sourceQs();
+
+  function _getPrestationIds() {
+    const rows = document.querySelectorAll('[data-prestation-id]');
+    const ids = new Set();
+    rows.forEach(function (r) { ids.add(r.dataset.prestationId); });
+    return Array.from(ids);
+  }
+
+  function _setProgress(pct, statusText, countText, msgText) {
+    const wrap = document.getElementById('prog-wrap');
+    if (wrap) wrap.style.display = 'block';
+    const fill = document.getElementById('prog-fill');
+    if (fill) fill.style.width = pct + '%';
+    const st = document.getElementById('prog-status');
+    if (st) st.textContent = statusText;
+    const ct = document.getElementById('prog-count');
+    if (ct) ct.textContent = countText;
+    const mt = document.getElementById('prog-msg');
+    if (mt) mt.textContent = msgText || '';
+  }
+
+  function _updateBtn(remaining) {
+    const btn = document.getElementById('btn-import');
+    const bdg = document.getElementById('badge-remaining');
+    if (!btn) return;
+    if (remaining <= 0) {
+      btn.disabled = true;
+      btn.innerHTML = '&#10003; Tout importé';
+    } else {
+      btn.disabled = false;
+      if (bdg) bdg.textContent = remaining + ' restants';
+    }
+  }
+
+  window.importNextBatch = function () {
+    if (_done) return;
+    const btn = document.getElementById('btn-import');
+    if (btn) { btn.disabled = true; btn.innerHTML = '&#8987; Chargement…'; }
+    _setProgress(0, 'Import en cours…', '', '');
+
+    fetch(_importUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': getCsrf(),
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+      body: JSON.stringify({ offset: _offset, prestation_ids: _getPrestationIds() }),
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (data.error) {
+          _setProgress(0, '&#10007; ' + data.error, '', '');
+          if (btn) { btn.disabled = false; btn.innerHTML = '&#8659; Réessayer'; }
+          return;
+        }
+        const total = data.total_importable || _total;
+        _total  = total;
+        _offset = data.next_offset || (_offset + 20);
+        const imported  = data.imported || 0;
+        const remaining = data.total_remaining || 0;
+        const pct = total > 0 ? Math.min(100, Math.round((_offset / total) * 100)) : 100;
+
+        _setProgress(
+          pct,
+          data.done ? '&#10003; Import terminé' : 'En cours…',
+          imported + ' importé(s) ce lot · ' + remaining + ' restants',
+          data.classes && data.classes.length ? 'Classes : ' + data.classes.join(', ') : ''
+        );
+        _updateBtn(remaining);
+
+        if (data.done) {
+          _done = true;
+        } else {
+          if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '&#8659; Charger lot suivant <span id="badge-remaining" ' +
+              'style="background:rgba(255,255,255,.25);border-radius:999px;padding:1px 8px;' +
+              'font-size:.78rem;margin-left:4px;">' + remaining + ' restants</span>';
+          }
+        }
+      })
+      .catch(function (err) {
+        _setProgress(0, '&#10007; Erreur : ' + err.message, '', '');
+        if (btn) { btn.disabled = false; btn.innerHTML = '&#8659; Réessayer'; }
+      });
+  };
+})();
+</script>
+{% endblock %}

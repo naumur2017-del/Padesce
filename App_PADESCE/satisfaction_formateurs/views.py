@@ -5,6 +5,7 @@ import logging
 import os
 import re
 import uuid
+from collections import defaultdict
 from datetime import date as date_cls
 
 import requests
@@ -14,6 +15,8 @@ from django.core.paginator import Paginator
 from django.http import HttpResponse
 from django.shortcuts import redirect, render
 
+from App_PADESCE.appels.models import AppelFormateur
+from App_PADESCE.core.access import require_analysis_access
 from App_PADESCE.formations.models import Classe, Formateur
 from App_PADESCE.satisfaction_formateurs.forms import SatisfactionFormateurForm
 from App_PADESCE.satisfaction_formateurs.models import SatisfactionFormateur
@@ -209,9 +212,9 @@ def _ai_results_formateur(audio_path: str) -> tuple[dict | None, str | None, str
 
 def satisfaction_formateurs(request):
     filter_classe = request.GET.get("classe")
-    qs = SatisfactionFormateur.objects.select_related("classe", "formateur", "inspecteur", "enqueteur").order_by(
-        "-date", "-created_at"
-    )
+    qs = SatisfactionFormateur.objects.select_related(
+        "classe", "formateur", "inspecteur", "enqueteur"
+    ).order_by("-date", "-created_at")
     if filter_classe:
         qs = qs.filter(classe_id=filter_classe)
 
@@ -239,7 +242,9 @@ def satisfaction_formateurs(request):
 
         if action == "identify":
             if not posted_classe or not identifiant:
-                messages.error(request, "Renseignez la classe et le code ou telephone du formateur.")
+                messages.error(
+                    request, "Renseignez la classe et le code ou telephone du formateur."
+                )
             else:
                 formateur, error = _find_formateur(posted_classe, identifiant)
                 if formateur:
@@ -272,7 +277,9 @@ def satisfaction_formateurs(request):
                     else:
                         workflow["ai_results"] = results
                         workflow["transcription"] = transcript
-                        messages.success(request, "Transcription terminee et traitement vocal actualise.")
+                        messages.success(
+                            request, "Transcription terminee et traitement vocal actualise."
+                        )
         elif action == "save":
             if not workflow.get("formateur_id"):
                 messages.error(request, "Identifiez un formateur avant d'enregistrer.")
@@ -306,7 +313,11 @@ def satisfaction_formateurs(request):
                     obj.save()
                     messages.success(request, "Satisfaction formateur enregistree.")
                     request.session.pop(SESSION_KEY, None)
-                    return redirect(request.path_info + f"?classe={filter_classe}" if filter_classe else request.path_info)
+                    return redirect(
+                        request.path_info + f"?classe={filter_classe}"
+                        if filter_classe
+                        else request.path_info
+                    )
                 else:
                     save_errors = save_form.errors
 
@@ -341,7 +352,9 @@ def satisfaction_formateurs(request):
         "identifiant": workflow.get("identifiant", ""),
         "ai_results": workflow.get("ai_results"),
         "transcription": workflow.get("transcription"),
-        "audio_name": os.path.basename(workflow.get("audio_path")) if workflow.get("audio_path") else None,
+        "audio_name": (
+            os.path.basename(workflow.get("audio_path")) if workflow.get("audio_path") else None
+        ),
         "save_errors": save_errors,
         "enquetes": page_obj,
         "page_obj": page_obj,
@@ -353,7 +366,9 @@ def satisfaction_formateurs(request):
 
 def satisfaction_formateurs_export_csv(request):
     filter_classe = request.GET.get("classe")
-    qs = SatisfactionFormateur.objects.select_related("classe", "formateur", "inspecteur", "enqueteur").order_by("-date")
+    qs = SatisfactionFormateur.objects.select_related(
+        "classe", "formateur", "inspecteur", "enqueteur"
+    ).order_by("-date")
     if filter_classe:
         qs = qs.filter(classe_id=filter_classe)
 
@@ -398,3 +413,115 @@ def satisfaction_formateurs_export_csv(request):
             ]
         )
     return response
+
+
+# ---------------------------------------------------------------------------
+# Dashboard Analyse – Appels Formateurs
+# ---------------------------------------------------------------------------
+
+Q_FORM_FIELDS = [
+    ("q1_prerequis_apprenants", "Prérequis apprenants"),
+    ("q2_interaction_apprenants", "Interaction apprenants"),
+    ("q3_competences_acquises", "Compétences acquises"),
+]
+
+
+def _avg_num(values):
+    nums = [v for v in values if v is not None]
+    return round(sum(nums) / len(nums), 2) if nums else 0
+
+
+@require_analysis_access
+def satisfaction_formateurs_dashboard(request):
+    """
+    Tableau de bord d'analyse des appels formateurs.
+    Stats par prestataire, bénéficiaire, cohorte + résumé Q4-Q6 textuels.
+    """
+    f_prestataire = (request.GET.get("prestataire") or "").strip()
+    f_beneficiaire = (request.GET.get("beneficiaire") or "").strip()
+    f_cohorte = (request.GET.get("cohorte") or "").strip()
+
+    qs = AppelFormateur.objects.filter(is_active=True).order_by("session_date", "prestataire")
+    if f_prestataire:
+        qs = qs.filter(prestataire=f_prestataire)
+    if f_beneficiaire:
+        qs = qs.filter(beneficiaire=f_beneficiaire)
+    if f_cohorte:
+        qs = qs.filter(cohorte=f_cohorte)
+
+    records = list(
+        qs.values(
+            "id",
+            "reference_code",
+            "prestataire",
+            "beneficiaire",
+            "formation",
+            "cohorte",
+            "session_date",
+            "telephone",
+            "status",
+            "q1_prerequis_apprenants",
+            "q2_interaction_apprenants",
+            "q3_competences_acquises",
+            "q4_gestion_administrative",
+            "q5_gestion_financiere",
+            "q6_communication",
+            "commentaires",
+            "recommandations",
+        )
+    )
+
+    total = len(records)
+    termines = sum(1 for r in records if r["status"] == "termine")
+    with_scores = sum(1 for r in records if all(r.get(f) is not None for f, _ in Q_FORM_FIELDS))
+
+    global_avgs = {label: _avg_num([r[field] for r in records]) for field, label in Q_FORM_FIELDS}
+
+    def _group_stats(key_fn):
+        groups = defaultdict(list)
+        for r in records:
+            groups[key_fn(r)].append(r)
+        return sorted(
+            [
+                {
+                    "label": k,
+                    "nb": len(v),
+                    "avgs": [_avg_num([r[f] for r in v]) for f, _ in Q_FORM_FIELDS],
+                }
+                for k, v in groups.items()
+            ],
+            key=lambda x: x["label"],
+        )
+
+    prestataire_stats = _group_stats(lambda r: r["prestataire"] or "—")
+    beneficiaire_stats = _group_stats(lambda r: r["beneficiaire"] or "—")
+    cohorte_stats = _group_stats(lambda r: r["cohorte"] or "—")
+
+    all_qs = AppelFormateur.objects.filter(is_active=True)
+    prestataires = sorted(set(all_qs.values_list("prestataire", flat=True)) - {""})
+    beneficiaires = sorted(set(all_qs.values_list("beneficiaire", flat=True)) - {""})
+    cohortes = sorted(set(all_qs.values_list("cohorte", flat=True)) - {""})
+
+    status_counts = defaultdict(int)
+    for r in records:
+        status_counts[r["status"]] += 1
+
+    context = {
+        "total": total,
+        "termines": termines,
+        "with_scores": with_scores,
+        "global_avgs": global_avgs,
+        "q_labels": [label for _, label in Q_FORM_FIELDS],
+        "prestataire_stats": prestataire_stats,
+        "beneficiaire_stats": beneficiaire_stats,
+        "cohorte_stats": cohorte_stats,
+        "status_counts": dict(status_counts),
+        "prestataires": prestataires,
+        "beneficiaires": beneficiaires,
+        "cohortes": cohortes,
+        "f_prestataire": f_prestataire,
+        "f_beneficiaire": f_beneficiaire,
+        "f_cohorte": f_cohorte,
+        "rows": records[:200],
+    }
+    return render(request, "satisfaction_formateurs/dashboard.html", context)
