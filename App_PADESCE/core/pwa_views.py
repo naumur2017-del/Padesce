@@ -3,9 +3,9 @@ from __future__ import annotations
 import json
 
 from django.http import HttpResponse
-from django.template.loader import render_to_string
 from django.templatetags.static import static
 from django.views.decorators.http import require_GET
+from django.conf import settings
 
 
 PWA_CACHE_VERSION = "2026-04-02-1"
@@ -21,17 +21,16 @@ def service_worker(request):
         "/manifest.webmanifest",
         _absolute_static_path("branding/logo.png"),
     ]
-    body = render_to_string(
-        "pwa/service_worker.js",
-        {
-            "cache_version": PWA_CACHE_VERSION,
-            "precache_urls_json": json.dumps(precache_urls),
-        },
-        request=request,
+    template_path = settings.BASE_DIR / "templates" / "pwa" / "service_worker.js"
+    body = template_path.read_text(encoding="utf-8").replace(
+        "__CACHE_VERSION__",
+        PWA_CACHE_VERSION,
+    ).replace(
+        "__PRECACHE_URLS__",
+        json.dumps(precache_urls),
     )
-    response = HttpResponse(body, content_type="application/javascript; charset=utf-8")
+    response = HttpResponse(body, content_type="text/javascript; charset=utf-8")
     response["Cache-Control"] = "no-cache"
-    response["Service-Worker-Allowed"] = "/"
     return response
 
 

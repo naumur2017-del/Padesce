@@ -61,7 +61,7 @@ class PublicPwaRoutesTests(TestCase):
         response = self.client.get("/service-worker.js")
 
         self.assertEqual(response.status_code, 200)
-        self.assertIn("application/javascript", response["Content-Type"])
+        self.assertIn("javascript", response["Content-Type"])
         self.assertIn("CACHE_VERSION", response.content.decode())
 
     def test_manifest_is_public(self):

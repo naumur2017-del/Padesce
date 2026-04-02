@@ -1,8 +1,8 @@
-const CACHE_VERSION = "{{ cache_version }}";
+const CACHE_VERSION = "__CACHE_VERSION__";
 const SHELL_CACHE = `padesce-shell-${CACHE_VERSION}`;
 const PAGE_CACHE = `padesce-pages-${CACHE_VERSION}`;
 const DATA_CACHE = `padesce-data-${CACHE_VERSION}`;
-const PRECACHE_URLS = {{ precache_urls_json|safe }};
+const PRECACHE_URLS = __PRECACHE_URLS__;
 const DATA_PATH_HINTS = [
   "/reporting/api/",
   "/formations/classes/api/",
