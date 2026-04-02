@@ -62,7 +62,7 @@ class PublicPwaRoutesTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertIn("javascript", response["Content-Type"])
-        self.assertIn("CACHE_VERSION", response.content.decode())
+        self.assertIn("unregister()", response.content.decode())
 
     def test_manifest_is_public(self):
         response = self.client.get("/manifest.webmanifest")
