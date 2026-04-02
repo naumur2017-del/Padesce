@@ -2,6 +2,7 @@ import json
 from types import SimpleNamespace
 from unittest.mock import patch
 
+from django.http import QueryDict
 from django.test import RequestFactory, SimpleTestCase, TestCase
 
 from App_PADESCE.apprenants.models import Apprenant
@@ -9,6 +10,7 @@ from App_PADESCE.formations.models import Beneficiaire, Classe, Formation, Inspe
 from App_PADESCE.satisfaction_apprenants.management.commands.import_satisfaction_excel import _sync_source_models
 from App_PADESCE.satisfaction_apprenants.views import (
     _attach_network_source_to_rows,
+    _build_satisfaction_dashboard_data,
     _build_dashboard_filter_options,
     _build_threshold_class_stats,
     _call_report_status,
@@ -448,6 +450,115 @@ class SatisfactionDashboardSourceTests(SimpleTestCase):
 class SatisfactionDashboardRagTests(SimpleTestCase):
     def setUp(self):
         self.factory = RequestFactory()
+
+
+class SatisfactionDashboardRegressionTests(SimpleTestCase):
+    @patch("App_PADESCE.satisfaction_apprenants.views._build_dashboard_table_details", return_value={})
+    @patch(
+        "App_PADESCE.satisfaction_apprenants.views._build_missing_prestations_analysis",
+        return_value={"available": False, "total_missing": 0, "total_source": 0},
+    )
+    @patch(
+        "App_PADESCE.satisfaction_apprenants.views._build_dashboard_active_filters_summary",
+        return_value=[],
+    )
+    @patch("App_PADESCE.satisfaction_apprenants.views._build_class_filter_options", return_value=[])
+    @patch(
+        "App_PADESCE.satisfaction_apprenants.views._build_dashboard_filter_options",
+        return_value={
+            "prestation": [],
+            "fenetre": [],
+            "ville": [],
+            "user": [],
+            "classe": [],
+            "prestataire": [],
+            "beneficiaire": [],
+            "cohorte": [],
+        },
+    )
+    @patch("App_PADESCE.satisfaction_apprenants.views._assign_enquete_ids", side_effect=lambda rows: rows)
+    @patch(
+        "App_PADESCE.satisfaction_apprenants.views._attach_network_source_to_rows",
+        side_effect=lambda rows, **kwargs: (rows, {"available": False}),
+    )
+    @patch("App_PADESCE.satisfaction_apprenants.views.build_padesce_source_index", return_value=None)
+    @patch("App_PADESCE.satisfaction_apprenants.views.get_workbook_source_options", return_value=[])
+    @patch(
+        "App_PADESCE.satisfaction_apprenants.views._qualified_prestation_codes_from_source",
+        return_value={"presta001"},
+    )
+    @patch(
+        "App_PADESCE.satisfaction_apprenants.views._terminated_prestation_codes_from_source",
+        return_value={"presta001"},
+    )
+    @patch("App_PADESCE.satisfaction_apprenants.views._thresholded_dashboard_rows")
+    @patch("App_PADESCE.satisfaction_apprenants.views._dashboard_row_from_answer")
+    @patch("App_PADESCE.satisfaction_apprenants.views._satisfaction_dashboard_base_queryset", return_value=[object()])
+    @patch("App_PADESCE.satisfaction_apprenants.views.Classe.objects.annotate")
+    def test_build_satisfaction_dashboard_data_sets_prestation_effectif_from_associated_classes(
+        self,
+        mock_annotate,
+        _mock_base_queryset,
+        mock_dashboard_row_from_answer,
+        mock_thresholded_dashboard_rows,
+        _mock_terminated,
+        _mock_qualified,
+        _mock_source_options,
+        _mock_source_index,
+        _mock_attach_network_rows,
+        _mock_assign_enquete_ids,
+        _mock_filter_options,
+        _mock_class_filter_options,
+        _mock_active_filter_summary,
+        _mock_missing_analysis,
+        _mock_table_details,
+    ):
+        row = {
+            "fenetre": "2",
+            "prestation_code": "PRESTA001",
+            "prestataire": "Prestataire A",
+            "beneficiaire": "Beneficiaire A",
+            "classe_code": "CLA001",
+            "formation_intitule": "Formation A",
+            "classe_intitule": "Formation A",
+            "cohorte": "1",
+            "ville": "Garoua",
+            "user": "agent-a",
+            "modified_at": 1,
+            "q1_clarte_exposes": 5,
+            "q2_interaction_formateur": 4,
+            "q3_maitrise_contenu": 4,
+            "q4_salle_adequate": 5,
+            "q5_materiel_disponible": 4,
+            "q6_organisation_temps": 5,
+            "q7_utilite_formation": 4,
+            "q8_adequation_besoins": 5,
+            "q9_satisfaction_globale": 5,
+        }
+        mock_annotate.return_value.values_list.return_value = [("CLA001", 2)]
+        mock_dashboard_row_from_answer.return_value = row
+        mock_thresholded_dashboard_rows.return_value = (
+            [row],
+            [
+                {
+                    "code": "CLA001",
+                    "intitule": "Formation A",
+                    "prestation": "PRESTA001",
+                    "cohorte": "1",
+                    "nb": 1,
+                    "avgs": [4.56] * 9,
+                    "total_apprenants": 2,
+                    "threshold_reached": True,
+                }
+            ],
+        )
+
+        request = SimpleNamespace(GET=QueryDict("", mutable=True))
+
+        dashboard = _build_satisfaction_dashboard_data(request)
+
+        self.assertEqual(dashboard["context"]["prestation_stats"][0]["effectif"], 2)
+        self.assertEqual(dashboard["context"]["prestation_stats_all"][0]["effectif"], 2)
 
 
 class SatisfactionImportExcelSyncTests(TestCase):

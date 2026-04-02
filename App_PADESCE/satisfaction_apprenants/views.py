@@ -2154,9 +2154,11 @@ def _build_satisfaction_dashboard_data(request):
                 "code": normalized_p_code,
                 "prestataire": row["prestataire"],
                 "beneficiaire": row["beneficiaire"],
+                "associated_classes": set(),
                 "metrics": _dashboard_bucket(),
             },
         )
+        prestation_groups[prestation_key]["associated_classes"].add(classe_key)
         _dashboard_bucket_add(prestation_groups[prestation_key]["metrics"], row)
 
         fenetre_groups.setdefault(
