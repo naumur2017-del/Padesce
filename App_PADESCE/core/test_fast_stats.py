@@ -1,4 +1,5 @@
 from datetime import date
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase
@@ -25,6 +26,11 @@ from App_PADESCE.formations.models import (
 
 class FastStatsTests(TestCase):
     def setUp(self):
+        self.source_index_patcher = patch("App_PADESCE.core.fast_stats.build_padesce_source_index")
+        self.mock_build_padesce_source_index = self.source_index_patcher.start()
+        self.addCleanup(self.source_index_patcher.stop)
+        self.mock_build_padesce_source_index.return_value = {"records": {}}
+
         self.user = get_user_model().objects.create_user(
             username="fast-stats-admin",
             password="test-pass-123",
@@ -225,3 +231,28 @@ class FastStatsTests(TestCase):
 
         self.assertEqual(self._mode(payload, "apprenant")["row_count"], 1)
         self.assertEqual(self._mode(payload, "formateur")["row_count"], 1)
+
+    def test_fast_stats_uses_total_consolidated_class_size_for_apprenant_count(
+        self,
+    ):
+        self.mock_build_padesce_source_index.reset_mock()
+        self.mock_build_padesce_source_index.return_value = {
+            "records": {
+                "app001": {"classe_id": "CLA011", "telephone1": "690000001"},
+                "app002": {"classe_id": "CLA011", "telephone1": ""},
+                "app003": {"classe_id": "CLA011", "telephone1": ""},
+            }
+        }
+
+        payload = build_fast_stats_api_payload(
+            request_like_with_query("prestataire=Prestataire+Alpha&source=cutoff")
+        )
+
+        apprenant_row = self._mode(payload, "apprenant")["rows"][0]
+        self.assertEqual(apprenant_row["apprenant_count"], 3)
+        self.assertEqual(apprenant_row["calls_effectues"], 2)
+        self.assertEqual(apprenant_row["calls_termines"], 1)
+        self.assertEqual(apprenant_row["pct_appel_effectue_label"], "66.67%")
+        self.assertEqual(apprenant_row["pct_appel_termine_label"], "50.00%")
+        self.assertEqual(apprenant_row["pct_enquetes_label"], "33.33%")
+        self.mock_build_padesce_source_index.assert_called_once_with(source_key="cutoff")

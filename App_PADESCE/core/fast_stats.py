@@ -17,6 +17,11 @@ from openpyxl import Workbook, load_workbook
 from App_PADESCE.appels.models import Appel, AppelAnswers, AppelFormateur
 from App_PADESCE.apprenants.models import Apprenant
 from App_PADESCE.formations.models import Classe, Formateur
+from App_PADESCE.reporting.network_excel import (
+    build_padesce_source_index,
+    normalize_network_lookup,
+    normalize_workbook_source_key,
+)
 from App_PADESCE.satisfaction_apprenants.models import SatisfactionApprenant
 
 FAST_STATS_TEMPLATE_PATH = Path(settings.BASE_DIR) / "data" / "templates" / "fast_stats_template.xlsx"
@@ -28,6 +33,7 @@ FAST_STATS_FILTER_KEYS = (
     "cohorte",
     "fenetre",
     "ville",
+    "source",
 )
 FAST_STATS_TEMPLATE_ROW_START = 4
 FAST_STATS_TEMPLATE_SHEET_HINTS = {
@@ -260,8 +266,35 @@ def _apprenant_person_key(appel: Appel) -> str:
     return f"appel-{getattr(appel, 'pk', '0')}"
 
 
-def _build_apprenant_row(index: int, classe: Classe) -> dict:
-    apprenant_count = len(list(classe.apprenants.all()))
+def _source_class_apprenant_totals(source_bundle: dict | None) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for record in (source_bundle or {}).get("records", {}).values():
+        classe_code = _safe_text(record.get("classe_id") or record.get("classe_label"))
+        normalized_code = normalize_network_lookup(classe_code)
+        if not normalized_code:
+            continue
+        counts[normalized_code] = counts.get(normalized_code, 0) + 1
+    return counts
+
+
+def _load_source_class_apprenant_totals(filters: dict[str, str]) -> dict[str, int]:
+    source_key = normalize_workbook_source_key(filters.get("source", ""))
+    try:
+        source_bundle = build_padesce_source_index(source_key=source_key)
+    except Exception:
+        return {}
+    return _source_class_apprenant_totals(source_bundle)
+
+
+def _build_apprenant_row(
+    index: int,
+    classe: Classe,
+    *,
+    source_class_counts: dict[str, int] | None = None,
+) -> dict:
+    local_apprenant_count = len(list(classe.apprenants.all()))
+    classe_key = normalize_network_lookup(classe.code)
+    apprenant_count = int((source_class_counts or {}).get(classe_key, local_apprenant_count) or 0)
     appels = list(classe.appels.all())
     people: dict[str, dict[str, bool]] = {}
     for appel in appels:
@@ -658,10 +691,18 @@ def _find_sheet_name(workbook: Workbook, mode_id: str) -> str:
 def build_fast_stats_bundle(request) -> dict:
     filters = _extract_fast_stats_filters(request)
     classes, scope = _resolve_fast_stats_classes(filters)
+    source_class_counts = _load_source_class_apprenant_totals(filters)
     formateur_directory = _formateur_directory_by_phone()
     prestation_calls_cache: dict[int, list[AppelFormateur]] = {}
 
-    apprenant_rows = [_build_apprenant_row(index, classe) for index, classe in enumerate(classes, start=1)]
+    apprenant_rows = [
+        _build_apprenant_row(
+            index,
+            classe,
+            source_class_counts=source_class_counts,
+        )
+        for index, classe in enumerate(classes, start=1)
+    ]
     formateur_rows = [
         _build_formateur_row(
             index,
