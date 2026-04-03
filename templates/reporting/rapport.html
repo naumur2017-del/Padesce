@@ -320,7 +320,7 @@
         <table>
           <thead>
             <tr>
-              <th class="th-code">Code</th>
+              <th class="th-code">ApprenantID</th>
               {% if report.anomalies.selected_class.not_formed_count %}<th class="th-not-formed">Pas forme</th>{% endif %}
               {% if report.anomalies.selected_class.duplicate_numbers_count %}<th class="th-fake-number">Numero double</th>{% endif %}
               {% if report.anomalies.selected_class.false_name_count %}<th class="th-false-name">Faux nom</th>{% endif %}
@@ -329,7 +329,7 @@
           <tbody>
             {% for row in report.anomalies.anomaly_rows %}
             <tr class="{% if row.anomaly_label == 'Pas forme' %}anomaly-not-formed{% elif row.anomaly_label == 'Doublon' %}anomaly-duplicate{% else %}anomaly-false-name{% endif %}">
-              <td>{{ row.code }}</td>
+              <td>{{ row.apprenant_id|default:row.code }}</td>
               {% if report.anomalies.selected_class.not_formed_count %}
               <td>{% if row.anomaly_label == "Pas forme" %}Pas forme{% endif %}</td>
               {% endif %}

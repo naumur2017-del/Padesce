@@ -140,7 +140,7 @@
       <small>Appels encore a finaliser</small>
     </div>
     <div class="stat {% if stats.threshold_reached %}ok{% else %}warn{% endif %}">
-      Seuil 50%<strong>{% if stats.threshold_reached %}Atteint{% else %}En cours{% endif %}</strong>
+      Seuil {{ stats.threshold_target }} appels<strong>{% if stats.threshold_reached %}Atteint{% else %}En cours{% endif %}</strong>
       <small>{{ stats.threshold_message }}</small>
     </div>
   </div>

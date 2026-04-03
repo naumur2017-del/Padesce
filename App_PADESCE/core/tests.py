@@ -319,6 +319,8 @@ class PublicConsultantAccessTests(TestCase):
                 "analyzed_prestations_count": 1,
                 "analyzed_prestataires_count": 1,
                 "analyzed_beneficiaires_count": 1,
+                "analysis_audio_count": 3,
+                "analyzed_learners_count": 10,
                 "total_apprenants": 10,
             },
         }
@@ -326,8 +328,10 @@ class PublicConsultantAccessTests(TestCase):
         response = self.client.get(reverse("consultant_dashboard"))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Prestataires")
-        self.assertNotContains(response, "Audios disponibles")
+        self.assertContains(response, "Prestations")
+        self.assertContains(response, "Classes")
+        self.assertContains(response, "Apprenants analyses")
+        self.assertContains(response, "Nombre d'audios")
 
     @override_settings(PUBLIC_CONSULTANT_ACCESS=False)
     def test_consultant_dashboard_redirects_when_public_access_disabled(self):
@@ -371,6 +375,7 @@ class PublicConsultantAccessTests(TestCase):
             nom="Alpha Prioritaire",
             classe_label="CLA001",
             fenetre="2",
+            telephone1="690000950",
             status="termine",
             is_active=True,
             audio_file="padesce/tests/prioritaire.mp3",
@@ -380,6 +385,7 @@ class PublicConsultantAccessTests(TestCase):
             nom="Beta Audio",
             classe_label="CLA001",
             fenetre="2",
+            telephone1="690000951",
             status="termine",
             is_active=True,
             audio_file="padesce/tests/audio-seul.mp3",
@@ -389,6 +395,7 @@ class PublicConsultantAccessTests(TestCase):
             nom="Gamma Formulaire",
             classe_label="CLA001",
             fenetre="2",
+            telephone1="690000952",
             status="termine",
             is_active=True,
         )
@@ -426,7 +433,7 @@ class PublicConsultantAccessTests(TestCase):
         rows = list(response.context["rows"])
         self.assertEqual(rows[0].pk, prioritized.pk)
         self.assertFalse(getattr(rows[1], "consultant_priority", False))
-        self.assertNotContains(response, "Audios disponibles")
+        self.assertContains(response, "Nombre d'audios")
 
     @override_settings(PUBLIC_CONSULTANT_ACCESS=True)
     def test_consultant_detail_simulates_missing_answers_for_display(self):

@@ -33,6 +33,10 @@ from App_PADESCE.core.access import (
     require_analysis_access,
     require_consultant_access,
 )
+from App_PADESCE.core.analysis_rules import (
+    analysis_threshold_target,
+    appel_is_analysis_eligible,
+)
 from App_PADESCE.core.call_metrics import has_usable_phone
 from App_PADESCE.core.fast_stats import (
     build_fast_stats_api_response,
@@ -114,9 +118,9 @@ def _consultant_qualified_prestation_codes(source_bundle: dict | None) -> set[st
             if total_apprenants <= 0:
                 all_reached = False
                 break
-            threshold_target = (total_apprenants + 1) // 2
+            threshold_count = analysis_threshold_target(total_apprenants)
             total_termines = int(terminated_by_class.get(class_key) or 0)
-            if total_termines < threshold_target:
+            if total_termines < threshold_count:
                 all_reached = False
                 break
         if all_reached:
@@ -184,6 +188,20 @@ def _consultant_answers_complete(answers: AppelAnswers | None) -> bool:
     if not answers:
         return False
     return all(getattr(answers, field, None) is not None for field in APPEL_ANSWER_QUESTION_FIELDS)
+
+
+def _consultant_answer_or_none(appel: Appel):
+    try:
+        return appel.answers
+    except AppelAnswers.DoesNotExist:
+        return None
+
+
+def _consultant_survey_or_none(appel: Appel):
+    try:
+        return appel.satisfaction_apprenant
+    except SatisfactionApprenant.DoesNotExist:
+        return None
 
 
 CONSULTANT_QUESTION_LABELS = (
@@ -373,6 +391,8 @@ def _fallback_consultant_analysis_snapshot(rows: list[Appel]) -> dict:
             "analyzed_prestations_count": len(prestation_codes),
             "analyzed_prestataires_count": len(prestataire_options),
             "analyzed_beneficiaires_count": len(beneficiaire_options),
+            "analysis_audio_count": sum(1 for row in rows if _consultant_has_audio(row)),
+            "analyzed_learners_count": len(rows),
             "total_apprenants": len(rows),
         },
     }
@@ -426,6 +446,8 @@ def _consultant_analysis_snapshot(
                 "analyzed_prestations_count": context["analyzed_prestations_count"],
                 "analyzed_prestataires_count": context["analyzed_prestataires_count"],
                 "analyzed_beneficiaires_count": context["analyzed_beneficiaires_count"],
+                "analysis_audio_count": context.get("analysis_audio_count", 0),
+                "analyzed_learners_count": context["total"],
                 "total_apprenants": context["total"],
             },
         }
@@ -956,6 +978,10 @@ def consultant_dashboard(request):
         "classe",
         "classe__prestation__beneficiaire",
         "classe__prestation__prestataire",
+        "answers",
+        "answers__modified_by",
+        "satisfaction_apprenant",
+        "satisfaction_apprenant__enqueteur",
     )
     if search:
         rows_qs = rows_qs.filter(
@@ -977,24 +1003,31 @@ def consultant_dashboard(request):
         rows_qs = rows_qs.filter(beneficiaire__iexact=beneficiaire_filter)
 
     priorities = _load_conformity_ranking_priorities()
-    priority_rows = []
-    other_rows = []
-
+    rows: list[Appel] = []
     for app in rows_qs:
-        if _consultant_dashboard_fenetre(app) not in {"2", "3"}:
+        fenetre = _consultant_dashboard_fenetre(app)
+        if fenetre not in {"2", "3"}:
             continue
+        if fenetre_filter and fenetre != fenetre_filter:
+            continue
+        answers = _consultant_answer_or_none(app)
+        survey = _consultant_survey_or_none(app)
+        if not appel_is_analysis_eligible(app, answer=answers, survey=survey):
+            continue
+
+        has_audio = _consultant_has_audio(app)
+        audio_duration = _consultant_audio_duration_seconds(app) if has_audio else None
+        answers_complete = _consultant_answers_complete(answers)
+
+        app.consultant_class_display = _consultant_class_display(app)
+        app.consultant_has_audio = has_audio
+        app.consultant_audio_duration = audio_duration or 0
+        app.consultant_priority = bool(has_audio and answers_complete and (audio_duration or 0) >= 60)
         if app.code in priorities:
             app.priority_avg = priorities[app.code]["avg_satisfaction"]
-            priority_rows.append(app)
-        else:
-            other_rows.append(app)
+        rows.append(app)
 
-    priority_rows.sort(key=lambda x: x.priority_avg, reverse=True)
-    other_rows.sort(key=lambda x: ((x.nom or "").casefold(), x.pk))
-    rows = priority_rows + other_rows
-
-    if fenetre_filter:
-        rows = [app for app in rows if _consultant_dashboard_fenetre(app) == fenetre_filter]
+    rows.sort(key=_consultant_row_sort_key)
 
     # Unfiltered snapshot for card counts (must match satisfaction analysis page)
     card_snapshot = _consultant_analysis_snapshot(
@@ -1007,9 +1040,18 @@ def consultant_dashboard(request):
                 "classe",
                 "classe__prestation__beneficiaire",
                 "classe__prestation__prestataire",
+                "answers",
+                "answers__modified_by",
+                "satisfaction_apprenant",
+                "satisfaction_apprenant__enqueteur",
             )
             .order_by("nom", "pk")
             if _consultant_dashboard_fenetre(app) in {"2", "3"}
+            and appel_is_analysis_eligible(
+                app,
+                answer=_consultant_answer_or_none(app),
+                survey=_consultant_survey_or_none(app),
+            )
         ]
     )
 
@@ -1022,9 +1064,18 @@ def consultant_dashboard(request):
                 "classe",
                 "classe__prestation__beneficiaire",
                 "classe__prestation__prestataire",
+                "answers",
+                "answers__modified_by",
+                "satisfaction_apprenant",
+                "satisfaction_apprenant__enqueteur",
             )
             .order_by("nom", "pk")
             if _consultant_dashboard_fenetre(app) in {"2", "3"}
+            and appel_is_analysis_eligible(
+                app,
+                answer=_consultant_answer_or_none(app),
+                survey=_consultant_survey_or_none(app),
+            )
         ]
     )
 
@@ -1054,9 +1105,10 @@ def consultant_dashboard(request):
                 "fenetres": analysis_snapshot.get("fenetre_options", []),
             },
             "total_rows": len(rows),
-            "card_prestataires_count": card_snapshot["counts"]["analyzed_prestataires_count"],
-            "card_beneficiaires_count": card_snapshot["counts"]["analyzed_beneficiaires_count"],
-            "card_total_apprenants": card_snapshot["counts"].get("total_apprenants", 0),
+            "card_prestations_count": card_snapshot["counts"].get("analyzed_prestations_count", 0),
+            "card_classes_count": card_snapshot["counts"].get("analyzed_classes_count", 0),
+            "card_apprenants_count": card_snapshot["counts"].get("analyzed_learners_count", 0),
+            "card_audio_count": card_snapshot["counts"].get("analysis_audio_count", 0),
         },
     )
 

@@ -162,6 +162,8 @@ class AnalysisEntityDetailTests(TestCase):
         self.assertContains(response, "CLA001")
         self.assertContains(response, "Apprenants (1)")
         self.assertContains(response, "Formateurs (2)")
+        self.assertContains(response, "Chapeau de satisfaction")
+        self.assertContains(response, "TOTAL DES PARTICIPANTS A LA FORMATION")
         self.assertContains(response, "Ecouter")
         self.assertContains(response, "Formulaire")
         self.assertContains(

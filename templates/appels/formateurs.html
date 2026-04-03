@@ -145,7 +145,7 @@
     <div class="stat">A rappeler<strong>{{ stats.rappels|default:0 }}</strong></div>
     <div class="stat">Audios disponibles<strong>{{ stats.audios|default:0 }}</strong></div>
     <div class="stat {% if stats.threshold_reached %}ok{% endif %}">
-      Seuil 50%
+      Seuil {{ stats.threshold_target }} appels
       <strong>{% if stats.threshold_reached %}Atteint{% else %}{{ stats.completion_rate|default:0 }}%{% endif %}</strong>
       <div class="subtitle" style="margin-top:4px;">{{ stats.threshold_message }}</div>
     </div>

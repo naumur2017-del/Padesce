@@ -25,8 +25,9 @@ from django.core.files.storage import default_storage
 from django.core.paginator import Paginator
 from django.db.models import Count
 from django.http import HttpResponse, JsonResponse, QueryDict
-from django.shortcuts import redirect, render
+from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
+from django.views.decorators.http import require_POST
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 
@@ -38,6 +39,16 @@ from App_PADESCE.appels.models import (
 )
 from App_PADESCE.apprenants.models import Apprenant
 from App_PADESCE.core.access import require_analysis_access
+from App_PADESCE.core.analysis_rules import (
+    analysis_threshold_label,
+    analysis_threshold_target,
+    answer_done_by_excluded_user,
+    answer_has_all_three_scores,
+    appel_analysis_exclusion_reason,
+    appel_has_analysis_phone,
+    appel_is_analysis_eligible,
+    appel_is_manually_excluded,
+)
 from App_PADESCE.core.call_metrics import (
     count_callable_source_records_by_class,
     normalize_phone_digits,
@@ -629,27 +640,25 @@ def _dashboard_row_from_answer(answer_or_appel) -> dict:
     beneficiaire = getattr(beneficiaire_obj, "nom_structure", "") or appel.beneficiaire or "-"
     beneficiaire_type = str(getattr(beneficiaire_obj, "type_structure", "") or "").lower()
     ville = getattr(getattr(classe, "lieu", None), "ville", "") or appel.lieu or "Non renseignée"
-
-    raw_fenetre = (
-        str(appel.fenetre or "").strip() or str(getattr(classe, "fenetre", "") or "").strip() or ""
-    )
-
-    # Mapping logic for window (Entreprises -> 2, Associations/GIC -> 3)
-    if raw_fenetre in {"2", "3"}:
-        fenetre = raw_fenetre
-    elif "entreprise" in beneficiaire_type:
-        fenetre = "2"
-    elif "association" in beneficiaire_type or "gic" in beneficiaire_type:
-        fenetre = "3"
-    else:
-        # Fallback to digits if any but only if it's 2 or 3
-        digits = "".join(ch for ch in raw_fenetre if ch.isdigit())
-        if digits in {"2", "3"}:
-            fenetre = digits
-        else:
-            fenetre = "Non renseignée"
+    fenetre = _analysis_fenetre_for_appel(appel)
 
     cohorte = str(getattr(classe, "cohorte", "") or "").strip() or "Non renseignée"
+    has_phone = appel_has_analysis_phone(appel)
+    has_audio = bool(
+        getattr(getattr(appel, "audio_file", None), "name", "")
+        or getattr(getattr(survey, "audio_appel", None), "name", "")
+    )
+    analysis_scope = fenetre in {"2", "3"}
+    analysis_eligible = analysis_scope and appel_is_analysis_eligible(
+        appel,
+        answer=answer,
+        survey=survey,
+    )
+    analysis_exclusion_reason = (
+        appel_analysis_exclusion_reason(appel, answer=answer, survey=survey)
+        if analysis_scope
+        else "Fenetre hors analyse"
+    )
 
     # Handle potentially missing answer data
     timestamp = (
@@ -664,6 +673,7 @@ def _dashboard_row_from_answer(answer_or_appel) -> dict:
 
     return {
         "id": getattr(answer, "id", None),
+        "appel_id": getattr(appel, "pk", None),
         "date": timestamp.date(),
         "heure": timestamp.time().replace(microsecond=0),
         "modified_at": timestamp,
@@ -682,6 +692,10 @@ def _dashboard_row_from_answer(answer_or_appel) -> dict:
         "ville": ville,
         "apprenant_code": appel.code or "",
         "apprenant_nom": appel.nom or "",
+        "telephone1": appel.telephone1 or "",
+        "telephone2": appel.telephone2 or "",
+        "has_phone": has_phone,
+        "has_audio": has_audio,
         "status": appel.status or "",
         "user": (
             getattr(getattr(answer, "modified_by", None), "username", "")
@@ -690,6 +704,14 @@ def _dashboard_row_from_answer(answer_or_appel) -> dict:
         ),
         "commentaire": getattr(answer, "commentaire", "") if answer else "",
         "recommandations": getattr(answer, "recommandations", "") if answer else "",
+        "analysis_scope": analysis_scope,
+        "analysis_eligible": analysis_eligible,
+        "analysis_included": bool(answer) and analysis_eligible,
+        "analysis_excluded": not analysis_eligible,
+        "analysis_exclusion_reason": analysis_exclusion_reason,
+        "formulaire_all_three": answer_has_all_three_scores(answer),
+        "exclude_from_analysis": appel_is_manually_excluded(appel),
+        "excluded_by_user": answer_done_by_excluded_user(answer=answer, survey=survey),
         **{field: getattr(answer, field, None) if answer else None for field, _ in Q_FIELDS},
     }
 
@@ -729,13 +751,91 @@ def _source_class_apprenant_counts(source_bundle: dict | None) -> dict[str, int]
     return count_callable_source_records_by_class(source_bundle)
 
 
+def _normalize_class_count_map(raw_counts: dict[str, int]) -> dict[str, int]:
+    normalized: dict[str, int] = {}
+    for classe_code, count in (raw_counts or {}).items():
+        key = normalize_network_lookup(classe_code)
+        if not key:
+            continue
+        normalized[key] = max(int(normalized.get(key) or 0), int(count or 0))
+    return normalized
+
+
 def _merge_class_apprenant_counts(
     local_counts: dict[str, int], source_bundle: dict | None
 ) -> dict[str, int]:
-    merged = dict(local_counts)
+    merged = _normalize_class_count_map(local_counts)
     for classe_code, source_count in _source_class_apprenant_counts(source_bundle).items():
-        merged[classe_code] = max(int(merged.get(classe_code) or 0), int(source_count or 0))
+        key = normalize_network_lookup(classe_code)
+        if not key:
+            continue
+        merged[key] = max(int(merged.get(key) or 0), int(source_count or 0))
     return merged
+
+
+def _analysis_fenetre_for_appel(appel: Appel) -> str:
+    classe = getattr(appel, "classe", None)
+    prestation = getattr(classe, "prestation", None) if classe else None
+    beneficiaire = getattr(prestation, "beneficiaire", None) if prestation else None
+    beneficiaire_type = str(getattr(beneficiaire, "type_structure", "") or "").strip().lower()
+    raw_fenetre = (
+        str(getattr(appel, "fenetre", "") or "").strip()
+        or str(getattr(classe, "fenetre", "") or "").strip()
+    )
+    if raw_fenetre in {"2", "3"}:
+        return raw_fenetre
+    if "entreprise" in beneficiaire_type:
+        return "2"
+    if "association" in beneficiaire_type or "gic" in beneficiaire_type:
+        return "3"
+    digits = "".join(ch for ch in raw_fenetre if ch.isdigit())
+    return digits if digits in {"2", "3"} else "Non renseignée"
+
+
+def _analysis_class_code_for_appel(appel: Appel) -> str:
+    return str(getattr(getattr(appel, "classe", None), "code", "") or appel.classe_label or "").strip()
+
+
+def _analysis_class_count(counts: dict[str, int], classe_code: str) -> int:
+    return int((counts or {}).get(normalize_network_lookup(classe_code), 0) or 0)
+
+
+def _local_analysis_class_summary() -> dict[str, dict[str, int | str]]:
+    summary: dict[str, dict[str, int | str]] = {}
+    queryset = Appel.objects.filter(is_active=True).select_related(
+        "classe",
+        "classe__prestation",
+        "classe__prestation__beneficiaire",
+    )
+    for appel in queryset:
+        if _analysis_fenetre_for_appel(appel) not in {"2", "3"}:
+            continue
+        classe_code = _analysis_class_code_for_appel(appel)
+        key = normalize_network_lookup(classe_code)
+        if not key:
+            continue
+        item = summary.setdefault(
+            key,
+            {
+                "code": classe_code,
+                "total": 0,
+                "with_phone": 0,
+                "eligible": 0,
+            },
+        )
+        item["total"] = int(item["total"]) + 1
+        if appel_has_analysis_phone(appel):
+            item["with_phone"] = int(item["with_phone"]) + 1
+        if appel_has_analysis_phone(appel) and not appel_is_manually_excluded(appel):
+            item["eligible"] = int(item["eligible"]) + 1
+    return summary
+
+
+def _local_analysis_class_counts() -> dict[str, int]:
+    return {
+        key: int(item.get("eligible") or 0)
+        for key, item in _local_analysis_class_summary().items()
+    }
 
 
 def _source_class_is_finished(source_class: dict) -> bool:
@@ -949,11 +1049,13 @@ def _build_threshold_class_stats(
                 "cohorte": item["cohorte"],
                 "nb": item["metrics"]["nb"],
                 "avgs": _dashboard_bucket_avgs(item["metrics"]),
-                "total_apprenants": classe_apprenant_counts.get(item["code"], 0),
+                "total_apprenants": _analysis_class_count(classe_apprenant_counts, item["code"]),
                 "threshold_reached": (
                     item["metrics"]["nb"]
-                    >= ((classe_apprenant_counts.get(item["code"], 0) + 1) // 2)
-                    if classe_apprenant_counts.get(item["code"], 0) > 0
+                    >= analysis_threshold_target(
+                        _analysis_class_count(classe_apprenant_counts, item["code"])
+                    )
+                    if _analysis_class_count(classe_apprenant_counts, item["code"]) > 0
                     else item["metrics"]["nb"] > 0
                 ),
             }
@@ -1015,14 +1117,12 @@ def _build_class_filter_options(
     for item in classe_stats:
         if not item["threshold_reached"]:
             continue
-        target = (
-            ((item["total_apprenants"] or 0) + 1) // 2 if item["total_apprenants"] else item["nb"]
-        )
+        target = analysis_threshold_target(item["total_apprenants"]) or item["nb"]
         options.append(
             {
                 "value": item["code"],
                 "label": (
-                    f"{item['code']} - Seuil 50% atteint "
+                    f"{item['code']} - Seuil {analysis_threshold_label()} atteint "
                     f"({item['nb']} / {item['total_apprenants'] or item['nb']}, cible {target})"
                 ),
             }
@@ -1074,8 +1174,8 @@ def _dashboard_tab_headers(active_tab: str) -> list[str]:
     if active_tab == "tab-user":
         return ["Utilisateur", "Nombre d'enquêtes", "Moyenne de satisfaction globale (Q9)"]
     return [
-        "Code",
         "ApprenantID réseau",
+        "Code",
         "Apprenant",
         "Source",
         "Classe",
@@ -1312,11 +1412,21 @@ def _has_ras_only_form(answer: AppelAnswers | None) -> bool:
     return _is_ras_text(answer.commentaire) and _is_ras_text(answer.recommandations)
 
 
-def _build_call_failure_reasons(appel: Appel, answer: AppelAnswers | None) -> list[str]:
+def _build_call_failure_reasons(
+    appel: Appel,
+    answer: AppelAnswers | None,
+    survey: SatisfactionApprenant | None = None,
+) -> list[str]:
     reasons: list[str] = []
     status = str(appel.status or "").strip()
     if status != "termine":
         reasons.append(f"Statut non termine ({appel.get_status_display()})")
+    if not appel_has_analysis_phone(appel):
+        reasons.append("Sans numero")
+    if appel_is_manually_excluded(appel):
+        reasons.append("Exclu manuellement")
+    if answer_done_by_excluded_user(answer=answer, survey=survey):
+        reasons.append("Utilisateur yanava")
     if appel.deja_forme or appel.flag_pas_forme:
         reasons.append("Deja forme / pas concerne")
     if appel.flag_faux_nom:
@@ -1334,11 +1444,15 @@ def _build_call_failure_reasons(appel: Appel, answer: AppelAnswers | None) -> li
         reasons.append("Formulaire incomplet")
     if _has_ras_only_form(answer):
         reasons.append("Formulaire RAS")
-    return reasons
+    return list(dict.fromkeys(reasons))
 
 
-def _call_report_status(appel: Appel, answer: AppelAnswers | None) -> tuple[bool, list[str]]:
-    reasons = _build_call_failure_reasons(appel, answer)
+def _call_report_status(
+    appel: Appel,
+    answer: AppelAnswers | None,
+    survey: SatisfactionApprenant | None = None,
+) -> tuple[bool, list[str]]:
+    reasons = _build_call_failure_reasons(appel, answer, survey)
     return not reasons, reasons
 
 
@@ -1399,8 +1513,26 @@ def _build_daily_report_row(appel: Appel, source_records: dict[str, dict]) -> di
     answer_user = getattr(getattr(answer, "modified_by", None), "username", "") if answer else ""
     survey_user = getattr(getattr(survey, "enqueteur", None), "username", "") if survey else ""
     source_record = source_records.get(normalize_network_lookup(appel.code or "")) or {}
-    is_success, failure_reasons = _call_report_status(appel, answer)
+    is_success, failure_reasons = _call_report_status(appel, answer, survey)
+    analysis_scope = _analysis_fenetre_for_appel(appel) in {"2", "3"}
+    analysis_eligible = analysis_scope and appel_is_analysis_eligible(
+        appel,
+        answer=answer,
+        survey=survey,
+    )
+    analysis_included = bool(answer) and analysis_eligible
+    analysis_exclusion_reason = (
+        appel_analysis_exclusion_reason(appel, answer=answer, survey=survey)
+        if analysis_scope
+        else "Fenetre hors analyse"
+    )
     failure_detail_parts = []
+    if not appel_has_analysis_phone(appel):
+        failure_detail_parts.append("Aucun numero joignable n'est disponible pour cet apprenant.")
+    if appel_is_manually_excluded(appel):
+        failure_detail_parts.append("La ligne a ete exclue manuellement des analyses.")
+    if answer_done_by_excluded_user(answer=answer, survey=survey):
+        failure_detail_parts.append("La saisie a ete realisee par l'utilisateur yanava et n'est pas retenue.")
     if appel.deja_forme or appel.flag_pas_forme:
         failure_detail_parts.append("Le beneficiaire indique qu'il a deja suivi la formation.")
     if appel.flag_faux_nom:
@@ -1419,6 +1551,7 @@ def _build_daily_report_row(appel: Appel, source_records: dict[str, dict]) -> di
         failure_detail_parts.append("Aucune reponse Q1-Q9 n'a ete enregistree.")
 
     return {
+        "id": appel.pk,
         "code": appel.code or "",
         "nom": appel.nom or "",
         "vrai_nom": appel.flag_vrai_nom or "",
@@ -1465,6 +1598,11 @@ def _build_daily_report_row(appel: Appel, source_records: dict[str, dict]) -> di
         "audio_name": os.path.basename(
             getattr(getattr(appel, "audio_file", None), "name", "") or ""
         ),
+        "exclude_from_analysis": "Oui" if appel_is_manually_excluded(appel) else "Non",
+        "analysis_scope": "Oui" if analysis_scope else "Non",
+        "analysis_eligible": "Oui" if analysis_eligible else "Non",
+        "analysis_included": "Oui" if analysis_included else "Non",
+        "analysis_exclusion_reason": analysis_exclusion_reason,
         "source_status": "Trouve" if source_record else "Absent",
         "created_at": (
             timezone.localtime(appel.created_at).strftime("%d/%m/%Y %H:%M")
@@ -1483,6 +1621,7 @@ def _build_daily_report_row(appel: Appel, source_records: dict[str, dict]) -> di
         "flag_deja_appele": "Oui" if appel.flag_deja_appele else "Non",
         "formulaire_complet": "Oui" if _has_complete_answer_set(answer) else "Non",
         "formulaire_ras": "Oui" if _has_ras_only_form(answer) else "Non",
+        "formulaire_all_three": "Oui" if answer_has_all_three_scores(answer) else "Non",
         "rapport_statut": "Reussi" if is_success else "Echoue",
         "motifs_echec": " | ".join(failure_reasons),
         "details_echec": " ".join(failure_detail_parts),
@@ -1905,7 +2044,7 @@ def _build_missing_prestations_analysis(
     Categories retournées :
       - pas_disponible   : la prestation / classe n'existe pas dans le site (non importée)
       - pas_de_numero    : la classe existe mais les apprenants n'ont pas de numéro
-      - pas_seuil_atteint: la classe existe, les numéros aussi, mais le seuil 50% n'est pas atteint
+      - pas_seuil_atteint: la classe existe, les numéros aussi, mais le seuil d'analyse n'est pas atteint
       - autres           : toute autre raison
     """
     if not source_bundle:
@@ -1934,28 +2073,7 @@ def _build_missing_prestations_analysis(
             "details": [],
         }
 
-    from django.db.models import Count
-    from django.db.models import Q as DQ
-
-    from App_PADESCE.formations.models import Classe as ClasseModel
-
-    # Batch-fetch all local class codes + apprenant phone counts
-    local_classes_qs = ClasseModel.objects.annotate(
-        _nb_apprenants=Count("apprenants"),
-        _nb_with_phone=Count(
-            "apprenants",
-            filter=(
-                DQ(apprenants__telephone1__regex=r"[0-9]{7,}")
-                | DQ(apprenants__telephone2__regex=r"[0-9]{7,}")
-            ),
-        ),
-    ).values("code", "_nb_apprenants", "_nb_with_phone")
-
-    # Normalized-code -> (nb_apprenants, nb_with_phone)
-    local_by_code: dict[str, tuple[int, int]] = {
-        normalize_network_lookup(row["code"]): (row["_nb_apprenants"], row["_nb_with_phone"])
-        for row in local_classes_qs
-    }
+    local_by_code = _local_analysis_class_summary()
 
     # Threshold lookup from classe_stats_all (built from local DB rows that passed threshold)
     threshold_reached_codes: set[str] = {
@@ -1992,7 +2110,7 @@ def _build_missing_prestations_analysis(
 
     CATEGORY_LABELS = {
         "pas_disponible": "Pas sur le site (non importée)",
-        "pas_seuil_atteint": "Seuil 50% non atteint",
+        "pas_seuil_atteint": f"Seuil {analysis_threshold_label()} non atteint",
         "pas_de_numero": "Pas de numéro de téléphone",
         "autres": "Autres",
     }
@@ -2021,7 +2139,7 @@ def _build_missing_prestations_analysis(
                 local = local_by_code.get(c_key)
                 if local is None:
                     per_class.append("pas_disponible")
-                elif local[1] == 0:  # nb_with_phone == 0
+                elif int(local.get("with_phone") or 0) == 0:
                     per_class.append("pas_de_numero")
                 elif c_key not in threshold_reached_codes:
                     per_class.append("pas_seuil_atteint")
@@ -2089,12 +2207,13 @@ def _build_satisfaction_dashboard_data(request):
     all_rows = [
         _dashboard_row_from_answer(answer) for answer in _satisfaction_dashboard_base_queryset()
     ]
-    # Filter only windows 2 and 3 for analysis
-    all_rows = [row for row in all_rows if row["fenetre"] in {"2", "3"}]
+    all_rows = [
+        row
+        for row in all_rows
+        if row["fenetre"] in {"2", "3"} and row.get("analysis_included")
+    ]
 
-    classe_apprenant_counts = dict(
-        Classe.objects.annotate(_nb=Count("apprenants")).values_list("code", "_nb")
-    )
+    classe_apprenant_counts = _local_analysis_class_counts()
     rows, classe_stats_all = _thresholded_dashboard_rows(all_rows, filters, classe_apprenant_counts)
     try:
         source_bundle = build_padesce_source_index(source_key=selected_source)
@@ -2107,6 +2226,7 @@ def _build_satisfaction_dashboard_data(request):
     )
     rows = _assign_enquete_ids(rows)
     total = len(rows)
+    analysis_audio_count = sum(1 for row in rows if row.get("has_audio"))
     terminated_prestation_codes = _terminated_prestation_codes_from_source(filters, source_bundle)
     qualified_prestation_codes = _qualified_prestation_codes_from_source(
         filters, classe_stats_all, source_bundle
@@ -2207,7 +2327,7 @@ def _build_satisfaction_dashboard_data(request):
                 "cohorte": item["cohorte"],
                 "nb": item["metrics"]["nb"],
                 "avgs": _dashboard_bucket_avgs(item["metrics"]),
-                "total_apprenants": classe_apprenant_counts.get(item["code"], 0),
+                "total_apprenants": _analysis_class_count(classe_apprenant_counts, item["code"]),
                 "threshold_reached": True,
             }
             for item in classe_groups.values()
@@ -2226,7 +2346,8 @@ def _build_satisfaction_dashboard_data(request):
                 "avg": _dashboard_bucket_avg(item["metrics"], "q9_satisfaction_globale"),
                 "avgs": _dashboard_bucket_avgs(item["metrics"]),
                 "effectif": sum(
-                    classe_apprenant_counts.get(c, 0) for c in item["associated_classes"]
+                    _analysis_class_count(classe_apprenant_counts, c)
+                    for c in item["associated_classes"]
                 ),
             }
             for item in prestation_groups.values()
@@ -2246,7 +2367,8 @@ def _build_satisfaction_dashboard_data(request):
                 "avg": _dashboard_bucket_avg(item["metrics"], "q9_satisfaction_globale"),
                 "avgs": _dashboard_bucket_avgs(item["metrics"]),
                 "effectif": sum(
-                    classe_apprenant_counts.get(c, 0) for c in item["associated_classes"]
+                    _analysis_class_count(classe_apprenant_counts, c)
+                    for c in item["associated_classes"]
                 ),
             }
             for item in prestation_groups.values()
@@ -2388,6 +2510,8 @@ def _build_satisfaction_dashboard_data(request):
         "analyzed_prestataires_count": len(analyzed_prestataires),
         "analyzed_beneficiaires_count": len(analyzed_beneficiaires),
         "analyzed_cohortes_count": len(analyzed_cohortes),
+        "analysis_audio_count": analysis_audio_count,
+        "analysis_threshold_label": analysis_threshold_label(),
         "filter_query_string": filter_query_string,
         "active_filters_summary": active_filters_summary,
         "source_summary": source_summary,
@@ -2960,6 +3084,164 @@ def satisfaction_dashboard(request):
     )
     ctx.update(build_fast_stats_context(request, default_mode="apprenant"))
     return render(request, "satisfaction_apprenants/dashboard.html", ctx)
+
+
+def _general_analysis_threshold_codes() -> set[str]:
+    rows = [_dashboard_row_from_answer(answer) for answer in _satisfaction_dashboard_base_queryset()]
+    rows = [
+        row
+        for row in rows
+        if row.get("fenetre") in {"2", "3"} and row.get("analysis_included")
+    ]
+    _classe_stats, threshold_codes = _build_threshold_class_stats(rows, _local_analysis_class_counts())
+    return {normalize_network_lookup(code) for code in threshold_codes if str(code or "").strip()}
+
+
+def _general_analysis_search_matches(row: dict, query: str) -> bool:
+    haystack = " ".join(
+        [
+            str(row.get("source_apprenant_id") or ""),
+            str(row.get("code") or ""),
+            str(row.get("nom") or ""),
+            str(row.get("classe") or ""),
+            str(row.get("formation") or ""),
+            str(row.get("prestation") or ""),
+            str(row.get("prestataire") or ""),
+            str(row.get("beneficiaire") or ""),
+            str(row.get("telephone1") or ""),
+            str(row.get("telephone2") or ""),
+            str(row.get("enqueteur") or ""),
+        ]
+    ).casefold()
+    return query.casefold() in haystack
+
+
+@require_analysis_access
+def satisfaction_general_page(request):
+    selected_source = normalize_workbook_source_key(request.GET.get("source", ""))
+    search = str(request.GET.get("q", "") or "").strip()
+    without_phone_only = request.GET.get("without_phone") == "1"
+    all_three_only = request.GET.get("all_three") == "1"
+    excluded_filter = str(request.GET.get("excluded", "") or "").strip().lower()
+
+    try:
+        source_bundle = build_padesce_source_index(source_key=selected_source)
+    except Exception:
+        source_bundle = None
+    source_records = (source_bundle or {}).get("records", {})
+    threshold_codes = _general_analysis_threshold_codes()
+
+    appels = list(
+        Appel.objects.filter(is_active=True)
+        .select_related(
+            "classe",
+            "classe__lieu",
+            "classe__prestation",
+            "classe__prestation__prestataire",
+            "classe__prestation__beneficiaire",
+            "locked_by",
+            "answers",
+            "answers__modified_by",
+            "satisfaction_apprenant",
+            "satisfaction_apprenant__inspecteur",
+            "satisfaction_apprenant__apprenant",
+            "satisfaction_apprenant__enqueteur",
+        )
+        .order_by("-updated_at", "nom", "code")
+    )
+
+    rows: list[dict] = []
+    for appel in appels:
+        row = _build_daily_report_row(appel, source_records)
+        class_key = normalize_network_lookup(row.get("classe") or "")
+        threshold_reached = bool(class_key and class_key in threshold_codes)
+        analysis_included = row.get("analysis_included") == "Oui"
+        analysis_taken_into_account = analysis_included and threshold_reached
+        if analysis_taken_into_account:
+            analysis_take_reason = "Pris en compte dans les analyses"
+        elif row.get("analysis_included") != "Oui":
+            analysis_take_reason = row.get("analysis_exclusion_reason") or "Aucune reponse analysee"
+        elif not threshold_reached:
+            analysis_take_reason = f"Seuil {analysis_threshold_label()} non atteint"
+        else:
+            analysis_take_reason = "Non retenu"
+
+        row["has_phone"] = bool(appel_has_analysis_phone(appel))
+        row["analysis_threshold_reached"] = threshold_reached
+        row["analysis_taken_into_account"] = analysis_taken_into_account
+        row["analysis_take_reason"] = analysis_take_reason
+        row["q_values"] = [row.get(field) for field, _label in Q_FIELDS]
+        row["responses_summary"] = " | ".join(
+            [
+                f"Q{index}:{row.get(field) if row.get(field) not in (None, '') else '-'}"
+                for index, (field, _label) in enumerate(Q_FIELDS, start=1)
+            ]
+        )
+        row["toggle_label"] = (
+            "Reintegrer" if row.get("exclude_from_analysis") == "Oui" else "Masquer"
+        )
+        rows.append(row)
+
+    if search:
+        rows = [row for row in rows if _general_analysis_search_matches(row, search)]
+    if without_phone_only:
+        rows = [row for row in rows if not row.get("has_phone")]
+    if all_three_only:
+        rows = [row for row in rows if row.get("formulaire_all_three") == "Oui"]
+    if excluded_filter == "yes":
+        rows = [row for row in rows if row.get("exclude_from_analysis") == "Oui"]
+    elif excluded_filter == "no":
+        rows = [row for row in rows if row.get("exclude_from_analysis") != "Oui"]
+
+    paginator = Paginator(rows, 50)
+    page_obj = paginator.get_page(request.GET.get("page"))
+
+    context = {
+        "rows": list(page_obj.object_list),
+        "page_obj": page_obj,
+        "paginator": paginator,
+        "total_rows": len(rows),
+        "filters": {
+            "source": selected_source,
+            "q": search,
+            "without_phone": without_phone_only,
+            "all_three": all_three_only,
+            "excluded": excluded_filter,
+        },
+        "source_options": get_workbook_source_options(),
+        "analysis_threshold_label": analysis_threshold_label(),
+        "stats": {
+            "total": len(rows),
+            "taken_into_account": sum(
+                1 for row in rows if row.get("analysis_taken_into_account")
+            ),
+            "without_phone": sum(1 for row in rows if not row.get("has_phone")),
+            "all_three": sum(
+                1 for row in rows if row.get("formulaire_all_three") == "Oui"
+            ),
+            "excluded": sum(
+                1 for row in rows if row.get("exclude_from_analysis") == "Oui"
+            ),
+        },
+        "current_path": request.get_full_path(),
+    }
+    return render(request, "satisfaction_apprenants/general.html", context)
+
+
+@require_POST
+@require_analysis_access
+def satisfaction_general_toggle_exclusion(request):
+    appel = get_object_or_404(Appel, pk=request.POST.get("appel_id"), is_active=True)
+    appel.exclude_from_analysis = not bool(appel.exclude_from_analysis)
+    appel.save(update_fields=["exclude_from_analysis"])
+    messages.success(
+        request,
+        (
+            f"{appel.nom or appel.code or 'La ligne'} est maintenant "
+            f"{'exclu(e)' if appel.exclude_from_analysis else 'reintegré(e)'} des analyses."
+        ),
+    )
+    return redirect(request.POST.get("next") or reverse("satisfaction_general_page"))
 
 
 @require_analysis_access

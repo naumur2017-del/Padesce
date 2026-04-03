@@ -14,6 +14,7 @@ from django.views.decorators.http import require_POST
 from App_PADESCE.appels.models import Appel, AppelAnswers, AppelFormateur
 from App_PADESCE.apprenants.models import Apprenant
 from App_PADESCE.core.access import require_analysis_access
+from App_PADESCE.core.analysis_rules import appel_is_analysis_eligible
 from App_PADESCE.formations.forms import ClasseCreateForm
 from App_PADESCE.formations.models import Classe, Formation, Lieu, Prestation
 from App_PADESCE.reporting.network_excel import build_padesce_source_index, normalize_network_lookup
@@ -415,6 +416,17 @@ def _analysis_reference_warning() -> str:
     return "Fiche reconstituee depuis la source d'analyse car cette reference n'est pas encore synchronisee dans PADESCE."
 
 
+def _analysis_source_record_for_appel(source_bundle: dict | None, appel: Appel) -> dict:
+    if not source_bundle:
+        return {}
+    return dict(
+        (source_bundle.get("records", {}) or {}).get(
+            normalize_network_lookup(str(getattr(appel, "code", "") or ""))
+        )
+        or {}
+    )
+
+
 def _prestation_formateur_candidates(prestation: Prestation):
     prestataire_name = str(getattr(getattr(prestation, "prestataire", None), "raison_sociale", "") or "").strip()
     beneficiaire_name = str(getattr(getattr(prestation, "beneficiaire", None), "nom_structure", "") or "").strip()
@@ -492,6 +504,10 @@ def _resolve_classe_for_formateur_analysis(row: AppelFormateur):
 def _build_apprenant_rows(appels, *, back_url: str):
     rows = []
     for appel in appels:
+        answers = _appel_answers_or_none(appel)
+        satisfaction = _satisfaction_or_none(appel)
+        if not appel_is_analysis_eligible(appel, answer=answers, survey=satisfaction):
+            continue
         form_state = _apprenant_form_state(appel)
         satisfaction = form_state["satisfaction"]
         has_audio, audio_url = _resolve_apprenant_audio(appel, satisfaction)
@@ -518,6 +534,53 @@ def _build_apprenant_rows(appels, *, back_url: str):
         rows,
         key=lambda item: (_status_sort_value(item["statut"]), (item["nom"] or "").casefold(), item["id"]),
     )
+
+
+def _build_class_chapeau(classe_code: str, appels, source_bundle: dict | None = None) -> dict:
+    from App_PADESCE.satisfaction_apprenants.views import Q_FIELDS, _dashboard_chapeau_title
+
+    question_values: dict[str, list[int]] = {field: [] for field, _label in Q_FIELDS}
+    respondent_keys: set[str] = set()
+
+    for appel in appels:
+        answers = _appel_answers_or_none(appel)
+        satisfaction = _satisfaction_or_none(appel)
+        if not answers or not appel_is_analysis_eligible(appel, answer=answers, survey=satisfaction):
+            continue
+
+        source_record = _analysis_source_record_for_appel(source_bundle, appel)
+        respondent_key = (
+            str(source_record.get("apprenant_id") or "").strip()
+            or str(getattr(appel, "code", "") or "").strip()
+            or str(getattr(appel, "nom", "") or "").strip()
+        )
+        if respondent_key:
+            respondent_keys.add(respondent_key)
+
+        for field, _label in Q_FIELDS:
+            value = getattr(answers, field, None)
+            if value not in (None, ""):
+                question_values[field].append(int(value))
+
+    question_rows = []
+    for field, label in Q_FIELDS:
+        values = question_values.get(field, [])
+        average = round(sum(values) / len(values), 2) if values else 0
+        question_rows.append(
+            {
+                "field": field,
+                "label": label,
+                "note": average,
+                "count": len(values),
+            }
+        )
+
+    return {
+        "title": _dashboard_chapeau_title(classe_code),
+        "rows": question_rows,
+        "respondents_count": len(respondent_keys),
+        "has_data": any(item["count"] for item in question_rows),
+    }
 
 
 def _build_formateur_rows(rows, *, back_url: str):
@@ -808,6 +871,7 @@ def class_analysis_detail(request, code: str):
     apprenant_rows = _build_apprenant_rows(apprenant_appels, back_url=apprenant_back_url)
     formateur_rows = _build_formateur_rows(formateur_appels, back_url=formateur_back_url)
     summary = _entity_summary(apprenant_rows, formateur_rows)
+    class_chapeau = _build_class_chapeau(classe.code, apprenant_appels, source_bundle=source_bundle)
 
     return render(
         request,
@@ -824,6 +888,7 @@ def class_analysis_detail(request, code: str):
             "summary": summary,
             "active_tab": active_tab,
             "class_links": [],
+            "class_chapeau": class_chapeau,
             "matching_note": "Rattachement formateurs via prestataire, beneficiaire, cohorte et formation.",
             "prestation_detail_url": prestation_detail_url,
             "reference_warning": reference_warning,

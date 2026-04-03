@@ -1,0 +1,213 @@
+{% extends "base.html" %}
+{% block title %}General - Analyses Satisfaction{% endblock %}
+{% block content %}
+<style>
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 16px; padding: 18px; box-shadow: var(--shadow); margin-bottom: 16px; }
+  .header { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap; margin-bottom:16px; }
+  .header h1 { margin:0 0 6px; color:var(--accent-strong); }
+  .header p { margin:0; color:var(--muted); }
+  .actions { display:flex; gap:8px; flex-wrap:wrap; }
+  .btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; padding:10px 14px; border-radius:12px; font-weight:700; border:1px solid transparent; cursor:pointer; text-decoration:none; }
+  .btn-primary { background:var(--accent); color:#fff; }
+  .btn-ghost { background:#fff; color:var(--accent-strong); border-color:var(--border); }
+  .btn-sm { padding:8px 12px; font-size:0.84rem; }
+  .filters { display:grid; gap:10px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); align-items:end; }
+  .field { display:flex; flex-direction:column; gap:6px; }
+  .field label { font-size:0.84rem; color:var(--muted); font-weight:700; }
+  .field input, .field select { padding:10px 12px; border-radius:12px; border:1px solid var(--border); background:#fff; color:var(--text); }
+  .checkbox-row { display:flex; gap:14px; align-items:center; flex-wrap:wrap; }
+  .checkbox-row label { display:inline-flex; gap:8px; align-items:center; font-size:0.9rem; color:var(--text); }
+  .stats { display:grid; gap:12px; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); margin-bottom:16px; }
+  .card { border:1px solid var(--border); border-radius:14px; background:#fff; padding:14px; box-shadow:var(--shadow); }
+  .card .label { color:var(--muted); font-size:0.82rem; text-transform:uppercase; letter-spacing:.04em; }
+  .card .value { margin-top:8px; font-size:1.6rem; font-weight:800; color:var(--accent-strong); }
+  .table-wrap { overflow:auto; border-radius:14px; border:1px solid var(--border); }
+  table { width:100%; border-collapse:collapse; min-width:1380px; }
+  th, td { padding:10px; border:1px solid var(--border); text-align:left; vertical-align:top; }
+  thead { background:rgba(111,60,195,0.06); }
+  th { color:var(--accent-strong); font-size:0.78rem; text-transform:uppercase; letter-spacing:.04em; }
+  .muted { color:var(--muted); font-size:0.82rem; }
+  .pill { display:inline-flex; align-items:center; padding:5px 10px; border-radius:999px; font-size:0.78rem; font-weight:700; border:1px solid var(--border); }
+  .pill-ok { background:rgba(34,197,94,0.14); color:#166534; border-color:rgba(34,197,94,0.24); }
+  .pill-warn { background:rgba(245,158,11,0.14); color:#92400e; border-color:rgba(245,158,11,0.24); }
+  .pill-no { background:rgba(239,68,68,0.12); color:#991b1b; border-color:rgba(239,68,68,0.22); }
+  .pill-muted { background:rgba(107,114,128,0.12); color:#4b5563; border-color:rgba(107,114,128,0.22); }
+  .response-box { white-space:nowrap; font-size:0.82rem; }
+  .pagination { display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; margin-top:14px; }
+  .pagination-info { color:var(--muted); font-weight:700; }
+  .toggle-form { margin:0; }
+  @media (max-width: 900px) {
+    .filters { grid-template-columns: 1fr; }
+    .header { align-items:stretch; }
+    .actions { width:100%; }
+  }
+</style>
+
+<div class="header">
+  <div>
+    <h1>General</h1>
+    <p>Vue complete des apprenants PADESCE avec statut d'analyse, actions, reponses, recommandations et commentaires.</p>
+  </div>
+  <div class="actions">
+    <a class="btn btn-ghost btn-sm" href="{% url 'satisfaction_dashboard' %}{% if request.GET.urlencode %}?{{ request.GET.urlencode }}{% endif %}">Retour aux analyses</a>
+  </div>
+</div>
+
+<section class="panel">
+  <form method="get" class="filters">
+    <div class="field">
+      <label for="f-source">Classeur source</label>
+      <select id="f-source" name="source">
+        {% for source in source_options %}
+          <option value="{{ source.value }}" {% if filters.source == source.value %}selected{% endif %}>{{ source.label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label for="f-q">Recherche</label>
+      <input id="f-q" type="text" name="q" value="{{ filters.q }}" placeholder="ApprenantID, code, nom, classe, telephone...">
+    </div>
+    <div class="field">
+      <label for="f-excluded">Lignes masquees</label>
+      <select id="f-excluded" name="excluded">
+        <option value="" {% if not filters.excluded %}selected{% endif %}>Toutes</option>
+        <option value="no" {% if filters.excluded == "no" %}selected{% endif %}>Actives</option>
+        <option value="yes" {% if filters.excluded == "yes" %}selected{% endif %}>Masquees</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Filtres rapides</label>
+      <div class="checkbox-row">
+        <label><input type="checkbox" name="without_phone" value="1" {% if filters.without_phone %}checked{% endif %}> Sans numero</label>
+        <label><input type="checkbox" name="all_three" value="1" {% if filters.all_three %}checked{% endif %}> 3 partout</label>
+      </div>
+    </div>
+    <div class="actions">
+      <button class="btn btn-primary btn-sm" type="submit">Filtrer</button>
+      <a class="btn btn-ghost btn-sm" href="{% url 'satisfaction_general_page' %}?source={{ filters.source|urlencode }}">Reinitialiser</a>
+    </div>
+  </form>
+</section>
+
+<section class="stats">
+  <article class="card">
+    <div class="label">Apprenants visibles</div>
+    <div class="value">{{ stats.total }}</div>
+  </article>
+  <article class="card">
+    <div class="label">Pris en compte</div>
+    <div class="value">{{ stats.taken_into_account }}</div>
+  </article>
+  <article class="card">
+    <div class="label">Sans numero</div>
+    <div class="value">{{ stats.without_phone }}</div>
+  </article>
+  <article class="card">
+    <div class="label">3 partout</div>
+    <div class="value">{{ stats.all_three }}</div>
+  </article>
+  <article class="card">
+    <div class="label">Masques</div>
+    <div class="value">{{ stats.excluded }}</div>
+  </article>
+</section>
+
+<section class="panel">
+  <div class="header" style="margin-bottom:12px;">
+    <div>
+      <h1 style="font-size:1.05rem; margin-bottom:4px;">Liste generale</h1>
+      <p>Le statut "Pris en compte" exige une reponse valide, une classe au seuil {{ analysis_threshold_label }}, un numero joignable et aucune exclusion.</p>
+    </div>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>ApprenantID</th>
+          <th>Code</th>
+          <th>Apprenant</th>
+          <th>Classe / Prestation</th>
+          <th>Telephone</th>
+          <th>Statut appel</th>
+          <th>Analyse</th>
+          <th>Actions</th>
+          <th>Reponses</th>
+          <th>Recommandations</th>
+          <th>Commentaire</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+          <tr>
+            <td><strong>{{ row.source_apprenant_id|default:row.code|default:"-" }}</strong></td>
+            <td>{{ row.code|default:"-" }}</td>
+            <td>
+              <strong>{{ row.nom|default:"-" }}</strong>
+              <div class="muted">{{ row.enqueteur|default:"-" }}</div>
+            </td>
+            <td>
+              <strong>{{ row.classe|default:"-" }}</strong>
+              <div class="muted">{{ row.prestation|default:"-" }} · {{ row.prestataire|default:"-" }}</div>
+            </td>
+            <td>
+              {% if row.has_phone %}
+                <span class="pill pill-ok">{{ row.telephone1|default:row.telephone2|default:"-" }}</span>
+              {% else %}
+                <span class="pill pill-no">Sans numero</span>
+              {% endif %}
+            </td>
+            <td>
+              <span class="pill pill-muted">{{ row.status }}</span>
+              {% if row.formulaire_all_three == "Oui" %}
+                <div class="muted">Formulaire 3 partout</div>
+              {% endif %}
+            </td>
+            <td>
+              {% if row.analysis_taken_into_account %}
+                <span class="pill pill-ok">Pris en compte</span>
+              {% elif row.analysis_included == "Oui" and not row.analysis_threshold_reached %}
+                <span class="pill pill-warn">Seuil {{ analysis_threshold_label }} non atteint</span>
+              {% elif row.exclude_from_analysis == "Oui" %}
+                <span class="pill pill-no">Masque</span>
+              {% else %}
+                <span class="pill pill-no">Hors analyse</span>
+              {% endif %}
+              <div class="muted" style="margin-top:6px;">{{ row.analysis_take_reason }}</div>
+            </td>
+            <td>
+              <div class="muted" style="margin-bottom:8px;">{{ row.motifs_echec|default:"Aucune action bloquante" }}</div>
+              <form method="post" action="{% url 'satisfaction_general_toggle_exclusion' %}" class="toggle-form">
+                {% csrf_token %}
+                <input type="hidden" name="appel_id" value="{{ row.id }}">
+                <input type="hidden" name="next" value="{{ current_path }}">
+                <button class="btn {% if row.exclude_from_analysis == 'Oui' %}btn-ghost{% else %}btn-primary{% endif %} btn-sm" type="submit">{{ row.toggle_label }}</button>
+              </form>
+            </td>
+            <td class="response-box">{{ row.responses_summary }}</td>
+            <td>{{ row.recommandations|default:"-" }}</td>
+            <td>{{ row.commentaire|default:"-" }}</td>
+          </tr>
+        {% empty %}
+          <tr>
+            <td colspan="11" class="muted" style="text-align:center;">Aucun apprenant ne correspond aux filtres.</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if page_obj %}
+    <div class="pagination">
+      <div class="pagination-info">Page {{ page_obj.number }} / {{ paginator.num_pages }} · {{ total_rows }} ligne(s)</div>
+      <div class="actions">
+        {% if page_obj.has_previous %}
+          <a class="btn btn-ghost btn-sm" href="?source={{ filters.source|urlencode }}&q={{ filters.q|urlencode }}{% if filters.without_phone %}&without_phone=1{% endif %}{% if filters.all_three %}&all_three=1{% endif %}{% if filters.excluded %}&excluded={{ filters.excluded|urlencode }}{% endif %}&page={{ page_obj.previous_page_number }}">Precedent</a>
+        {% endif %}
+        {% if page_obj.has_next %}
+          <a class="btn btn-ghost btn-sm" href="?source={{ filters.source|urlencode }}&q={{ filters.q|urlencode }}{% if filters.without_phone %}&without_phone=1{% endif %}{% if filters.all_three %}&all_three=1{% endif %}{% if filters.excluded %}&excluded={{ filters.excluded|urlencode }}{% endif %}&page={{ page_obj.next_page_number }}">Suivant</a>
+        {% endif %}
+      </div>
+    </div>
+  {% endif %}
+</section>
+{% endblock %}

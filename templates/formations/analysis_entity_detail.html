@@ -229,6 +229,11 @@
     padding: 12px 14px;
     font-weight: 600;
   }
+  .chapeau-grid {
+    display: grid;
+    gap: 10px;
+    grid-template-columns: minmax(220px, 1fr) minmax(110px, 160px);
+  }
 </style>
 
 <section class="hero">
@@ -340,6 +345,42 @@
     </article>
   {% endif %}
 </section>
+
+{% if entity_type == "classe" and class_chapeau %}
+  <section class="panel">
+    <div class="panel-head">
+      <div>
+        <strong>Chapeau de satisfaction</strong>
+        <div class="row-meta">{{ class_chapeau.title }}</div>
+      </div>
+      <span class="badge{% if class_chapeau.has_data %} badge-ok{% else %} badge-wait{% endif %}">
+        {{ class_chapeau.respondents_count }} participant(s)
+      </span>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Question</th>
+            <th>Note</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in class_chapeau.rows %}
+            <tr>
+              <td>{{ item.label }}</td>
+              <td>{% if item.count %}{{ item.note }} / 5{% else %}-{% endif %}</td>
+            </tr>
+          {% endfor %}
+          <tr>
+            <td><strong>TOTAL DES PARTICIPANTS A LA FORMATION</strong></td>
+            <td><strong>{{ class_chapeau.respondents_count }}</strong></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+{% endif %}
 
 {% if class_links %}
   <section class="panel">

@@ -11,14 +11,17 @@ import re
 from datetime import date, datetime, time, timedelta
 from email.mime.image import MIMEImage
 from pathlib import Path
+from types import SimpleNamespace
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.mail import EmailMessage, get_connection
 from django.db.models import Count, Max, Min, Q
+from django.http import QueryDict
 from django.utils import timezone
 
 from App_PADESCE.appels.models import Appel, AppelFormateur
+from App_PADESCE.core.analysis_rules import analysis_threshold_target
 from App_PADESCE.core.models import UserActivity
 from App_PADESCE.formations.models import Classe
 from App_PADESCE.reporting.network_excel import build_padesce_source_index, normalize_network_lookup
@@ -649,7 +652,7 @@ def _qualified_prestation_codes(source_bundle: dict | None) -> set[str]:
             if total_apprenants <= 0:
                 all_reached = False
                 break
-            threshold_target = (total_apprenants + 1) // 2
+            threshold_target = analysis_threshold_target(total_apprenants)
             total_termines = int(terminated_by_class.get(class_key) or 0)
             if total_termines < threshold_target:
                 all_reached = False
@@ -693,7 +696,9 @@ def _selected_class_code_matches(
 
 
 def _build_not_formed_rows(
-    selected_class=None, selected_class_code: str | None = None
+    selected_class=None,
+    selected_class_code: str | None = None,
+    source_records: dict[str, dict] | None = None,
 ) -> list[dict]:
     queryset = (
         Appel.objects.filter(is_active=True, flag_pas_forme=True)
@@ -705,10 +710,12 @@ def _build_not_formed_rows(
         class_code = _extract_class_code(appel.classe, appel.classe_label)
         if not _selected_class_code_matches(class_code, selected_class, selected_class_code):
             continue
+        source_record = (source_records or {}).get(normalize_network_lookup(appel.code or "")) or {}
         rows.append(
             {
                 "call_id": appel.id,
                 "code": appel.code,
+                "apprenant_id": source_record.get("apprenant_id") or appel.code,
                 "name": appel.nom or "-",
                 "phone_display": (appel.telephone1 or "").strip() or "-",
                 "phone_normalized": _normalize_phone_number(appel.telephone1),
@@ -721,7 +728,9 @@ def _build_not_formed_rows(
 
 
 def _build_false_name_rows(
-    selected_class=None, selected_class_code: str | None = None
+    selected_class=None,
+    selected_class_code: str | None = None,
+    source_records: dict[str, dict] | None = None,
 ) -> list[dict]:
     queryset = (
         Appel.objects.filter(is_active=True, flag_faux_nom=True)
@@ -733,10 +742,12 @@ def _build_false_name_rows(
         class_code = _extract_class_code(appel.classe, appel.classe_label)
         if not _selected_class_code_matches(class_code, selected_class, selected_class_code):
             continue
+        source_record = (source_records or {}).get(normalize_network_lookup(appel.code or "")) or {}
         rows.append(
             {
                 "call_id": appel.id,
                 "code": appel.code,
+                "apprenant_id": source_record.get("apprenant_id") or appel.code,
                 "name": appel.nom or "-",
                 "phone_display": (appel.telephone1 or "").strip() or "-",
                 "phone_normalized": _normalize_phone_number(appel.telephone1),
@@ -749,7 +760,9 @@ def _build_false_name_rows(
 
 
 def _build_duplicate_phone_rows(
-    selected_class=None, selected_class_code: str | None = None
+    selected_class=None,
+    selected_class_code: str | None = None,
+    source_records: dict[str, dict] | None = None,
 ) -> list[dict]:
     queryset = (
         Appel.objects.filter(is_active=True, flag_numero_double=True)
@@ -764,10 +777,12 @@ def _build_duplicate_phone_rows(
         class_code = _extract_class_code(appel.classe, appel.classe_label)
         if not _selected_class_code_matches(class_code, selected_class, selected_class_code):
             continue
+        source_record = (source_records or {}).get(normalize_network_lookup(appel.code or "")) or {}
         duplicate_rows.append(
             {
                 "call_id": appel.id,
                 "code": appel.code,
+                "apprenant_id": source_record.get("apprenant_id") or appel.code,
                 "name": appel.nom or "-",
                 "phone_display": (appel.telephone1 or "").strip() or normalized_phone,
                 "phone_normalized": normalized_phone,
@@ -783,13 +798,30 @@ def _build_anomaly_summary(selected_class=None, selected_class_code: str | None 
     classes_qs = Classe.objects.filter(actif=True)
     classes_not_trained_count = classes_qs.exclude(statut="termine").count()
 
-    not_formed_rows_all = _build_not_formed_rows()
-    false_name_rows_all = _build_false_name_rows()
-    duplicate_rows_all = _build_duplicate_phone_rows()
+    try:
+        source_records = (build_padesce_source_index() or {}).get("records", {})
+    except Exception:
+        source_records = {}
 
-    selected_not_formed = _build_not_formed_rows(selected_class, selected_class_code)
-    selected_false_name = _build_false_name_rows(selected_class, selected_class_code)
-    selected_duplicate = _build_duplicate_phone_rows(selected_class, selected_class_code)
+    not_formed_rows_all = _build_not_formed_rows(source_records=source_records)
+    false_name_rows_all = _build_false_name_rows(source_records=source_records)
+    duplicate_rows_all = _build_duplicate_phone_rows(source_records=source_records)
+
+    selected_not_formed = _build_not_formed_rows(
+        selected_class,
+        selected_class_code,
+        source_records=source_records,
+    )
+    selected_false_name = _build_false_name_rows(
+        selected_class,
+        selected_class_code,
+        source_records=source_records,
+    )
+    selected_duplicate = _build_duplicate_phone_rows(
+        selected_class,
+        selected_class_code,
+        source_records=source_records,
+    )
 
     anomaly_options: dict[str, dict] = {}
     for row in not_formed_rows_all + false_name_rows_all + duplicate_rows_all:
@@ -863,6 +895,22 @@ def _normalize_phone_number(val) -> str:
 
 
 def _build_analysis_summary(padesce_qs) -> dict:
+    try:
+        from App_PADESCE.satisfaction_apprenants.views import _build_satisfaction_dashboard_data
+
+        query = QueryDict("", mutable=True)
+        query["source"] = "cutoff"
+        payload = _build_satisfaction_dashboard_data(SimpleNamespace(GET=query))
+        context = payload["context"]
+        return {
+            "classes_count": context["analyzed_classes_count"],
+            "prestations_count": context["analyzed_prestations_count"],
+            "prestataires_count": context["analyzed_prestataires_count"],
+            "beneficiaires_count": context["analyzed_beneficiaires_count"],
+        }
+    except Exception:
+        pass
+
     terminated_rows = list(padesce_qs.filter(status="termine").select_related("classe__prestation"))
     classes = sorted(
         {

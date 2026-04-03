@@ -3,10 +3,14 @@ import json
 from types import SimpleNamespace
 from unittest.mock import patch
 
+from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Group
 from django.http import QueryDict
-from django.test import RequestFactory, SimpleTestCase, TestCase
+from django.test import RequestFactory, SimpleTestCase, TestCase, override_settings
+from django.urls import reverse
 from docx import Document
 
+from App_PADESCE.appels.models import Appel, AppelAnswers
 from App_PADESCE.apprenants.models import Apprenant
 from App_PADESCE.formations.models import Beneficiaire, Classe, Formation, Inspecteur, Lieu, Prestataire, Prestation
 from App_PADESCE.satisfaction_apprenants.management.commands.import_satisfaction_excel import _sync_source_models
@@ -537,10 +541,10 @@ class SatisfactionDashboardRegressionTests(SimpleTestCase):
     @patch("App_PADESCE.satisfaction_apprenants.views._thresholded_dashboard_rows")
     @patch("App_PADESCE.satisfaction_apprenants.views._dashboard_row_from_answer")
     @patch("App_PADESCE.satisfaction_apprenants.views._satisfaction_dashboard_base_queryset", return_value=[object()])
-    @patch("App_PADESCE.satisfaction_apprenants.views.Classe.objects.annotate")
+    @patch("App_PADESCE.satisfaction_apprenants.views._local_analysis_class_counts")
     def test_build_satisfaction_dashboard_data_sets_prestation_effectif_from_associated_classes(
         self,
-        mock_annotate,
+        mock_class_counts,
         _mock_base_queryset,
         mock_dashboard_row_from_answer,
         mock_thresholded_dashboard_rows,
@@ -578,7 +582,7 @@ class SatisfactionDashboardRegressionTests(SimpleTestCase):
             "q8_adequation_besoins": 5,
             "q9_satisfaction_globale": 5,
         }
-        mock_annotate.return_value.values_list.return_value = [("CLA001", 2)]
+        mock_class_counts.return_value = {"cla001": 2}
         mock_dashboard_row_from_answer.return_value = row
         mock_thresholded_dashboard_rows.return_value = (
             [row],
@@ -602,6 +606,142 @@ class SatisfactionDashboardRegressionTests(SimpleTestCase):
 
         self.assertEqual(dashboard["context"]["prestation_stats"][0]["effectif"], 2)
         self.assertEqual(dashboard["context"]["prestation_stats_all"][0]["effectif"], 2)
+
+
+@override_settings(ROOT_URLCONF="App_PADESCE.urls")
+class SatisfactionGeneralPageTests(TestCase):
+    def setUp(self):
+        user_model = get_user_model()
+        self.user = user_model.objects.create_user(
+            username="general-manager",
+            password="test-pass-123",
+        )
+        manager_group, _ = Group.objects.get_or_create(name="manager_padesce")
+        self.user.groups.add(manager_group)
+        self.client.force_login(self.user)
+
+        self.eligible_appel = Appel.objects.create(
+            code="APP100",
+            nom="Amina Analyse",
+            classe_label="CLA001",
+            prestataire="Prestataire A",
+            beneficiaire="Beneficiaire A",
+            telephone1="690001100",
+            fenetre="2",
+            status="termine",
+            is_active=True,
+        )
+        AppelAnswers.objects.create(
+            appel=self.eligible_appel,
+            q1_clarte_exposes=4,
+            q2_interaction_formateur=4,
+            q3_maitrise_contenu=4,
+            q4_salle_adequate=4,
+            q5_materiel_disponible=4,
+            q6_organisation_temps=4,
+            q7_utilite_formation=4,
+            q8_adequation_besoins=4,
+            q9_satisfaction_globale=4,
+            commentaire="RAS",
+            recommandations="Suivi",
+            modified_by=self.user,
+        )
+
+        self.no_phone_appel = Appel.objects.create(
+            code="APP101",
+            nom="Binta Sans Numero",
+            classe_label="CLA001",
+            prestataire="Prestataire A",
+            beneficiaire="Beneficiaire A",
+            fenetre="2",
+            status="termine",
+            is_active=True,
+        )
+        AppelAnswers.objects.create(
+            appel=self.no_phone_appel,
+            q1_clarte_exposes=3,
+            q2_interaction_formateur=3,
+            q3_maitrise_contenu=3,
+            q4_salle_adequate=3,
+            q5_materiel_disponible=3,
+            q6_organisation_temps=3,
+            q7_utilite_formation=3,
+            q8_adequation_besoins=3,
+            q9_satisfaction_globale=3,
+            commentaire="Tout a 3",
+            recommandations="Verifier numero",
+            modified_by=self.user,
+        )
+
+    @patch("App_PADESCE.satisfaction_apprenants.views.get_workbook_source_options")
+    @patch("App_PADESCE.satisfaction_apprenants.views.build_padesce_source_index")
+    @patch("App_PADESCE.satisfaction_apprenants.views._general_analysis_threshold_codes")
+    def test_general_page_displays_analysis_state_and_filters(
+        self,
+        mock_threshold_codes,
+        mock_source_index,
+        mock_source_options,
+    ):
+        mock_threshold_codes.return_value = {"cla001"}
+        mock_source_options.return_value = [{"value": "", "label": "Principal"}]
+        mock_source_index.return_value = {
+            "records": {
+                "app100": {
+                    "apprenant_id": "NET001",
+                    "classe_id": "CLA001",
+                    "prestation_id": "PRESTA001",
+                    "prestataire": "Prestataire A",
+                    "beneficiaire": "Beneficiaire A",
+                    "fenetre": "2",
+                },
+                "app101": {
+                    "apprenant_id": "NET002",
+                    "classe_id": "CLA001",
+                    "prestation_id": "PRESTA001",
+                    "prestataire": "Prestataire A",
+                    "beneficiaire": "Beneficiaire A",
+                    "fenetre": "2",
+                },
+            }
+        }
+
+        response = self.client.get(reverse("satisfaction_general_page"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "NET001")
+        self.assertContains(response, "Pris en compte")
+        self.assertContains(response, "Sans numero")
+
+        filtered_response = self.client.get(
+            reverse("satisfaction_general_page"),
+            {"without_phone": "1", "all_three": "1"},
+        )
+
+        self.assertEqual(filtered_response.status_code, 200)
+        self.assertContains(filtered_response, "NET002")
+        self.assertNotContains(filtered_response, "NET001")
+
+    @patch("App_PADESCE.satisfaction_apprenants.views.get_workbook_source_options", return_value=[])
+    @patch("App_PADESCE.satisfaction_apprenants.views.build_padesce_source_index", return_value={"records": {}})
+    @patch("App_PADESCE.satisfaction_apprenants.views._general_analysis_threshold_codes", return_value=set())
+    def test_general_toggle_exclusion_updates_appel_flag(
+        self,
+        _mock_threshold_codes,
+        _mock_source_index,
+        _mock_source_options,
+    ):
+        response = self.client.post(
+            reverse("satisfaction_general_toggle_exclusion"),
+            {
+                "appel_id": self.eligible_appel.pk,
+                "next": reverse("satisfaction_general_page"),
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], reverse("satisfaction_general_page"))
+        self.eligible_appel.refresh_from_db()
+        self.assertTrue(self.eligible_appel.exclude_from_analysis)
 
 
 class SatisfactionImportExcelSyncTests(TestCase):

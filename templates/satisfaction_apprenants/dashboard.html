@@ -102,6 +102,7 @@
   </div>
   <div class="filter-actions">
     <button type="button" class="btn btn-ghost btn-sm" id="js-open-fast-stats">FAST STATS</button>
+    <a class="btn btn-ghost btn-sm" href="{% url 'satisfaction_general_page' %}{% if request.GET.urlencode %}?{{ request.GET.urlencode }}{% endif %}">General</a>
     <a class="btn btn-primary btn-sm" href="{% url 'satisfaction_dashboard_daily_report_xlsx' %}?source={{ filter_source|urlencode }}">Télécharger le rapport quotidien (Excel)</a>
     <a class="btn btn-ghost btn-sm" href="{% url 'satisfaction_apprenants_index' %}">Retour enquêtes</a>
   </div>
@@ -201,6 +202,7 @@
   </div>
   <div class="filter-actions">
     <button class="btn btn-primary btn-sm" type="submit">Filtrer</button>
+    <a class="btn btn-ghost btn-sm" href="{% url 'satisfaction_general_page' %}{% if request.GET.urlencode %}?{{ request.GET.urlencode }}{% endif %}">Ouvrir General</a>
     <a class="btn btn-ghost btn-sm" href="{% url 'satisfaction_dashboard_export_xlsx' %}?source={{ filter_source|urlencode }}">Exporter tout (XLSX)</a>
     <a class="btn btn-ghost btn-sm" href="{% url 'satisfaction_dashboard_export_xlsx' %}{% if request.GET.urlencode %}?{{ request.GET.urlencode }}{% endif %}">Exporter le filtre (XLSX)</a>
     <a class="btn btn-ghost btn-sm" href="{% url 'satisfaction_dashboard_export_chapeau' %}{% if request.GET.urlencode %}?{{ request.GET.urlencode }}{% endif %}">Exporter le chapeau (DOCX)</a>
@@ -707,7 +709,7 @@
   <div class="dash-header" style="margin-bottom:12px;">
     <div>
       <div class="section-title" style="margin-bottom:4px;">Table active de l'analyse</div>
-      <p style="margin:0; color:var(--muted); font-size:0.9rem;">Seules les classes dont l'objectif est atteint sont affichées. Les prestations analysées sont limitées à celles dont toutes les classes de la source choisie sont terminées et ont atteint le seuil de 50%.</p>
+      <p style="margin:0; color:var(--muted); font-size:0.9rem;">Seules les classes dont l'objectif est atteint sont affichées. Les prestations analysées sont limitées à celles dont toutes les classes de la source choisie sont terminées et ont atteint le seuil de {{ analysis_threshold_label }}.</p>
     </div>
     <div class="filter-actions">
       <a
@@ -784,8 +786,8 @@
       <table>
         <thead>
           <tr>
-            <th>Code</th>
             <th>ApprenantID réseau</th>
+            <th>Code</th>
             <th>Apprenant</th>
             <th>Source</th>
             <th>Classe</th>
@@ -800,8 +802,8 @@
         <tbody>
           {% for row in rows %}
           <tr>
-            <td>{{ row.apprenant_code }}</td>
             <td title="Classe source : {{ row.source_classe_id|default:'-' }} | Prestation source : {{ row.source_prestation_id|default:'-' }} | Fenêtre source : {{ row.source_fenetre|default:'-' }}">{{ row.source_apprenant_id|default:"-" }}</td>
+            <td>{{ row.apprenant_code }}</td>
             <td>{{ row.apprenant_nom }}</td>
             <td>
               <span class="source-pill source-pill-{{ row.source_status_tone }}" title="{{ row.source_alerts_label }}">{{ row.source_status_label }}</span>
@@ -1006,7 +1008,7 @@
             <span class="detail-pill"><strong>{{ item.label }} :</strong> {{ item.value }}</span>
           {% endfor %}
         {% else %}
-          <span class="detail-pill">Aucun filtre manuel. Seules les classes au seuil atteint sont affichées.</span>
+          <span class="detail-pill">Aucun filtre manuel. Seules les classes au seuil {{ analysis_threshold_label }} atteint sont affichées.</span>
         {% endif %}
       </div>
     </div>

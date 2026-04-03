@@ -24,6 +24,16 @@ urlpatterns = [
         name="satisfaction_dashboard_rag",
     ),
     path(
+        "analyse/general/",
+        lazy_view("App_PADESCE.satisfaction_apprenants.views.satisfaction_general_page"),
+        name="satisfaction_general_page",
+    ),
+    path(
+        "analyse/general/toggle-exclusion/",
+        lazy_view("App_PADESCE.satisfaction_apprenants.views.satisfaction_general_toggle_exclusion"),
+        name="satisfaction_general_toggle_exclusion",
+    ),
+    path(
         "analyse/export/rapport-quotidien/xlsx/",
         lazy_view(
             "App_PADESCE.satisfaction_apprenants.views.satisfaction_dashboard_daily_report_xlsx"

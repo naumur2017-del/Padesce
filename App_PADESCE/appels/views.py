@@ -40,6 +40,7 @@ from App_PADESCE.core.call_metrics import (
     phone_variants,
     summarize_source_class_phone_coverage,
 )
+from App_PADESCE.core.analysis_rules import analysis_threshold_label, analysis_threshold_target
 from App_PADESCE.formations.models import Classe
 from App_PADESCE.reporting.network_excel import build_padesce_source_index, normalize_network_lookup
 
@@ -318,9 +319,10 @@ def _build_progress_metrics(queryset):
     )
     total = int(stats.get("total") or 0)
     termines = int(stats.get("termines") or 0)
-    threshold_target = (total + 1) // 2 if total else 0
+    threshold_target = analysis_threshold_target(total)
     completion_rate = round((termines / total) * 100, 1) if total else 0.0
     threshold_reached = total > 0 and termines >= threshold_target
+    threshold_label = analysis_threshold_label()
     stats.update(
         {
             "remaining": max(total - termines, 0),
@@ -330,10 +332,10 @@ def _build_progress_metrics(queryset):
             "threshold_remaining": max(threshold_target - termines, 0),
             "threshold_reached": threshold_reached,
             "threshold_message": (
-                "Seuil de 50% atteint. Vous pouvez passer a autre chose."
+                f"Seuil de {threshold_label} atteint. Vous pouvez passer a autre chose."
                 if threshold_reached
                 else (
-                    f"Encore {max(threshold_target - termines, 0)} appel(s) termine(s) pour atteindre 50%."
+                    f"Encore {max(threshold_target - termines, 0)} appel(s) termine(s) pour atteindre {threshold_label}."
                     if total
                     else "Aucun appel dans ce filtre."
                 )
