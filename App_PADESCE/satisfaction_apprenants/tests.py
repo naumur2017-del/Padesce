@@ -92,6 +92,7 @@ class SatisfactionDashboardSourceTests(SimpleTestCase):
                     "nom_individu": "Fanta Adamou",
                     "classe_id": "CLA001",
                     "prestation_id": "PRESTA072",
+                    "telephone1": "690000001",
                     "prestataire": "Prestataire Alpha",
                     "beneficiaire": "Beneficiaire Beta",
                     "fenetre": "2",
@@ -131,6 +132,7 @@ class SatisfactionDashboardSourceTests(SimpleTestCase):
         self.assertEqual(summary["matched_count"], 1)
         self.assertEqual(summary["missing_count"], 1)
         self.assertEqual(summary["apprenant_id_count"], 1)
+        self.assertEqual(summary["source_apprenant_count"], 1)
 
     @patch("App_PADESCE.satisfaction_apprenants.views.build_padesce_source_index")
     def test_attach_network_source_to_rows_flags_mismatch(self, mock_build_source_index):
@@ -147,6 +149,7 @@ class SatisfactionDashboardSourceTests(SimpleTestCase):
                     "nom_individu": "Fanta Adamou",
                     "classe_id": "CLA001",
                     "prestation_id": "PRESTA072",
+                    "telephone1": "690000001",
                     "prestataire": "Prestataire Alpha",
                     "beneficiaire": "Beneficiaire Beta",
                 }
@@ -203,6 +206,31 @@ class SatisfactionDashboardSourceTests(SimpleTestCase):
 
         self.assertEqual(counts["CLA001"], 2)
         self.assertNotIn("CLA002", counts)
+
+    def test_terminated_prestation_codes_from_source_ignores_classes_without_phone(self):
+        terminated_codes = _terminated_prestation_codes_from_source(
+            {},
+            {
+                "classes": {
+                    "cla001": {
+                        "classe_id": "CLA001",
+                        "prestation_id": "PRESTA001",
+                        "statut_prestation": "TERMINE",
+                    },
+                    "cla002": {
+                        "classe_id": "CLA002",
+                        "prestation_id": "PRESTA002",
+                        "statut_prestation": "TERMINE",
+                    },
+                },
+                "records": {
+                    "a1": {"classe_id": "CLA001", "telephone1": "", "telephone2": ""},
+                    "b1": {"classe_id": "CLA002", "telephone1": "690000111", "telephone2": ""},
+                },
+            },
+        )
+
+        self.assertEqual(terminated_codes, {"presta002"})
 
     def test_build_dashboard_filter_options_limits_other_filters_to_related_values(self):
         rows = [
@@ -325,7 +353,12 @@ class SatisfactionDashboardSourceTests(SimpleTestCase):
                     "cla001": {"classe_id": "CLA001", "prestation_id": "PRESTA001"},
                     "cla002": {"classe_id": "CLA002", "prestation_id": "PRESTA001"},
                     "cla003": {"classe_id": "CLA003", "prestation_id": "PRESTA002"},
-                }
+                },
+                "records": {
+                    "a1": {"classe_id": "CLA001", "telephone1": "690000001"},
+                    "a2": {"classe_id": "CLA002", "telephone1": "690000002"},
+                    "a3": {"classe_id": "CLA003", "telephone1": "690000003"},
+                },
             },
         )
 
@@ -353,7 +386,12 @@ class SatisfactionDashboardSourceTests(SimpleTestCase):
                     "cla001": {"classe_id": "CLA001", "prestation_id": "PRESTA001", "statut_prestation": "TERMINÉ"},
                     "cla002": {"classe_id": "CLA002", "prestation_id": "PRESTA001", "statut_prestation": "EN COURS"},
                     "cla003": {"classe_id": "CLA003", "prestation_id": "PRESTA002", "statut_prestation": "ARRETÉ"},
-                }
+                },
+                "records": {
+                    "a1": {"classe_id": "CLA001", "telephone1": "690000001"},
+                    "a2": {"classe_id": "CLA002", "telephone1": "690000002"},
+                    "a3": {"classe_id": "CLA003", "telephone1": "690000003"},
+                },
             },
         )
 
@@ -395,9 +433,9 @@ class SatisfactionDashboardSourceTests(SimpleTestCase):
             },
         )
 
-        self.assertEqual(merged["CLA001"], 3)
-        self.assertEqual(merged["CLA002"], 1)
-        self.assertEqual(merged["CLA003"], 4)
+        self.assertEqual(merged["cla001"], 3)
+        self.assertEqual(merged["cla002"], 1)
+        self.assertEqual(merged["cla003"], 4)
 
     def test_call_report_status_marks_ras_only_form_as_failure(self):
         appel = SimpleNamespace(

@@ -16,7 +16,7 @@ PAGE_TITLE_BY_PREFIX: tuple[tuple[str, str], ...] = (
     ("/reporting/", "Rapport hebdomadaire"),
     ("/deploiement/", "Deploiement Gandi"),
     ("/cga/", "CGA"),
-    ("/consultant/", "Consultant"),
+    ("/consultant/", "Espace PADESCE"),
     ("/guide-operateur/", "Guide Operateur"),
     ("/messages/support/", "Support"),
     ("/admin/", "Admin"),

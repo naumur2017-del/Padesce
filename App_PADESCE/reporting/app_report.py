@@ -642,6 +642,8 @@ def _qualified_prestation_codes(source_bundle: dict | None) -> set[str]:
         classe_key = normalize_network_lookup(source_class.get("classe_id", ""))
         if not prestation_key or not classe_key:
             continue
+        if int(apprenant_counts.get(classe_key) or 0) <= 0:
+            continue
         prestation_classes.setdefault(prestation_key, set()).add(classe_key)
 
     qualified_codes: set[str] = set()

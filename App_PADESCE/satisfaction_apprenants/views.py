@@ -1345,6 +1345,7 @@ def _source_prestation_classes_from_source(
     if not source_classes:
         return {}
 
+    callable_class_counts = _normalize_class_count_map(_source_class_apprenant_counts(source_bundle))
     prestation_classes: dict[str, dict[str, dict]] = {}
     for source_class in source_classes:
         if not _source_class_matches_filters(source_class, filters):
@@ -1352,6 +1353,8 @@ def _source_prestation_classes_from_source(
         prestation_key = normalize_network_lookup(source_class.get("prestation_id", ""))
         classe_key = normalize_network_lookup(source_class.get("classe_id", ""))
         if not prestation_key or not classe_key:
+            continue
+        if int(callable_class_counts.get(classe_key) or 0) <= 0:
             continue
         prestation_classes.setdefault(prestation_key, {})[classe_key] = source_class
     return prestation_classes
@@ -1373,9 +1376,12 @@ def _qualified_prestation_codes_from_source(
     source_bundle: dict | None,
 ) -> set[str]:
     fallback_codes = _fallback_qualified_prestation_codes(classe_stats_all)
+    if not source_bundle or not list((source_bundle.get("classes") or {}).values()):
+        return fallback_codes
+
     prestation_classes = _source_prestation_classes_from_source(filters, source_bundle)
     if not prestation_classes:
-        return fallback_codes
+        return set()
 
     threshold_by_class = {
         normalize_network_lookup(item.get("code", "")): bool(item.get("threshold_reached"))
@@ -1896,7 +1902,7 @@ def _attach_network_source_to_rows(
         "consistent_count": consistent_count,
         "mismatch_count": mismatch_count,
         "apprenant_id_count": apprenant_id_count,
-        "source_apprenant_count": source_bundle["counts"]["apprenants"],
+        "source_apprenant_count": sum(_source_class_apprenant_counts(source_bundle).values()),
         "duplicate_code_count": len(source_bundle["duplicate_codes"]),
         "mismatch_rows": mismatch_rows,
     }

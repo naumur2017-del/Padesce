@@ -98,7 +98,7 @@
 <div class="dash-header">
   <div>
     <h1>Analyses de Satisfaction</h1>
-    <p style="color:var(--muted); margin:4px 0 0; font-size:0.9rem;">Vue apprenants : cartes et tableaux basés sur les questionnaires d'appels sauvegardés.</p>
+    <p style="color:var(--muted); margin:4px 0 0; font-size:0.9rem;">Vue apprenants : cartes et tableaux basés sur les questionnaires d'appels sauvegardés, hors apprenants sans numéro joignable.</p>
   </div>
   <div class="filter-actions">
     <button type="button" class="btn btn-ghost btn-sm" id="js-open-fast-stats">FAST STATS</button>
@@ -609,7 +609,7 @@
 <div class="kpi-row">
   <div class="kpi-card">
     <div class="kpi-value">{{ total }}</div>
-    <div class="kpi-label">Enquêtes</div>
+    <div class="kpi-label">Enquêtes joignables</div>
   </div>
   {% for label, avg in global_avgs.items %}
   <div class="kpi-card">
@@ -749,9 +749,9 @@
       <div class="meta">Codes d'appels introuvables dans la feuille Apprenants</div>
     </div>
     <div class="source-card">
-      <div class="label">Codes source</div>
+      <div class="label">Apprenants joignables source</div>
       <div class="value">{{ source_summary.source_apprenant_count }}</div>
-      <div class="meta">{{ source_summary.duplicate_code_count }} doublon(s) détecté(s) dans le classeur</div>
+      <div class="meta">{{ source_summary.duplicate_code_count }} doublon(s) détecté(s) dans le classeur, hors lignes sans numéro</div>
     </div>
   </div>
   {% if source_summary.mismatch_rows %}

@@ -345,7 +345,7 @@ class PublicConsultantAccessTests(TestCase):
         response = self.client.get(reverse("login"))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Espace consultant")
+        self.assertContains(response, "Espace PADESCE")
         self.assertContains(response, reverse("consultant_dashboard"))
 
     @override_settings(PUBLIC_CONSULTANT_ACCESS=True)
