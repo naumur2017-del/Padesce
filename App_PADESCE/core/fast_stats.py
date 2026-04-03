@@ -17,6 +17,7 @@ from openpyxl import Workbook, load_workbook
 from App_PADESCE.appels.models import Appel, AppelAnswers, AppelFormateur
 from App_PADESCE.apprenants.models import Apprenant
 from App_PADESCE.formations.models import Classe, Formateur
+from App_PADESCE.satisfaction_apprenants.models import SatisfactionApprenant
 
 FAST_STATS_TEMPLATE_PATH = Path(settings.BASE_DIR) / "data" / "templates" / "fast_stats_template.xlsx"
 FAST_STATS_FILTER_KEYS = (
@@ -110,10 +111,10 @@ def _extract_fast_stats_filters(request) -> dict[str, str]:
 
 
 def _filtered_classes_queryset(filters: dict[str, str]):
-    appels_qs = Appel.objects.filter(is_active=True).select_related("answers").order_by("code", "nom", "pk")
+    appels_qs = Appel.objects.filter(is_active=True).select_related("answers", "satisfaction_apprenant").order_by("code", "nom", "pk")
     apprenants_qs = Apprenant.objects.order_by("code", "nom_complet", "pk")
-    queryset = (
-        Classe.objects.filter(actif=True, statut="termine")
+    return (
+        Classe.objects
         .select_related(
             "prestation",
             "prestation__prestataire",
@@ -129,21 +130,90 @@ def _filtered_classes_queryset(filters: dict[str, str]):
         .order_by("prestation__code", "code")
     )
 
-    if filters["prestation"]:
-        queryset = queryset.filter(prestation__code=filters["prestation"])
-    if filters["classe"]:
-        queryset = queryset.filter(code=filters["classe"])
-    if filters["prestataire"]:
-        queryset = queryset.filter(prestation__prestataire__raison_sociale=filters["prestataire"])
-    if filters["beneficiaire"]:
-        queryset = queryset.filter(prestation__beneficiaire__nom_structure=filters["beneficiaire"])
-    if filters["cohorte"] and filters["cohorte"].isdigit():
-        queryset = queryset.filter(cohorte=int(filters["cohorte"]))
-    if filters["fenetre"]:
-        queryset = queryset.filter(fenetre=filters["fenetre"])
-    if filters["ville"]:
-        queryset = queryset.filter(lieu__ville=filters["ville"])
-    return queryset
+ 
+def _get_completed_satisfaction(appel: Appel):
+    try:
+        satisfaction = appel.satisfaction_apprenant
+    except SatisfactionApprenant.DoesNotExist:
+        return None
+    return satisfaction
+
+
+def _text_filter_matches(candidate: str, selected: str) -> bool:
+    selected_normalized = _normalize_text(selected)
+    if not selected_normalized:
+        return True
+    candidate_normalized = _normalize_text(candidate)
+    if not candidate_normalized:
+        return False
+    return (
+        candidate_normalized == selected_normalized
+        or selected_normalized in candidate_normalized
+        or candidate_normalized in selected_normalized
+    )
+
+
+def _class_matches_filters(classe: Classe, filters: dict[str, str]) -> bool:
+    prestation = getattr(classe, "prestation", None)
+    if filters["prestation"] and not _text_filter_matches(getattr(prestation, "code", ""), filters["prestation"]):
+        return False
+    if filters["classe"] and not _text_filter_matches(classe.code, filters["classe"]):
+        return False
+    if filters["prestataire"] and not _text_filter_matches(
+        getattr(getattr(prestation, "prestataire", None), "raison_sociale", ""),
+        filters["prestataire"],
+    ):
+        return False
+    if filters["beneficiaire"] and not _text_filter_matches(
+        getattr(getattr(prestation, "beneficiaire", None), "nom_structure", ""),
+        filters["beneficiaire"],
+    ):
+        return False
+    if filters["cohorte"] and not _cohorte_matches(str(classe.cohorte), filters["cohorte"]):
+        return False
+    if filters["fenetre"] and not _text_filter_matches(getattr(classe, "fenetre", ""), filters["fenetre"]):
+        return False
+    if filters["ville"] and not _text_filter_matches(getattr(getattr(classe, "lieu", None), "ville", ""), filters["ville"]):
+        return False
+    return True
+
+
+def _resolve_fast_stats_classes(filters: dict[str, str]) -> tuple[list[Classe], dict]:
+    all_classes = list(_filtered_classes_queryset(filters))
+    filtered = [classe for classe in all_classes if _class_matches_filters(classe, filters)]
+
+    scopes = [
+        (
+            "terminees_actives",
+            [classe for classe in filtered if getattr(classe, "actif", True) and _safe_text(classe.statut) == "termine"],
+            True,
+            "Classes actives terminées",
+        ),
+        (
+            "actives",
+            [classe for classe in filtered if getattr(classe, "actif", True)],
+            False,
+            "Classes actives",
+        ),
+        (
+            "toutes",
+            filtered,
+            False,
+            "Toutes les classes",
+        ),
+    ]
+    for scope_key, classes, terminated_only, scope_label in scopes:
+        if classes:
+            return classes, {
+                "scope_key": scope_key,
+                "scope_label": scope_label,
+                "terminated_only": terminated_only,
+            }
+    return [], {
+        "scope_key": "vide",
+        "scope_label": "Aucune classe",
+        "terminated_only": False,
+    }
 
 
 def _has_appel_answers(appel: Appel) -> bool:
@@ -151,6 +221,10 @@ def _has_appel_answers(appel: Appel) -> bool:
         return bool(appel.answers)
     except AppelAnswers.DoesNotExist:
         return False
+
+
+def _has_completed_apprenant_survey(appel: Appel) -> bool:
+    return _has_appel_answers(appel) or bool(_get_completed_satisfaction(appel))
 
 
 def _has_appel_audio(appel: Appel) -> bool:
@@ -162,7 +236,7 @@ def _apprenant_call_effectue(appel: Appel) -> bool:
     status = _safe_text(getattr(appel, "status", ""))
     return bool(
         (status and status != "en_attente")
-        or _has_appel_answers(appel)
+        or _has_completed_apprenant_survey(appel)
         or _has_appel_audio(appel)
         or getattr(appel, "locked_at", None)
         or getattr(appel, "rappel_at", None)
@@ -170,7 +244,7 @@ def _apprenant_call_effectue(appel: Appel) -> bool:
 
 
 def _apprenant_call_termine(appel: Appel) -> bool:
-    return _safe_text(getattr(appel, "status", "")) == "termine" or _has_appel_answers(appel)
+    return _has_completed_apprenant_survey(appel)
 
 
 def _apprenant_person_key(appel: Appel) -> str:
@@ -308,16 +382,14 @@ def _prestation_formateur_candidates(classe: Classe, cache: dict[int, list[Appel
     if prestation_id in cache:
         return cache[prestation_id]
 
-    queryset = AppelFormateur.objects.filter(is_active=True).order_by("session_date", "numero_seance", "reference_code")
+    rows = list(AppelFormateur.objects.filter(is_active=True).order_by("session_date", "numero_seance", "reference_code"))
     prestataire_name = _safe_text(getattr(getattr(prestation, "prestataire", None), "raison_sociale", ""))
     beneficiaire_name = _safe_text(getattr(getattr(prestation, "beneficiaire", None), "nom_structure", ""))
     if prestataire_name:
-        queryset = queryset.filter(prestataire__iexact=prestataire_name)
+        rows = [row for row in rows if _text_filter_matches(row.prestataire, prestataire_name)]
     if beneficiaire_name:
-        queryset = queryset.filter(beneficiaire__iexact=beneficiaire_name)
-
+        rows = [row for row in rows if _text_filter_matches(row.beneficiaire, beneficiaire_name)]
     formation_name = _safe_text(getattr(getattr(prestation, "formation", None), "nom", ""))
-    rows = list(queryset)
     if formation_name:
         formation_rows = [row for row in rows if _formation_matches(formation_name, row.formation)]
         if formation_rows:
@@ -498,7 +570,7 @@ def _formateur_summary_cards(rows: list[dict]) -> list[dict]:
     ]
 
 
-def _mode_payload(mode_id: str, *, rows: list[dict], summary_cards: list[dict], sheet_name: str) -> dict:
+def _mode_payload(mode_id: str, *, rows: list[dict], summary_cards: list[dict], sheet_name: str, scope: dict) -> dict:
     if mode_id == "apprenant":
         return {
             "id": mode_id,
@@ -510,7 +582,8 @@ def _mode_payload(mode_id: str, *, rows: list[dict], summary_cards: list[dict], 
             "summary_cards": summary_cards,
             "metadata": {
                 "terminated_only_label": "Total classe de la prestation terminée",
-                "terminated_only_value": True,
+                "terminated_only_value": scope["terminated_only"],
+                "scope_label": scope["scope_label"],
             },
             "columns": [
                 {"key": "index", "label": "#"},
@@ -537,7 +610,8 @@ def _mode_payload(mode_id: str, *, rows: list[dict], summary_cards: list[dict], 
         "summary_cards": summary_cards,
         "metadata": {
             "terminated_only_label": "Total classe de la prestation terminée",
-            "terminated_only_value": True,
+            "terminated_only_value": scope["terminated_only"],
+            "scope_label": scope["scope_label"],
         },
         "column_groups": [
             {"label": "Structure classe", "span": 6},
@@ -583,7 +657,7 @@ def _find_sheet_name(workbook: Workbook, mode_id: str) -> str:
 
 def build_fast_stats_bundle(request) -> dict:
     filters = _extract_fast_stats_filters(request)
-    classes = list(_filtered_classes_queryset(filters))
+    classes, scope = _resolve_fast_stats_classes(filters)
     formateur_directory = _formateur_directory_by_phone()
     prestation_calls_cache: dict[int, list[AppelFormateur]] = {}
 
@@ -602,19 +676,22 @@ def build_fast_stats_bundle(request) -> dict:
     return {
         "generated_at": timezone.localtime().isoformat(),
         "filters": filters,
-        "terminated_only": True,
+        "terminated_only": scope["terminated_only"],
+        "scope_label": scope["scope_label"],
         "modes": [
             _mode_payload(
                 "apprenant",
                 rows=apprenant_rows,
                 summary_cards=_apprenant_summary_cards(apprenant_rows),
                 sheet_name="Enquête de satisfaction",
+                scope=scope,
             ),
             _mode_payload(
                 "formateur",
                 rows=formateur_rows,
                 summary_cards=_formateur_summary_cards(formateur_rows),
                 sheet_name="Enquête de formateur",
+                scope=scope,
             ),
         ],
     }

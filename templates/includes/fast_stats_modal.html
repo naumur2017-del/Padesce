@@ -182,7 +182,7 @@
       return `
         <section class="fast-stats-mode ${mode.id === activeMode ? "active" : ""}" data-fast-stats-panel="${escapeHtml(mode.id)}">
           ${renderSummary(mode.summary_cards || [])}
-          <div class="source-note">${escapeHtml(meta.terminated_only_label || "")} : <strong>${meta.terminated_only_value ? "TRUE" : "FALSE"}</strong> · ${escapeHtml(mode.note || "")}</div>
+          <div class="source-note">${escapeHtml(meta.terminated_only_label || "")} : <strong>${meta.terminated_only_value ? "TRUE" : "FALSE"}</strong> · ${escapeHtml(meta.scope_label || "")} · ${escapeHtml(mode.note || "")}</div>
           <div class="fast-stats-sheet">Feuille cible : <strong>${escapeHtml(mode.sheet_name || "")}</strong></div>
           ${table}
         </section>`;

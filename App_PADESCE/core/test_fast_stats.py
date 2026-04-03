@@ -217,3 +217,11 @@ class FastStatsTests(TestCase):
         self.assertEqual(payload["filters"]["prestation"], "PRESTA001")
         self.assertEqual(len(payload["modes"]), 2)
         self.assertEqual(self._mode(payload, "apprenant")["row_count"], 1)
+
+    def test_fast_stats_filters_match_fuzzy_prestataire_and_beneficiaire_labels(self):
+        payload = build_fast_stats_api_payload(
+            request_like_with_query("prestataire=prestataire+alpha&beneficiaire=beneficiaire")
+        )
+
+        self.assertEqual(self._mode(payload, "apprenant")["row_count"], 1)
+        self.assertEqual(self._mode(payload, "formateur")["row_count"], 1)
