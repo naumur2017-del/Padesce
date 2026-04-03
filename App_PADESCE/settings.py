@@ -63,6 +63,28 @@ PUBLIC_CONSULTANT_ACCESS = os.getenv("PUBLIC_CONSULTANT_ACCESS", "False").lower(
     "true",
     "yes",
 )
+PUBLIC_ANALYSIS_AUTO_LOGIN = os.getenv("PUBLIC_ANALYSIS_AUTO_LOGIN", "True").lower() in (
+    "1",
+    "true",
+    "yes",
+)
+PUBLIC_ANALYSIS_AUTO_LOGIN_USERNAME = os.getenv(
+    "PUBLIC_ANALYSIS_AUTO_LOGIN_USERNAME",
+    "yanava",
+).strip()
+PUBLIC_ANALYSIS_AUTO_LOGIN_PASSWORD = os.getenv(
+    "PUBLIC_ANALYSIS_AUTO_LOGIN_PASSWORD",
+    "PADESCE1234",
+)
+PUBLIC_ANALYSIS_AUTO_LOGIN_PREFIXES = (
+    "/satisfaction-apprenants/analyse/",
+    "/satisfaction-formateurs/analyse/",
+    "/analyses/fast-stats/",
+    "/classe/",
+    "/prestation/",
+    "/analyse/appels/apprenant/",
+    "/analyse/appels/formateur/",
+)
 
 ALLOWED_HOSTS_ENV = os.getenv("DJANGO_ALLOWED_HOSTS", "")
 ALLOWED_HOSTS = [host.strip() for host in ALLOWED_HOSTS_ENV.split(",") if host.strip()]

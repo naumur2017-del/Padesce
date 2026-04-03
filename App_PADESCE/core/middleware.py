@@ -4,6 +4,7 @@ from urllib.parse import urlsplit
 from typing import Optional
 
 from django.conf import settings
+from django.contrib.auth import authenticate, login
 from django.contrib.auth.views import redirect_to_login
 from django.core.exceptions import PermissionDenied, SuspiciousOperation
 from django.http import Http404
@@ -43,6 +44,52 @@ def strip_path_prefix(path: str | None) -> str:
     if not stripped:
         return "/"
     return stripped if stripped.startswith("/") else f"/{stripped}"
+
+
+def _iter_public_analysis_auto_login_prefixes() -> tuple[str, ...]:
+    configured = getattr(settings, "PUBLIC_ANALYSIS_AUTO_LOGIN_PREFIXES", ())
+    if isinstance(configured, str):
+        raw_values = configured.split(",")
+    else:
+        raw_values = configured
+    prefixes = []
+    for value in raw_values:
+        normalized = _normalize_prefix(str(value).strip())
+        if normalized:
+            prefixes.append(normalized)
+    return tuple(prefixes)
+
+
+def _is_public_analysis_auto_login_path(path: str) -> bool:
+    return any(path.startswith(prefix) for prefix in _iter_public_analysis_auto_login_prefixes())
+
+
+def _try_public_analysis_auto_login(request: HttpRequest, path: str) -> bool:
+    if request.user.is_authenticated:
+        return False
+    if not getattr(settings, "PUBLIC_ANALYSIS_AUTO_LOGIN", False):
+        return False
+    if not _is_public_analysis_auto_login_path(path):
+        return False
+
+    username = str(getattr(settings, "PUBLIC_ANALYSIS_AUTO_LOGIN_USERNAME", "") or "").strip()
+    password = str(getattr(settings, "PUBLIC_ANALYSIS_AUTO_LOGIN_PASSWORD", "") or "")
+    if not username or not password:
+        logger.warning("Public analysis auto-login is enabled but credentials are incomplete.")
+        return False
+
+    user = authenticate(request, username=username, password=password)
+    if user is None:
+        logger.warning(
+            "Public analysis auto-login failed for user '%s' on %s.",
+            username,
+            path,
+        )
+        return False
+
+    login(request, user)
+    request.user = user
+    return True
 
 
 def set_current_user(user):
@@ -146,9 +193,12 @@ class LoginRequiredMiddleware:
         self.get_response = get_response
 
     def __call__(self, request: HttpRequest):
+        path = strip_path_prefix(request.path_info or "/")
+        if _try_public_analysis_auto_login(request, path):
+            return self.get_response(request)
+
         if request.user.is_authenticated:
             user = request.user
-            path = strip_path_prefix(request.path_info or "/")
             try:
                 is_consultant_only = (
                     not getattr(user, "is_superuser", False)
@@ -173,7 +223,6 @@ class LoginRequiredMiddleware:
                     return HttpResponseRedirect(reverse("home"))
             return self.get_response(request)
 
-        path = strip_path_prefix(request.path_info or "/")
         login_url = resolve_url(settings.LOGIN_URL or "login")
         login_path = strip_path_prefix(urlsplit(login_url).path) or "/"
         static_prefix = _normalize_prefix(getattr(settings, "STATIC_URL", ""))

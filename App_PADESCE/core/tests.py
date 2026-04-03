@@ -447,6 +447,53 @@ class PublicConsultantAccessTests(TestCase):
         self.assertNotContains(response, "<td>-</td>", html=False)
 
 
+class PublicAnalysisAutoLoginTests(TestCase):
+    def setUp(self):
+        user_model = get_user_model()
+        self.auto_user, _ = user_model.objects.get_or_create(username="yanava")
+        self.auto_user.set_password("PADESCE1234")
+        self.auto_user.is_active = True
+        self.auto_user.save(update_fields=["password", "is_active"])
+        manager_group, _ = Group.objects.get_or_create(name="manager_padesce")
+        self.auto_user.groups.add(manager_group)
+
+    @override_settings(
+        PUBLIC_ANALYSIS_AUTO_LOGIN=True,
+        PUBLIC_ANALYSIS_AUTO_LOGIN_USERNAME="yanava",
+        PUBLIC_ANALYSIS_AUTO_LOGIN_PASSWORD="PADESCE1234",
+    )
+    def test_fast_stats_api_auto_logs_anonymous_user(self):
+        response = self.client.get(reverse("fast_stats_api"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(int(self.client.session["_auth_user_id"]), self.auto_user.pk)
+        self.assertIn("generated_at", response.json())
+
+    @override_settings(
+        PUBLIC_ANALYSIS_AUTO_LOGIN=True,
+        PUBLIC_ANALYSIS_AUTO_LOGIN_USERNAME="yanava",
+        PUBLIC_ANALYSIS_AUTO_LOGIN_PASSWORD="wrong-password",
+    )
+    def test_fast_stats_api_redirects_when_auto_login_credentials_are_invalid(self):
+        response = self.client.get(reverse("fast_stats_api"))
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn(reverse("login"), response["Location"])
+        self.assertNotIn("_auth_user_id", self.client.session)
+
+    @override_settings(
+        PUBLIC_ANALYSIS_AUTO_LOGIN=True,
+        PUBLIC_ANALYSIS_AUTO_LOGIN_USERNAME="yanava",
+        PUBLIC_ANALYSIS_AUTO_LOGIN_PASSWORD="PADESCE1234",
+    )
+    def test_regular_dashboard_stays_protected(self):
+        response = self.client.get(reverse("home"))
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn(reverse("login"), response["Location"])
+        self.assertNotIn("_auth_user_id", self.client.session)
+
+
 class BackupTriggerAccessTests(TestCase):
     @override_settings(BACKUP_TRIGGER_TOKEN="expected-token")
     @patch("App_PADESCE.core.backup_manager.start_backup", return_value="job-123")
