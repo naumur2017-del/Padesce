@@ -34,7 +34,10 @@ from App_PADESCE.core.access import (
     require_consultant_access,
 )
 from App_PADESCE.core.call_metrics import has_usable_phone
-from App_PADESCE.core.fast_stats import build_fast_stats_export_response
+from App_PADESCE.core.fast_stats import (
+    build_fast_stats_api_response,
+    build_fast_stats_export_response,
+)
 from App_PADESCE.core.models import UserActivity
 from App_PADESCE.environnement.models import EnqueteEnvironnement
 from App_PADESCE.formations.models import Classe
@@ -934,6 +937,11 @@ def operator_guide(request):
 @require_analysis_access
 def fast_stats_export_xlsx(request):
     return build_fast_stats_export_response(request)
+
+
+@require_analysis_access
+def fast_stats_api(request):
+    return build_fast_stats_api_response(request)
 
 
 @require_consultant_access

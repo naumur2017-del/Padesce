@@ -97,6 +97,11 @@ app_urlpatterns = [
         lazy_view("App_PADESCE.core.views.fast_stats_export_xlsx"),
         name="fast_stats_export_xlsx",
     ),
+    path(
+        "analyses/fast-stats/api/",
+        lazy_view("App_PADESCE.core.views.fast_stats_api"),
+        name="fast_stats_api",
+    ),
     path("accounts/", include("django.contrib.auth.urls")),
     path("formations/", include("App_PADESCE.formations.urls")),
     path("apprenants/", include("App_PADESCE.apprenants.urls")),

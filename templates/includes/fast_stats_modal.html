@@ -1,236 +1,61 @@
 <style>
-  .fast-stats-backdrop {
-    position: fixed;
-    inset: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 24px;
-    background: rgba(15, 23, 42, 0.62);
-    z-index: 2400;
-  }
-  .fast-stats-backdrop[hidden] {
-    display: none;
-  }
-  .fast-stats-modal {
-    width: min(1220px, 100%);
-    max-height: min(90vh, 920px);
-    overflow: auto;
-    border-radius: 20px;
-    background: var(--panel);
-    border: 1px solid var(--border);
-    box-shadow: 0 24px 60px rgba(15, 23, 42, 0.28);
-    padding: 22px;
-  }
-  .fast-stats-topbar {
-    display: flex;
-    justify-content: space-between;
-    gap: 16px;
-    align-items: flex-start;
-    flex-wrap: wrap;
-    margin-bottom: 16px;
-  }
-  .fast-stats-topbar h2 {
-    margin: 0;
-    font-size: 1.18rem;
-  }
-  .fast-stats-topbar p {
-    margin: 6px 0 0;
-    color: var(--muted);
-    font-size: 0.88rem;
-    line-height: 1.5;
-  }
-  .fast-stats-actions {
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-    align-items: center;
-  }
-  .fast-stats-summary {
-    display: grid;
-    gap: 12px;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-    margin: 16px 0;
-  }
-  .fast-stats-card {
-    border: 1px solid var(--border);
-    border-radius: 14px;
-    background: rgba(111, 60, 195, 0.04);
-    padding: 14px;
-  }
-  .fast-stats-card .label {
-    font-size: 0.78rem;
-    color: var(--muted);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-  }
-  .fast-stats-card .value {
-    margin-top: 8px;
-    font-size: 1.5rem;
-    font-weight: 800;
-    color: var(--accent-strong);
-  }
-  .fast-stats-card .meta {
-    margin-top: 6px;
-    font-size: 0.82rem;
-    color: var(--muted);
-  }
-  .fast-stats-mode {
-    display: none;
-  }
-  .fast-stats-mode.active {
-    display: block;
-  }
-  .fast-stats-table th {
-    text-transform: none;
-    letter-spacing: 0;
-    vertical-align: middle;
-  }
-  .fast-stats-table td {
-    vertical-align: top;
-  }
-  .fast-stats-table td[rowspan] {
-    vertical-align: middle;
-  }
-  .fast-stats-meta {
-    display: inline-block;
-    margin-top: 4px;
-    font-size: 0.76rem;
-    color: var(--muted);
-    line-height: 1.4;
-  }
-  .fast-stats-status {
-    display: inline-flex;
-    padding: 4px 10px;
-    border-radius: 999px;
-    font-size: 0.76rem;
-    font-weight: 700;
-    background: rgba(111, 60, 195, 0.09);
-    color: var(--accent-strong);
-  }
-  .fast-stats-empty {
-    padding: 22px;
-    text-align: center;
-    color: var(--muted);
-  }
+  .fast-stats-backdrop { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; padding: 24px; background: rgba(15, 23, 42, 0.62); z-index: 2400; }
+  .fast-stats-backdrop[hidden] { display: none; }
+  .fast-stats-modal { width: min(1380px, 100%); max-height: 92vh; overflow: auto; border-radius: 20px; background: var(--panel); border: 1px solid var(--border); box-shadow: 0 24px 60px rgba(15, 23, 42, 0.28); padding: 22px; }
+  .fast-stats-topbar { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; flex-wrap: wrap; margin-bottom: 16px; }
+  .fast-stats-topbar h2 { margin: 0; font-size: 1.18rem; }
+  .fast-stats-topbar p { margin: 6px 0 0; color: var(--muted); font-size: 0.88rem; line-height: 1.5; }
+  .fast-stats-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .fast-stats-summary { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); margin: 16px 0; }
+  .fast-stats-card { border: 1px solid var(--border); border-radius: 14px; background: rgba(111, 60, 195, 0.04); padding: 14px; }
+  .fast-stats-card .label { font-size: 0.78rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+  .fast-stats-card .value { margin-top: 8px; font-size: 1.5rem; font-weight: 800; color: var(--accent-strong); }
+  .fast-stats-card .meta { margin-top: 6px; font-size: 0.82rem; color: var(--muted); }
+  .fast-stats-mode { display: none; }
+  .fast-stats-mode.active { display: block; }
+  .fast-stats-sheet { font-size: 0.82rem; color: var(--muted); margin-top: 10px; }
+  .fast-stats-table { min-width: 960px; }
+  .fast-stats-table th, .fast-stats-table td { vertical-align: middle; text-transform: none; letter-spacing: 0; }
+  .fast-stats-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .fast-stats-link { color: var(--accent-strong); font-weight: 700; text-decoration: none; }
+  .fast-stats-link:hover { text-decoration: underline; }
+  .fast-stats-empty { padding: 28px; text-align: center; color: var(--muted); }
+  .fast-stats-error { padding: 16px; border: 1px solid rgba(190, 24, 93, 0.2); border-radius: 12px; background: rgba(190, 24, 93, 0.06); color: #9f1239; }
   @media (max-width: 720px) {
-    .fast-stats-backdrop {
-      padding: 12px;
-    }
-    .fast-stats-modal {
-      padding: 16px;
-    }
+    .fast-stats-backdrop { padding: 12px; }
+    .fast-stats-modal { padding: 16px; }
   }
 </style>
 
 <div id="js-fast-stats-modal" class="fast-stats-backdrop" hidden>
-  <div class="fast-stats-modal" role="dialog" aria-modal="true" aria-labelledby="js-fast-stats-title">
+  <div
+    class="fast-stats-modal"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="js-fast-stats-title"
+    data-api-url="{% url 'fast_stats_api' %}"
+    data-export-url="{% url 'fast_stats_export_xlsx' %}"
+    data-default-mode="{{ fast_stats_default_mode }}"
+  >
     <div class="fast-stats-topbar">
       <div>
         <h2 id="js-fast-stats-title">FAST STATS</h2>
-        <p>Prévisualisation rapide des tableaux apprenants et formateurs, avec export Excel au format inspiré du fichier uploadé. Le téléchargement contient les deux feuilles et conserve les filtres structurels actifs de la page.</p>
+        <p>Prévisualisation et export des feuilles <strong>Enquête de satisfaction</strong> et <strong>Enquête de formateur</strong>, alimentées à partir des données plateforme et exposées aussi via API JSON.</p>
       </div>
       <div class="fast-stats-actions">
-        <a
-          id="js-fast-stats-export"
-          class="btn btn-primary btn-sm"
-          data-base-url="{% url 'fast_stats_export_xlsx' %}"
-          href="{% url 'fast_stats_export_xlsx' %}?fast_stats_mode={{ fast_stats_default_mode }}"
-        >Télécharger le fichier</a>
+        <a id="js-fast-stats-export" class="btn btn-primary btn-sm" href="{% url 'fast_stats_export_xlsx' %}?fast_stats_mode={{ fast_stats_default_mode }}">Télécharger le fichier</a>
         <button type="button" class="btn btn-ghost btn-sm" id="js-fast-stats-close">Fermer</button>
       </div>
     </div>
 
     <div class="scope-tabs" role="tablist" aria-label="Choix du jeu de données FAST STATS">
-      {% for mode in fast_stats.modes %}
-        <button
-          type="button"
-          class="scope-tab {% if mode.id == fast_stats_default_mode %}active{% endif %}"
-          data-fast-stats-tab="{{ mode.id }}"
-        >{{ mode.label }}</button>
-      {% endfor %}
+      <button type="button" class="scope-tab {% if fast_stats_default_mode == 'apprenant' %}active{% endif %}" data-fast-stats-tab="apprenant">Apprenant</button>
+      <button type="button" class="scope-tab {% if fast_stats_default_mode == 'formateur' %}active{% endif %}" data-fast-stats-tab="formateur">Formateur</button>
     </div>
 
-    {% for mode in fast_stats.modes %}
-      <section
-        class="fast-stats-mode {% if mode.id == fast_stats_default_mode %}active{% endif %}"
-        data-fast-stats-panel="{{ mode.id }}"
-      >
-        <div class="fast-stats-summary">
-          <div class="fast-stats-card">
-            <div class="label">Classes</div>
-            <div class="value">{{ mode.class_count }}</div>
-            <div class="meta">Lignes de classe exportables pour ce mode.</div>
-          </div>
-          <div class="fast-stats-card">
-            <div class="label">Prestations</div>
-            <div class="value">{{ mode.prestation_count }}</div>
-            <div class="meta">Blocs prestation regroupés comme dans le gabarit.</div>
-          </div>
-          <div class="fast-stats-card">
-            <div class="label">Lignes</div>
-            <div class="value">{{ mode.row_count }}</div>
-            <div class="meta">Nombre total de lignes visibles dans le tableau.</div>
-          </div>
-        </div>
-
-        <div class="source-note">{{ mode.note }}</div>
-
-        <div class="table-scroll" style="max-height: 60vh;">
-          <table class="fast-stats-table">
-            <thead>
-              <tr>
-                <th rowspan="2">Prestation</th>
-                <th rowspan="2">Classe</th>
-                <th rowspan="2">Statut</th>
-                <th rowspan="2">Synthèse</th>
-                <th colspan="4">{{ mode.left_group_label }}</th>
-                <th colspan="4">{{ mode.right_group_label }}</th>
-              </tr>
-              <tr>
-                <th>Nom 1</th>
-                <th>Tel 1</th>
-                <th>Nom 2</th>
-                <th>Tel 2</th>
-                <th>Nom 1</th>
-                <th>Tel 1</th>
-                <th>Nom 2</th>
-                <th>Tel 2</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for row in mode.rows %}
-                <tr>
-                  {% if row.show_prestation %}
-                    <td rowspan="{{ row.prestation_rowspan }}">
-                      <strong>{{ row.prestation_label }}</strong>
-                      {% if row.prestation_meta %}
-                        <span class="fast-stats-meta">{{ row.prestation_meta }}</span>
-                      {% endif %}
-                    </td>
-                  {% endif %}
-                  <td><strong>{{ row.classe_code }}</strong></td>
-                  <td><span class="fast-stats-status">{{ row.status_label }}</span></td>
-                  <td>{{ row.summary_label }}</td>
-                  <td>{{ row.left_primary_name|default:"—" }}</td>
-                  <td>{{ row.left_primary_phone|default:"—" }}</td>
-                  <td>{{ row.left_secondary_name|default:"—" }}</td>
-                  <td>{{ row.left_secondary_phone|default:"—" }}</td>
-                  <td>{{ row.right_primary_name|default:"—" }}</td>
-                  <td>{{ row.right_primary_phone|default:"—" }}</td>
-                  <td>{{ row.right_secondary_name|default:"—" }}</td>
-                  <td>{{ row.right_secondary_phone|default:"—" }}</td>
-                </tr>
-              {% empty %}
-                <tr>
-                  <td colspan="12" class="fast-stats-empty">Aucune donnée FAST STATS disponible pour les filtres courants.</td>
-                </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-      </section>
-    {% endfor %}
+    <div id="js-fast-stats-content" class="fast-stats-content">
+      <div class="fast-stats-empty">Chargement des données FAST STATS…</div>
+    </div>
   </div>
 </div>
 
@@ -238,56 +63,180 @@
   (function () {
     const openButton = document.getElementById("js-open-fast-stats");
     const modal = document.getElementById("js-fast-stats-modal");
+    const modalCard = modal ? modal.querySelector(".fast-stats-modal") : null;
     const closeButton = document.getElementById("js-fast-stats-close");
     const exportButton = document.getElementById("js-fast-stats-export");
-    if (!openButton || !modal || !closeButton || !exportButton) {
-      return;
+    const content = document.getElementById("js-fast-stats-content");
+    if (!openButton || !modal || !modalCard || !closeButton || !exportButton || !content) return;
+
+    const apiUrl = modalCard.dataset.apiUrl;
+    const exportUrl = modalCard.dataset.exportUrl;
+    let activeMode = modalCard.dataset.defaultMode || "apprenant";
+    let bundle = null;
+    let lastQueryKey = "";
+
+    function escapeHtml(value) {
+      return String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char]));
     }
 
-    function updateExportLink(mode) {
-      const url = new URL(exportButton.dataset.baseUrl, window.location.origin);
+    function displayValue(value) {
+      return value === null || value === undefined || value === "" ? "—" : escapeHtml(value);
+    }
+
+    function buildExportHref(mode) {
+      const url = new URL(exportUrl, window.location.origin);
       const params = new URLSearchParams(window.location.search);
       params.set("fast_stats_mode", mode);
       url.search = params.toString();
-      exportButton.href = url.toString();
+      return url.toString();
+    }
+
+    function renderSummary(cards) {
+      return `<div class="fast-stats-summary">${cards.map((card) => `
+        <div class="fast-stats-card">
+          <div class="label">${escapeHtml(card.label)}</div>
+          <div class="value">${displayValue(card.value)}</div>
+          <div class="meta">${escapeHtml(card.meta || "")}</div>
+        </div>
+      `).join("")}</div>`;
+    }
+
+    function renderApprenantTable(mode) {
+      const rows = mode.rows || [];
+      const body = rows.length ? rows.map((row) => `
+        <tr>
+          <td class="num">${displayValue(row.index)}</td>
+          <td>${displayValue(row.prestation_id)}</td>
+          <td>${displayValue(row.classe_id)}</td>
+          <td class="num">${displayValue(row.apprenant_count)}</td>
+          <td class="num">${displayValue(row.calls_effectues)}</td>
+          <td class="num">${displayValue(row.calls_termines)}</td>
+          <td class="num">${displayValue(row.pct_appel_effectue_label)}</td>
+          <td class="num">${displayValue(row.pct_appel_termine_label)}</td>
+          <td class="num">${displayValue(row.pct_enquetes_label)}</td>
+        </tr>
+      `).join("") : `<tr><td colspan="9" class="fast-stats-empty">Aucune donnée FAST STATS disponible pour les filtres courants.</td></tr>`;
+      return `
+        <div class="table-scroll" style="max-height:60vh;">
+          <table class="fast-stats-table">
+            <thead>
+              <tr>
+                <th>#</th><th>Prestation ID</th><th>Classe ID</th><th>Nombre d'apprenant inscrit</th>
+                <th>Nbre d'appels effectués</th><th>Nombre d'appels terminé</th>
+                <th>% appel effectué</th><th>% appel terminé</th><th>% enquêtes</th>
+              </tr>
+            </thead>
+            <tbody>${body}</tbody>
+          </table>
+        </div>`;
+    }
+
+    function renderFormateurTable(mode) {
+      const rows = mode.rows || [];
+      const body = rows.length ? rows.map((row) => `
+        <tr>
+          <td class="num">${displayValue(row.index)}</td>
+          <td>${displayValue(row.prestation_id)}</td>
+          <td>${displayValue(row.classe_id)}</td>
+          <td>${row.class_link_url ? `<a class="fast-stats-link" href="${escapeHtml(row.class_link_url)}" target="_blank" rel="noreferrer">${displayValue(row.class_link_label)}</a>` : "—"}</td>
+          <td>${displayValue(row.beneficiaire_name)}</td>
+          <td>${displayValue(row.prestataire_name)}</td>
+          <td>${displayValue(row.calendar_contacts?.[0]?.name)}</td>
+          <td>${displayValue(row.calendar_contacts?.[0]?.phone)}</td>
+          <td>${displayValue(row.calendar_contacts?.[1]?.name)}</td>
+          <td>${displayValue(row.calendar_contacts?.[1]?.phone)}</td>
+          <td>${displayValue(row.descente_contacts?.[0]?.name)}</td>
+          <td>${displayValue(row.descente_contacts?.[0]?.phone)}</td>
+          <td>${displayValue(row.descente_contacts?.[1]?.name)}</td>
+          <td>${displayValue(row.descente_contacts?.[1]?.phone)}</td>
+          <td>${displayValue(row.descente_contacts?.[2]?.name)}</td>
+          <td>${displayValue(row.descente_contacts?.[2]?.phone)}</td>
+          <td>${displayValue(row.descente_contacts?.[3]?.name)}</td>
+          <td>${displayValue(row.descente_contacts?.[3]?.phone)}</td>
+        </tr>
+      `).join("") : `<tr><td colspan="18" class="fast-stats-empty">Aucune donnée FAST STATS disponible pour les filtres courants.</td></tr>`;
+      return `
+        <div class="table-scroll" style="max-height:60vh;">
+          <table class="fast-stats-table">
+            <thead>
+              <tr>
+                <th colspan="6">Structure classe</th>
+                <th colspan="4">Selon Calendrier</th>
+                <th colspan="8">Selon Descente</th>
+              </tr>
+              <tr>
+                <th>#</th><th>Prestation ID</th><th>Classe ID</th><th>Lien de la classe</th><th>Nom du bénéficiaire</th><th>Nom du prestataire</th>
+                <th>Nom Formateur N1</th><th>Numero formateur N1</th><th>Nom Formateur N2</th><th>Numero formateur N2</th>
+                <th>Nom Formateur N1</th><th>Numero formateur N1</th><th>Nom Formateur N2</th><th>Numero formateur N2</th>
+                <th>Nom Formateur N3</th><th>Numero formateur N3</th><th>Nom Formateur N4</th><th>Numero formateur N4</th>
+              </tr>
+            </thead>
+            <tbody>${body}</tbody>
+          </table>
+        </div>`;
+    }
+
+    function renderMode(mode) {
+      const meta = mode.metadata || {};
+      const table = mode.id === "formateur" ? renderFormateurTable(mode) : renderApprenantTable(mode);
+      return `
+        <section class="fast-stats-mode ${mode.id === activeMode ? "active" : ""}" data-fast-stats-panel="${escapeHtml(mode.id)}">
+          ${renderSummary(mode.summary_cards || [])}
+          <div class="source-note">${escapeHtml(meta.terminated_only_label || "")} : <strong>${meta.terminated_only_value ? "TRUE" : "FALSE"}</strong> · ${escapeHtml(mode.note || "")}</div>
+          <div class="fast-stats-sheet">Feuille cible : <strong>${escapeHtml(mode.sheet_name || "")}</strong></div>
+          ${table}
+        </section>`;
+    }
+
+    function renderBundle() {
+      const modes = bundle?.modes || [];
+      content.innerHTML = modes.length ? modes.map(renderMode).join("") : '<div class="fast-stats-empty">Aucune donnée FAST STATS disponible.</div>';
+      activateMode(activeMode);
     }
 
     function activateMode(mode) {
+      activeMode = mode;
       document.querySelectorAll("[data-fast-stats-tab]").forEach((button) => {
         button.classList.toggle("active", button.dataset.fastStatsTab === mode);
       });
       document.querySelectorAll("[data-fast-stats-panel]").forEach((panel) => {
         panel.classList.toggle("active", panel.dataset.fastStatsPanel === mode);
       });
-      updateExportLink(mode);
+      exportButton.href = buildExportHref(mode);
     }
 
-    function openModal() {
-      modal.hidden = false;
-      document.body.style.overflow = "hidden";
+    async function loadBundle() {
+      const queryKey = window.location.search;
+      if (bundle && lastQueryKey === queryKey) {
+        renderBundle();
+        return;
+      }
+      content.innerHTML = '<div class="fast-stats-empty">Chargement des données FAST STATS…</div>';
+      const url = new URL(apiUrl, window.location.origin);
+      url.search = new URLSearchParams(window.location.search).toString();
+      try {
+        const response = await fetch(url.toString(), { credentials: "same-origin", headers: { Accept: "application/json" } });
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.error || "Impossible de charger FAST STATS.");
+        bundle = payload;
+        lastQueryKey = queryKey;
+        renderBundle();
+      } catch (error) {
+        content.innerHTML = `<div class="fast-stats-error">${escapeHtml(error.message || "Impossible de charger FAST STATS.")}</div>`;
+      }
     }
 
-    function closeModal() {
-      modal.hidden = true;
-      document.body.style.overflow = "";
-    }
+    function openModal() { modal.hidden = false; document.body.style.overflow = "hidden"; void loadBundle(); }
+    function closeModal() { modal.hidden = true; document.body.style.overflow = ""; }
 
     openButton.addEventListener("click", openModal);
     closeButton.addEventListener("click", closeModal);
-    modal.addEventListener("click", (event) => {
-      if (event.target === modal) {
-        closeModal();
-      }
-    });
-    document.addEventListener("keydown", (event) => {
-      if (event.key === "Escape" && !modal.hidden) {
-        closeModal();
-      }
-    });
+    modal.addEventListener("click", (event) => { if (event.target === modal) closeModal(); });
+    document.addEventListener("keydown", (event) => { if (event.key === "Escape" && !modal.hidden) closeModal(); });
     document.querySelectorAll("[data-fast-stats-tab]").forEach((button) => {
       button.addEventListener("click", () => activateMode(button.dataset.fastStatsTab));
     });
 
-    activateMode("{{ fast_stats_default_mode }}");
+    activateMode(activeMode);
   })();
 </script>

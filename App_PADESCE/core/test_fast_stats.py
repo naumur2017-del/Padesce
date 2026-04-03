@@ -1,10 +1,13 @@
 from datetime import date
 
+from django.contrib.auth import get_user_model
 from django.test import TestCase
+from django.urls import reverse
 
 from App_PADESCE.appels.models import Appel, AppelAnswers, AppelFormateur
 from App_PADESCE.apprenants.models import Apprenant
 from App_PADESCE.core.fast_stats import (
+    build_fast_stats_api_payload,
     build_fast_stats_bundle,
     build_fast_stats_workbook,
     request_like_with_query,
@@ -22,14 +25,14 @@ from App_PADESCE.formations.models import (
 
 class FastStatsTests(TestCase):
     def setUp(self):
-        self.prestataire = Prestataire.objects.create(
-            code="PST001",
-            raison_sociale="Prestataire Alpha",
+        self.user = get_user_model().objects.create_user(
+            username="fast-stats-admin",
+            password="test-pass-123",
+            is_superuser=True,
+            is_staff=True,
         )
-        self.beneficiaire = Beneficiaire.objects.create(
-            nom_structure="Beneficiaire Beta",
-            ville="Garoua",
-        )
+        self.prestataire = Prestataire.objects.create(code="PST001", raison_sociale="Prestataire Alpha")
+        self.beneficiaire = Beneficiaire.objects.create(nom_structure="Beneficiaire Beta", ville="Garoua")
         self.formation = Formation.objects.create(
             code="FOR001",
             nom="Transformation digitale",
@@ -43,11 +46,7 @@ class FastStatsTests(TestCase):
             formation=self.formation,
             effectif_a_former=25,
         )
-        self.lieu = Lieu.objects.create(
-            code="LIE001",
-            nom_lieu="Centre Garoua",
-            ville="Garoua",
-        )
+        self.lieu = Lieu.objects.create(code="LIE001", nom_lieu="Centre Garoua", ville="Garoua")
         self.formateur = Formateur.objects.create(
             code="FMT001",
             nom_complet="Formateur Principal",
@@ -139,58 +138,82 @@ class FastStatsTests(TestCase):
     def _mode(self, bundle, mode_id):
         return next(mode for mode in bundle["modes"] if mode["id"] == mode_id)
 
-    def test_build_fast_stats_bundle_returns_apprenant_and_formateur_rows(self):
+    def test_build_fast_stats_bundle_matches_new_excel_structures(self):
         bundle = build_fast_stats_bundle(request_like_with_query("prestataire=Prestataire+Alpha"))
 
         apprenant_mode = self._mode(bundle, "apprenant")
         formateur_mode = self._mode(bundle, "formateur")
 
-        self.assertEqual(apprenant_mode["class_count"], 1)
-        self.assertEqual(formateur_mode["class_count"], 1)
+        self.assertEqual(apprenant_mode["sheet_name"], "Enquête de satisfaction")
+        self.assertEqual(formateur_mode["sheet_name"], "Enquête de formateur")
 
         apprenant_row = apprenant_mode["rows"][0]
-        self.assertEqual(apprenant_row["prestation_label"], "PRESTA001")
-        self.assertEqual(apprenant_row["classe_code"], "CLA011")
-        self.assertEqual(apprenant_row["summary_label"], "1 réponse(s) · 2 appel(s)")
-        self.assertEqual(apprenant_row["left_primary_name"], "Amina Apprenante")
-        self.assertEqual(apprenant_row["left_primary_phone"], "690000001")
-        self.assertEqual(apprenant_row["right_primary_name"], "Amina Apprenante")
-        self.assertEqual(apprenant_row["right_primary_phone"], "690000001")
+        self.assertEqual(apprenant_row["index"], 1)
+        self.assertEqual(apprenant_row["prestation_id"], "PRESTA001")
+        self.assertEqual(apprenant_row["classe_id"], "CLA011")
+        self.assertEqual(apprenant_row["apprenant_count"], 2)
+        self.assertEqual(apprenant_row["calls_effectues"], 2)
+        self.assertEqual(apprenant_row["calls_termines"], 1)
+        self.assertEqual(apprenant_row["pct_appel_effectue_label"], "100.00%")
+        self.assertEqual(apprenant_row["pct_appel_termine_label"], "50.00%")
+        self.assertEqual(apprenant_row["pct_enquetes_label"], "50.00%")
 
         formateur_row = formateur_mode["rows"][0]
-        self.assertEqual(formateur_row["summary_label"], "1 terminé(s) · 2 contact(s)")
-        self.assertEqual(formateur_row["left_primary_name"], "Formateur Principal")
-        self.assertEqual(formateur_row["left_primary_phone"], "699100100")
-        self.assertEqual(formateur_row["left_secondary_name"], "Contact classe 1")
-        self.assertEqual(formateur_row["left_secondary_phone"], "677200200")
-        self.assertEqual(formateur_row["right_primary_name"], "Contact terminé 1")
-        self.assertEqual(formateur_row["right_primary_phone"], "699100100")
-        self.assertEqual(formateur_row["right_secondary_name"], "Contact terminé 2")
-        self.assertEqual(formateur_row["right_secondary_phone"], "677200200")
+        self.assertEqual(formateur_row["class_link_url"], "https://testserver/classe/CLA011/")
+        self.assertEqual(formateur_row["beneficiaire_name"], "Beneficiaire Beta")
+        self.assertEqual(formateur_row["prestataire_name"], "Prestataire Alpha")
+        self.assertEqual(formateur_row["calendar_contacts"][0]["name"], "Formateur Principal")
+        self.assertEqual(formateur_row["calendar_contacts"][0]["phone"], "699100100")
+        self.assertEqual(formateur_row["calendar_contacts"][1]["name"], "Contact calendrier N2")
+        self.assertEqual(formateur_row["calendar_contacts"][1]["phone"], "677200200")
+        self.assertEqual(formateur_row["descente_contacts"][0]["name"], "Formateur Principal")
+        self.assertEqual(formateur_row["descente_contacts"][0]["phone"], "699100100")
+        self.assertEqual(formateur_row["descente_contacts"][1]["name"], "Contact calendrier N2")
+        self.assertEqual(formateur_row["descente_contacts"][1]["phone"], "677200200")
 
-    def test_build_fast_stats_workbook_creates_both_sheets_with_expected_headers(self):
+    def test_build_fast_stats_workbook_writes_expected_sheets_and_cells(self):
         workbook = build_fast_stats_workbook(
             request_like_with_query("prestataire=Prestataire+Alpha"),
             active_mode="formateur",
         )
 
-        self.assertEqual(
-            workbook.sheetnames,
-            ["FAST STATS APPRENANTS", "FAST STATS FORMATEURS"],
-        )
-        self.assertEqual(workbook.active.title, "FAST STATS FORMATEURS")
+        self.assertIn("Enquête de satisfaction", workbook.sheetnames)
+        self.assertIn("Enquête de formateur", workbook.sheetnames)
+        self.assertEqual(workbook.active.title, "Enquête de formateur")
 
-        apprenant_sheet = workbook["FAST STATS APPRENANTS"]
-        formateur_sheet = workbook["FAST STATS FORMATEURS"]
+        apprenant_sheet = workbook["Enquête de satisfaction"]
+        formateur_sheet = workbook["Enquête de formateur"]
 
-        self.assertEqual(apprenant_sheet["E1"].value, "Source plateforme apprenants")
-        self.assertEqual(apprenant_sheet["I1"].value, "Source appels apprenants")
-        self.assertEqual(apprenant_sheet["A3"].value, "PRESTA001")
-        self.assertEqual(apprenant_sheet["B3"].value, "CLA011")
-        self.assertEqual(apprenant_sheet["D3"].value, "1 réponse(s) · 2 appel(s)")
+        self.assertEqual(apprenant_sheet["B1"].value, "Total classe de la prestation termine")
+        self.assertEqual(apprenant_sheet["B4"].value, "PRESTA001")
+        self.assertEqual(apprenant_sheet["C4"].value, "CLA011")
+        self.assertEqual(apprenant_sheet["D4"].value, 2)
+        self.assertEqual(apprenant_sheet["F4"].value, 1)
 
-        self.assertEqual(formateur_sheet["E1"].value, "Source classes / apprenants")
-        self.assertEqual(formateur_sheet["I1"].value, "Source appels formateurs")
-        self.assertEqual(formateur_sheet["B3"].value, "CLA011")
-        self.assertEqual(formateur_sheet["F3"].value, "699100100")
-        self.assertEqual(formateur_sheet["J3"].value, "699100100")
+        self.assertEqual(formateur_sheet["B4"].value, "PRESTA001")
+        self.assertEqual(formateur_sheet["C4"].value, "CLA011")
+        self.assertEqual(formateur_sheet["D4"].value, "Ouvrir CLA011")
+        self.assertEqual(formateur_sheet["E4"].value, "Beneficiaire Beta")
+        self.assertEqual(formateur_sheet["G4"].value, "Formateur Principal")
+        self.assertEqual(formateur_sheet["H4"].value, "699100100")
+        self.assertEqual(formateur_sheet["K4"].value, "Formateur Principal")
+        self.assertEqual(formateur_sheet["L4"].value, "699100100")
+
+    def test_fast_stats_api_returns_json_payload(self):
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("fast_stats_api"), {"prestataire": "Prestataire Alpha"})
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["filters"]["prestataire"], "Prestataire Alpha")
+        self.assertTrue(payload["terminated_only"])
+        self.assertEqual(self._mode(payload, "apprenant")["rows"][0]["classe_id"], "CLA011")
+        self.assertEqual(self._mode(payload, "formateur")["rows"][0]["class_link_url"], "http://testserver/classe/CLA011/")
+
+    def test_build_fast_stats_api_payload_matches_bundle_shape(self):
+        payload = build_fast_stats_api_payload(request_like_with_query("prestation=PRESTA001"))
+
+        self.assertEqual(payload["filters"]["prestation"], "PRESTA001")
+        self.assertEqual(len(payload["modes"]), 2)
+        self.assertEqual(self._mode(payload, "apprenant")["row_count"], 1)
