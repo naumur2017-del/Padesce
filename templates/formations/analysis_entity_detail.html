@@ -220,6 +220,15 @@
     color: var(--muted);
     font-size: 0.84rem;
   }
+  .warning-banner {
+    margin-top: 14px;
+    border: 1px solid rgba(180, 83, 9, 0.22);
+    border-radius: 12px;
+    background: rgba(245, 158, 11, 0.12);
+    color: #92400e;
+    padding: 12px 14px;
+    font-weight: 600;
+  }
 </style>
 
 <section class="hero">
@@ -236,12 +245,20 @@
     {% endif %}
   </div>
 
+  {% if reference_warning %}
+    <div class="warning-banner">{{ reference_warning }}</div>
+  {% endif %}
+
   <div class="hero-meta">
     {% if entity_type == "classe" %}
       <div class="meta-card">
         <div class="label">Prestation</div>
         <div class="value">
-          <a href="{% url 'prestation_analysis_detail' prestation.code %}" style="text-decoration:none;color:inherit;">{{ prestation.code }}</a>
+          {% if prestation_detail_url %}
+            <a href="{{ prestation_detail_url }}" style="text-decoration:none;color:inherit;">{{ prestation.code|default:"-" }}</a>
+          {% else %}
+            {{ prestation.code|default:"-" }}
+          {% endif %}
         </div>
       </div>
       <div class="meta-card">
@@ -254,7 +271,12 @@
       </div>
       <div class="meta-card">
         <div class="label">Cohorte / Lieu</div>
-        <div class="value">C{{ classe.cohorte }}{% if classe.lieu %} · {{ classe.lieu.nom_lieu|default:classe.lieu }}{% endif %}</div>
+        <div class="value">
+          {% if classe.cohorte %}C{{ classe.cohorte }}{% else %}-{% endif %}
+          {% if classe.lieu and classe.lieu.nom_lieu %}
+            {% if classe.cohorte %} · {% endif %}{{ classe.lieu.nom_lieu|default:classe.lieu }}
+          {% endif %}
+        </div>
       </div>
       <div class="meta-card">
         <div class="label">Formateur</div>
@@ -262,7 +284,7 @@
       </div>
       <div class="meta-card">
         <div class="label">Statut</div>
-        <div class="value">{{ classe.get_statut_display }}</div>
+        <div class="value">{{ classe.get_statut_display|default:"-" }}</div>
       </div>
     {% else %}
       <div class="meta-card">

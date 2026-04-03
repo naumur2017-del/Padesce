@@ -1,11 +1,12 @@
 import re
 import unicodedata
+from types import SimpleNamespace
 from urllib.parse import quote
 
 from django.contrib import messages
 from django.db import transaction
 from django.db.models import Count, Prefetch, Q
-from django.http import JsonResponse
+from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views.decorators.http import require_POST
@@ -15,6 +16,7 @@ from App_PADESCE.apprenants.models import Apprenant
 from App_PADESCE.core.access import require_analysis_access
 from App_PADESCE.formations.forms import ClasseCreateForm
 from App_PADESCE.formations.models import Classe, Formation, Lieu, Prestation
+from App_PADESCE.reporting.network_excel import build_padesce_source_index, normalize_network_lookup
 from App_PADESCE.presences.models import Presence
 from App_PADESCE.satisfaction_apprenants.models import SatisfactionApprenant
 from App_PADESCE.satisfaction_formateurs.models import SatisfactionFormateur
@@ -246,15 +248,184 @@ def _status_sort_value(status: str) -> int:
     return order.get(str(status or "").strip(), 5)
 
 
+def _analysis_appel_queryset():
+    return Appel.objects.filter(is_active=True).select_related(
+        "locked_by",
+        "classe",
+        "classe__prestation",
+        "classe__prestation__prestataire",
+        "classe__prestation__beneficiaire",
+        "answers",
+        "satisfaction_apprenant",
+    )
+
+
+def _first_present(*values):
+    for value in values:
+        if value is None:
+            continue
+        if isinstance(value, str):
+            value = value.strip()
+            if not value:
+                continue
+        return value
+    return ""
+
+
+def _analysis_source_bundle() -> dict | None:
+    try:
+        return build_padesce_source_index()
+    except Exception:
+        return None
+
+
+def _analysis_source_lookup(source_bundle: dict | None, bucket: str, code: str) -> dict:
+    if not source_bundle or not code:
+        return {}
+    return dict(source_bundle.get(bucket, {}).get(normalize_network_lookup(str(code)), {}) or {})
+
+
+def _analysis_source_classes_for_prestation(source_bundle: dict | None, prestation_code: str) -> list[dict]:
+    if not source_bundle or not prestation_code:
+        return []
+    prestation_key = normalize_network_lookup(str(prestation_code))
+    matches = []
+    for row in source_bundle.get("classes", {}).values():
+        if normalize_network_lookup(str(row.get("prestation_id", ""))) != prestation_key:
+            continue
+        matches.append(dict(row))
+    return sorted(matches, key=lambda item: str(item.get("classe_id", "")).casefold())
+
+
+def _analysis_statut_label(value) -> str:
+    raw_value = str(value or "").strip()
+    mapping = {
+        "non_demarre": "Non demarre",
+        "en_cours": "En cours",
+        "termine": "Termine",
+    }
+    return mapping.get(raw_value, raw_value or "-")
+
+
+def _analysis_placeholder_prestation(code: str, *, source_prestation: dict | None = None, source_classes: list[dict] | None = None, apprenant_appels: list[Appel] | None = None):
+    source_prestation = source_prestation or {}
+    source_classes = source_classes or []
+    apprenant_appels = apprenant_appels or []
+    source_class = source_classes[0] if source_classes else {}
+    first_appel = apprenant_appels[0] if apprenant_appels else None
+    prestataire_name = _first_present(
+        source_prestation.get("prestataire"),
+        source_class.get("prestataire"),
+        getattr(first_appel, "prestataire", ""),
+    )
+    beneficiaire_name = _first_present(
+        source_prestation.get("beneficiaire"),
+        source_class.get("beneficiaire"),
+        getattr(first_appel, "beneficiaire", ""),
+    )
+    formation_name = _first_present(
+        source_prestation.get("formation"),
+        source_class.get("formation"),
+        getattr(first_appel, "formation_padesce", ""),
+    )
+    prestation_code = _first_present(
+        source_prestation.get("prestation_id"),
+        source_class.get("prestation_id"),
+        code,
+    )
+    fenetre = _first_present(
+        source_prestation.get("fenetre"),
+        getattr(first_appel, "fenetre", ""),
+    )
+    return SimpleNamespace(
+        code=str(prestation_code or "").strip(),
+        prestataire=SimpleNamespace(raison_sociale=str(prestataire_name or "").strip()),
+        beneficiaire=SimpleNamespace(nom_structure=str(beneficiaire_name or "").strip()),
+        formation=SimpleNamespace(nom=str(formation_name or "").strip()),
+        effectif_a_former=0,
+        femmes=0,
+        duree_reelle_heures=0,
+        fenetre=str(fenetre or "").strip(),
+    )
+
+
+def _analysis_placeholder_classe(code: str, prestation, *, source_classe: dict | None = None, apprenant_appels: list[Appel] | None = None):
+    source_classe = source_classe or {}
+    apprenant_appels = apprenant_appels or []
+    first_appel = apprenant_appels[0] if apprenant_appels else None
+    formation_name = _first_present(
+        source_classe.get("formation"),
+        getattr(first_appel, "formation_padesce", ""),
+        getattr(getattr(prestation, "formation", None), "nom", ""),
+    )
+    lieu_name = _first_present(
+        source_classe.get("lieu"),
+        getattr(first_appel, "lieu", ""),
+    )
+    cohorte = _first_present(source_classe.get("cohorte"), "")
+    return SimpleNamespace(
+        code=str(
+            _first_present(
+                source_classe.get("classe_id"),
+                getattr(first_appel, "classe_label", ""),
+                code,
+            )
+            or ""
+        ).strip(),
+        prestation=prestation,
+        lieu=SimpleNamespace(nom_lieu=str(lieu_name or "").strip()),
+        formation=SimpleNamespace(nom=str(formation_name or "").strip()),
+        intitule_formation=str(formation_name or "").strip(),
+        formateur=SimpleNamespace(nom_complet="", telephone=""),
+        fenetre=str(_first_present(getattr(prestation, "fenetre", ""), getattr(first_appel, "fenetre", "")) or "").strip(),
+        cohorte=cohorte,
+        get_statut_display=_analysis_statut_label(source_classe.get("statut_prestation")),
+    )
+
+
+def _analysis_source_class_links(source_classes: list[dict], apprenant_appels: list[Appel]) -> list[dict]:
+    call_counts: dict[str, int] = {}
+    for appel in apprenant_appels:
+        class_code = getattr(getattr(appel, "classe", None), "code", "") or appel.classe_label
+        class_key = normalize_network_lookup(str(class_code or ""))
+        if not class_key:
+            continue
+        call_counts[class_key] = call_counts.get(class_key, 0) + 1
+
+    links = []
+    for item in sorted(source_classes, key=lambda row: str(row.get("classe_id", "")).casefold()):
+        class_code = str(item.get("classe_id", "") or "").strip()
+        if not class_code:
+            continue
+        class_key = normalize_network_lookup(class_code)
+        call_count = int(call_counts.get(class_key, 0))
+        links.append(
+            {
+                "code": class_code,
+                "intitule": item.get("formation", ""),
+                "apprenants_count": call_count,
+                "appels_count": call_count,
+                "url": reverse("class_analysis_detail", args=[class_code]),
+            }
+        )
+    return links
+
+
+def _analysis_reference_warning() -> str:
+    return "Fiche reconstituee depuis la source d'analyse car cette reference n'est pas encore synchronisee dans PADESCE."
+
+
 def _prestation_formateur_candidates(prestation: Prestation):
-    queryset = AppelFormateur.objects.filter(is_active=True).select_related("locked_by")
     prestataire_name = str(getattr(getattr(prestation, "prestataire", None), "raison_sociale", "") or "").strip()
     beneficiaire_name = str(getattr(getattr(prestation, "beneficiaire", None), "nom_structure", "") or "").strip()
+    formation_name = str(getattr(getattr(prestation, "formation", None), "nom", "") or "").strip()
+    if not any((prestataire_name, beneficiaire_name, formation_name)):
+        return []
+    queryset = AppelFormateur.objects.filter(is_active=True).select_related("locked_by")
     if prestataire_name:
         queryset = queryset.filter(prestataire__iexact=prestataire_name)
     if beneficiaire_name:
         queryset = queryset.filter(beneficiaire__iexact=beneficiaire_name)
-    formation_name = str(getattr(getattr(prestation, "formation", None), "nom", "") or "").strip()
     rows = list(queryset.order_by("session_date", "numero_seance", "reference_code"))
     if formation_name:
         matched_rows = [row for row in rows if _formation_matches(formation_name, row.formation)]
@@ -266,6 +437,15 @@ def _prestation_formateur_candidates(prestation: Prestation):
 def _class_formateur_candidates(classe: Classe):
     class_phone = _phone_digits(getattr(getattr(classe, "formateur", None), "telephone", ""))
     formation_name = str(classe.intitule_formation or getattr(getattr(classe, "formation", None), "nom", "") or "").strip()
+    if not any(
+        (
+            class_phone,
+            formation_name,
+            str(getattr(classe, "cohorte", "") or "").strip(),
+            str(getattr(getattr(classe, "prestation", None), "code", "") or "").strip(),
+        )
+    ):
+        return []
     matched_rows = []
     for row in _prestation_formateur_candidates(classe.prestation):
         if not _cohorte_matches(row.cohorte, classe.cohorte):
@@ -564,7 +744,7 @@ def formation_list(request):
 
 @require_analysis_access
 def class_analysis_detail(request, code: str):
-    classe = get_object_or_404(
+    classe = (
         Classe.objects.select_related(
             "prestation",
             "prestation__prestataire",
@@ -572,27 +752,58 @@ def class_analysis_detail(request, code: str):
             "formation",
             "lieu",
             "formateur",
-        ).prefetch_related("apprenants"),
-        code__iexact=code,
+        )
+        .prefetch_related("apprenants")
+        .filter(code__iexact=code)
+        .first()
     )
+    source_bundle = None
+    source_classe = {}
+    source_prestation = {}
+    reference_warning = ""
+    prestation_detail_url = ""
+
+    if classe is None:
+        source_bundle = _analysis_source_bundle()
+        source_classe = _analysis_source_lookup(source_bundle, "classes", code)
+        apprenant_appels = list(
+            _analysis_appel_queryset()
+            .filter(Q(classe__code__iexact=code) | Q(classe_label__iexact=code))
+            .order_by("nom", "code", "pk")
+        )
+        if not source_classe and not apprenant_appels:
+            raise Http404("Classe introuvable.")
+        source_prestation = _analysis_source_lookup(
+            source_bundle,
+            "prestations",
+            str(source_classe.get("prestation_id", "")),
+        )
+        prestation = _analysis_placeholder_prestation(
+            str(source_classe.get("prestation_id", "") or ""),
+            source_prestation=source_prestation,
+            source_classes=[source_classe] if source_classe else [],
+            apprenant_appels=apprenant_appels,
+        )
+        classe = _analysis_placeholder_classe(
+            code,
+            prestation,
+            source_classe=source_classe,
+            apprenant_appels=apprenant_appels,
+        )
+        reference_warning = _analysis_reference_warning()
+    else:
+        apprenant_appels = list(_analysis_appel_queryset().filter(classe=classe).order_by("nom", "code", "pk"))
+
     active_tab = request.GET.get("tab") if request.GET.get("tab") in {"apprenants", "formateurs"} else "apprenants"
     apprenant_back_url = _resolve_back_url("class_analysis_detail", classe.code, "apprenants")
     formateur_back_url = _resolve_back_url("class_analysis_detail", classe.code, "formateurs")
 
-    apprenant_appels = list(
-        Appel.objects.filter(is_active=True, classe=classe)
-        .select_related(
-            "locked_by",
-            "classe",
-            "classe__prestation",
-            "classe__prestation__prestataire",
-            "classe__prestation__beneficiaire",
-            "answers",
-            "satisfaction_apprenant",
-        )
-        .order_by("nom", "code", "pk")
-    )
     formateur_appels = _class_formateur_candidates(classe)
+    prestation_detail_url = (
+        reverse("prestation_analysis_detail", args=[classe.prestation.code])
+        if str(getattr(getattr(classe, "prestation", None), "code", "") or "").strip()
+        else ""
+    )
 
     apprenant_rows = _build_apprenant_rows(apprenant_appels, back_url=apprenant_back_url)
     formateur_rows = _build_formateur_rows(formateur_appels, back_url=formateur_back_url)
@@ -614,14 +825,17 @@ def class_analysis_detail(request, code: str):
             "active_tab": active_tab,
             "class_links": [],
             "matching_note": "Rattachement formateurs via prestataire, beneficiaire, cohorte et formation.",
+            "prestation_detail_url": prestation_detail_url,
+            "reference_warning": reference_warning,
         },
     )
 
 
 @require_analysis_access
 def prestation_analysis_detail(request, code: str):
-    prestation = get_object_or_404(
-        Prestation.objects.select_related("prestataire", "formation", "beneficiaire").prefetch_related(
+    prestation = (
+        Prestation.objects.select_related("prestataire", "formation", "beneficiaire")
+        .prefetch_related(
             Prefetch(
                 "classes",
                 queryset=Classe.objects.select_related("lieu", "formateur").annotate(
@@ -629,41 +843,59 @@ def prestation_analysis_detail(request, code: str):
                     appels_count=Count("appels", distinct=True),
                 ).order_by("code"),
             )
-        ),
-        code__iexact=code,
-    )
+        )
+        .filter(code__iexact=code)
+    ).first()
+    source_bundle = None
+    source_prestation = {}
+    source_classes = []
+    reference_warning = ""
+
+    if prestation is None:
+        source_bundle = _analysis_source_bundle()
+        source_prestation = _analysis_source_lookup(source_bundle, "prestations", code)
+        source_classes = _analysis_source_classes_for_prestation(source_bundle, code)
+        source_class_codes = [str(item.get("classe_id", "") or "").strip() for item in source_classes if str(item.get("classe_id", "") or "").strip()]
+        apprenant_appels = list(
+            _analysis_appel_queryset()
+            .filter(Q(classe__prestation__code__iexact=code) | Q(classe_label__in=source_class_codes))
+            .order_by("classe__code", "nom", "code", "pk")
+        )
+        if not source_prestation and not source_classes and not apprenant_appels:
+            raise Http404("Prestation introuvable.")
+        prestation = _analysis_placeholder_prestation(
+            code,
+            source_prestation=source_prestation,
+            source_classes=source_classes,
+            apprenant_appels=apprenant_appels,
+        )
+        class_links = _analysis_source_class_links(source_classes, apprenant_appels)
+        reference_warning = _analysis_reference_warning()
+    else:
+        apprenant_appels = list(
+            _analysis_appel_queryset()
+            .filter(classe__prestation=prestation)
+            .order_by("classe__code", "nom", "code", "pk")
+        )
+        class_links = [
+            {
+                "code": item.code,
+                "intitule": item.intitule_formation,
+                "apprenants_count": item.apprenants_count,
+                "appels_count": item.appels_count,
+                "url": reverse("class_analysis_detail", args=[item.code]),
+            }
+            for item in prestation.classes.all()
+        ]
     active_tab = request.GET.get("tab") if request.GET.get("tab") in {"apprenants", "formateurs"} else "apprenants"
     apprenant_back_url = _resolve_back_url("prestation_analysis_detail", prestation.code, "apprenants")
     formateur_back_url = _resolve_back_url("prestation_analysis_detail", prestation.code, "formateurs")
 
-    apprenant_appels = list(
-        Appel.objects.filter(is_active=True, classe__prestation=prestation)
-        .select_related(
-            "locked_by",
-            "classe",
-            "classe__prestation",
-            "classe__prestation__prestataire",
-            "classe__prestation__beneficiaire",
-            "answers",
-            "satisfaction_apprenant",
-        )
-        .order_by("classe__code", "nom", "code", "pk")
-    )
     formateur_appels = _prestation_formateur_candidates(prestation)
 
     apprenant_rows = _build_apprenant_rows(apprenant_appels, back_url=apprenant_back_url)
     formateur_rows = _build_formateur_rows(formateur_appels, back_url=formateur_back_url)
     summary = _entity_summary(apprenant_rows, formateur_rows)
-    class_links = [
-        {
-            "code": item.code,
-            "intitule": item.intitule_formation,
-            "apprenants_count": item.apprenants_count,
-            "appels_count": item.appels_count,
-            "url": reverse("class_analysis_detail", args=[item.code]),
-        }
-        for item in prestation.classes.all()
-    ]
 
     return render(
         request,
@@ -681,6 +913,8 @@ def prestation_analysis_detail(request, code: str):
             "active_tab": active_tab,
             "class_links": class_links,
             "matching_note": "Rattachement formateurs via prestataire, beneficiaire et formation.",
+            "prestation_detail_url": "",
+            "reference_warning": reference_warning,
         },
     )
 

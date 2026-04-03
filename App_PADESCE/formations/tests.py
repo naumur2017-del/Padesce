@@ -1,5 +1,6 @@
 import shutil
 import tempfile
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
@@ -216,3 +217,83 @@ class AnalysisEntityDetailTests(TestCase):
         self.assertContains(formateur_response, "Lecture seule - appel formateur")
         self.assertContains(formateur_response, "Questions notees")
         self.assertNotContains(formateur_response, "Demarrer")
+
+    @patch("App_PADESCE.formations.views.build_padesce_source_index")
+    def test_class_analysis_detail_falls_back_to_source_when_class_is_not_synced(self, mock_source_index):
+        self.apprenant_call.classe = None
+        self.apprenant_call.classe_label = "CLA001"
+        self.apprenant_call.save(update_fields=["classe", "classe_label"])
+        self.classe.delete()
+
+        mock_source_index.return_value = {
+            "classes": {
+                "cla001": {
+                    "classe_id": "CLA001",
+                    "prestation_id": "PRESTA146",
+                    "prestataire": self.prestataire.raison_sociale,
+                    "beneficiaire": self.beneficiaire.nom_structure,
+                    "cohorte": "1",
+                    "lieu": self.lieu.nom_lieu,
+                    "formation": self.formation.nom,
+                    "statut_prestation": "Terminee",
+                }
+            },
+            "prestations": {
+                "presta146": {
+                    "prestation_id": "PRESTA146",
+                    "prestataire": self.prestataire.raison_sociale,
+                    "beneficiaire": self.beneficiaire.nom_structure,
+                    "formation": self.formation.nom,
+                    "fenetre": "2",
+                }
+            },
+            "records": {},
+        }
+
+        response = self.client.get(reverse("class_analysis_detail", args=["cla001"]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "CLA001")
+        self.assertContains(response, "PRESTA146")
+        self.assertContains(response, "Fiche reconstituee depuis la source")
+        self.assertContains(response, "Apprenants (1)")
+        self.assertContains(response, "Formateurs (2)")
+
+    @patch("App_PADESCE.formations.views.build_padesce_source_index")
+    def test_prestation_analysis_detail_falls_back_to_source_when_missing_in_db(self, mock_source_index):
+        self.apprenant_call.classe = None
+        self.apprenant_call.classe_label = "CLA001"
+        self.apprenant_call.save(update_fields=["classe", "classe_label"])
+        self.prestation.delete()
+
+        mock_source_index.return_value = {
+            "classes": {
+                "cla001": {
+                    "classe_id": "CLA001",
+                    "prestation_id": "PRESTA146",
+                    "prestataire": self.prestataire.raison_sociale,
+                    "beneficiaire": self.beneficiaire.nom_structure,
+                    "cohorte": "1",
+                    "lieu": self.lieu.nom_lieu,
+                    "formation": self.formation.nom,
+                    "statut_prestation": "Terminee",
+                }
+            },
+            "prestations": {
+                "presta146": {
+                    "prestation_id": "PRESTA146",
+                    "prestataire": self.prestataire.raison_sociale,
+                    "beneficiaire": self.beneficiaire.nom_structure,
+                    "formation": self.formation.nom,
+                    "fenetre": "2",
+                }
+            },
+            "records": {},
+        }
+
+        response = self.client.get(reverse("prestation_analysis_detail", args=["presta146"]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "PRESTA146")
+        self.assertContains(response, "CLA001")
+        self.assertContains(response, "Fiche reconstituee depuis la source")
