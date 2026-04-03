@@ -94,7 +94,6 @@ class Appel(TimeStampedModel):
     flag_vrai_nom = models.CharField(max_length=255, blank=True, verbose_name="Vrai nom")
     flag_deja_appele = models.BooleanField(default=False, verbose_name="D\u00e9j\u00e0 appel\u00e9")
     flag_numero_double = models.BooleanField(default=False, verbose_name="Num\u00e9ro double")
-    exclude_from_analysis = models.BooleanField(default=False, db_index=True)
     audio_file = models.FileField(upload_to=appel_audio_upload, null=True, blank=True, max_length=255)
     locked_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="appels_lock"

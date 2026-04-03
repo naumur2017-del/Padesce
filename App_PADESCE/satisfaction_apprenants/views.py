@@ -48,6 +48,7 @@ from App_PADESCE.core.analysis_rules import (
     appel_has_analysis_phone,
     appel_is_analysis_eligible,
     appel_is_manually_excluded,
+    toggle_appel_manual_exclusion,
 )
 from App_PADESCE.core.call_metrics import (
     count_callable_source_records_by_class,
@@ -3232,13 +3233,12 @@ def satisfaction_general_page(request):
 @require_analysis_access
 def satisfaction_general_toggle_exclusion(request):
     appel = get_object_or_404(Appel, pk=request.POST.get("appel_id"), is_active=True)
-    appel.exclude_from_analysis = not bool(appel.exclude_from_analysis)
-    appel.save(update_fields=["exclude_from_analysis"])
+    excluded = toggle_appel_manual_exclusion(appel)
     messages.success(
         request,
         (
             f"{appel.nom or appel.code or 'La ligne'} est maintenant "
-            f"{'exclu(e)' if appel.exclude_from_analysis else 'reintegré(e)'} des analyses."
+            f"{'exclu(e)' if excluded else 'reintegré(e)'} des analyses."
         ),
     )
     return redirect(request.POST.get("next") or reverse("satisfaction_general_page"))

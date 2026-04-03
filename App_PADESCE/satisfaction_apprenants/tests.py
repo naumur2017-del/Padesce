@@ -1,5 +1,8 @@
 import io
 import json
+import shutil
+import tempfile
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -12,6 +15,7 @@ from docx import Document
 
 from App_PADESCE.appels.models import Appel, AppelAnswers
 from App_PADESCE.apprenants.models import Apprenant
+from App_PADESCE.core.analysis_rules import appel_is_manually_excluded
 from App_PADESCE.formations.models import Beneficiaire, Classe, Formation, Inspecteur, Lieu, Prestataire, Prestation
 from App_PADESCE.satisfaction_apprenants.management.commands.import_satisfaction_excel import _sync_source_models
 from App_PADESCE.satisfaction_apprenants.views import (
@@ -611,6 +615,16 @@ class SatisfactionDashboardRegressionTests(SimpleTestCase):
 @override_settings(ROOT_URLCONF="App_PADESCE.urls")
 class SatisfactionGeneralPageTests(TestCase):
     def setUp(self):
+        self.temp_dir = tempfile.mkdtemp(prefix="padesce-general-analysis-")
+        self.override = override_settings(
+            ANALYSIS_MANUAL_EXCLUSIONS_FILE=str(
+                Path(self.temp_dir) / "manual-analysis-exclusions.json"
+            )
+        )
+        self.override.enable()
+        self.addCleanup(self.override.disable)
+        self.addCleanup(lambda: shutil.rmtree(self.temp_dir, ignore_errors=True))
+
         user_model = get_user_model()
         self.user = user_model.objects.create_user(
             username="general-manager",
@@ -741,7 +755,7 @@ class SatisfactionGeneralPageTests(TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertEqual(response["Location"], reverse("satisfaction_general_page"))
         self.eligible_appel.refresh_from_db()
-        self.assertTrue(self.eligible_appel.exclude_from_analysis)
+        self.assertTrue(appel_is_manually_excluded(self.eligible_appel))
 
 
 class SatisfactionImportExcelSyncTests(TestCase):
