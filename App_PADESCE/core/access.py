@@ -8,6 +8,8 @@ from django.contrib.auth.views import redirect_to_login
 from django.core.exceptions import PermissionDenied
 from django.http import JsonResponse
 
+from App_PADESCE.core.middleware import strip_path_prefix
+
 ANALYSIS_GROUP_NAMES = ("manager_padesce", "manager_cga", "consultant")
 ANALYSIS_ACCESS_MESSAGE = "Acces reserve aux superadmins et aux managers PADESCE/CGA."
 SUPERADMIN_ACCESS_MESSAGE = "Action reservee au superadmin."
@@ -59,7 +61,9 @@ def _expects_json(request) -> bool:
     accept = str(headers.get("Accept", ""))
     requested_with = str(headers.get("X-Requested-With", ""))
     content_type = str(getattr(request, "content_type", "") or request.META.get("CONTENT_TYPE", ""))
-    path = str(getattr(request, "path", "") or "")
+    path = strip_path_prefix(
+        str(getattr(request, "path_info", "") or getattr(request, "path", "") or "")
+    )
     return (
         requested_with.lower() == "xmlhttprequest"
         or "application/json" in accept.lower()

@@ -172,6 +172,24 @@ class AnalysisEntityDetailTests(TestCase):
             reverse("analysis_formateur_call_detail", args=[self.formateur_call.pk]),
         )
 
+    def test_prefixed_root_redirects_authenticated_user_to_prefixed_dashboard(self):
+        response = self.client.get("/padesce/")
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], "/padesce/dashboard/")
+
+    def test_prefixed_class_analysis_detail_route_renders_prefixed_links(self):
+        response = self.client.get("/padesce/classe/cla001/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "CLA001")
+        self.assertContains(response, 'href="/padesce/dashboard/"', html=False)
+        self.assertContains(
+            response,
+            '/padesce/analyse/appels/apprenant/',
+            html=False,
+        )
+
     def test_prestation_analysis_detail_lists_linked_classes(self):
         response = self.client.get(reverse("prestation_analysis_detail", args=["presta146"]))
 

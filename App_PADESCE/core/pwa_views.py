@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import json
 
+from django.conf import settings
 from django.http import HttpResponse
 from django.templatetags.static import static
+from django.urls import reverse
 from django.views.decorators.http import require_GET
-from django.conf import settings
 
 
 PWA_CACHE_VERSION = "2026-04-02-1"
@@ -18,7 +19,7 @@ def _absolute_static_path(path: str) -> str:
 @require_GET
 def service_worker(request):
     precache_urls = [
-        "/manifest.webmanifest",
+        reverse("web_manifest"),
         _absolute_static_path("branding/logo.png"),
     ]
     template_path = settings.BASE_DIR / "templates" / "pwa" / "service_worker.js"
@@ -37,12 +38,13 @@ def service_worker(request):
 @require_GET
 def web_manifest(request):
     logo_url = _absolute_static_path("branding/logo.png")
+    scope = reverse("login")
     payload = {
         "name": "PADESCE",
         "short_name": "PADESCE",
         "description": "Plateforme PADESCE pour les appels, analyses et operations terrain.",
-        "start_url": "/dashboard/",
-        "scope": "/",
+        "start_url": reverse("home"),
+        "scope": scope,
         "display": "standalone",
         "background_color": "#fbf9ff",
         "theme_color": "#7c3aed",

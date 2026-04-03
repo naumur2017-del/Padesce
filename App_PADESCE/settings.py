@@ -102,6 +102,7 @@ if HAS_CHANNELS:
     INSTALLED_APPS.insert(6, "channels")
 
 MIDDLEWARE = [
+    "App_PADESCE.core.middleware.PathPrefixMiddleware",
     "App_PADESCE.core.middleware.FriendlyErrorPagesMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "django.middleware.http.ConditionalGetMiddleware",
@@ -229,9 +230,9 @@ MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
-LOGIN_URL = "/"
-LOGIN_REDIRECT_URL = "/dashboard/"
-LOGOUT_REDIRECT_URL = "/"
+LOGIN_URL = "login"
+LOGIN_REDIRECT_URL = "home"
+LOGOUT_REDIRECT_URL = "login"
 CSRF_FAILURE_VIEW = "App_PADESCE.core.error_views.csrf_failure"
 
 # ---------------------------------------------------------------------------

@@ -3,6 +3,7 @@ from __future__ import annotations
 from django.urls import NoReverseMatch, reverse
 
 from App_PADESCE.core.access import has_analysis_access, has_consultant_access
+from App_PADESCE.core.middleware import strip_path_prefix
 
 PAGE_TITLE_BY_PREFIX: tuple[tuple[str, str], ...] = (
     ("/appels-formateurs/", "Appel Formateur"),
@@ -113,7 +114,9 @@ def _build_menu_items(user, path: str, consultant_only: bool) -> list[dict[str, 
 
 
 def navbar(request):
-    path = str(getattr(request, "path", "") or "")
+    path = strip_path_prefix(
+        str(getattr(request, "path_info", "") or getattr(request, "path", "") or "")
+    )
     user = getattr(request, "user", None)
     is_authenticated = bool(user and getattr(user, "is_authenticated", False))
     consultant_only = _is_consultant_only(user)

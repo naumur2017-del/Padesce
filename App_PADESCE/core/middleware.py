@@ -1,5 +1,6 @@
 import logging
 import threading
+from urllib.parse import urlsplit
 from typing import Optional
 
 from django.conf import settings
@@ -7,6 +8,8 @@ from django.contrib.auth.views import redirect_to_login
 from django.core.exceptions import PermissionDenied, SuspiciousOperation
 from django.http import Http404
 from django.http import HttpRequest, HttpResponseRedirect
+from django.shortcuts import resolve_url
+from django.urls import get_script_prefix, reverse, set_script_prefix
 from django.utils import timezone
 
 from App_PADESCE.core import error_views
@@ -14,6 +17,32 @@ from App_PADESCE.core.models import UserActivity
 
 _thread_locals = threading.local()
 logger = logging.getLogger(__name__)
+PATH_PREFIX_ALIASES = ("/padesce",)
+
+
+def _normalize_prefix(prefix: str | None) -> str:
+    if not prefix:
+        return ""
+    return prefix if prefix.startswith("/") else f"/{prefix}"
+
+
+def detect_path_prefix(path: str | None) -> str:
+    normalized = _normalize_prefix(path or "/") or "/"
+    for prefix in PATH_PREFIX_ALIASES:
+        if normalized == prefix or normalized.startswith(f"{prefix}/"):
+            return prefix
+    return ""
+
+
+def strip_path_prefix(path: str | None) -> str:
+    normalized = _normalize_prefix(path or "/") or "/"
+    matched_prefix = detect_path_prefix(normalized)
+    if not matched_prefix:
+        return normalized
+    stripped = normalized[len(matched_prefix) :]
+    if not stripped:
+        return "/"
+    return stripped if stripped.startswith("/") else f"/{stripped}"
 
 
 def set_current_user(user):
@@ -22,6 +51,28 @@ def set_current_user(user):
 
 def get_current_user():
     return getattr(_thread_locals, "user", None)
+
+
+class PathPrefixMiddleware:
+    """
+    Prend en charge les URLs aliases montees sous /padesce sans casser les
+    reverse() existants sur la racine.
+    """
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request: HttpRequest):
+        original_prefix = get_script_prefix()
+        matched_prefix = detect_path_prefix(getattr(request, "path_info", "") or getattr(request, "path", ""))
+        request.url_mount_prefix = matched_prefix
+        if matched_prefix:
+            set_script_prefix(f"{matched_prefix}/")
+        try:
+            response = self.get_response(request)
+        finally:
+            set_script_prefix(original_prefix)
+        return response
 
 
 class CurrentUserMiddleware:
@@ -95,14 +146,9 @@ class LoginRequiredMiddleware:
         self.get_response = get_response
 
     def __call__(self, request: HttpRequest):
-        def _normalize_prefix(prefix: str | None) -> str:
-            if not prefix:
-                return ""
-            return prefix if prefix.startswith("/") else f"/{prefix}"
-
         if request.user.is_authenticated:
             user = request.user
-            path = request.path_info or "/"
+            path = strip_path_prefix(request.path_info or "/")
             try:
                 is_consultant_only = (
                     not getattr(user, "is_superuser", False)
@@ -124,13 +170,12 @@ class LoginRequiredMiddleware:
                     _normalize_prefix(getattr(settings, "MEDIA_URL", "")),
                 ]
                 if path != "/dashboard/" and not any(path.startswith(p) for p in allowed_prefixes if p):
-                    return HttpResponseRedirect("/dashboard/")
+                    return HttpResponseRedirect(reverse("home"))
             return self.get_response(request)
 
-        path = request.path_info or "/"
-        login_url = settings.LOGIN_URL or "/"
-
-        login_path = _normalize_prefix(login_url) or "/"
+        path = strip_path_prefix(request.path_info or "/")
+        login_url = resolve_url(settings.LOGIN_URL or "login")
+        login_path = strip_path_prefix(urlsplit(login_url).path) or "/"
         static_prefix = _normalize_prefix(getattr(settings, "STATIC_URL", ""))
         media_prefix = _normalize_prefix(getattr(settings, "MEDIA_URL", ""))
 
@@ -151,7 +196,7 @@ class LoginRequiredMiddleware:
         if path in ("/", login_path) or any(path.startswith(p) for p in exempt_prefixes if p):
             return self.get_response(request)
 
-        return redirect_to_login(request.get_full_path(), login_path)
+        return redirect_to_login(request.get_full_path(), login_url)
 
 
 class UserActivityMiddleware:

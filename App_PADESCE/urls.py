@@ -7,7 +7,7 @@ from django.urls import include, path
 
 from App_PADESCE.core.lazy_urls import lazy_view
 
-urlpatterns = [
+app_urlpatterns = [
     path(
         "",
         auth_views.LoginView.as_view(
@@ -98,7 +98,6 @@ urlpatterns = [
         name="fast_stats_export_xlsx",
     ),
     path("accounts/", include("django.contrib.auth.urls")),
-    path("admin/", admin.site.urls),
     path("formations/", include("App_PADESCE.formations.urls")),
     path("apprenants/", include("App_PADESCE.apprenants.urls")),
     path("presences/", include("App_PADESCE.presences.urls")),
@@ -141,6 +140,16 @@ urlpatterns = [
         lazy_view("App_PADESCE.core.backup_views.backup_delete"),
         name="backup_delete",
     ),
+]
+
+root_only_urlpatterns = [
+    path("admin/", admin.site.urls),
+]
+
+urlpatterns = [
+    path("", include(app_urlpatterns)),
+    path("", include(root_only_urlpatterns)),
+    path("padesce/", include((app_urlpatterns, "padesce"), namespace="padesce")),
 ]
 
 if settings.DEBUG:
