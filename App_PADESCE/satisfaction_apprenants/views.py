@@ -1790,6 +1790,10 @@ def _dashboard_export_chapeau_filename(filters: dict, extension: str) -> str:
     return f"EVALUATION_DES_CLASSES_{base_name}"
 
 
+def _dashboard_chapeau_title(class_label: str) -> str:
+    return f"Enquete de satisfaction : {class_label}"
+
+
 def _tabular_dashboard_export(
     active_tab: str, context: dict, rows: list[dict]
 ) -> tuple[list[str], list[list]]:
@@ -2459,7 +2463,7 @@ def satisfaction_dashboard_export_chapeau(request):
             title_cells = table.rows[0].cells
             title_cell = title_cells[0].merge(title_cells[1])
             title_paragraph = title_cell.paragraphs[0]
-            title_run = title_paragraph.add_run(classe_nom_complet)
+            title_run = title_paragraph.add_run(_dashboard_chapeau_title(classe_nom_complet))
             title_run.bold = True
 
             headers = table.add_row().cells

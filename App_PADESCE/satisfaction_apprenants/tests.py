@@ -1,9 +1,11 @@
+import io
 import json
 from types import SimpleNamespace
 from unittest.mock import patch
 
 from django.http import QueryDict
 from django.test import RequestFactory, SimpleTestCase, TestCase
+from docx import Document
 
 from App_PADESCE.apprenants.models import Apprenant
 from App_PADESCE.formations.models import Beneficiaire, Classe, Formation, Inspecteur, Lieu, Prestataire, Prestation
@@ -14,6 +16,7 @@ from App_PADESCE.satisfaction_apprenants.views import (
     _build_dashboard_filter_options,
     _build_threshold_class_stats,
     _call_report_status,
+    _dashboard_chapeau_title,
     _dashboard_export_filename,
     _dashboard_export_filename_from_rows,
     _assign_enquete_ids,
@@ -21,11 +24,51 @@ from App_PADESCE.satisfaction_apprenants.views import (
     _qualified_prestation_codes_from_source,
     _source_class_apprenant_counts,
     _terminated_prestation_codes_from_source,
+    satisfaction_dashboard_export_chapeau,
     satisfaction_dashboard_rag,
 )
 
 
 class SatisfactionDashboardSourceTests(SimpleTestCase):
+    @patch("App_PADESCE.satisfaction_apprenants.views._build_satisfaction_dashboard_data")
+    def test_export_chapeau_prefixes_table_title_with_enquete_label(self, mock_dashboard):
+        class_label = (
+            "CLA001_CENTRE DE FORMATION PROFESSIONNELLE PONTAAH_"
+            "SCOOP YILLAGA YAOURT DU MAYO-KANI (COOP SYYMK)"
+        )
+        mock_dashboard.return_value = {
+            "filters": {},
+            "rows": [
+                {
+                    "classe_code": "CLA001",
+                    "source_apprenant_id": "APP001",
+                    "apprenant_nom": "Amina",
+                    "prestataire": "CENTRE DE FORMATION PROFESSIONNELLE PONTAAH",
+                    "beneficiaire": "SCOOP YILLAGA YAOURT DU MAYO-KANI (COOP SYYMK)",
+                    "q1_clarte_formateur": 4,
+                }
+            ],
+            "context": {
+                "classe_stats": [
+                    {
+                        "code": "CLA001",
+                        "avgs": [4] + [0] * 8,
+                    }
+                ]
+            },
+        }
+        request = RequestFactory().get("/satisfaction-apprenants/analyse/export/chapeau/")
+        request.user = SimpleNamespace(is_authenticated=True, is_superuser=True)
+
+        response = satisfaction_dashboard_export_chapeau(request)
+
+        self.assertEqual(response.status_code, 200)
+        document = Document(io.BytesIO(response.content))
+        self.assertEqual(
+            document.tables[0].rows[0].cells[0].text,
+            _dashboard_chapeau_title(class_label),
+        )
+
     @patch("App_PADESCE.satisfaction_apprenants.views.build_padesce_source_index")
     def test_attach_network_source_to_rows_adds_apprenant_id_and_coherence(self, mock_build_source_index):
         mock_build_source_index.return_value = {
