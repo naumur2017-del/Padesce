@@ -214,7 +214,9 @@
     <div class="count">{{ analyzed_classes_count }}</div>
     <div class="analysis-list">
       {% for item in analyzed_classes %}
-      <div class="analysis-item"><span>{{ item.label }}</span><strong>{{ item.nb }}</strong></div>
+      <a class="analysis-item" href="{% url 'class_analysis_detail' item.code %}" style="text-decoration:none;color:inherit;">
+        <span>{{ item.label }}</span><strong>{{ item.nb }}</strong>
+      </a>
       {% empty %}
       <div class="analysis-item"><span>Aucune classe analysée</span><strong>0</strong></div>
       {% endfor %}
@@ -228,7 +230,9 @@
     <div style="font-size:0.78rem; color:var(--muted); margin-bottom:10px;">Prestations terminées analysées sur le total des prestations terminées dans la source choisie.</div>
     <div class="analysis-list">
       {% for item in analyzed_prestations %}
-      <div class="analysis-item"><span>{{ item.label }}</span><strong>{{ item.nb }}</strong></div>
+      <a class="analysis-item" href="{% url 'prestation_analysis_detail' item.code %}" style="text-decoration:none;color:inherit;">
+        <span>{{ item.label }}</span><strong>{{ item.nb }}</strong>
+      </a>
       {% empty %}
       <div class="analysis-item"><span>Aucune prestation analysée</span><strong>0</strong></div>
       {% endfor %}

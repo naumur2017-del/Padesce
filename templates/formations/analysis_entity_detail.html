@@ -1,0 +1,479 @@
+{% extends "base.html" %}
+{% block title %}{{ entity_type|title }} {{ entity_title }}{% endblock %}
+{% block content %}
+<style>
+  .hero {
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 18px;
+    background: linear-gradient(135deg, rgba(15, 139, 141, 0.08), rgba(255, 255, 255, 0.96));
+    box-shadow: var(--shadow);
+    margin-bottom: 16px;
+  }
+  .hero-top {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+  .hero h1 {
+    margin: 0 0 4px;
+    color: var(--accent-strong);
+  }
+  .hero-subtitle {
+    margin: 0;
+    color: var(--muted);
+  }
+  .hero-meta {
+    display: grid;
+    gap: 10px;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    margin-top: 16px;
+  }
+  .meta-card {
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.92);
+    padding: 14px;
+  }
+  .meta-card .label {
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+  }
+  .meta-card .value {
+    margin-top: 6px;
+    font-size: 1.1rem;
+    font-weight: 800;
+    color: var(--accent-strong);
+  }
+  .summary-grid {
+    display: grid;
+    gap: 12px;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    margin-bottom: 16px;
+  }
+  .summary-card {
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background: var(--panel);
+    padding: 16px;
+    box-shadow: var(--shadow);
+  }
+  .summary-card .kicker {
+    color: var(--muted);
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .summary-card strong {
+    display: block;
+    margin-top: 8px;
+    font-size: 1.5rem;
+    color: var(--accent-strong);
+  }
+  .panel {
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background: var(--panel);
+    padding: 16px;
+    box-shadow: var(--shadow);
+    margin-bottom: 16px;
+  }
+  .panel-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+  }
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 6px 10px;
+    border-radius: 999px;
+    font-weight: 700;
+    font-size: 0.82rem;
+    border: 1px solid var(--border);
+  }
+  .badge-ok {
+    background: rgba(34, 197, 94, 0.14);
+    color: #166534;
+    border-color: rgba(34, 197, 94, 0.25);
+  }
+  .badge-wait {
+    background: rgba(234, 179, 8, 0.14);
+    color: #92400e;
+    border-color: rgba(234, 179, 8, 0.28);
+  }
+  .class-links {
+    display: grid;
+    gap: 10px;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  }
+  .class-link {
+    display: block;
+    text-decoration: none;
+    color: inherit;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.92);
+    padding: 14px;
+  }
+  .class-link:hover {
+    border-color: rgba(15, 139, 141, 0.28);
+    background: rgba(15, 139, 141, 0.06);
+  }
+  .class-link strong {
+    color: var(--accent-strong);
+  }
+  .tabbar {
+    display: inline-flex;
+    gap: 8px;
+    padding: 6px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: rgba(15, 139, 141, 0.05);
+    margin-bottom: 16px;
+  }
+  .tab-btn {
+    border: none;
+    background: transparent;
+    color: var(--muted);
+    font-weight: 700;
+    padding: 10px 16px;
+    border-radius: 999px;
+    cursor: pointer;
+  }
+  .tab-btn.active {
+    background: var(--accent);
+    color: #fff;
+    box-shadow: 0 8px 18px rgba(15, 139, 141, 0.18);
+  }
+  .tab-panel {
+    display: none;
+  }
+  .tab-panel.active {
+    display: block;
+  }
+  .table-wrap {
+    overflow: auto;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  th, td {
+    padding: 10px;
+    border: 1px solid var(--border);
+    font-size: 0.9rem;
+    text-align: left;
+    vertical-align: top;
+  }
+  thead {
+    background: rgba(15, 139, 141, 0.08);
+  }
+  th {
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--accent-strong);
+  }
+  .row-meta {
+    color: var(--muted);
+    font-size: 0.82rem;
+  }
+  .actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .btn-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
+    padding: 9px 12px;
+    border-radius: 10px;
+    border: 1px solid rgba(15, 139, 141, 0.18);
+    background: rgba(15, 139, 141, 0.1);
+    color: #0f5f61;
+    font-weight: 700;
+    font-size: 0.84rem;
+  }
+  .btn-link.secondary {
+    border-color: var(--border);
+    background: rgba(255, 255, 255, 0.92);
+    color: var(--text);
+  }
+  .btn-link.disabled {
+    opacity: 0.45;
+    pointer-events: none;
+  }
+  .note {
+    margin-top: 12px;
+    color: var(--muted);
+    font-size: 0.84rem;
+  }
+</style>
+
+<section class="hero">
+  <div class="hero-top">
+    <div>
+      <p class="hero-subtitle">{{ entity_type|title }} analyse</p>
+      <h1>{{ entity_title }}</h1>
+      <p class="hero-subtitle">{{ entity_subtitle|default:"Informations de suivi et de consultation." }}</p>
+    </div>
+    {% if summary.has_analysis %}
+      <span class="badge badge-ok">Analyse disponible</span>
+    {% else %}
+      <span class="badge badge-wait">Pas encore d'analyse exploitable</span>
+    {% endif %}
+  </div>
+
+  <div class="hero-meta">
+    {% if entity_type == "classe" %}
+      <div class="meta-card">
+        <div class="label">Prestation</div>
+        <div class="value">
+          <a href="{% url 'prestation_analysis_detail' prestation.code %}" style="text-decoration:none;color:inherit;">{{ prestation.code }}</a>
+        </div>
+      </div>
+      <div class="meta-card">
+        <div class="label">Prestataire</div>
+        <div class="value">{{ prestation.prestataire.raison_sociale|default:"-" }}</div>
+      </div>
+      <div class="meta-card">
+        <div class="label">Beneficiaire</div>
+        <div class="value">{{ prestation.beneficiaire.nom_structure|default:"-" }}</div>
+      </div>
+      <div class="meta-card">
+        <div class="label">Cohorte / Lieu</div>
+        <div class="value">C{{ classe.cohorte }}{% if classe.lieu %} · {{ classe.lieu.nom_lieu|default:classe.lieu }}{% endif %}</div>
+      </div>
+      <div class="meta-card">
+        <div class="label">Formateur</div>
+        <div class="value">{{ classe.formateur.nom_complet|default:"-" }}</div>
+      </div>
+      <div class="meta-card">
+        <div class="label">Statut</div>
+        <div class="value">{{ classe.get_statut_display }}</div>
+      </div>
+    {% else %}
+      <div class="meta-card">
+        <div class="label">Prestataire</div>
+        <div class="value">{{ prestation.prestataire.raison_sociale|default:"-" }}</div>
+      </div>
+      <div class="meta-card">
+        <div class="label">Beneficiaire</div>
+        <div class="value">{{ prestation.beneficiaire.nom_structure|default:"-" }}</div>
+      </div>
+      <div class="meta-card">
+        <div class="label">Formation</div>
+        <div class="value">{{ prestation.formation.nom|default:"-" }}</div>
+      </div>
+      <div class="meta-card">
+        <div class="label">Effectif cible</div>
+        <div class="value">{{ prestation.effectif_a_former|default:0 }}</div>
+      </div>
+      <div class="meta-card">
+        <div class="label">Femmes cible</div>
+        <div class="value">{{ prestation.femmes|default:0 }}</div>
+      </div>
+      <div class="meta-card">
+        <div class="label">Duree reelle</div>
+        <div class="value">{{ prestation.duree_reelle_heures|default:"0" }} h</div>
+      </div>
+    {% endif %}
+  </div>
+</section>
+
+<section class="summary-grid">
+  <article class="summary-card">
+    <div class="kicker">Apprenants</div>
+    <strong>{{ summary.apprenants_analyzed }}/{{ summary.apprenants_total }}</strong>
+    <div class="row-meta">{{ summary.apprenants_with_audio }} audio(s) · {{ summary.apprenants_with_form }} formulaire(s)</div>
+  </article>
+  <article class="summary-card">
+    <div class="kicker">Formateurs</div>
+    <strong>{{ summary.formateurs_analyzed }}/{{ summary.formateurs_total }}</strong>
+    <div class="row-meta">{{ summary.formateurs_with_audio }} audio(s) · {{ summary.formateurs_with_form }} formulaire(s)</div>
+  </article>
+  {% if entity_type == "prestation" %}
+    <article class="summary-card">
+      <div class="kicker">Classes liees</div>
+      <strong>{{ class_links|length }}</strong>
+      <div class="row-meta">Acces direct a chaque classe de la prestation</div>
+    </article>
+  {% else %}
+    <article class="summary-card">
+      <div class="kicker">Fenetre</div>
+      <strong>{{ classe.fenetre|default:"-" }}</strong>
+      <div class="row-meta">Vue lecture seule des appels rattaches a cette classe</div>
+    </article>
+  {% endif %}
+</section>
+
+{% if class_links %}
+  <section class="panel">
+    <div class="panel-head">
+      <div>
+        <strong>Classes de la prestation</strong>
+        <div class="row-meta">Chaque classe ouvre sa propre fiche d'analyse.</div>
+      </div>
+    </div>
+    <div class="class-links">
+      {% for item in class_links %}
+        <a class="class-link" href="{{ item.url }}">
+          <strong>{{ item.code }}</strong>
+          <div>{{ item.intitule|default:"Sans intitule" }}</div>
+          <div class="row-meta">{{ item.apprenants_count|default:0 }} apprenant(s) · {{ item.appels_count|default:0 }} appel(s)</div>
+        </a>
+      {% endfor %}
+    </div>
+  </section>
+{% endif %}
+
+<div class="tabbar" role="tablist" aria-label="Basculer entre apprenants et formateurs">
+  <button type="button" class="tab-btn{% if active_tab == 'apprenants' %} active{% endif %}" data-tab="apprenants">
+    Apprenants ({{ apprenant_rows|length }})
+  </button>
+  <button type="button" class="tab-btn{% if active_tab == 'formateurs' %} active{% endif %}" data-tab="formateurs">
+    Formateurs ({{ formateur_rows|length }})
+  </button>
+</div>
+
+<section class="panel tab-panel{% if active_tab == 'apprenants' %} active{% endif %}" data-panel="apprenants">
+  <div class="panel-head">
+    <div>
+      <strong>Liste apprenants</strong>
+      <div class="row-meta">Lecture seule. Aucun demarrage d'appel depuis cet ecran.</div>
+    </div>
+    <span class="badge{% if summary.apprenants_analyzed %} badge-ok{% else %} badge-wait{% endif %}">
+      {{ summary.apprenants_analyzed }} analyse(s)
+    </span>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Code</th>
+          <th>Nom</th>
+          <th>Telephone</th>
+          <th>Statut</th>
+          <th>Nb appels</th>
+          <th>Derniere activite</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in apprenant_rows %}
+          <tr>
+            <td>{{ row.code }}</td>
+            <td>
+              <strong>{{ row.nom|default:"-" }}</strong>
+              {% if row.locked_by %}<div class="row-meta">Operateur: {{ row.locked_by }}</div>{% endif %}
+            </td>
+            <td>{{ row.telephone|default:"-" }}</td>
+            <td>{{ row.statut_label }}</td>
+            <td>{{ row.call_count }}</td>
+            <td>{{ row.updated_at|date:"d/m/Y H:i" }}</td>
+            <td>
+              <div class="actions">
+                <a class="btn-link{% if not row.has_audio %} disabled{% endif %}" href="{{ row.detail_url }}#audio">Ecouter</a>
+                <a class="btn-link secondary{% if not row.has_form %} disabled{% endif %}" href="{{ row.detail_url }}#formulaire">Formulaire</a>
+              </div>
+            </td>
+          </tr>
+        {% empty %}
+          <tr>
+            <td colspan="7" style="text-align:center;color:var(--muted);">Aucun appel apprenant rattache a cette entite.</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="panel tab-panel{% if active_tab == 'formateurs' %} active{% endif %}" data-panel="formateurs">
+  <div class="panel-head">
+    <div>
+      <strong>Liste formateurs</strong>
+      <div class="row-meta">Lecture seule. Les lignes sont rapprochees automatiquement de l'entite.</div>
+    </div>
+    <span class="badge{% if summary.formateurs_analyzed %} badge-ok{% else %} badge-wait{% endif %}">
+      {{ summary.formateurs_analyzed }} analyse(s)
+    </span>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Reference</th>
+          <th>Formation</th>
+          <th>Telephone</th>
+          <th>Cohorte</th>
+          <th>Date</th>
+          <th>Statut</th>
+          <th>Nb appels</th>
+          <th>Derniere activite</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in formateur_rows %}
+          <tr>
+            <td>{{ row.reference_code }}</td>
+            <td>{{ row.formation|default:"-" }}</td>
+            <td>{{ row.telephone|default:"-" }}</td>
+            <td>{{ row.cohorte|default:"-" }}</td>
+            <td>{% if row.session_date %}{{ row.session_date|date:"d/m/Y" }}{% else %}{{ row.date_label|default:"-" }}{% endif %}</td>
+            <td>{{ row.statut_label }}</td>
+            <td>{{ row.call_count }}</td>
+            <td>{{ row.updated_at|date:"d/m/Y H:i" }}</td>
+            <td>
+              <div class="actions">
+                <a class="btn-link{% if not row.has_audio %} disabled{% endif %}" href="{{ row.detail_url }}#audio">Ecouter</a>
+                <a class="btn-link secondary{% if not row.has_form %} disabled{% endif %}" href="{{ row.detail_url }}#formulaire">Formulaire</a>
+              </div>
+            </td>
+          </tr>
+        {% empty %}
+          <tr>
+            <td colspan="9" style="text-align:center;color:var(--muted);">Aucun appel formateur rattache a cette entite.</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="note">{{ matching_note }}</p>
+</section>
+
+<script>
+  (function() {
+    const buttons = Array.from(document.querySelectorAll("[data-tab]"));
+    const panels = Array.from(document.querySelectorAll("[data-panel]"));
+    const currentUrl = new URL(window.location.href);
+
+    function activate(tabName) {
+      buttons.forEach((button) => {
+        button.classList.toggle("active", button.dataset.tab === tabName);
+      });
+      panels.forEach((panel) => {
+        panel.classList.toggle("active", panel.dataset.panel === tabName);
+      });
+      currentUrl.searchParams.set("tab", tabName);
+      window.history.replaceState({}, "", currentUrl.toString());
+    }
+
+    buttons.forEach((button) => {
+      button.addEventListener("click", () => activate(button.dataset.tab));
+    });
+  })();
+</script>
+{% endblock %}

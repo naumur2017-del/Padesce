@@ -370,6 +370,7 @@ class PublicConsultantAccessTests(TestCase):
             code="APP950",
             nom="Alpha Prioritaire",
             classe_label="CLA001",
+            fenetre="2",
             status="termine",
             is_active=True,
             audio_file="padesce/tests/prioritaire.mp3",
@@ -378,6 +379,7 @@ class PublicConsultantAccessTests(TestCase):
             code="APP951",
             nom="Beta Audio",
             classe_label="CLA001",
+            fenetre="2",
             status="termine",
             is_active=True,
             audio_file="padesce/tests/audio-seul.mp3",
@@ -386,6 +388,7 @@ class PublicConsultantAccessTests(TestCase):
             code="APP952",
             nom="Gamma Formulaire",
             classe_label="CLA001",
+            fenetre="2",
             status="termine",
             is_active=True,
         )

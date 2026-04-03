@@ -68,6 +68,26 @@ urlpatterns = [
         name="consultant_call_detail",
     ),
     path(
+        "classe/<str:code>/",
+        lazy_view("App_PADESCE.formations.views.class_analysis_detail"),
+        name="class_analysis_detail",
+    ),
+    path(
+        "prestation/<str:code>/",
+        lazy_view("App_PADESCE.formations.views.prestation_analysis_detail"),
+        name="prestation_analysis_detail",
+    ),
+    path(
+        "analyse/appels/apprenant/<int:pk>/",
+        lazy_view("App_PADESCE.formations.views.analysis_apprenant_call_detail"),
+        name="analysis_apprenant_call_detail",
+    ),
+    path(
+        "analyse/appels/formateur/<int:pk>/",
+        lazy_view("App_PADESCE.formations.views.analysis_formateur_call_detail"),
+        name="analysis_formateur_call_detail",
+    ),
+    path(
         "guide-operateur/",
         lazy_view("App_PADESCE.core.views.operator_guide"),
         name="operator_guide",

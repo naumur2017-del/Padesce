@@ -1,0 +1,193 @@
+{% extends "base.html" %}
+{% block title %}Appel apprenant {{ appel.code }}{% endblock %}
+{% block content %}
+<style>
+  .hero, .panel {
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background: var(--panel);
+    padding: 16px;
+    box-shadow: var(--shadow);
+    margin-bottom: 16px;
+  }
+  .hero {
+    background: linear-gradient(135deg, rgba(15, 139, 141, 0.08), rgba(255, 255, 255, 0.96));
+  }
+  .hero-top {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+  .hero h1 {
+    margin: 0 0 4px;
+    color: var(--accent-strong);
+  }
+  .subtitle {
+    color: var(--muted);
+    margin: 0;
+  }
+  .btn-back {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
+    padding: 10px 14px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    background: rgba(255, 255, 255, 0.92);
+    color: var(--text);
+    font-weight: 700;
+  }
+  .meta-grid {
+    display: grid;
+    gap: 12px;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    margin-top: 14px;
+  }
+  .meta-card {
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.92);
+    padding: 14px;
+  }
+  .meta-card .label {
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+  }
+  .meta-card .value {
+    margin-top: 6px;
+    font-size: 1.05rem;
+    font-weight: 800;
+    color: var(--accent-strong);
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  th, td {
+    padding: 10px;
+    border: 1px solid var(--border);
+    text-align: left;
+    vertical-align: top;
+  }
+  thead {
+    background: rgba(15, 139, 141, 0.08);
+  }
+  .flag-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 10px;
+  }
+  .flag {
+    display: inline-flex;
+    align-items: center;
+    padding: 8px 12px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: rgba(15, 139, 141, 0.08);
+    font-size: 0.84rem;
+  }
+  audio {
+    width: 100%;
+    margin-top: 12px;
+  }
+</style>
+
+<section class="hero">
+  <div class="hero-top">
+    <div>
+      <p class="subtitle">Lecture seule - appel apprenant</p>
+      <h1>{{ appel.nom|default:"Sans nom" }}</h1>
+      <p class="subtitle">{{ appel.code }} · {{ appel.classe.code|default:appel.classe_label|default:"Sans classe" }}</p>
+    </div>
+    <a class="btn-back" href="{{ next_url }}">Retour</a>
+  </div>
+
+  <div class="meta-grid">
+    <div class="meta-card">
+      <div class="label">Telephone</div>
+      <div class="value">{{ appel.telephone1|default:appel.telephone2|default:"-" }}</div>
+    </div>
+    <div class="meta-card">
+      <div class="label">Statut</div>
+      <div class="value">{{ appel.get_status_display }}</div>
+    </div>
+    <div class="meta-card">
+      <div class="label">Prestataire</div>
+      <div class="value">{{ appel.classe.prestation.prestataire.raison_sociale|default:appel.prestataire|default:"-" }}</div>
+    </div>
+    <div class="meta-card">
+      <div class="label">Beneficiaire</div>
+      <div class="value">{{ appel.classe.prestation.beneficiaire.nom_structure|default:appel.beneficiaire|default:"-" }}</div>
+    </div>
+    <div class="meta-card">
+      <div class="label">Operateur</div>
+      <div class="value">{{ appel.locked_by.username|default:"-" }}</div>
+    </div>
+    <div class="meta-card">
+      <div class="label">Questions renseignees</div>
+      <div class="value">{{ filled_questions_count }}/9</div>
+    </div>
+  </div>
+</section>
+
+<section class="panel" id="audio">
+  <h2 style="margin-top:0;">Audio</h2>
+  {% if has_audio and audio_url %}
+    <p class="subtitle">Lecture directe de l'enregistrement disponible.</p>
+    <audio controls preload="none">
+      <source src="{{ audio_url }}">
+    </audio>
+  {% else %}
+    <p class="subtitle">Aucun audio disponible pour cet appel.</p>
+  {% endif %}
+</section>
+
+<section class="panel" id="formulaire">
+  <h2 style="margin-top:0;">Formulaire</h2>
+  {% if form_state.has_form %}
+    <table>
+      <thead>
+        <tr>
+          <th>Question</th>
+          <th>Valeur</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for label, value in form_state.question_rows %}
+          <tr>
+            <td>{{ label }}</td>
+            <td>{% if value %}{{ value }}/5{% else %}-{% endif %}</td>
+          </tr>
+        {% endfor %}
+        <tr>
+          <td>Commentaire</td>
+          <td>{{ form_state.commentaire|default:"-" }}</td>
+        </tr>
+        <tr>
+          <td>Recommandations</td>
+          <td>{{ form_state.recommandations|default:"-" }}</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="flag-list">
+      <span class="flag">Pas forme: {% if form_state.flags.pas_forme %}Oui{% else %}Non{% endif %}</span>
+      <span class="flag">Deja appele: {% if form_state.flags.deja_appele %}Oui{% else %}Non{% endif %}</span>
+      <span class="flag">Numero double: {% if form_state.flags.numero_double %}Oui{% else %}Non{% endif %}</span>
+      <span class="flag">Faux nom: {% if form_state.flags.faux_nom %}Oui{% else %}Non{% endif %}</span>
+      <span class="flag">Deja forme: {% if form_state.flags.deja_forme %}Oui{% else %}Non{% endif %}</span>
+      {% if form_state.flags.vrai_nom %}
+        <span class="flag">Vrai nom: {{ form_state.flags.vrai_nom }}</span>
+      {% endif %}
+    </div>
+  {% else %}
+    <p class="subtitle">Aucune reponse de formulaire disponible sur cet appel.</p>
+  {% endif %}
+</section>
+{% endblock %}

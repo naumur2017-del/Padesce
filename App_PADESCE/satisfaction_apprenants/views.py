@@ -2298,11 +2298,12 @@ def _build_satisfaction_dashboard_data(request):
     )
 
     analyzed_classes = [
-        {"label": f"{item['code']} - {item['intitule']}", "nb": item["nb"]}
+        {"code": item["code"], "label": f"{item['code']} - {item['intitule']}", "nb": item["nb"]}
         for item in classe_stats_seuil
     ]
     analyzed_prestations = [
         {
+            "code": item["code"],
             "label": f"{item['code']} | {item['prestataire']} | {item['beneficiaire']}",
             "nb": item["nb"],
         }
