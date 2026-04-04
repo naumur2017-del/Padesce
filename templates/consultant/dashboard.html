@@ -102,7 +102,7 @@
         {% for row in rows %}
           <tr class="clickable-row js-open-modal" data-detail-url="{% url 'consultant_call_detail' row.id %}" data-audio-url="{% if row.audio_file %}{{ row.audio_file.url }}{% endif %}">
             <td>{{ row.nom }}</td>
-            <td>{{ row.id }}</td>
+            <td>{{ row.code }}</td>
             <td>{{ row.consultant_class_display|default:row.classe_label|default:"-" }}</td>
             <td>{{ row.prestataire|default:"-" }}</td>
             <td>{{ row.beneficiaire|default:"-" }}</td>

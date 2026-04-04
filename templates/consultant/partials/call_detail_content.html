@@ -26,7 +26,7 @@
 </section>
 
 <section class="summary-cards">
-  <article class="summary-card"><div class="label">Apprenant ID</div><div class="value">{{ appel.id }}</div></article>
+  <article class="summary-card"><div class="label">Apprenant ID</div><div class="value">{{ appel.code }}</div></article>
   <article class="summary-card"><div class="label">Classe</div><div class="value">{{ appel.classe_label|default:"-" }}</div></article>
   <article class="summary-card"><div class="label">Questions renseignees</div><div class="value">{{ filled_questions_count }}/9</div></article>
   <article class="summary-card"><div class="label">Operateur</div><div class="value">{{ appel.locked_by.username|default:"-" }}</div></article>
@@ -36,7 +36,7 @@
   <section class="panel">
     <h3>Infos apprenant</h3>
     <div class="meta"><strong>Nom :</strong> {{ appel.nom }}</div>
-    <div class="meta"><strong>Apprenant ID :</strong> {{ appel.id }}</div>
+    <div class="meta"><strong>Apprenant ID :</strong> {{ appel.code }}</div>
     <div class="meta"><strong>Telephone :</strong> {{ appel.telephone1|default:appel.telephone2|default:"-" }}</div>
     <div class="meta"><strong>Classe :</strong> {{ appel.classe_label|default:"-" }}</div>
     <div class="meta"><strong>Prestataire :</strong> {{ appel.prestataire|default:"-" }}</div>
