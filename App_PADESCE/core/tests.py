@@ -84,7 +84,7 @@ class DashboardVisibilityTests(TestCase):
         self.assertNotContains(response, "Appels Padesce")
         self.assertNotContains(response, "Appel Formateur")
         self.assertNotContains(response, "Analyse Enquete Formateur")
-        self.assertNotContains(response, "Rapport hebdomadaire")
+        self.assertNotContains(response, 'href="/reporting/"', html=False)
         self.assertNotContains(response, 'href="/cga/"', html=False)
         self.assertNotContains(response, "Backup")
 

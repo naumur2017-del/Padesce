@@ -21,6 +21,7 @@ from App_PADESCE.satisfaction_apprenants.management.commands.import_satisfaction
 from App_PADESCE.satisfaction_apprenants.views import (
     _attach_network_source_to_rows,
     _build_satisfaction_dashboard_data,
+    _build_missing_prestations_analysis,
     _build_dashboard_filter_options,
     _build_threshold_class_stats,
     _call_report_status,
@@ -650,6 +651,71 @@ class SatisfactionDashboardRegressionTests(SimpleTestCase):
         self.assertEqual(dashboard["context"]["prestation_stats_all"][0]["effectif"], 2)
 
 
+class SatisfactionMissingPrestationsAnalysisTests(TestCase):
+    def test_missing_analysis_ignores_non_callable_classes_for_category(self):
+        Appel.objects.create(
+            code="APP-CLA001",
+            nom="Sans numero",
+            classe_label="CLA001",
+            fenetre="2",
+            is_active=True,
+        )
+        Appel.objects.create(
+            code="APP-CLA002",
+            nom="Joignable",
+            classe_label="CLA002",
+            telephone1="690001122",
+            fenetre="2",
+            is_active=True,
+        )
+
+        analysis = _build_missing_prestations_analysis(
+            {"presta001"},
+            set(),
+            {
+                "classes": {
+                    "cla001": {
+                        "classe_id": "CLA001",
+                        "prestation_id": "PRESTA001",
+                        "statut_prestation": "TERMINE",
+                    },
+                    "cla002": {
+                        "classe_id": "CLA002",
+                        "prestation_id": "PRESTA001",
+                        "statut_prestation": "TERMINE",
+                    },
+                },
+                "records": {
+                    "app-cla001": {
+                        "classe_id": "CLA001",
+                        "prestation_id": "PRESTA001",
+                        "telephone1": "",
+                        "telephone2": "",
+                    },
+                    "app-cla002": {
+                        "classe_id": "CLA002",
+                        "prestation_id": "PRESTA001",
+                        "telephone1": "690001122",
+                        "telephone2": "",
+                    },
+                },
+                "prestations": {
+                    "presta001": {
+                        "prestation_id": "PRESTA001",
+                        "prestataire": "Prestataire A",
+                        "beneficiaire": "Beneficiaire A",
+                        "formation": "Formation A",
+                    }
+                },
+            },
+            [],
+            {},
+        )
+
+        self.assertEqual(analysis["by_category"]["pas_de_numero"], 0)
+        self.assertEqual(analysis["details"][0]["category"], "pas_seuil_atteint")
+
+
 @override_settings(ROOT_URLCONF="App_PADESCE.urls")
 class SatisfactionGeneralPageTests(TestCase):
     def setUp(self):
@@ -763,6 +829,7 @@ class SatisfactionGeneralPageTests(TestCase):
         self.assertContains(response, "NET001")
         self.assertContains(response, "Pris en compte")
         self.assertContains(response, "Sans numero")
+        self.assertContains(response, "Masquer la selection")
 
         filtered_response = self.client.get(
             reverse("satisfaction_general_page"),
@@ -794,6 +861,31 @@ class SatisfactionGeneralPageTests(TestCase):
         self.assertEqual(response["Location"], reverse("satisfaction_general_page"))
         self.eligible_appel.refresh_from_db()
         self.assertTrue(appel_is_manually_excluded(self.eligible_appel))
+
+    @patch("App_PADESCE.satisfaction_apprenants.views.get_workbook_source_options", return_value=[])
+    @patch("App_PADESCE.satisfaction_apprenants.views.build_padesce_source_index", return_value={"records": {}})
+    @patch("App_PADESCE.satisfaction_apprenants.views._general_analysis_threshold_codes", return_value=set())
+    def test_general_bulk_exclusion_updates_selected_appels(
+        self,
+        _mock_threshold_codes,
+        _mock_source_index,
+        _mock_source_options,
+    ):
+        response = self.client.post(
+            reverse("satisfaction_general_toggle_exclusion"),
+            {
+                "appel_ids": [self.eligible_appel.pk, self.no_phone_appel.pk],
+                "action": "exclude",
+                "next": reverse("satisfaction_general_page"),
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], reverse("satisfaction_general_page"))
+        self.eligible_appel.refresh_from_db()
+        self.no_phone_appel.refresh_from_db()
+        self.assertTrue(appel_is_manually_excluded(self.eligible_appel))
+        self.assertTrue(appel_is_manually_excluded(self.no_phone_appel))
 
 
 class SatisfactionImportExcelSyncTests(TestCase):

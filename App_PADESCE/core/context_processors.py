@@ -13,7 +13,7 @@ PAGE_TITLE_BY_PREFIX: tuple[tuple[str, str], ...] = (
     ("/satisfaction-apprenants/", "Enquete Apprenants"),
     ("/satisfaction-formateurs/analyse/", "Analyse Enquete Formateur"),
     ("/satisfaction-formateurs/", "Enquete Formateur"),
-    ("/reporting/", "Rapport hebdomadaire"),
+    ("/reporting/", "Rapport"),
     ("/deploiement/", "Deploiement Gandi"),
     ("/cga/", "CGA"),
     ("/consultant/", "Espace PADESCE"),
@@ -96,7 +96,7 @@ def _build_menu_items(user, path: str, consultant_only: bool) -> list[dict[str, 
                 "/satisfaction-formateurs/",
             )
             add_item(
-                "Rapport hebdomadaire",
+                "Rapport",
                 _safe_reverse("application_report_view"),
                 "/reporting/",
             )

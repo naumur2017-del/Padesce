@@ -717,7 +717,7 @@ def _build_not_formed_rows(
             {
                 "call_id": appel.id,
                 "code": appel.code,
-                "apprenant_id": source_record.get("apprenant_id") or appel.code,
+                "apprenant_id": source_record.get("apprenant_id") or "",
                 "name": appel.nom or "-",
                 "phone_display": (appel.telephone1 or "").strip() or "-",
                 "phone_normalized": _normalize_phone_number(appel.telephone1),
@@ -749,7 +749,7 @@ def _build_false_name_rows(
             {
                 "call_id": appel.id,
                 "code": appel.code,
-                "apprenant_id": source_record.get("apprenant_id") or appel.code,
+                "apprenant_id": source_record.get("apprenant_id") or "",
                 "name": appel.nom or "-",
                 "phone_display": (appel.telephone1 or "").strip() or "-",
                 "phone_normalized": _normalize_phone_number(appel.telephone1),
@@ -784,7 +784,7 @@ def _build_duplicate_phone_rows(
             {
                 "call_id": appel.id,
                 "code": appel.code,
-                "apprenant_id": source_record.get("apprenant_id") or appel.code,
+                "apprenant_id": source_record.get("apprenant_id") or "",
                 "name": appel.nom or "-",
                 "phone_display": (appel.telephone1 or "").strip() or normalized_phone,
                 "phone_normalized": normalized_phone,

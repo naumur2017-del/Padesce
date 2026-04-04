@@ -26,6 +26,7 @@ from django.core.paginator import Paginator
 from django.db.models import Count
 from django.http import HttpResponse, JsonResponse, QueryDict
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
@@ -48,6 +49,7 @@ from App_PADESCE.core.analysis_rules import (
     appel_has_analysis_phone,
     appel_is_analysis_eligible,
     appel_is_manually_excluded,
+    set_appel_manual_exclusion,
     toggle_appel_manual_exclusion,
 )
 from App_PADESCE.core.call_metrics import (
@@ -2043,6 +2045,7 @@ def _build_missing_prestations_analysis(
     qualified_prestation_codes: set,
     source_bundle: dict | None,
     classe_stats_all: list[dict],
+    filters: dict | None = None,
 ) -> dict:
     """
     Analyse les prestations terminées du fichier source qui n'apparaissent pas
@@ -2105,15 +2108,17 @@ def _build_missing_prestations_analysis(
         if _phone_re.search(numero) and code and code not in existing_appel_codes:
             source_records_by_prestation[p_key] = source_records_by_prestation.get(p_key, 0) + 1
 
-    source_classes: dict = source_bundle.get("classes", {})
     source_prestations: dict = source_bundle.get("prestations", {})
 
-    # Group source classes by normalized prestation key
-    classes_by_prestation: dict[str, list[dict]] = {}
-    for cls_data in source_classes.values():
-        p_key = normalize_network_lookup(cls_data.get("prestation_id", ""))
-        if p_key:
-            classes_by_prestation.setdefault(p_key, []).append(cls_data)
+    # Use the same callable source classes as the denominator so "sans numero"
+    # records never re-enter the missing-prestation detail.
+    classes_by_prestation = {
+        prestation_key: list(class_map.values())
+        for prestation_key, class_map in _source_prestation_classes_from_source(
+            filters or {},
+            source_bundle,
+        ).items()
+    }
 
     CATEGORY_LABELS = {
         "pas_disponible": "Pas sur le site (non importée)",
@@ -2477,6 +2482,7 @@ def _build_satisfaction_dashboard_data(request):
         qualified_prestation_codes,
         source_bundle,
         classe_stats_all,
+        filters,
     )
 
     filter_query_string = request.GET.copy().urlencode()
@@ -3187,6 +3193,9 @@ def satisfaction_general_page(request):
         row["toggle_label"] = (
             "Reintegrer" if row.get("exclude_from_analysis") == "Oui" else "Masquer"
         )
+        row["toggle_action"] = (
+            "include" if row.get("exclude_from_analysis") == "Oui" else "exclude"
+        )
         rows.append(row)
 
     if search:
@@ -3238,16 +3247,81 @@ def satisfaction_general_page(request):
 @require_POST
 @require_analysis_access
 def satisfaction_general_toggle_exclusion(request):
-    appel = get_object_or_404(Appel, pk=request.POST.get("appel_id"), is_active=True)
-    excluded = toggle_appel_manual_exclusion(appel)
-    messages.success(
-        request,
-        (
-            f"{appel.nom or appel.code or 'La ligne'} est maintenant "
-            f"{'exclu(e)' if excluded else 'reintegré(e)'} des analyses."
-        ),
-    )
-    return redirect(request.POST.get("next") or reverse("satisfaction_general_page"))
+    next_url = request.POST.get("next") or reverse("satisfaction_general_page")
+    requested_action = str(request.POST.get("action") or "").strip().lower()
+    appel_ids = [
+        str(value).strip()
+        for value in request.POST.getlist("appel_ids")
+        if str(value).strip()
+    ]
+    single_appel_id = str(request.POST.get("appel_id") or "").strip()
+    if single_appel_id and single_appel_id not in appel_ids:
+        appel_ids.append(single_appel_id)
+
+    if not appel_ids:
+        messages.warning(request, "Selectionne au moins une ligne a mettre a jour.")
+        return redirect(next_url)
+
+    appels = list(Appel.objects.filter(is_active=True, pk__in=appel_ids).order_by("pk"))
+    if not appels:
+        messages.warning(request, "Aucune ligne active n'a ete trouvee pour cette action.")
+        return redirect(next_url)
+
+    explicit_exclusion: bool | None
+    if requested_action == "exclude":
+        explicit_exclusion = True
+    elif requested_action == "include":
+        explicit_exclusion = False
+    else:
+        explicit_exclusion = None
+
+    if explicit_exclusion is None:
+        updated_states = [
+            toggle_appel_manual_exclusion(appel)
+            for appel in appels
+        ]
+        final_excluded = sum(1 for state in updated_states if state)
+        final_included = len(updated_states) - final_excluded
+        if len(appels) == 1:
+            appel = appels[0]
+            messages.success(
+                request,
+                (
+                    f"{appel.nom or appel.code or 'La ligne'} est maintenant "
+                    f"{'exclu(e)' if updated_states[0] else 'reintegre(e)'} des analyses."
+                ),
+            )
+        else:
+            messages.success(
+                request,
+                (
+                    f"{len(appels)} ligne(s) mises a jour : "
+                    f"{final_excluded} masquee(s), {final_included} reintegree(s)."
+                ),
+            )
+        return redirect(next_url)
+
+    for appel in appels:
+        set_appel_manual_exclusion(appel, explicit_exclusion)
+
+    if len(appels) == 1:
+        appel = appels[0]
+        messages.success(
+            request,
+            (
+                f"{appel.nom or appel.code or 'La ligne'} est maintenant "
+                f"{'exclu(e)' if explicit_exclusion else 'reintegre(e)'} des analyses."
+            ),
+        )
+    else:
+        messages.success(
+            request,
+            (
+                f"{len(appels)} ligne(s) sont maintenant "
+                f"{'masquee(s)' if explicit_exclusion else 'reintegree(s)'} dans les analyses."
+            ),
+        )
+    return redirect(next_url)
 
 
 @require_analysis_access

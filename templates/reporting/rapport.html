@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Rapport Application{% endblock %}
+{% block title %}Rapport{% endblock %}
 {% block content %}
 <style>
   .report-shell { display: grid; gap: 16px; }
@@ -180,7 +180,7 @@
 
 <div class="report-shell">
   <section class="hero">
-    <h1>Rapport de l'etat de l'application</h1>
+    <h1>Rapport de l'application</h1>
     <p>Vue centrale des appels, utilisateurs, bugs, performance horaire et diffusion quotidienne par mail.</p>
   </section>
 
@@ -329,7 +329,7 @@
           <tbody>
             {% for row in report.anomalies.anomaly_rows %}
             <tr class="{% if row.anomaly_label == 'Pas forme' %}anomaly-not-formed{% elif row.anomaly_label == 'Doublon' %}anomaly-duplicate{% else %}anomaly-false-name{% endif %}">
-              <td>{{ row.apprenant_id|default:row.code }}</td>
+              <td>{{ row.apprenant_id|default:"-" }}</td>
               {% if report.anomalies.selected_class.not_formed_count %}
               <td>{% if row.anomaly_label == "Pas forme" %}Pas forme{% endif %}</td>
               {% endif %}

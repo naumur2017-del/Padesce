@@ -36,10 +36,15 @@
   .pagination { display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; margin-top:14px; }
   .pagination-info { color:var(--muted); font-weight:700; }
   .toggle-form { margin:0; }
+  .bulk-toolbar { display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:12px; }
+  .bulk-toolbar .actions { margin-left:auto; }
+  .select-cell { width:44px; text-align:center; }
+  .select-cell input { width:16px; height:16px; }
   @media (max-width: 900px) {
     .filters { grid-template-columns: 1fr; }
     .header { align-items:stretch; }
     .actions { width:100%; }
+    .bulk-toolbar .actions { width:100%; margin-left:0; }
   }
 </style>
 
@@ -119,10 +124,20 @@
       <p>Le statut "Pris en compte" exige une reponse valide, une classe au seuil {{ analysis_threshold_label }}, un numero joignable et aucune exclusion.</p>
     </div>
   </div>
+  <div class="bulk-toolbar">
+    <div class="muted">Selectionne plusieurs lignes pour les masquer ou les reintegrer dans les analyses.</div>
+    <form method="post" action="{% url 'satisfaction_general_toggle_exclusion' %}" id="general-bulk-form" class="actions">
+      {% csrf_token %}
+      <input type="hidden" name="next" value="{{ current_path }}">
+      <button class="btn btn-primary btn-sm" type="submit" name="action" value="exclude">Masquer la selection</button>
+      <button class="btn btn-ghost btn-sm" type="submit" name="action" value="include">Reintegrer la selection</button>
+    </form>
+  </div>
   <div class="table-wrap">
     <table>
       <thead>
         <tr>
+          <th class="select-cell"><input type="checkbox" id="select-all-rows" aria-label="Tout selectionner"></th>
           <th>ApprenantID</th>
           <th>Code</th>
           <th>Apprenant</th>
@@ -139,7 +154,10 @@
       <tbody>
         {% for row in rows %}
           <tr>
-            <td><strong>{{ row.source_apprenant_id|default:row.code|default:"-" }}</strong></td>
+            <td class="select-cell">
+              <input type="checkbox" name="appel_ids" value="{{ row.id }}" form="general-bulk-form" class="js-row-select" aria-label="Selectionner {{ row.nom|default:row.code|default:'la ligne' }}">
+            </td>
+            <td><strong>{{ row.source_apprenant_id|default:"-" }}</strong></td>
             <td>{{ row.code|default:"-" }}</td>
             <td>
               <strong>{{ row.nom|default:"-" }}</strong>
@@ -179,6 +197,7 @@
               <form method="post" action="{% url 'satisfaction_general_toggle_exclusion' %}" class="toggle-form">
                 {% csrf_token %}
                 <input type="hidden" name="appel_id" value="{{ row.id }}">
+                <input type="hidden" name="action" value="{{ row.toggle_action }}">
                 <input type="hidden" name="next" value="{{ current_path }}">
                 <button class="btn {% if row.exclude_from_analysis == 'Oui' %}btn-ghost{% else %}btn-primary{% endif %} btn-sm" type="submit">{{ row.toggle_label }}</button>
               </form>
@@ -189,7 +208,7 @@
           </tr>
         {% empty %}
           <tr>
-            <td colspan="11" class="muted" style="text-align:center;">Aucun apprenant ne correspond aux filtres.</td>
+            <td colspan="12" class="muted" style="text-align:center;">Aucun apprenant ne correspond aux filtres.</td>
           </tr>
         {% endfor %}
       </tbody>
@@ -210,4 +229,24 @@
     </div>
   {% endif %}
 </section>
+<script>
+  (() => {
+    const master = document.getElementById("select-all-rows");
+    if (!master) return;
+    const rowCheckboxes = Array.from(document.querySelectorAll(".js-row-select"));
+    const syncMaster = () => {
+      const checkedCount = rowCheckboxes.filter((checkbox) => checkbox.checked).length;
+      master.checked = rowCheckboxes.length > 0 && checkedCount === rowCheckboxes.length;
+      master.indeterminate = checkedCount > 0 && checkedCount < rowCheckboxes.length;
+    };
+    master.addEventListener("change", () => {
+      rowCheckboxes.forEach((checkbox) => {
+        checkbox.checked = master.checked;
+      });
+      syncMaster();
+    });
+    rowCheckboxes.forEach((checkbox) => checkbox.addEventListener("change", syncMaster));
+    syncMaster();
+  })();
+</script>
 {% endblock %}

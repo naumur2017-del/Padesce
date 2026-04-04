@@ -9,6 +9,7 @@ from django.test import SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 from openpyxl import Workbook
 
+from App_PADESCE.appels.models import Appel
 from App_PADESCE.reporting import app_report, network_excel
 
 
@@ -373,3 +374,50 @@ class ReportEmailDeliveryTests(SimpleTestCase):
 
         self.assertFalse(result["ok"])
         self.assertIn("SMTP auth failed", result["detail"])
+
+
+class ReportAnomalyRowsTests(TestCase):
+    def test_anomaly_rows_use_only_source_apprenant_id(self):
+        not_formed = Appel.objects.create(
+            code="APP-NF",
+            nom="Pas forme",
+            classe_label="CLA001",
+            flag_pas_forme=True,
+            is_active=True,
+        )
+        false_name = Appel.objects.create(
+            code="APP-FN",
+            nom="Faux nom",
+            classe_label="CLA001",
+            flag_faux_nom=True,
+            is_active=True,
+        )
+        duplicate = Appel.objects.create(
+            code="APP-DP",
+            nom="Doublon",
+            classe_label="CLA001",
+            telephone1="690001155",
+            flag_numero_double=True,
+            is_active=True,
+        )
+
+        source_records = {
+            "app-fn": {"apprenant_id": "APPRENANT-002"},
+        }
+
+        not_formed_rows = app_report._build_not_formed_rows(source_records=source_records)
+        false_name_rows = app_report._build_false_name_rows(source_records=source_records)
+        duplicate_rows = app_report._build_duplicate_phone_rows(source_records=source_records)
+
+        self.assertEqual(
+            next(row for row in not_formed_rows if row["call_id"] == not_formed.id)["apprenant_id"],
+            "",
+        )
+        self.assertEqual(
+            next(row for row in false_name_rows if row["call_id"] == false_name.id)["apprenant_id"],
+            "APPRENANT-002",
+        )
+        self.assertEqual(
+            next(row for row in duplicate_rows if row["call_id"] == duplicate.id)["apprenant_id"],
+            "",
+        )
