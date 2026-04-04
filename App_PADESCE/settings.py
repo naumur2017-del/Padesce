@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 
 import importlib.util
 import os
+import tempfile
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 
@@ -320,8 +321,13 @@ if not DEBUG:
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
 # Logging configuration: app + access logs
-LOG_DIR = BASE_DIR / "logs"
-LOG_DIR.mkdir(exist_ok=True)
+LOG_DIR = Path(os.getenv("DJANGO_LOG_DIR", str(BASE_DIR / "logs")))
+try:
+    LOG_DIR.mkdir(parents=True, exist_ok=True)
+except Exception:
+    fallback_dir = Path(tempfile.gettempdir()) / "padesce_logs"
+    fallback_dir.mkdir(parents=True, exist_ok=True)
+    LOG_DIR = fallback_dir
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,

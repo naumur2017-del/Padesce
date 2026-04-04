@@ -646,6 +646,17 @@ def sync_remote_app_env(sftp, *, remote_root: str) -> dict[str, Any]:
         }
 
     existing_content = remote_read_text(sftp, remote_path)
+    if not existing_content.strip():
+        # Le fichier .env.local est absent ou illisible sur le serveur distant.
+        # On refuse de le créer de zéro pour éviter d'écraser la configuration
+        # de production (DATABASE_URL, SECRET_KEY, etc.).
+        return {
+            "written": False,
+            "remote_path": remote_path,
+            "keys": [],
+            "skipped_reason": ".env.local absent ou illisible — ecriture ignoree",
+        }
+
     merged_content = _merge_env_content(existing_content, updates)
     remote_write_text(sftp, remote_path, merged_content)
     return {

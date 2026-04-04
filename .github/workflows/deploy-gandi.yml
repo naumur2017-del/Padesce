@@ -66,6 +66,37 @@ jobs:
           MICROSOFT_TEAMS_DEFAULT_TEAM_ID: adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5
         run: python manage.py check
 
+      - name: Collect static assets
+        env:
+          DJANGO_SECRET_KEY: ${{ secrets.DJANGO_SECRET_KEY }}
+          DJANGO_DEBUG: "False"
+          DJANGO_ALLOWED_HOSTS: call.naumur.com
+          DJANGO_CSRF_TRUSTED_ORIGINS: https://call.naumur.com
+          EMAIL_BACKEND: django.core.mail.backends.smtp.EmailBackend
+          EMAIL_HOST: ${{ secrets.EMAIL_HOST }}
+          EMAIL_PORT: ${{ secrets.EMAIL_PORT }}
+          EMAIL_USE_TLS: ${{ secrets.EMAIL_USE_TLS }}
+          EMAIL_HOST_USER: ${{ secrets.EMAIL_HOST_USER }}
+          EMAIL_HOST_PASSWORD: ${{ secrets.EMAIL_HOST_PASSWORD }}
+          DEFAULT_FROM_EMAIL: ${{ secrets.DEFAULT_FROM_EMAIL }}
+          DEPLOYMENT_REPORT_EMAIL_TO: ${{ secrets.DEPLOYMENT_REPORT_EMAIL_TO }}
+          DEPLOYMENT_EMAIL_BACKEND: django.core.mail.backends.smtp.EmailBackend
+          GANDI_SFTP_HOST: ${{ secrets.GANDI_SFTP_HOST }}
+          GANDI_SFTP_PORT: ${{ secrets.GANDI_SFTP_PORT }}
+          GANDI_SFTP_DOMAIN: call.naumur.com
+          GANDI_SFTP_USERNAME: ${{ secrets.GANDI_SFTP_USERNAME }}
+          GANDI_SFTP_TOKEN: ${{ secrets.GANDI_SFTP_TOKEN }}
+          GANDI_SFTP_REMOTE_PATH: ${{ secrets.GANDI_SFTP_REMOTE_PATH }}
+          GANDI_DEPLOY_VERIFY_URL: https://call.naumur.com
+          GANDI_DEPLOY_INCLUDE_PATHS: App_PADESCE,templates,static,admin,data,manage.py,requirements.txt,Dockerfile,docker-compose.yml,start-command
+          MICROSOFT_GRAPH_CLIENT_ID: b375cd25-86a8-4f59-8d14-10436238957d
+          MICROSOFT_GRAPH_CLIENT_SECRET: ${{ secrets.MICROSOFT_GRAPH_CLIENT_SECRET }}
+          MICROSOFT_GRAPH_TENANT_ID: 2c91375e-f3f5-486e-8fdd-c8273053bd5d
+          MICROSOFT_GRAPH_PRIMARY_DOMAIN: naumur.com
+          MICROSOFT_GRAPH_REDIRECT_URI: https://call.naumur.com/auth/microsoft/callback
+          MICROSOFT_TEAMS_DEFAULT_TEAM_ID: adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5
+        run: python manage.py collectstatic --noinput
+
       - name: Deploy application
         env:
           DJANGO_SECRET_KEY: ${{ secrets.DJANGO_SECRET_KEY }}
