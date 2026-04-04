@@ -208,6 +208,29 @@ DATABASES = {"default": _database_settings_from_env()}
 # Token secret pour le déclenchement automatique des backups (GitHub Actions)
 BACKUP_TRIGGER_TOKEN = os.getenv("BACKUP_TRIGGER_TOKEN", "")
 
+# Microsoft Graph / Teams
+MICROSOFT_GRAPH_TENANT_ID = str(os.getenv("MICROSOFT_GRAPH_TENANT_ID", "") or "").strip()
+MICROSOFT_GRAPH_CLIENT_ID = str(os.getenv("MICROSOFT_GRAPH_CLIENT_ID", "") or "").strip()
+MICROSOFT_GRAPH_CLIENT_SECRET = str(os.getenv("MICROSOFT_GRAPH_CLIENT_SECRET", "") or "").strip()
+MICROSOFT_GRAPH_PRIMARY_DOMAIN = str(os.getenv("MICROSOFT_GRAPH_PRIMARY_DOMAIN", "") or "").strip()
+MICROSOFT_GRAPH_REDIRECT_URI = str(os.getenv("MICROSOFT_GRAPH_REDIRECT_URI", "") or "").strip()
+MICROSOFT_TEAMS_DEFAULT_TEAM_ID = str(os.getenv("MICROSOFT_TEAMS_DEFAULT_TEAM_ID", "") or "").strip()
+PADESCE_DESCENTE_WORKBOOK_PATH = str(os.getenv("PADESCE_DESCENTE_WORKBOOK_PATH", "") or "").strip()
+MICROSOFT_GRAPH_AUTHORITY = (
+    f"https://login.microsoftonline.com/{MICROSOFT_GRAPH_TENANT_ID}"
+    if MICROSOFT_GRAPH_TENANT_ID
+    else ""
+)
+MICROSOFT_GRAPH_CHANNEL_SCOPES = [
+    "openid",
+    "profile",
+    "offline_access",
+    "User.Read",
+    "ChannelMessage.Send",
+    "Team.ReadBasic.All",
+    "Channel.ReadBasic.All",
+]
+
 
 # Password validation
 # https://docs.djangoproject.com/en/6.0/ref/settings/#auth-password-validators

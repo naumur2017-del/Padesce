@@ -277,13 +277,12 @@ def _source_class_apprenant_totals(source_bundle: dict | None) -> dict[str, int]
     return counts
 
 
-def _load_source_class_apprenant_totals(filters: dict[str, str]) -> dict[str, int]:
+def _load_source_bundle(filters: dict[str, str]) -> dict | None:
     source_key = normalize_workbook_source_key(filters.get("source", ""))
     try:
-        source_bundle = build_padesce_source_index(source_key=source_key)
+        return build_padesce_source_index(source_key=source_key)
     except Exception:
-        return {}
-    return _source_class_apprenant_totals(source_bundle)
+        return None
 
 
 def _build_apprenant_row(
@@ -505,12 +504,18 @@ def _build_descente_contacts(
     return _pad_contacts(contacts, limit=limit), actual_count, completed_count
 
 
-def _build_class_link(request, classe: Classe) -> tuple[str, str]:
+def _build_class_link(request, classe: Classe, *, source_bundle: dict | None = None) -> tuple[str, str]:
+    classe_key = normalize_network_lookup(classe.code)
+    source_classe = dict((source_bundle or {}).get("classes", {}).get(classe_key, {}) or {})
+    teams_channel_url = _safe_text(source_classe.get("teams_channel_url"))
+    if teams_channel_url:
+        return teams_channel_url, f"Ouvrir canal Teams {classe.code}"
+
     relative_url = reverse("class_analysis_detail", args=[classe.code])
     build_absolute_uri = getattr(request, "build_absolute_uri", None)
     if callable(build_absolute_uri):
-        return build_absolute_uri(relative_url), f"Ouvrir {classe.code}"
-    return relative_url, f"Ouvrir {classe.code}"
+        return build_absolute_uri(relative_url), f"Ouvrir analyse {classe.code}"
+    return relative_url, f"Ouvrir analyse {classe.code}"
 
 
 def _build_formateur_row(
@@ -518,6 +523,7 @@ def _build_formateur_row(
     classe: Classe,
     *,
     request,
+    source_bundle: dict | None,
     formateur_directory: dict[str, str],
     prestation_calls_cache: dict[int, list[AppelFormateur]],
 ) -> dict:
@@ -533,7 +539,11 @@ def _build_formateur_row(
         prestation_calls_cache=prestation_calls_cache,
         limit=4,
     )
-    class_link_url, class_link_label = _build_class_link(request, classe)
+    class_link_url, class_link_label = _build_class_link(
+        request,
+        classe,
+        source_bundle=source_bundle,
+    )
     prestation = getattr(classe, "prestation", None)
     return {
         "index": index,
@@ -655,7 +665,7 @@ def _mode_payload(mode_id: str, *, rows: list[dict], summary_cards: list[dict], 
             {"key": "index", "label": "#"},
             {"key": "prestation_id", "label": "Prestation ID"},
             {"key": "classe_id", "label": "Classe ID"},
-            {"key": "class_link_label", "label": "Lien de la classe"},
+            {"key": "class_link_label", "label": "Lien du canal"},
             {"key": "beneficiaire_name", "label": "Nom du bénéficiaire"},
             {"key": "prestataire_name", "label": "Nom du prestataire"},
             {"key": "calendar_contacts.0.name", "label": "Nom Formateur N1"},
@@ -691,7 +701,8 @@ def _find_sheet_name(workbook: Workbook, mode_id: str) -> str:
 def build_fast_stats_bundle(request) -> dict:
     filters = _extract_fast_stats_filters(request)
     classes, scope = _resolve_fast_stats_classes(filters)
-    source_class_counts = _load_source_class_apprenant_totals(filters)
+    source_bundle = _load_source_bundle(filters)
+    source_class_counts = _source_class_apprenant_totals(source_bundle)
     formateur_directory = _formateur_directory_by_phone()
     prestation_calls_cache: dict[int, list[AppelFormateur]] = {}
 
@@ -708,6 +719,7 @@ def build_fast_stats_bundle(request) -> dict:
             index,
             classe,
             request=request,
+            source_bundle=source_bundle,
             formateur_directory=formateur_directory,
             prestation_calls_cache=prestation_calls_cache,
         )
@@ -839,7 +851,7 @@ def _write_formateur_sheet(worksheet, mode_payload: dict) -> None:
     worksheet["K2"] = "Selon Descente"
     worksheet["B3"] = "Prestation ID"
     worksheet["C3"] = "Classe ID"
-    worksheet["D3"] = "Lien de la classe"
+    worksheet["D3"] = "Lien du canal"
     worksheet["E3"] = "Nom du Beneficiaire"
     worksheet["F3"] = "Nom du prestataire"
     worksheet["G3"] = "Nom Formateur N1"

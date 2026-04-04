@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import math
+import json
+import os
+import re
 import shutil
 import unicodedata
 from contextlib import contextmanager
@@ -9,6 +12,7 @@ from datetime import datetime
 from functools import lru_cache
 from pathlib import Path
 from typing import Iterator
+from urllib.parse import parse_qs, unquote, urlparse
 
 from django.conf import settings
 from django.http import JsonResponse
@@ -29,6 +33,8 @@ PAGE_SIZE = 20
 CACHE_DIRECTORY = Path(settings.BASE_DIR) / "data" / "network_excel_cache"
 LOCAL_WORKBOOK_COPY = CACHE_DIRECTORY / "network-fichier-consolide.xlsm"
 LOCAL_CUTOFF_WORKBOOK_COPY = CACHE_DIRECTORY / "network-fichier-consolide-cutoff.xlsm"
+DEFAULT_DESCENTE_WORKBOOK_GLOB = "DESCENTES CLASSES*.xlsx"
+DESCENTE_CHANNEL_SNAPSHOT = Path(settings.BASE_DIR) / "data" / "teams_channel_links.json"
 
 
 @dataclass(frozen=True)
@@ -234,6 +240,186 @@ def _sheet_get(row: tuple | list | None, header_lookup: dict[str, int], *headers
     return ""
 
 
+def _sheet_get_first(row: tuple | list | None, raw_header: tuple | list | None, *headers: str) -> str:
+    cells = list(row or [])
+    normalized_targets = {_normalize_lookup(header) for header in headers if header}
+    for index, header_value in enumerate(list(raw_header or [])):
+        if _normalize_lookup(_display_cell(header_value)) not in normalized_targets:
+            continue
+        if index >= len(cells):
+            continue
+        return _display_cell(cells[index])
+    return ""
+
+
+def _resolve_descente_workbook() -> Path | None:
+    configured_path = str(os.getenv("PADESCE_DESCENTE_WORKBOOK_PATH", "") or "").strip()
+    if configured_path:
+        candidate = Path(configured_path).expanduser()
+        if candidate.exists() and candidate.is_file():
+            return candidate
+
+    downloads_dir = Path.home() / "Downloads"
+    if not downloads_dir.exists():
+        return None
+
+    candidates = [
+        item
+        for item in downloads_dir.glob(DEFAULT_DESCENTE_WORKBOOK_GLOB)
+        if item.is_file() and not item.name.startswith("~$")
+    ]
+    if not candidates:
+        return None
+    return max(candidates, key=lambda item: (item.stat().st_mtime_ns, item.name.casefold()))
+
+
+def _extract_teams_channel_metadata(channel_url: str) -> dict[str, str]:
+    raw_url = str(channel_url or "").strip()
+    if not raw_url:
+        return {
+            "channel_url": "",
+            "team_id": "",
+            "tenant_id": "",
+            "channel_id": "",
+        }
+
+    parsed = urlparse(raw_url)
+    query = parse_qs(parsed.query)
+    decoded_path = unquote(parsed.path or "")
+    channel_match = re.search(r"/l/(?:message|channel)/([^/?]+)", decoded_path)
+
+    return {
+        "channel_url": raw_url,
+        "team_id": str((query.get("groupId") or [""])[0] or "").strip(),
+        "tenant_id": str((query.get("tenantId") or [""])[0] or "").strip(),
+        "channel_id": str(unquote(channel_match.group(1)) if channel_match else "").strip(),
+    }
+
+
+def _load_descente_channel_snapshot() -> dict[str, dict]:
+    if not DESCENTE_CHANNEL_SNAPSHOT.exists():
+        return {}
+    try:
+        payload = json.loads(DESCENTE_CHANNEL_SNAPSHOT.read_text(encoding="utf-8"))
+    except (OSError, ValueError, TypeError):
+        return {}
+    if not isinstance(payload, dict):
+        return {}
+    channels = payload.get("classes", payload)
+    if not isinstance(channels, dict):
+        return {}
+    return {
+        _normalize_lookup(key): value
+        for key, value in channels.items()
+        if _normalize_lookup(key) and isinstance(value, dict)
+    }
+
+
+@lru_cache(maxsize=4)
+def _build_descente_channel_index_cached(cache_key: tuple[str, int, str]) -> dict[str, dict]:
+    workbook_path = Path(cache_key[0])
+    workbook = load_workbook(
+        workbook_path,
+        read_only=True,
+        data_only=True,
+        keep_links=False,
+    )
+    try:
+        if "CTR PUB MAN" not in workbook.sheetnames:
+            return {}
+
+        classes: dict[str, dict] = {}
+        rows = workbook["CTR PUB MAN"].iter_rows(values_only=True)
+        raw_header = next(rows, ())
+
+        for row in rows:
+            classe_id = _sheet_get_first(row, raw_header, "CLASSE 1", "Classe 1", "Classe")
+            classe_key = _normalize_lookup(classe_id)
+            channel_url = _sheet_get_first(row, raw_header, "LIEN DU CANAL")
+            if not classe_key or not channel_url:
+                continue
+
+            metadata = _extract_teams_channel_metadata(channel_url)
+            if not metadata["channel_url"]:
+                continue
+
+            channel_name = _sheet_get_first(row, raw_header, "NOM  DU CANAL", "NOM DU CANAL")
+            responsable = _sheet_get_first(
+                row,
+                raw_header,
+                "Responsable ",
+                "Responsable",
+                "RESPONSABLE ",
+                "RESPONSABLE",
+            )
+            controle = _sheet_get_first(
+                row,
+                raw_header,
+                "TYPE  DE CONTRÔLE",
+                "TYPE DE CONTRÔLE",
+            )
+
+            entry = {
+                **metadata,
+                "channel_name": channel_name,
+                "responsable": responsable,
+                "controle_type": controle,
+            }
+
+            bucket = classes.setdefault(
+                classe_key,
+                {
+                    "classe_id": classe_id,
+                    "teams_channel_url": "",
+                    "teams_channel_name": "",
+                    "teams_team_id": "",
+                    "teams_tenant_id": "",
+                    "teams_channel_id": "",
+                    "teams_responsable": "",
+                    "teams_controle_type": "",
+                    "teams_channels": [],
+                    "_seen_urls": set(),
+                },
+            )
+
+            if entry["channel_url"] in bucket["_seen_urls"]:
+                continue
+
+            bucket["_seen_urls"].add(entry["channel_url"])
+            bucket["teams_channels"].append(entry)
+
+            if not bucket["teams_channel_url"]:
+                bucket["teams_channel_url"] = entry["channel_url"]
+                bucket["teams_channel_name"] = entry["channel_name"]
+                bucket["teams_team_id"] = entry["team_id"]
+                bucket["teams_tenant_id"] = entry["tenant_id"]
+                bucket["teams_channel_id"] = entry["channel_id"]
+                bucket["teams_responsable"] = entry["responsable"]
+                bucket["teams_controle_type"] = entry["controle_type"]
+
+        for bucket in classes.values():
+            bucket["teams_channel_count"] = len(bucket["teams_channels"])
+            bucket.pop("_seen_urls", None)
+        return classes
+    finally:
+        workbook.close()
+
+
+def build_descente_channel_index(force_refresh: bool = False) -> dict[str, dict]:
+    workbook_path = _resolve_descente_workbook()
+    if workbook_path is None:
+        return _load_descente_channel_snapshot()
+    workbook_stat = workbook_path.stat()
+    cache_key = (
+        str(workbook_path),
+        workbook_stat.st_size,
+        datetime.fromtimestamp(workbook_stat.st_mtime).isoformat(),
+    )
+    if force_refresh:
+        _build_descente_channel_index_cached.cache_clear()
+    return _build_descente_channel_index_cached(cache_key)
+
+
 def _sheet_page_payload(worksheet, page: int, search: str) -> dict:
     requested_page = max(page, 1)
     search_term = search.strip()
@@ -338,6 +524,7 @@ def _build_padesce_source_index_cached(cache_key: tuple[str, int, str, str]) -> 
         class_inspecteurs: dict[str, dict] = {}
         class_enquetes: dict[str, list[str]] = {}
         duplicate_codes: set[str] = set()
+        descente_channels = build_descente_channel_index()
 
         class_rows = workbook["Classes"].iter_rows(values_only=True)
         class_headers = _sheet_header_lookup(next(class_rows, ()))
@@ -462,6 +649,35 @@ def _build_padesce_source_index_cached(cache_key: tuple[str, int, str, str]) -> 
                 class_enquetes.setdefault(classe_key, [])
                 if enquete_id not in class_enquetes[classe_key]:
                     class_enquetes[classe_key].append(enquete_id)
+
+        for classe_key, descente_info in descente_channels.items():
+            class_bucket = classes_by_id.setdefault(
+                classe_key,
+                {
+                    "classe_id": descente_info.get("classe_id", ""),
+                    "prestation_id": "",
+                    "prestataire": "",
+                    "beneficiaire": "",
+                    "cohorte": "",
+                    "lieu": "",
+                    "ville": "",
+                    "formation": "",
+                    "region": "",
+                    "statut_prestation": "",
+                },
+            )
+            for field in (
+                "teams_channel_url",
+                "teams_channel_name",
+                "teams_team_id",
+                "teams_tenant_id",
+                "teams_channel_id",
+                "teams_responsable",
+                "teams_controle_type",
+                "teams_channel_count",
+                "teams_channels",
+            ):
+                class_bucket[field] = descente_info.get(field, class_bucket.get(field))
 
         apprenant_rows = workbook["Apprenants"].iter_rows(values_only=True)
         apprenant_headers = _sheet_header_lookup(next(apprenant_rows, ()))

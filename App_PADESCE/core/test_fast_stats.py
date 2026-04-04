@@ -25,11 +25,25 @@ from App_PADESCE.formations.models import (
 
 
 class FastStatsTests(TestCase):
+    TEAMS_CHANNEL_URL = (
+        "https://teams.microsoft.com/l/message/"
+        "19:8f5105b22f7c43db9e1c885e84d92c39@thread.tacv2/"
+        "1774516223929?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5"
+        "&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d"
+    )
+
     def setUp(self):
         self.source_index_patcher = patch("App_PADESCE.core.fast_stats.build_padesce_source_index")
         self.mock_build_padesce_source_index = self.source_index_patcher.start()
         self.addCleanup(self.source_index_patcher.stop)
-        self.mock_build_padesce_source_index.return_value = {"records": {}}
+        self.mock_build_padesce_source_index.return_value = {
+            "records": {},
+            "classes": {
+                "cla011": {
+                    "teams_channel_url": self.TEAMS_CHANNEL_URL,
+                }
+            },
+        }
 
         self.user = get_user_model().objects.create_user(
             username="fast-stats-admin",
@@ -165,7 +179,8 @@ class FastStatsTests(TestCase):
         self.assertEqual(apprenant_row["pct_enquetes_label"], "50.00%")
 
         formateur_row = formateur_mode["rows"][0]
-        self.assertEqual(formateur_row["class_link_url"], "https://testserver/classe/CLA011/")
+        self.assertEqual(formateur_row["class_link_url"], self.TEAMS_CHANNEL_URL)
+        self.assertEqual(formateur_row["class_link_label"], "Ouvrir canal Teams CLA011")
         self.assertEqual(formateur_row["beneficiaire_name"], "Beneficiaire Beta")
         self.assertEqual(formateur_row["prestataire_name"], "Prestataire Alpha")
         self.assertEqual(formateur_row["calendar_contacts"][0]["name"], "Formateur Principal")
@@ -198,7 +213,7 @@ class FastStatsTests(TestCase):
 
         self.assertEqual(formateur_sheet["B4"].value, "PRESTA001")
         self.assertEqual(formateur_sheet["C4"].value, "CLA011")
-        self.assertEqual(formateur_sheet["D4"].value, "Ouvrir CLA011")
+        self.assertEqual(formateur_sheet["D4"].value, "Ouvrir canal Teams CLA011")
         self.assertEqual(formateur_sheet["E4"].value, "Beneficiaire Beta")
         self.assertEqual(formateur_sheet["G4"].value, "Formateur Principal")
         self.assertEqual(formateur_sheet["H4"].value, "699100100")
@@ -215,7 +230,7 @@ class FastStatsTests(TestCase):
         self.assertEqual(payload["filters"]["prestataire"], "Prestataire Alpha")
         self.assertTrue(payload["terminated_only"])
         self.assertEqual(self._mode(payload, "apprenant")["rows"][0]["classe_id"], "CLA011")
-        self.assertEqual(self._mode(payload, "formateur")["rows"][0]["class_link_url"], "http://testserver/classe/CLA011/")
+        self.assertEqual(self._mode(payload, "formateur")["rows"][0]["class_link_url"], self.TEAMS_CHANNEL_URL)
 
     def test_build_fast_stats_api_payload_matches_bundle_shape(self):
         payload = build_fast_stats_api_payload(request_like_with_query("prestation=PRESTA001"))
@@ -256,3 +271,12 @@ class FastStatsTests(TestCase):
         self.assertEqual(apprenant_row["pct_appel_termine_label"], "50.00%")
         self.assertEqual(apprenant_row["pct_enquetes_label"], "33.33%")
         self.mock_build_padesce_source_index.assert_called_once_with(source_key="cutoff")
+
+    def test_fast_stats_falls_back_to_internal_analysis_link_without_teams_channel(self):
+        self.mock_build_padesce_source_index.return_value = {"records": {}, "classes": {}}
+
+        payload = build_fast_stats_api_payload(request_like_with_query("prestataire=Prestataire+Alpha"))
+
+        row = self._mode(payload, "formateur")["rows"][0]
+        self.assertEqual(row["class_link_url"], "https://testserver/classe/CLA011/")
+        self.assertEqual(row["class_link_label"], "Ouvrir analyse CLA011")

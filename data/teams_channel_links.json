@@ -1,0 +1,3067 @@
+{
+  "generated_from": "DESCENTES CLASSES workbook snapshot",
+  "classes": {
+    "cla001": {
+      "classe_id": "CLA001",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:06d89b19564f40bfaf429a447ea0ddae@thread.tacv2/1774515512765?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA001_PONTAAH_COOP SYYMK_MINDIF_01",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:06d89b19564f40bfaf429a447ea0ddae@thread.tacv2",
+      "teams_responsable": "",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:06d89b19564f40bfaf429a447ea0ddae@thread.tacv2/1774515512765?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:06d89b19564f40bfaf429a447ea0ddae@thread.tacv2",
+          "channel_name": "CLA001_PONTAAH_COOP SYYMK_MINDIF_01",
+          "responsable": "",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla002": {
+      "classe_id": "CLA002",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:e042d162bad846be8908e8bb27d052cf@thread.tacv2/1774515684332?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA002_PONTAAH_COOP SYYMK_MINDIF_02",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:e042d162bad846be8908e8bb27d052cf@thread.tacv2",
+      "teams_responsable": "FOKAM",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:e042d162bad846be8908e8bb27d052cf@thread.tacv2/1774515684332?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:e042d162bad846be8908e8bb27d052cf@thread.tacv2",
+          "channel_name": "CLA002_PONTAAH_COOP SYYMK_MINDIF_02",
+          "responsable": "FOKAM",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla003": {
+      "classe_id": "CLA003",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:a4d133d5f056420c8f20dd8647f46b04@thread.tacv2/1774516017273?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA003_PONTAAH_WEFN_YAOUNDE_02",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:a4d133d5f056420c8f20dd8647f46b04@thread.tacv2",
+      "teams_responsable": "",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:a4d133d5f056420c8f20dd8647f46b04@thread.tacv2/1774516017273?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:a4d133d5f056420c8f20dd8647f46b04@thread.tacv2",
+          "channel_name": "CLA003_PONTAAH_WEFN_YAOUNDE_02",
+          "responsable": "",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla005": {
+      "classe_id": "CLA005",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:6b86464ce1234e0f8c21038081d5192e@thread.tacv2/1760002296209?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA005_PONTAAH_GIC AGRO KETTY_KOUTABA_01",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:6b86464ce1234e0f8c21038081d5192e@thread.tacv2",
+      "teams_responsable": "FOKAM",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:6b86464ce1234e0f8c21038081d5192e@thread.tacv2/1760002296209?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:6b86464ce1234e0f8c21038081d5192e@thread.tacv2",
+          "channel_name": "CLA005_PONTAAH_GIC AGRO KETTY_KOUTABA_01",
+          "responsable": "FOKAM",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla006": {
+      "classe_id": "CLA006",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:e00c058eff5f4ce9a00b76a9f360d0b8@thread.tacv2/1762422982432?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA006_PONTAAH_WEFN_YAOUNDE_03",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:e00c058eff5f4ce9a00b76a9f360d0b8@thread.tacv2",
+      "teams_responsable": "KAMLEKEU",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:e00c058eff5f4ce9a00b76a9f360d0b8@thread.tacv2/1762422982432?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:e00c058eff5f4ce9a00b76a9f360d0b8@thread.tacv2",
+          "channel_name": "CLA006_PONTAAH_WEFN_YAOUNDE_03",
+          "responsable": "KAMLEKEU",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla007": {
+      "classe_id": "CLA007",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:589f6f24f1fa43448d7ba9d2a4ef1054@thread.tacv2/1762422811257?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA007_PONTAAH_WEFN_NKOLNDONGO_04",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:589f6f24f1fa43448d7ba9d2a4ef1054@thread.tacv2",
+      "teams_responsable": "",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:589f6f24f1fa43448d7ba9d2a4ef1054@thread.tacv2/1762422811257?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:589f6f24f1fa43448d7ba9d2a4ef1054@thread.tacv2",
+          "channel_name": "CLA007_PONTAAH_WEFN_NKOLNDONGO_04",
+          "responsable": "",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla008": {
+      "classe_id": "CLA008",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:2c661f5c3dae4ad18f78db538b331943@thread.tacv2/1762422947183?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA008_PONTAAH_WEFN_NKOLDONGO_05",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:2c661f5c3dae4ad18f78db538b331943@thread.tacv2",
+      "teams_responsable": "KAMLEKEU",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:2c661f5c3dae4ad18f78db538b331943@thread.tacv2/1762422947183?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:2c661f5c3dae4ad18f78db538b331943@thread.tacv2",
+          "channel_name": "CLA008_PONTAAH_WEFN_NKOLDONGO_05",
+          "responsable": "KAMLEKEU",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla010": {
+      "classe_id": "CLA010",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:ec2bb864589c4ad7b68e319aca306d59@thread.tacv2/1761138731892?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA010_PONTAAH_COOP SYYMK_MINDIF_03",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:ec2bb864589c4ad7b68e319aca306d59@thread.tacv2",
+      "teams_responsable": "NOAH FRANCOIS",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:ec2bb864589c4ad7b68e319aca306d59@thread.tacv2/1761138731892?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:ec2bb864589c4ad7b68e319aca306d59@thread.tacv2",
+          "channel_name": "CLA010_PONTAAH_COOP SYYMK_MINDIF_03",
+          "responsable": "NOAH FRANCOIS",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla011": {
+      "classe_id": "CLA011",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:8f5105b22f7c43db9e1c885e84d92c39@thread.tacv2/1774516223929?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA011_IFP-CHEC_GIPA_YAOUNDE_01",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:8f5105b22f7c43db9e1c885e84d92c39@thread.tacv2",
+      "teams_responsable": "ATAH",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:8f5105b22f7c43db9e1c885e84d92c39@thread.tacv2/1774516223929?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:8f5105b22f7c43db9e1c885e84d92c39@thread.tacv2",
+          "channel_name": "CLA011_IFP-CHEC_GIPA_YAOUNDE_01",
+          "responsable": "ATAH",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla012": {
+      "classe_id": "CLA012",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:51378cd33c764a1ebc430f7a2e0b15ac@thread.tacv2/1774516739797?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA012_CODEA IAO_IT KOLA_OBALA_01",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:51378cd33c764a1ebc430f7a2e0b15ac@thread.tacv2",
+      "teams_responsable": "ESSOMBA MVENG",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:51378cd33c764a1ebc430f7a2e0b15ac@thread.tacv2/1774516739797?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:51378cd33c764a1ebc430f7a2e0b15ac@thread.tacv2",
+          "channel_name": "CLA012_CODEA IAO_IT KOLA_OBALA_01",
+          "responsable": "ESSOMBA MVENG",
+          "controle_type": "C1"
+        },
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:f08b141b2bd74bacbc5c75d078384d41@thread.tacv2/1774517171619?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:f08b141b2bd74bacbc5c75d078384d41@thread.tacv2",
+          "channel_name": "CLA012_CODEA IAO_IT KOLA_OBALA_01 BIS",
+          "responsable": "AMOMBE COLLINS",
+          "controle_type": "C1"
+        },
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:b77f21cdff314ad1ae78e00bbdccae2c@thread.tacv2/1774517208508?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d,",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d,",
+          "channel_id": "19:b77f21cdff314ad1ae78e00bbdccae2c@thread.tacv2",
+          "channel_name": "CLA012_CODEA IAO_IT KOLA_OBALA_01 QUATER",
+          "responsable": "",
+          "controle_type": "C1"
+        },
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:81ee81c7ae844956bbcefc510ad722d6@thread.tacv2/1763368288953?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:81ee81c7ae844956bbcefc510ad722d6@thread.tacv2",
+          "channel_name": "CLA012_CODEA IAO_IT KOLA_OBALA_01 TER",
+          "responsable": "HENRI JOACHIM NTOUDA",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 4
+    },
+    "cla013": {
+      "classe_id": "CLA013",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:6bc7a25e1cbb4322b4c02fa25c5e1fd5@thread.tacv2/1774517312817?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA013_CFP MRI_GLOBAL ENERGY_GAROUA_01",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:6bc7a25e1cbb4322b4c02fa25c5e1fd5@thread.tacv2",
+      "teams_responsable": "ESSOMBA MVENG",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:6bc7a25e1cbb4322b4c02fa25c5e1fd5@thread.tacv2/1774517312817?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:6bc7a25e1cbb4322b4c02fa25c5e1fd5@thread.tacv2",
+          "channel_name": "CLA013_CFP MRI_GLOBAL ENERGY_GAROUA_01",
+          "responsable": "ESSOMBA MVENG",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla014": {
+      "classe_id": "CLA014",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:7af2e64776984172a626a71e93e75a68@thread.tacv2/1774517491132?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA014_CADHAC_CAPEF_NKOLNDA_01",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:7af2e64776984172a626a71e93e75a68@thread.tacv2",
+      "teams_responsable": "AMOMBE COLLINS",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:7af2e64776984172a626a71e93e75a68@thread.tacv2/1774517491132?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:7af2e64776984172a626a71e93e75a68@thread.tacv2",
+          "channel_name": "CLA014_CADHAC_CAPEF_NKOLNDA_01",
+          "responsable": "AMOMBE COLLINS",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla015": {
+      "classe_id": "CLA015",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:93c62d98d7f7407b824bb690b026754d@thread.tacv2/1774517572681?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA015_CFP-EN_GOLD_FOUMBAN_01",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:93c62d98d7f7407b824bb690b026754d@thread.tacv2",
+      "teams_responsable": "MALA EDZANA",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:93c62d98d7f7407b824bb690b026754d@thread.tacv2/1774517572681?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:93c62d98d7f7407b824bb690b026754d@thread.tacv2",
+          "channel_name": "CLA015_CFP-EN_GOLD_FOUMBAN_01",
+          "responsable": "MALA EDZANA",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla017": {
+      "classe_id": "CLA017",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:df84f01ebace4af78a97dcd00726a618@thread.tacv2/1768905903885?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA017_NAT_ASENIA_YAOUNDE_05",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:df84f01ebace4af78a97dcd00726a618@thread.tacv2",
+      "teams_responsable": "HENRI JOACHIM NTOUDA",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:df84f01ebace4af78a97dcd00726a618@thread.tacv2/1768905903885?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:df84f01ebace4af78a97dcd00726a618@thread.tacv2",
+          "channel_name": "CLA017_NAT_ASENIA_YAOUNDE_05",
+          "responsable": "HENRI JOACHIM NTOUDA",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla018": {
+      "classe_id": "CLA018",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:c44ec87254054617b2944fb320901299@thread.tacv2/1765964733520?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA018_NAT_ASENIA_BASTOS ECOLE PUBLIQUE_06",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:c44ec87254054617b2944fb320901299@thread.tacv2",
+      "teams_responsable": "Glenn Chris YOMBI",
+      "teams_controle_type": "C2",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:c44ec87254054617b2944fb320901299@thread.tacv2/1765964733520?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:c44ec87254054617b2944fb320901299@thread.tacv2",
+          "channel_name": "CLA018_NAT_ASENIA_BASTOS ECOLE PUBLIQUE_06",
+          "responsable": "Glenn Chris YOMBI",
+          "controle_type": "C2"
+        },
+        {
+          "channel_url": "https://teams.microsoft.com/l/channel/19%3Ac44ec87254054617b2944fb320901299%40thread.tacv2/CLA018_NAT_ASENIA_BASTOS%20ECOLE%20PUBLIQUE_06?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:c44ec87254054617b2944fb320901299@thread.tacv2",
+          "channel_name": "CLA018_NAT_ASENIA_BASTOS ECOLE PUBLIQUE_06",
+          "responsable": "Glenn Chris YOMBI",
+          "controle_type": "EVA"
+        }
+      ],
+      "teams_channel_count": 2
+    },
+    "cla019": {
+      "classe_id": "CLA019",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:8dfbb19fc3ac46ee90392725af34a00c@thread.tacv2/1765964702457?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA019_034_NAT_ASENIA_DOUALA_08_09",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:8dfbb19fc3ac46ee90392725af34a00c@thread.tacv2",
+      "teams_responsable": "TANA",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:8dfbb19fc3ac46ee90392725af34a00c@thread.tacv2/1765964702457?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:8dfbb19fc3ac46ee90392725af34a00c@thread.tacv2",
+          "channel_name": "CLA019_034_NAT_ASENIA_DOUALA_08_09",
+          "responsable": "TANA",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla020": {
+      "classe_id": "CLA020",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:532a5ab01cf64767b68bb4194623670e@thread.tacv2/1769159518949?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA020_025_033_NAT_ASENIA_FOUDA_02_03_04",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:532a5ab01cf64767b68bb4194623670e@thread.tacv2",
+      "teams_responsable": "Mbombo Soultan",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:532a5ab01cf64767b68bb4194623670e@thread.tacv2/1769159518949?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:532a5ab01cf64767b68bb4194623670e@thread.tacv2",
+          "channel_name": "CLA020_025_033_NAT_ASENIA_FOUDA_02_03_04",
+          "responsable": "Mbombo Soultan",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla021": {
+      "classe_id": "CLA021",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:2e26668753104ee8a69809849320c2c2@thread.tacv2/1774517991992?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA021_MOORE_GIPEC_BASTOS_01",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:2e26668753104ee8a69809849320c2c2@thread.tacv2",
+      "teams_responsable": "HENRI JOACHIM NTOUDA",
+      "teams_controle_type": "C2",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:2e26668753104ee8a69809849320c2c2@thread.tacv2/1774517991992?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:2e26668753104ee8a69809849320c2c2@thread.tacv2",
+          "channel_name": "CLA021_MOORE_GIPEC_BASTOS_01",
+          "responsable": "HENRI JOACHIM NTOUDA",
+          "controle_type": "C2"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla022": {
+      "classe_id": "CLA022",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:b986b11f5c3548dea80ca0c53682da4f@thread.tacv2/1774518112510?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA022_BBV_BELLE ETOILE_BAFOUSSAM_01",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:b986b11f5c3548dea80ca0c53682da4f@thread.tacv2",
+      "teams_responsable": "HENRI JOACHIM NTOUDA",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:b986b11f5c3548dea80ca0c53682da4f@thread.tacv2/1774518112510?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:b986b11f5c3548dea80ca0c53682da4f@thread.tacv2",
+          "channel_name": "CLA022_BBV_BELLE ETOILE_BAFOUSSAM_01",
+          "responsable": "HENRI JOACHIM NTOUDA",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla023": {
+      "classe_id": "CLA023",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:7b69cb60cd8e40eea9b6621614c19332@thread.tacv2/1774518195902?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA023_BBV_BELLE ETOILE_BAFOUSSAM_02",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:7b69cb60cd8e40eea9b6621614c19332@thread.tacv2",
+      "teams_responsable": "",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:7b69cb60cd8e40eea9b6621614c19332@thread.tacv2/1774518195902?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:7b69cb60cd8e40eea9b6621614c19332@thread.tacv2",
+          "channel_name": "CLA023_BBV_BELLE ETOILE_BAFOUSSAM_02",
+          "responsable": "",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla024": {
+      "classe_id": "CLA024",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:480df5bc7f34435abe1586319e23e4a7@thread.tacv2/1765871381049?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA024_AMIFO_PROMI CIG_TIKO_01",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:480df5bc7f34435abe1586319e23e4a7@thread.tacv2",
+      "teams_responsable": "ATAH NKE",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:480df5bc7f34435abe1586319e23e4a7@thread.tacv2/1765871381049?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:480df5bc7f34435abe1586319e23e4a7@thread.tacv2",
+          "channel_name": "CLA024_AMIFO_PROMI CIG_TIKO_01",
+          "responsable": "ATAH NKE",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla026": {
+      "classe_id": "CLA026",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:ead3e8eb1e4341c6808469de5ed18a9e@thread.tacv2/1769071427370?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA026_AMIFO_WEBALEPCO_KUMBA_02",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:ead3e8eb1e4341c6808469de5ed18a9e@thread.tacv2",
+      "teams_responsable": "",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:ead3e8eb1e4341c6808469de5ed18a9e@thread.tacv2/1769071427370?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:ead3e8eb1e4341c6808469de5ed18a9e@thread.tacv2",
+          "channel_name": "CLA026_AMIFO_WEBALEPCO_KUMBA_02",
+          "responsable": "",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla027": {
+      "classe_id": "CLA027",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:9c66366509b14866add92f580fc2d462@thread.tacv2/1768838016642?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA027_NAT_ASENIA_BASTOS_07",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:9c66366509b14866add92f580fc2d462@thread.tacv2",
+      "teams_responsable": "AMOMBE COLLINS",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:9c66366509b14866add92f580fc2d462@thread.tacv2/1768838016642?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:9c66366509b14866add92f580fc2d462@thread.tacv2",
+          "channel_name": "CLA027_NAT_ASENIA_BASTOS_07",
+          "responsable": "AMOMBE COLLINS",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla028": {
+      "classe_id": "CLA028",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:507a5ce1dedf49469b897a88707bc89e@thread.tacv2/1763368378479?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA028_CODEA IAO_AEJT CAM_OBALA_01",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:507a5ce1dedf49469b897a88707bc89e@thread.tacv2",
+      "teams_responsable": "ESSOMBA MVENG",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:507a5ce1dedf49469b897a88707bc89e@thread.tacv2/1763368378479?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:507a5ce1dedf49469b897a88707bc89e@thread.tacv2",
+          "channel_name": "CLA028_CODEA IAO_AEJT CAM_OBALA_01",
+          "responsable": "ESSOMBA MVENG",
+          "controle_type": "C1"
+        },
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:3dfd31cb13ad4dc49fc6a51380134169@thread.tacv2/1774518417316?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:3dfd31cb13ad4dc49fc6a51380134169@thread.tacv2",
+          "channel_name": "CLA028_CODEA-IAO_AEJT CAM_OBALA_01",
+          "responsable": "",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 2
+    },
+    "cla029": {
+      "classe_id": "CLA029",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:62489c6071084acd929398cee84f12c3@thread.tacv2/1767971755359?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA029_EPAB_CAPEF_BINGUELA_01",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:62489c6071084acd929398cee84f12c3@thread.tacv2",
+      "teams_responsable": "ESSOMBA MVENG",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:62489c6071084acd929398cee84f12c3@thread.tacv2/1767971755359?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:62489c6071084acd929398cee84f12c3@thread.tacv2",
+          "channel_name": "CLA029_EPAB_CAPEF_BINGUELA_01",
+          "responsable": "ESSOMBA MVENG",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla031": {
+      "classe_id": "CLA031",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:c699270aaaaf44f2bd9185f8aa545ca6@thread.tacv2/1768995607107?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA031_EPAB_CAPEF_BAMENDA_03",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:c699270aaaaf44f2bd9185f8aa545ca6@thread.tacv2",
+      "teams_responsable": "ESSOMBA MVENG",
+      "teams_controle_type": "EVA",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:c699270aaaaf44f2bd9185f8aa545ca6@thread.tacv2/1768995607107?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:c699270aaaaf44f2bd9185f8aa545ca6@thread.tacv2",
+          "channel_name": "CLA031_EPAB_CAPEF_BAMENDA_03",
+          "responsable": "ESSOMBA MVENG",
+          "controle_type": "EVA"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla034": {
+      "classe_id": "CLA034",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:76cedee430c24e53a09167e5501575fd@thread.tacv2/1769077361247?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA034_NAT_ASENIA_DOUALA_09",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:76cedee430c24e53a09167e5501575fd@thread.tacv2",
+      "teams_responsable": "HENRI JOACHIM NTOUDA",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:76cedee430c24e53a09167e5501575fd@thread.tacv2/1769077361247?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:76cedee430c24e53a09167e5501575fd@thread.tacv2",
+          "channel_name": "CLA034_NAT_ASENIA_DOUALA_09",
+          "responsable": "HENRI JOACHIM NTOUDA",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla036": {
+      "classe_id": "CLA036",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:83dcb4aa106349f4a6391a3ac328d671@thread.tacv2/1774518937301?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA036_ISMTA_AFRAJEPE_FOUMBAN_01",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:83dcb4aa106349f4a6391a3ac328d671@thread.tacv2",
+      "teams_responsable": "",
+      "teams_controle_type": "EVA",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:83dcb4aa106349f4a6391a3ac328d671@thread.tacv2/1774518937301?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:83dcb4aa106349f4a6391a3ac328d671@thread.tacv2",
+          "channel_name": "CLA036_ISMTA_AFRAJEPE_FOUMBAN_01",
+          "responsable": "",
+          "controle_type": "EVA"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla037": {
+      "classe_id": "CLA037",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:7870ce7d88da41178ab6fdbeb21d75fe@thread.tacv2/1769438768554?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA037_FAMEAC_MARDOCK_NGAOUNDERE_01",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:7870ce7d88da41178ab6fdbeb21d75fe@thread.tacv2",
+      "teams_responsable": "MBOMBO Soultan",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:7870ce7d88da41178ab6fdbeb21d75fe@thread.tacv2/1769438768554?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:7870ce7d88da41178ab6fdbeb21d75fe@thread.tacv2",
+          "channel_name": "CLA037_FAMEAC_MARDOCK_NGAOUNDERE_01",
+          "responsable": "MBOMBO Soultan",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla038": {
+      "classe_id": "CLA038",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:92221dfcc23e48f9ace6fbd3955971db@thread.tacv2/1768898578510?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA038_RINOO_DIGITAL RENTER INC_BUEA_01",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:92221dfcc23e48f9ace6fbd3955971db@thread.tacv2",
+      "teams_responsable": "MBOMBO Soultan",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:92221dfcc23e48f9ace6fbd3955971db@thread.tacv2/1768898578510?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:92221dfcc23e48f9ace6fbd3955971db@thread.tacv2",
+          "channel_name": "CLA038_RINOO_DIGITAL RENTER INC_BUEA_01",
+          "responsable": "MBOMBO Soultan",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla039": {
+      "classe_id": "CLA039",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:4dbfc573cd234f2e893cbdf128ae5aac@thread.tacv2/1770369104243?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA039_RINOO_MIKE YANOU FOUNDATION_BUEA_01",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:4dbfc573cd234f2e893cbdf128ae5aac@thread.tacv2",
+      "teams_responsable": "AMOMBE COLLINS",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:4dbfc573cd234f2e893cbdf128ae5aac@thread.tacv2/1770369104243?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:4dbfc573cd234f2e893cbdf128ae5aac@thread.tacv2",
+          "channel_name": "CLA039_RINOO_MIKE YANOU FOUNDATION_BUEA_01",
+          "responsable": "AMOMBE COLLINS",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla040": {
+      "classe_id": "CLA040",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:9ba3f0fc5c0c46e7a088f6af733a9d9a@thread.tacv2/1768551132070?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA040_DREAM_GIC JAECIK_BERTOUA_01",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:9ba3f0fc5c0c46e7a088f6af733a9d9a@thread.tacv2",
+      "teams_responsable": "AMOMBE COLLINS",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:9ba3f0fc5c0c46e7a088f6af733a9d9a@thread.tacv2/1768551132070?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:9ba3f0fc5c0c46e7a088f6af733a9d9a@thread.tacv2",
+          "channel_name": "CLA040_DREAM_GIC JAECIK_BERTOUA_01",
+          "responsable": "AMOMBE COLLINS",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla042": {
+      "classe_id": "CLA042",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:2e98690f3bcd49538e304144cd5dc5f7@thread.tacv2/1774519378014?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA042_CFEM_TPA_YAGOUA_01",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:2e98690f3bcd49538e304144cd5dc5f7@thread.tacv2",
+      "teams_responsable": "AMOMBE COLLINS",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:2e98690f3bcd49538e304144cd5dc5f7@thread.tacv2/1774519378014?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:2e98690f3bcd49538e304144cd5dc5f7@thread.tacv2",
+          "channel_name": "CLA042_CFEM_TPA_YAGOUA_01",
+          "responsable": "AMOMBE COLLINS",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla049": {
+      "classe_id": "CLA049",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:2660e3ebe22d48abaabe469256be69a3@thread.tacv2/1762934502927?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA049_CADHAC_CAPEF_AMBAM_02",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:2660e3ebe22d48abaabe469256be69a3@thread.tacv2",
+      "teams_responsable": "AMOMBE COLLINS",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:2660e3ebe22d48abaabe469256be69a3@thread.tacv2/1762934502927?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:2660e3ebe22d48abaabe469256be69a3@thread.tacv2",
+          "channel_name": "CLA049_CADHAC_CAPEF_AMBAM_02",
+          "responsable": "AMOMBE COLLINS",
+          "controle_type": "C1"
+        },
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:b872397fc764433cbfad0fe7f3656981@thread.tacv2/1763019816550?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:b872397fc764433cbfad0fe7f3656981@thread.tacv2",
+          "channel_name": "CLA049_CADHAC_CAPEF_YAOUNDE_2",
+          "responsable": "NOAH FRANCOIS",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 2
+    },
+    "cla056": {
+      "classe_id": "CLA056",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:5a816e0fb8234ca1a0e92cdedd87c6f4@thread.tacv2/1763367229413?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA056_CADHAC_CPAID_EBOLOWA_01",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:5a816e0fb8234ca1a0e92cdedd87c6f4@thread.tacv2",
+      "teams_responsable": "KAMLEKEU",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:5a816e0fb8234ca1a0e92cdedd87c6f4@thread.tacv2/1763367229413?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:5a816e0fb8234ca1a0e92cdedd87c6f4@thread.tacv2",
+          "channel_name": "CLA056_CADHAC_CPAID_EBOLOWA_01",
+          "responsable": "KAMLEKEU",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla060": {
+      "classe_id": "CLA060",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:8f97acc5793c4fdbb40ec69db2979a87@thread.tacv2/1769158828992?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA060_CFEM_IRISA_YAGOUA_04",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:8f97acc5793c4fdbb40ec69db2979a87@thread.tacv2",
+      "teams_responsable": "ESSOMBA MVENG",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:8f97acc5793c4fdbb40ec69db2979a87@thread.tacv2/1769158828992?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:8f97acc5793c4fdbb40ec69db2979a87@thread.tacv2",
+          "channel_name": "CLA060_CFEM_IRISA_YAGOUA_04",
+          "responsable": "ESSOMBA MVENG",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla061": {
+      "classe_id": "CLA061",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:6ae44cda78b34b20954c2931c8e78e34@thread.tacv2/1768555786637?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA061_CFEM_IRISA_YAGOUA_05",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:6ae44cda78b34b20954c2931c8e78e34@thread.tacv2",
+      "teams_responsable": "",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:6ae44cda78b34b20954c2931c8e78e34@thread.tacv2/1768555786637?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:6ae44cda78b34b20954c2931c8e78e34@thread.tacv2",
+          "channel_name": "CLA061_CFEM_IRISA_YAGOUA_05",
+          "responsable": "",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla069": {
+      "classe_id": "CLA069",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:35f589cd56bb4e458b8e4af2080f9b81@thread.tacv2/1769688845325?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA069_CFEM_IRISA_GUEME_13",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:35f589cd56bb4e458b8e4af2080f9b81@thread.tacv2",
+      "teams_responsable": "",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:35f589cd56bb4e458b8e4af2080f9b81@thread.tacv2/1769688845325?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:35f589cd56bb4e458b8e4af2080f9b81@thread.tacv2",
+          "channel_name": "CLA069_CFEM_IRISA_GUEME_13",
+          "responsable": "",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla077": {
+      "classe_id": "CLA077",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:fe205a8bc8ae40f2a761fd9777b71a24@thread.tacv2/1768205251167?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA077_CFEM_CAMEROUN_YAGOUA_ 01",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:fe205a8bc8ae40f2a761fd9777b71a24@thread.tacv2",
+      "teams_responsable": "MALA EDZANA",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:fe205a8bc8ae40f2a761fd9777b71a24@thread.tacv2/1768205251167?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:fe205a8bc8ae40f2a761fd9777b71a24@thread.tacv2",
+          "channel_name": "CLA077_CFEM_CAMEROUN_YAGOUA_ 01",
+          "responsable": "MALA EDZANA",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla079": {
+      "classe_id": "CLA079",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:33527fe85f924dc1b62e07b9da959eb9@thread.tacv2/1769427300645?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA079_CFEM_CAMEROUN_YAGOUA_03",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:33527fe85f924dc1b62e07b9da959eb9@thread.tacv2",
+      "teams_responsable": "",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:33527fe85f924dc1b62e07b9da959eb9@thread.tacv2/1769427300645?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:33527fe85f924dc1b62e07b9da959eb9@thread.tacv2",
+          "channel_name": "CLA079_CFEM_CAMEROUN_YAGOUA_03",
+          "responsable": "",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla080": {
+      "classe_id": "CLA080",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:39ce7f890c6e42fb8475b0f855d45a7d@thread.tacv2/1768553286647?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA080_CFEM_ERENCAM_YAGOUA_01",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:39ce7f890c6e42fb8475b0f855d45a7d@thread.tacv2",
+      "teams_responsable": "ATAH",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:39ce7f890c6e42fb8475b0f855d45a7d@thread.tacv2/1768553286647?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:39ce7f890c6e42fb8475b0f855d45a7d@thread.tacv2",
+          "channel_name": "CLA080_CFEM_ERENCAM_YAGOUA_01",
+          "responsable": "ATAH",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla081": {
+      "classe_id": "CLA081",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:4ba2be2ccc764edba9fbbe8bfbdec0c5@thread.tacv2/1768209015103?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA081_CFEM_ERENCAM_YAGOUA_02",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:4ba2be2ccc764edba9fbbe8bfbdec0c5@thread.tacv2",
+      "teams_responsable": "",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:4ba2be2ccc764edba9fbbe8bfbdec0c5@thread.tacv2/1768209015103?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:4ba2be2ccc764edba9fbbe8bfbdec0c5@thread.tacv2",
+          "channel_name": "CLA081_CFEM_ERENCAM_YAGOUA_02",
+          "responsable": "",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla093": {
+      "classe_id": "CLA093",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:80a438ba72ba46c0908df678f7ba1620@thread.tacv2/1769087079478?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA093_CADHAC_CAPEF_BAMENDA_11",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:80a438ba72ba46c0908df678f7ba1620@thread.tacv2",
+      "teams_responsable": "",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:80a438ba72ba46c0908df678f7ba1620@thread.tacv2/1769087079478?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:80a438ba72ba46c0908df678f7ba1620@thread.tacv2",
+          "channel_name": "CLA093_CADHAC_CAPEF_BAMENDA_11",
+          "responsable": "",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla094": {
+      "classe_id": "CLA094",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:5cf274365f0d44bfb548a24bd858af35@thread.tacv2/1769003605694?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA094_CADHAC_CAPEF_BINGUELA_10",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:5cf274365f0d44bfb548a24bd858af35@thread.tacv2",
+      "teams_responsable": "",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:5cf274365f0d44bfb548a24bd858af35@thread.tacv2/1769003605694?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:5cf274365f0d44bfb548a24bd858af35@thread.tacv2",
+          "channel_name": "CLA094_CADHAC_CAPEF_BINGUELA_10",
+          "responsable": "",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla108": {
+      "classe_id": "CLA108",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:36ec981dda834f27809a4b4951b78e0e@thread.tacv2/1768910340285?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA108_CEW_COPROGENY_NGOULEMNKO_02",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:36ec981dda834f27809a4b4951b78e0e@thread.tacv2",
+      "teams_responsable": "",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:36ec981dda834f27809a4b4951b78e0e@thread.tacv2/1768910340285?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:36ec981dda834f27809a4b4951b78e0e@thread.tacv2",
+          "channel_name": "CLA108_CEW_COPROGENY_NGOULEMNKO_02",
+          "responsable": "",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla095": {
+      "classe_id": "CLA095",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:8307f5774cc04f7d91e0eddfe274e153@thread.tacv2/1769171662200?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA095_CADHAC_CAPEF_DOUALA_12 BIS",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:8307f5774cc04f7d91e0eddfe274e153@thread.tacv2",
+      "teams_responsable": "",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:8307f5774cc04f7d91e0eddfe274e153@thread.tacv2/1769171662200?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:8307f5774cc04f7d91e0eddfe274e153@thread.tacv2",
+          "channel_name": "CLA095_CADHAC_CAPEF_DOUALA_12 BIS",
+          "responsable": "",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla099": {
+      "classe_id": "CLA099",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:ddfd290aa600434b9f120dd8930851d4@thread.tacv2/1769089580401?tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d&groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&parentMessageId=1769089580401&teamName=PADESCE%20-%20MCDC%20Suivi%20Suivi%20%26%20V%C3%A9rification%20Formations%20%E2%80%93%20Fen%C3%AAtres%202%20%26%203&channelName=CLA099_CADHAC_CAPEF_BUEA_22&createdTime=1769089580401",
+      "teams_channel_name": "CLA099_CADHAC_CAPEF_BUEA_22",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:ddfd290aa600434b9f120dd8930851d4@thread.tacv2",
+      "teams_responsable": "MBOMBO Soultan",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:ddfd290aa600434b9f120dd8930851d4@thread.tacv2/1769089580401?tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d&groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&parentMessageId=1769089580401&teamName=PADESCE%20-%20MCDC%20Suivi%20Suivi%20%26%20V%C3%A9rification%20Formations%20%E2%80%93%20Fen%C3%AAtres%202%20%26%203&channelName=CLA099_CADHAC_CAPEF_BUEA_22&createdTime=1769089580401",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:ddfd290aa600434b9f120dd8930851d4@thread.tacv2",
+          "channel_name": "CLA099_CADHAC_CAPEF_BUEA_22",
+          "responsable": "MBOMBO Soultan",
+          "controle_type": "C1"
+        },
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:ddfd290aa600434b9f120dd8930851d4@thread.tacv2/1769089580401?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:ddfd290aa600434b9f120dd8930851d4@thread.tacv2",
+          "channel_name": "CLA099_CADHAC_CAPEF_BUEA_22",
+          "responsable": "MBOMBO Soultan",
+          "controle_type": "EVA"
+        }
+      ],
+      "teams_channel_count": 2
+    },
+    "cla102": {
+      "classe_id": "CLA102",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:97d1557aaaef4e388c60457473da056f@thread.tacv2/1769153363666?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA102_CADHAC_CAPEF_SANTCHOU_21",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:97d1557aaaef4e388c60457473da056f@thread.tacv2",
+      "teams_responsable": "",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:97d1557aaaef4e388c60457473da056f@thread.tacv2/1769153363666?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:97d1557aaaef4e388c60457473da056f@thread.tacv2",
+          "channel_name": "CLA102_CADHAC_CAPEF_SANTCHOU_21",
+          "responsable": "",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla105": {
+      "classe_id": "CLA105",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:ae86d53fca674ceca9b921260f8519c8@thread.tacv2/1768812249203?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA105_CADHAC_CAPEF_ZOETELE_18",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:ae86d53fca674ceca9b921260f8519c8@thread.tacv2",
+      "teams_responsable": "AMOMBE COLLINS",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:ae86d53fca674ceca9b921260f8519c8@thread.tacv2/1768812249203?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:ae86d53fca674ceca9b921260f8519c8@thread.tacv2",
+          "channel_name": "CLA105_CADHAC_CAPEF_ZOETELE_18",
+          "responsable": "AMOMBE COLLINS",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla106": {
+      "classe_id": "CLA106",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:3d9e2629ac094b9093e23f4cd271fe93@thread.tacv2/1769156571136?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA106_CADHAC_CAPEF_ABONG MBANG_20",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:3d9e2629ac094b9093e23f4cd271fe93@thread.tacv2",
+      "teams_responsable": "Glenn Chris YOMBI",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:3d9e2629ac094b9093e23f4cd271fe93@thread.tacv2/1769156571136?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:3d9e2629ac094b9093e23f4cd271fe93@thread.tacv2",
+          "channel_name": "CLA106_CADHAC_CAPEF_ABONG MBANG_20",
+          "responsable": "Glenn Chris YOMBI",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla107": {
+      "classe_id": "CLA107",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:012078181cfe4f6681bf5a0cea1bf42c@thread.tacv2/1768899411167?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA107_KOS_COPROGENY_NGOULEMNKO_01",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:012078181cfe4f6681bf5a0cea1bf42c@thread.tacv2",
+      "teams_responsable": "MALA EDZANA",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:012078181cfe4f6681bf5a0cea1bf42c@thread.tacv2/1768899411167?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:012078181cfe4f6681bf5a0cea1bf42c@thread.tacv2",
+          "channel_name": "CLA107_KOS_COPROGENY_NGOULEMNKO_01",
+          "responsable": "MALA EDZANA",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla110": {
+      "classe_id": "CLA110",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:bfc3287bb99440d89e23c6cde842203c@thread.tacv2/1768917615835?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA110_WBE_CCMTB_GAROUA_01",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:bfc3287bb99440d89e23c6cde842203c@thread.tacv2",
+      "teams_responsable": "ESSOMBA MVENG",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:bfc3287bb99440d89e23c6cde842203c@thread.tacv2/1768917615835?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:bfc3287bb99440d89e23c6cde842203c@thread.tacv2",
+          "channel_name": "CLA110_WBE_CCMTB_GAROUA_01",
+          "responsable": "ESSOMBA MVENG",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla125": {
+      "classe_id": "CLA125",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:858d6cd231d44193af2cee2f0e91da57@thread.tacv2/1769687040977?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA125_126_CEW_ASSOC AFEA_ASSOC GPS_EBOLOWA_01",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:858d6cd231d44193af2cee2f0e91da57@thread.tacv2",
+      "teams_responsable": "",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:858d6cd231d44193af2cee2f0e91da57@thread.tacv2/1769687040977?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:858d6cd231d44193af2cee2f0e91da57@thread.tacv2",
+          "channel_name": "CLA125_126_CEW_ASSOC AFEA_ASSOC GPS_EBOLOWA_01",
+          "responsable": "",
+          "controle_type": "C1"
+        },
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:858d6cd231d44193af2cee2f0e91da57@thread.tacv2/1769507572240?tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d&groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&parentMessageId=1769507572240&teamName=PADESCE%20-%20MCDC%20Suivi%20Suivi%20%26%20V%C3%A9rification%20Formations%20%E2%80%93%20Fen%C3%AAtres%202%20%26%203&channelName=CLA125_126_CEW_ASSOC%20AFEA_ASSOC%20GPS_EBOLOWA_01&createdTime=1769507572240",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:858d6cd231d44193af2cee2f0e91da57@thread.tacv2",
+          "channel_name": "CLA125_126_CEW_ASSOC AFEA_ASSOC GPS_EBOLOWA_01",
+          "responsable": "KAMLEKEU",
+          "controle_type": "C2"
+        },
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:12bf36e0364f45c79d17e210cecbc882@thread.tacv2/1773929531981?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:12bf36e0364f45c79d17e210cecbc882@thread.tacv2",
+          "channel_name": "CLA125_CEW_ASSOC AFEA_EBOLOWA_01",
+          "responsable": "",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 3
+    },
+    "cla128": {
+      "classe_id": "CLA128",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:6097e3990e4b48c7a3e6998494159766@thread.tacv2/1769676163100?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA128_CEW_GIC BIYEYEM_EBOLOWA_01",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:6097e3990e4b48c7a3e6998494159766@thread.tacv2",
+      "teams_responsable": "",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:6097e3990e4b48c7a3e6998494159766@thread.tacv2/1769676163100?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:6097e3990e4b48c7a3e6998494159766@thread.tacv2",
+          "channel_name": "CLA128_CEW_GIC BIYEYEM_EBOLOWA_01",
+          "responsable": "",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla131": {
+      "classe_id": "CLA131",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:3816681d6738416ead2d6c62110550bc@thread.tacv2/1769589799345?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA131_FLAG_GASFC_MBALMAYO_01",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:3816681d6738416ead2d6c62110550bc@thread.tacv2",
+      "teams_responsable": "",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:3816681d6738416ead2d6c62110550bc@thread.tacv2/1769589799345?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:3816681d6738416ead2d6c62110550bc@thread.tacv2",
+          "channel_name": "CLA131_FLAG_GASFC_MBALMAYO_01",
+          "responsable": "",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla132": {
+      "classe_id": "CLA132",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:b7fa3d5a367b400f904d4402d7957cf9@thread.tacv2/1769762709091?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA132_FLAG_GASFC_MBALMAYO_02",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:b7fa3d5a367b400f904d4402d7957cf9@thread.tacv2",
+      "teams_responsable": "",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:b7fa3d5a367b400f904d4402d7957cf9@thread.tacv2/1769762709091?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:b7fa3d5a367b400f904d4402d7957cf9@thread.tacv2",
+          "channel_name": "CLA132_FLAG_GASFC_MBALMAYO_02",
+          "responsable": "",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla159": {
+      "classe_id": "CLA159",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:b7a2ecfe67b94686ad681e4a306a417b@thread.tacv2/1772717673268?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA159_UPECA_LYKOFFSCOOP_BUEA_01",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:b7a2ecfe67b94686ad681e4a306a417b@thread.tacv2",
+      "teams_responsable": "ATAH",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:b7a2ecfe67b94686ad681e4a306a417b@thread.tacv2/1772717673268?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:b7a2ecfe67b94686ad681e4a306a417b@thread.tacv2",
+          "channel_name": "CLA159_UPECA_LYKOFFSCOOP_BUEA_01",
+          "responsable": "ATAH",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla161": {
+      "classe_id": "CLA161",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:4eb7a93cec444bf3ba1541940a844cab@thread.tacv2/1770279759438?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA161 _ UPECA _ MAICACOOP _MUYUKA_01",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:4eb7a93cec444bf3ba1541940a844cab@thread.tacv2",
+      "teams_responsable": "MALA EDZANA",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:4eb7a93cec444bf3ba1541940a844cab@thread.tacv2/1770279759438?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:4eb7a93cec444bf3ba1541940a844cab@thread.tacv2",
+          "channel_name": "CLA161 _ UPECA _ MAICACOOP _MUYUKA_01",
+          "responsable": "MALA EDZANA",
+          "controle_type": "C1"
+        },
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:002f2af5f6444cbeb03a9ef8034b554d@thread.tacv2/1770898933234?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:002f2af5f6444cbeb03a9ef8034b554d@thread.tacv2",
+          "channel_name": "CLA161_UPECA_MAICAFCOOP_MUYUKA_01",
+          "responsable": "",
+          "controle_type": "C1"
+        },
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:210b9c5409674becb363bc0029965dda@thread.tacv2/1770367284559?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:210b9c5409674becb363bc0029965dda@thread.tacv2",
+          "channel_name": "CLA161_UPECA_MAICAFCOOP_MUYUKA_01 BIS",
+          "responsable": "",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 3
+    },
+    "cla163": {
+      "classe_id": "CLA163",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:866bcbff0b3e4d5db5af03952ffe82c4@thread.tacv2/1772699582289?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA163_UPECA_ASRACOOP-BOO_MUYUKA_01",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:866bcbff0b3e4d5db5af03952ffe82c4@thread.tacv2",
+      "teams_responsable": "TANA",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:866bcbff0b3e4d5db5af03952ffe82c4@thread.tacv2/1772699582289?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:866bcbff0b3e4d5db5af03952ffe82c4@thread.tacv2",
+          "channel_name": "CLA163_UPECA_ASRACOOP-BOO_MUYUKA_01",
+          "responsable": "TANA",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla165": {
+      "classe_id": "CLA165",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:ba584fe80024400e81cd4b10bc833d5a@thread.tacv2/1772701213480?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA165_UPECA_MUNYENGE FARMERS_BUEA_01",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:ba584fe80024400e81cd4b10bc833d5a@thread.tacv2",
+      "teams_responsable": "",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:ba584fe80024400e81cd4b10bc833d5a@thread.tacv2/1772701213480?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:ba584fe80024400e81cd4b10bc833d5a@thread.tacv2",
+          "channel_name": "CLA165_UPECA_MUNYENGE FARMERS_BUEA_01",
+          "responsable": "",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla166": {
+      "classe_id": "CLA166",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:b384efb8cd5b4fe59dad3d1b4b60cd36@thread.tacv2/1772712269657?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA166_UPECA_MUNYENGE FARMERS_BUEA_02",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:b384efb8cd5b4fe59dad3d1b4b60cd36@thread.tacv2",
+      "teams_responsable": "",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:b384efb8cd5b4fe59dad3d1b4b60cd36@thread.tacv2/1772712269657?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:b384efb8cd5b4fe59dad3d1b4b60cd36@thread.tacv2",
+          "channel_name": "CLA166_UPECA_MUNYENGE FARMERS_BUEA_02",
+          "responsable": "",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla169": {
+      "classe_id": "CLA169",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:c548c0b7b0ef46a4bf1c1ba5bdf8e31f@thread.tacv2/1769850916976?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA169_UPECA_MENTIFAM GIC_MUYUKA_01",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:c548c0b7b0ef46a4bf1c1ba5bdf8e31f@thread.tacv2",
+      "teams_responsable": "TANA",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:c548c0b7b0ef46a4bf1c1ba5bdf8e31f@thread.tacv2/1769850916976?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:c548c0b7b0ef46a4bf1c1ba5bdf8e31f@thread.tacv2",
+          "channel_name": "CLA169_UPECA_MENTIFAM GIC_MUYUKA_01",
+          "responsable": "TANA",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla173": {
+      "classe_id": "CLA173",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:bee2357f4b8e406691492ae6ca0f17f1@thread.tacv2/1769761506935?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA173_UPECA_MUCEFCOOP_MUYUKA_03",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:bee2357f4b8e406691492ae6ca0f17f1@thread.tacv2",
+      "teams_responsable": "ATAH",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:bee2357f4b8e406691492ae6ca0f17f1@thread.tacv2/1769761506935?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:bee2357f4b8e406691492ae6ca0f17f1@thread.tacv2",
+          "channel_name": "CLA173_UPECA_MUCEFCOOP_MUYUKA_03",
+          "responsable": "ATAH",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla174": {
+      "classe_id": "CLA174",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:bf41d08eb1464a6a92d3eea794237fa1@thread.tacv2/1769505795266?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA174_UPECA_EYF_MUYUKA_01",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:bf41d08eb1464a6a92d3eea794237fa1@thread.tacv2",
+      "teams_responsable": "TANA",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:bf41d08eb1464a6a92d3eea794237fa1@thread.tacv2/1769505795266?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:bf41d08eb1464a6a92d3eea794237fa1@thread.tacv2",
+          "channel_name": "CLA174_UPECA_EYF_MUYUKA_01",
+          "responsable": "TANA",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla176": {
+      "classe_id": "CLA176",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:95a5c611bf8e4059ae569ddd96a71443@thread.tacv2/1770364541396?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA176_SA-KUMBA_ELENA NGO_MAMFE_01",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:95a5c611bf8e4059ae569ddd96a71443@thread.tacv2",
+      "teams_responsable": "NOAH FRANCOIS",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:95a5c611bf8e4059ae569ddd96a71443@thread.tacv2/1770364541396?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:95a5c611bf8e4059ae569ddd96a71443@thread.tacv2",
+          "channel_name": "CLA176_SA-KUMBA_ELENA NGO_MAMFE_01",
+          "responsable": "NOAH FRANCOIS",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla177": {
+      "classe_id": "CLA177",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:1128a71c424d4fa7b97910eb889faba9@thread.tacv2/1770300619484?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA177_SA-KUMBA_ELENA NGO_MAMFE_02",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:1128a71c424d4fa7b97910eb889faba9@thread.tacv2",
+      "teams_responsable": "",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:1128a71c424d4fa7b97910eb889faba9@thread.tacv2/1770300619484?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:1128a71c424d4fa7b97910eb889faba9@thread.tacv2",
+          "channel_name": "CLA177_SA-KUMBA_ELENA NGO_MAMFE_02",
+          "responsable": "",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla178": {
+      "classe_id": "CLA178",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:1429253496f74736989537b01d97ae2a@thread.tacv2/1772800230524?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA178_SA-KUMBA_CPMS COOP_MUYUKA_01",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:1429253496f74736989537b01d97ae2a@thread.tacv2",
+      "teams_responsable": "",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:1429253496f74736989537b01d97ae2a@thread.tacv2/1772800230524?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:1429253496f74736989537b01d97ae2a@thread.tacv2",
+          "channel_name": "CLA178_SA-KUMBA_CPMS COOP_MUYUKA_01",
+          "responsable": "",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla179": {
+      "classe_id": "CLA179",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:e48fb4b2f7f2476a96444881440f14f7@thread.tacv2/1772797062438?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA179_ SA-KUMBA _ CPMS COOP _MUYUKA_02",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:e48fb4b2f7f2476a96444881440f14f7@thread.tacv2",
+      "teams_responsable": "NOAH FRANCOIS",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:e48fb4b2f7f2476a96444881440f14f7@thread.tacv2/1772797062438?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:e48fb4b2f7f2476a96444881440f14f7@thread.tacv2",
+          "channel_name": "CLA179_ SA-KUMBA _ CPMS COOP _MUYUKA_02",
+          "responsable": "NOAH FRANCOIS",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla180": {
+      "classe_id": "CLA180",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:bd61f4a9ee8642d1a9a7ef1b38ef5e35@thread.tacv2/1770902317580?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA180_SA-KUMBA_HAPPY FARMERS CIG_TIKO_01",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:bd61f4a9ee8642d1a9a7ef1b38ef5e35@thread.tacv2",
+      "teams_responsable": "MALA EDZANA",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:bd61f4a9ee8642d1a9a7ef1b38ef5e35@thread.tacv2/1770902317580?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:bd61f4a9ee8642d1a9a7ef1b38ef5e35@thread.tacv2",
+          "channel_name": "CLA180_SA-KUMBA_HAPPY FARMERS CIG_TIKO_01",
+          "responsable": "MALA EDZANA",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla181": {
+      "classe_id": "CLA181",
+      "teams_channel_url": "https://teams.microsoft.com/l/channel/19%3Aa418f60e8e7f42f991dfadea6144b017%40thread.tacv2/CLA181_BMB_YAD%20CONSTRUCTION_OBILI_01?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA181_BMB_YAD CONSTRUCTION_OBILI_01",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:a418f60e8e7f42f991dfadea6144b017@thread.tacv2",
+      "teams_responsable": "",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/channel/19%3Aa418f60e8e7f42f991dfadea6144b017%40thread.tacv2/CLA181_BMB_YAD%20CONSTRUCTION_OBILI_01?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:a418f60e8e7f42f991dfadea6144b017@thread.tacv2",
+          "channel_name": "CLA181_BMB_YAD CONSTRUCTION_OBILI_01",
+          "responsable": "",
+          "controle_type": "C1"
+        },
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:6e79e3bdd8f84c8199ba363fe1a4c9e7@thread.tacv2/1769184992134?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:6e79e3bdd8f84c8199ba363fe1a4c9e7@thread.tacv2",
+          "channel_name": "CLA181_BMB_YAD CONSTRUCTION_OBILI_01 BIS",
+          "responsable": "ESSOMBA MVENG",
+          "controle_type": "C1"
+        },
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:1d001954876842738d0491b284f7bb73@thread.tacv2/1769182059854?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:1d001954876842738d0491b284f7bb73@thread.tacv2",
+          "channel_name": "CLA181_BMB_YAD CONSTRUCTION_OBILI_01 TER",
+          "responsable": "",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 3
+    },
+    "cla182": {
+      "classe_id": "CLA182",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:9a1c97b65ad545a3a7cb66fd9eeb5281@thread.tacv2/1769762876889?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA182_UPECA_BCIG_BUEA_01",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:9a1c97b65ad545a3a7cb66fd9eeb5281@thread.tacv2",
+      "teams_responsable": "NOAH FRANCOIS",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:9a1c97b65ad545a3a7cb66fd9eeb5281@thread.tacv2/1769762876889?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:9a1c97b65ad545a3a7cb66fd9eeb5281@thread.tacv2",
+          "channel_name": "CLA182_UPECA_BCIG_BUEA_01",
+          "responsable": "NOAH FRANCOIS",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla183": {
+      "classe_id": "CLA183",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:3d7a80ea077940b9a58af57b2805a02c@thread.tacv2/1771062891075?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA183_UPECA_EKONAFCOOP-BOD_MUYUKA_01",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:3d7a80ea077940b9a58af57b2805a02c@thread.tacv2",
+      "teams_responsable": "NOAH FRANCOIS",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:3d7a80ea077940b9a58af57b2805a02c@thread.tacv2/1771062891075?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:3d7a80ea077940b9a58af57b2805a02c@thread.tacv2",
+          "channel_name": "CLA183_UPECA_EKONAFCOOP-BOD_MUYUKA_01",
+          "responsable": "NOAH FRANCOIS",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla184": {
+      "classe_id": "CLA184",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:4be55704250b47c5a2bf39353dce1cbe@thread.tacv2/1770972432525?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA184_UPECA_EKONAFCOOP-BOD_MUYUKA_02",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:4be55704250b47c5a2bf39353dce1cbe@thread.tacv2",
+      "teams_responsable": "",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:4be55704250b47c5a2bf39353dce1cbe@thread.tacv2/1770972432525?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:4be55704250b47c5a2bf39353dce1cbe@thread.tacv2",
+          "channel_name": "CLA184_UPECA_EKONAFCOOP-BOD_MUYUKA_02",
+          "responsable": "",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla185": {
+      "classe_id": "CLA185",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:1aaf108abea4400d8e856caf00be6bf5@thread.tacv2/1769590709929?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA185_IFPECIS-CAM_ONGOLA_WARDA_02",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:1aaf108abea4400d8e856caf00be6bf5@thread.tacv2",
+      "teams_responsable": "AMOMBE COLLINS",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:1aaf108abea4400d8e856caf00be6bf5@thread.tacv2/1769590709929?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:1aaf108abea4400d8e856caf00be6bf5@thread.tacv2",
+          "channel_name": "CLA185_IFPECIS-CAM_ONGOLA_WARDA_02",
+          "responsable": "AMOMBE COLLINS",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla186": {
+      "classe_id": "CLA186",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:03f39d32707141049edd5868e3e5b18a@thread.tacv2/1769502567955?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA186_187_IFPECIS-CAM_ONGOLA_YAOUNDE_01_02",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:03f39d32707141049edd5868e3e5b18a@thread.tacv2",
+      "teams_responsable": "",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:03f39d32707141049edd5868e3e5b18a@thread.tacv2/1769502567955?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:03f39d32707141049edd5868e3e5b18a@thread.tacv2",
+          "channel_name": "CLA186_187_IFPECIS-CAM_ONGOLA_YAOUNDE_01_02",
+          "responsable": "",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla188": {
+      "classe_id": "CLA188",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:faa771eaf0a046fba95c4a846879a568@thread.tacv2/1769505438203?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA188_CODEA IAO_GREEN FARM_OBALA_01",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:faa771eaf0a046fba95c4a846879a568@thread.tacv2",
+      "teams_responsable": "ESSOMBA MVENG",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:faa771eaf0a046fba95c4a846879a568@thread.tacv2/1769505438203?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:faa771eaf0a046fba95c4a846879a568@thread.tacv2",
+          "channel_name": "CLA188_CODEA IAO_GREEN FARM_OBALA_01",
+          "responsable": "ESSOMBA MVENG",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla189": {
+      "classe_id": "CLA189",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:e4faa893485a4a248ba3dd7bb7b51de3@thread.tacv2/1770023891761?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA189_CODEA IAO_GREEN FARM_OBALA_02",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:e4faa893485a4a248ba3dd7bb7b51de3@thread.tacv2",
+      "teams_responsable": "TANA",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:e4faa893485a4a248ba3dd7bb7b51de3@thread.tacv2/1770023891761?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:e4faa893485a4a248ba3dd7bb7b51de3@thread.tacv2",
+          "channel_name": "CLA189_CODEA IAO_GREEN FARM_OBALA_02",
+          "responsable": "TANA",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla190": {
+      "classe_id": "CLA190",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:63b9070c5f76468aa9c2454dc03c7a0a@thread.tacv2/1770367783221?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA190_TAF_OMIA_YAOUNDE_01",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:63b9070c5f76468aa9c2454dc03c7a0a@thread.tacv2",
+      "teams_responsable": "",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:63b9070c5f76468aa9c2454dc03c7a0a@thread.tacv2/1770367783221?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:63b9070c5f76468aa9c2454dc03c7a0a@thread.tacv2",
+          "channel_name": "CLA190_TAF_OMIA_YAOUNDE_01",
+          "responsable": "",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla191": {
+      "classe_id": "CLA191",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:0290caa04623449c8556f2b303cfbe00@thread.tacv2/1770364258133?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA191_MUCOTECH_OMEGA_BATOURI_01",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:0290caa04623449c8556f2b303cfbe00@thread.tacv2",
+      "teams_responsable": "Glenn Chris YOMBI A MOUDON",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:0290caa04623449c8556f2b303cfbe00@thread.tacv2/1770364258133?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:0290caa04623449c8556f2b303cfbe00@thread.tacv2",
+          "channel_name": "CLA191_MUCOTECH_OMEGA_BATOURI_01",
+          "responsable": "Glenn Chris YOMBI A MOUDON",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla193": {
+      "classe_id": "CLA193",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:bd5f2d5a9b5f44a18e74b37ded9c1e06@thread.tacv2/1770377511485?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA193_CODEA-IAO_GPIM_MATOMB_02",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:bd5f2d5a9b5f44a18e74b37ded9c1e06@thread.tacv2",
+      "teams_responsable": "",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:bd5f2d5a9b5f44a18e74b37ded9c1e06@thread.tacv2/1770377511485?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:bd5f2d5a9b5f44a18e74b37ded9c1e06@thread.tacv2",
+          "channel_name": "CLA193_CODEA-IAO_GPIM_MATOMB_02",
+          "responsable": "",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla199": {
+      "classe_id": "CLA199",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:af1511c0b4f343a0b2b6db0395fa4b68@thread.tacv2/1770885722879?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA199_MBIAKOP_GIC FEMMES LEADERS_NGOULMEKONG_01",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:af1511c0b4f343a0b2b6db0395fa4b68@thread.tacv2",
+      "teams_responsable": "AMOMBE COLLINS",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:af1511c0b4f343a0b2b6db0395fa4b68@thread.tacv2/1770885722879?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:af1511c0b4f343a0b2b6db0395fa4b68@thread.tacv2",
+          "channel_name": "CLA199_MBIAKOP_GIC FEMMES LEADERS_NGOULMEKONG_01",
+          "responsable": "AMOMBE COLLINS",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla200": {
+      "classe_id": "CLA200",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:3de039b7a1c14f40ad3b7908cdb23f23@thread.tacv2/1770976855268?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA200_CFPBPS SOA_BMB NEW AFRICA_OBILI_01",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:3de039b7a1c14f40ad3b7908cdb23f23@thread.tacv2",
+      "teams_responsable": "",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:3de039b7a1c14f40ad3b7908cdb23f23@thread.tacv2/1770976855268?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:3de039b7a1c14f40ad3b7908cdb23f23@thread.tacv2",
+          "channel_name": "CLA200_CFPBPS SOA_BMB NEW AFRICA_OBILI_01",
+          "responsable": "",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla203": {
+      "classe_id": "CLA203",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:76cc7eff47f44c79a29b998fd39da1a8@thread.tacv2/1770369493805?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA203_JPNIL_SYNPCE_YAOUNDE_01",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:76cc7eff47f44c79a29b998fd39da1a8@thread.tacv2",
+      "teams_responsable": "KAMLEKEU",
+      "teams_controle_type": "EVA",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:76cc7eff47f44c79a29b998fd39da1a8@thread.tacv2/1770369493805?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:76cc7eff47f44c79a29b998fd39da1a8@thread.tacv2",
+          "channel_name": "CLA203_JPNIL_SYNPCE_YAOUNDE_01",
+          "responsable": "KAMLEKEU",
+          "controle_type": "EVA"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla205": {
+      "classe_id": "CLA205",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:5634cb4912a24383833a832ca5dd37e6@thread.tacv2/1771835794006?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA205_CIR_EZIMAD_DOUALA_02",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:5634cb4912a24383833a832ca5dd37e6@thread.tacv2",
+      "teams_responsable": "TANA",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:5634cb4912a24383833a832ca5dd37e6@thread.tacv2/1771835794006?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:5634cb4912a24383833a832ca5dd37e6@thread.tacv2",
+          "channel_name": "CLA205_CIR_EZIMAD_DOUALA_02",
+          "responsable": "TANA",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla206": {
+      "classe_id": "CLA206",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:6e1685f3c88f433aa2e77638b4e94a44@thread.tacv2/1770211403178?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA206_CIR_EZIMAD_DOUALA_03",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:6e1685f3c88f433aa2e77638b4e94a44@thread.tacv2",
+      "teams_responsable": "",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:6e1685f3c88f433aa2e77638b4e94a44@thread.tacv2/1770211403178?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:6e1685f3c88f433aa2e77638b4e94a44@thread.tacv2",
+          "channel_name": "CLA206_CIR_EZIMAD_DOUALA_03",
+          "responsable": "",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla211": {
+      "classe_id": "CLA211",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:fb8b18dff37841dbb41e8872c5f06717@thread.tacv2/1770119474978?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA211_PAARDIC_SOCOSIAGRI_ESEKA_01",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:fb8b18dff37841dbb41e8872c5f06717@thread.tacv2",
+      "teams_responsable": "KAMLEKEU",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:fb8b18dff37841dbb41e8872c5f06717@thread.tacv2/1770119474978?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:fb8b18dff37841dbb41e8872c5f06717@thread.tacv2",
+          "channel_name": "CLA211_PAARDIC_SOCOSIAGRI_ESEKA_01",
+          "responsable": "KAMLEKEU",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla216": {
+      "classe_id": "CLA216",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:acedd90cdf6c4fac8f9d9b147a903bf5@thread.tacv2/1770219765872?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA216_PAARDIC_GIC MVANGA_AYOS_01",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:acedd90cdf6c4fac8f9d9b147a903bf5@thread.tacv2",
+      "teams_responsable": "MBOMBO SOULTAN",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:acedd90cdf6c4fac8f9d9b147a903bf5@thread.tacv2/1770219765872?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:acedd90cdf6c4fac8f9d9b147a903bf5@thread.tacv2",
+          "channel_name": "CLA216_PAARDIC_GIC MVANGA_AYOS_01",
+          "responsable": "MBOMBO SOULTAN",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla218": {
+      "classe_id": "CLA218",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:e116952141dd4eb7b2b7e63ff1a47507@thread.tacv2/1770886631692?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA218_219_PADIUM_SCO COTON DE GAZAWA_MAROUA_02_03",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:e116952141dd4eb7b2b7e63ff1a47507@thread.tacv2",
+      "teams_responsable": "NOAH FRANCOIS",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:e116952141dd4eb7b2b7e63ff1a47507@thread.tacv2/1770886631692?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:e116952141dd4eb7b2b7e63ff1a47507@thread.tacv2",
+          "channel_name": "CLA218_219_PADIUM_SCO COTON DE GAZAWA_MAROUA_02_03",
+          "responsable": "NOAH FRANCOIS",
+          "controle_type": "C1"
+        },
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:1c3acffcd0ce4e5ea543209496590011@thread.tacv2/1770885778376?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:1c3acffcd0ce4e5ea543209496590011@thread.tacv2",
+          "channel_name": "CLA218_PADIUM_SCOOP COTON DE GAZAWA_MAROUA_02",
+          "responsable": "",
+          "controle_type": "C1"
+        },
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:a195ac86315b4b2fbad547e73adf0677@thread.tacv2/1770985615792?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:a195ac86315b4b2fbad547e73adf0677@thread.tacv2",
+          "channel_name": "CLA218_PADIUM_SCOOPS COTON DE GAZAWA_MAROUA_02 BIS",
+          "responsable": "MBOMBO Soultan",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 3
+    },
+    "cla221": {
+      "classe_id": "CLA221",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:2df0fdfc7f914eb593bbc260a40aa513@thread.tacv2/1771318969408?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA221_225_PADIUM_KAMKAMA_NARRAL _MAROUA_01_01",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:2df0fdfc7f914eb593bbc260a40aa513@thread.tacv2",
+      "teams_responsable": "AMOMBE COLLINS",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:2df0fdfc7f914eb593bbc260a40aa513@thread.tacv2/1771318969408?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:2df0fdfc7f914eb593bbc260a40aa513@thread.tacv2",
+          "channel_name": "CLA221_225_PADIUM_KAMKAMA_NARRAL _MAROUA_01_01",
+          "responsable": "AMOMBE COLLINS",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla222": {
+      "classe_id": "CLA222",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:a07c6e0932d24464b3c5ceb712dce3c8@thread.tacv2/1771489262706?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA222_PADIUM_GIC MIAPAL_MAROUA_01",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:a07c6e0932d24464b3c5ceb712dce3c8@thread.tacv2",
+      "teams_responsable": "",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:a07c6e0932d24464b3c5ceb712dce3c8@thread.tacv2/1771489262706?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:a07c6e0932d24464b3c5ceb712dce3c8@thread.tacv2",
+          "channel_name": "CLA222_PADIUM_GIC MIAPAL_MAROUA_01",
+          "responsable": "",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla224": {
+      "classe_id": "CLA224",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:3fbfaef01345448d81582b37524fd16a@thread.tacv2/1771505098606?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA224_PADIUM_KAOUTAL NARROUBE_MAROUA_02",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:3fbfaef01345448d81582b37524fd16a@thread.tacv2",
+      "teams_responsable": "Glenn Chris YOMBI",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:3fbfaef01345448d81582b37524fd16a@thread.tacv2/1771505098606?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:3fbfaef01345448d81582b37524fd16a@thread.tacv2",
+          "channel_name": "CLA224_PADIUM_KAOUTAL NARROUBE_MAROUA_02",
+          "responsable": "Glenn Chris YOMBI",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla225": {
+      "classe_id": "CLA225",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:e8e63eb5d44b49b5a8fb3e6ddb8ef543@thread.tacv2/1771407845454?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA225_PADIUM_NARRAL BODOUM_MAROUA_01",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:e8e63eb5d44b49b5a8fb3e6ddb8ef543@thread.tacv2",
+      "teams_responsable": "",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:e8e63eb5d44b49b5a8fb3e6ddb8ef543@thread.tacv2/1771407845454?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:e8e63eb5d44b49b5a8fb3e6ddb8ef543@thread.tacv2",
+          "channel_name": "CLA225_PADIUM_NARRAL BODOUM_MAROUA_01",
+          "responsable": "",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla226": {
+      "classe_id": "CLA226",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:0b1b0e675d944cc89b690be130f69b79@thread.tacv2/1770462788072?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA226_PADIUM_REWBE TIDDAL_MAROUA_01",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:0b1b0e675d944cc89b690be130f69b79@thread.tacv2",
+      "teams_responsable": "",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:0b1b0e675d944cc89b690be130f69b79@thread.tacv2/1770462788072?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:0b1b0e675d944cc89b690be130f69b79@thread.tacv2",
+          "channel_name": "CLA226_PADIUM_REWBE TIDDAL_MAROUA_01",
+          "responsable": "",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla227": {
+      "classe_id": "CLA227",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:ce2091916adb45c495c9110cfd6ec732@thread.tacv2/1771498791156?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA227_233_FECS_EZIMAD_DOUALA_01_07",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:ce2091916adb45c495c9110cfd6ec732@thread.tacv2",
+      "teams_responsable": "Glenn Chris YOMBI A MOUDON",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:ce2091916adb45c495c9110cfd6ec732@thread.tacv2/1771498791156?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:ce2091916adb45c495c9110cfd6ec732@thread.tacv2",
+          "channel_name": "CLA227_233_FECS_EZIMAD_DOUALA_01_07",
+          "responsable": "Glenn Chris YOMBI A MOUDON",
+          "controle_type": "C1"
+        },
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:1ab4fffdf10f4c10bdf56456b6d6cd5c@thread.tacv2/1769685890353?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:1ab4fffdf10f4c10bdf56456b6d6cd5c@thread.tacv2",
+          "channel_name": "CLA227_FECS_EZIMAD_DOUALA_01",
+          "responsable": "Glenn Chris YOMBI A MOUDON",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 2
+    },
+    "cla230": {
+      "classe_id": "CLA230",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:b806f2f19f144cb2b9e7c83115f28cae@thread.tacv2/1771498986690?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA230_232_233_FECS_EZIMAD_DOUALA_04_06_07",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:b806f2f19f144cb2b9e7c83115f28cae@thread.tacv2",
+      "teams_responsable": "Glenn Chris YOMBI A MOUDON",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:b806f2f19f144cb2b9e7c83115f28cae@thread.tacv2/1771498986690?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:b806f2f19f144cb2b9e7c83115f28cae@thread.tacv2",
+          "channel_name": "CLA230_232_233_FECS_EZIMAD_DOUALA_04_06_07",
+          "responsable": "Glenn Chris YOMBI A MOUDON",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla234": {
+      "classe_id": "CLA234",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:4f8becda352444c6bc2570842a372144@thread.tacv2/1771409281819?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA234_FECS_EZIMAD_DOUALA_08",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:4f8becda352444c6bc2570842a372144@thread.tacv2",
+      "teams_responsable": "Glenn Chris YOMBI A MOUDON",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:4f8becda352444c6bc2570842a372144@thread.tacv2/1771409281819?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:4f8becda352444c6bc2570842a372144@thread.tacv2",
+          "channel_name": "CLA234_FECS_EZIMAD_DOUALA_08",
+          "responsable": "Glenn Chris YOMBI A MOUDON",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla243": {
+      "classe_id": "CLA243",
+      "teams_channel_url": "https://teams.microsoft.com/l/channel/19%3A2cbf7c801ea54d9bbd60d2c5ded2ae15%40thread.tacv2/CLA243_CLA246_VIPOD_EZIMAD_DOUALA_01_04?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA243_CLA246_VIPOD_EZIMAD_DOUALA_01_04",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:2cbf7c801ea54d9bbd60d2c5ded2ae15@thread.tacv2",
+      "teams_responsable": "Glenn Chris YOMBI A MOUDON",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/channel/19%3A2cbf7c801ea54d9bbd60d2c5ded2ae15%40thread.tacv2/CLA243_CLA246_VIPOD_EZIMAD_DOUALA_01_04?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:2cbf7c801ea54d9bbd60d2c5ded2ae15@thread.tacv2",
+          "channel_name": "CLA243_CLA246_VIPOD_EZIMAD_DOUALA_01_04",
+          "responsable": "Glenn Chris YOMBI A MOUDON",
+          "controle_type": "C1"
+        },
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:3740ec85fcc744a483aa540d825484c6@thread.tacv2/1770282648107?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:3740ec85fcc744a483aa540d825484c6@thread.tacv2",
+          "channel_name": "CLA243_VIPOD_EZIMAD_DOUALA_01",
+          "responsable": "Glenn Chris YOMBI A MOUDON",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 2
+    },
+    "cla244": {
+      "classe_id": "CLA244",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:550ec09c629142acac17c91d1751a187@thread.tacv2/1771939597867?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA244_245_247_VIPOD_EZIMAD_DOUALA_02_03_05",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:550ec09c629142acac17c91d1751a187@thread.tacv2",
+      "teams_responsable": "Glenn Chris YOMBI A MOUDON",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:550ec09c629142acac17c91d1751a187@thread.tacv2/1771939597867?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:550ec09c629142acac17c91d1751a187@thread.tacv2",
+          "channel_name": "CLA244_245_247_VIPOD_EZIMAD_DOUALA_02_03_05",
+          "responsable": "Glenn Chris YOMBI A MOUDON",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla248": {
+      "classe_id": "CLA248",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:daff43678175458ab68593dc4fa26ee9@thread.tacv2/1771231549552?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA248_PADIUM_SOCOODJARENGOL_MAROUA_01",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:daff43678175458ab68593dc4fa26ee9@thread.tacv2",
+      "teams_responsable": "",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:daff43678175458ab68593dc4fa26ee9@thread.tacv2/1771231549552?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:daff43678175458ab68593dc4fa26ee9@thread.tacv2",
+          "channel_name": "CLA248_PADIUM_SOCOODJARENGOL_MAROUA_01",
+          "responsable": "",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla249": {
+      "classe_id": "CLA249",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:624ccbdff2f1442680026af4d3e6b3c0@thread.tacv2/1771254641175?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA249_EFC_SYNPCE_ODZA_01",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:624ccbdff2f1442680026af4d3e6b3c0@thread.tacv2",
+      "teams_responsable": "",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:624ccbdff2f1442680026af4d3e6b3c0@thread.tacv2/1771254641175?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:624ccbdff2f1442680026af4d3e6b3c0@thread.tacv2",
+          "channel_name": "CLA249_EFC_SYNPCE_ODZA_01",
+          "responsable": "",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla250": {
+      "classe_id": "CLA250",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:f7da32751a3b459da8f3e52e7a15c7f7@thread.tacv2/1771574267778?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA250_LIDAF_TEAM_DOUALA_01",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:f7da32751a3b459da8f3e52e7a15c7f7@thread.tacv2",
+      "teams_responsable": "Glenn Chris YOMBI",
+      "teams_controle_type": "EVA",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:f7da32751a3b459da8f3e52e7a15c7f7@thread.tacv2/1771574267778?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:f7da32751a3b459da8f3e52e7a15c7f7@thread.tacv2",
+          "channel_name": "CLA250_LIDAF_TEAM_DOUALA_01",
+          "responsable": "Glenn Chris YOMBI",
+          "controle_type": "EVA"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla251": {
+      "classe_id": "CLA251",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:d44cafa3c29d4be9a0d1bdf939760447@thread.tacv2/1771576252390?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA251_LIDAF_DIDDI_DOUALA_01",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:d44cafa3c29d4be9a0d1bdf939760447@thread.tacv2",
+      "teams_responsable": "AMOMBE COLLINS",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:d44cafa3c29d4be9a0d1bdf939760447@thread.tacv2/1771576252390?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:d44cafa3c29d4be9a0d1bdf939760447@thread.tacv2",
+          "channel_name": "CLA251_LIDAF_DIDDI_DOUALA_01",
+          "responsable": "AMOMBE COLLINS",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla252": {
+      "classe_id": "CLA252",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:e15d0573efe0461f802d4a4f7db04a90@thread.tacv2/1772706275109?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA252_AGROFISH_AVANÇONS_ANGOSSAS_01",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:e15d0573efe0461f802d4a4f7db04a90@thread.tacv2",
+      "teams_responsable": "HENRI JOACHIM NTOUDA",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:e15d0573efe0461f802d4a4f7db04a90@thread.tacv2/1772706275109?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:e15d0573efe0461f802d4a4f7db04a90@thread.tacv2",
+          "channel_name": "CLA252_AGROFISH_AVANÇONS_ANGOSSAS_01",
+          "responsable": "HENRI JOACHIM NTOUDA",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla256": {
+      "classe_id": "CLA256",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:c7f1188b53504b89982df5e1e2a0cda8@thread.tacv2/1772007515207?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA256_CODEA IAO_AFEBA_NKOABANG_01",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:c7f1188b53504b89982df5e1e2a0cda8@thread.tacv2",
+      "teams_responsable": "",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:c7f1188b53504b89982df5e1e2a0cda8@thread.tacv2/1772007515207?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:c7f1188b53504b89982df5e1e2a0cda8@thread.tacv2",
+          "channel_name": "CLA256_CODEA IAO_AFEBA_NKOABANG_01",
+          "responsable": "",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla257": {
+      "classe_id": "CLA257",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:0aaf186af06c4ebaa95c772c205491ad@thread.tacv2/1772008601584?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA257_CODEA IAO_AFEBA_NKOABANG_02",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:0aaf186af06c4ebaa95c772c205491ad@thread.tacv2",
+      "teams_responsable": "MBOMBO SOULTAN",
+      "teams_controle_type": "C4",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:0aaf186af06c4ebaa95c772c205491ad@thread.tacv2/1772008601584?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:0aaf186af06c4ebaa95c772c205491ad@thread.tacv2",
+          "channel_name": "CLA257_CODEA IAO_AFEBA_NKOABANG_02",
+          "responsable": "MBOMBO SOULTAN",
+          "controle_type": "C4"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla258": {
+      "classe_id": "CLA258",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:71bc010db84942388dc52ecd3732d618@thread.tacv2/1772185719944?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA258_259_BP_GFAC_YAOUNDE_01_02",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:71bc010db84942388dc52ecd3732d618@thread.tacv2",
+      "teams_responsable": "",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:71bc010db84942388dc52ecd3732d618@thread.tacv2/1772185719944?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:71bc010db84942388dc52ecd3732d618@thread.tacv2",
+          "channel_name": "CLA258_259_BP_GFAC_YAOUNDE_01_02",
+          "responsable": "",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla259": {
+      "classe_id": "CLA259",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:3b2e8a5bfbdf41a99af710b96cc1928a@thread.tacv2/1772190085854?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA259_BP_GFAC_YAOUNDE_02",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:3b2e8a5bfbdf41a99af710b96cc1928a@thread.tacv2",
+      "teams_responsable": "MALA EDZANA",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:3b2e8a5bfbdf41a99af710b96cc1928a@thread.tacv2/1772190085854?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:3b2e8a5bfbdf41a99af710b96cc1928a@thread.tacv2",
+          "channel_name": "CLA259_BP_GFAC_YAOUNDE_02",
+          "responsable": "MALA EDZANA",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla260": {
+      "classe_id": "CLA260",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:6cff32cc8b2c44a2b02a5fa6ebdc0281@thread.tacv2/1772194876011?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA260_261_BP_GFAC_YAOUNDE_03_04",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:6cff32cc8b2c44a2b02a5fa6ebdc0281@thread.tacv2",
+      "teams_responsable": "MALA EDZANA",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:6cff32cc8b2c44a2b02a5fa6ebdc0281@thread.tacv2/1772194876011?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:6cff32cc8b2c44a2b02a5fa6ebdc0281@thread.tacv2",
+          "channel_name": "CLA260_261_BP_GFAC_YAOUNDE_03_04",
+          "responsable": "MALA EDZANA",
+          "controle_type": "C1"
+        },
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:cfa3b63c0b354b10b382dc716b25ecd9@thread.tacv2/1772199783994?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:cfa3b63c0b354b10b382dc716b25ecd9@thread.tacv2",
+          "channel_name": "CLA260_261_BP_GFAC_YAOUNDE_03_04 BIS",
+          "responsable": "",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 2
+    },
+    "cla262": {
+      "classe_id": "CLA262",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:a9b356a79a1c4f20b2df7e25a24d2b56@thread.tacv2/1771576728792?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA262_LIDAF_SCTC_DOUALA_01",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:a9b356a79a1c4f20b2df7e25a24d2b56@thread.tacv2",
+      "teams_responsable": "AMOMBE COLLINS",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:a9b356a79a1c4f20b2df7e25a24d2b56@thread.tacv2/1771576728792?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:a9b356a79a1c4f20b2df7e25a24d2b56@thread.tacv2",
+          "channel_name": "CLA262_LIDAF_SCTC_DOUALA_01",
+          "responsable": "AMOMBE COLLINS",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla263": {
+      "classe_id": "CLA263",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:c6a0040752e6456ca7aac28fdfcaae53@thread.tacv2/1772186265303?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA263_TAF_GIPA_AWAE_01",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:c6a0040752e6456ca7aac28fdfcaae53@thread.tacv2",
+      "teams_responsable": "AMOMBE COLLINS",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:c6a0040752e6456ca7aac28fdfcaae53@thread.tacv2/1772186265303?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:c6a0040752e6456ca7aac28fdfcaae53@thread.tacv2",
+          "channel_name": "CLA263_TAF_GIPA_AWAE_01",
+          "responsable": "AMOMBE COLLINS",
+          "controle_type": "C1"
+        },
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:6bc687fdc9354154a5acbeb804e6a970@thread.tacv2/1771921129192?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:6bc687fdc9354154a5acbeb804e6a970@thread.tacv2",
+          "channel_name": "CLA263_TAF_GIPA_ESSOS_01",
+          "responsable": "HENRI JOACHIM NTOUDA",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 2
+    },
+    "cla264": {
+      "classe_id": "CLA264",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:9672bfc95b5f460e9c2f0e92996ca491@thread.tacv2/1772639121179?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA264_267_BOUAM_GIC KAFA_DIANG_01_04",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:9672bfc95b5f460e9c2f0e92996ca491@thread.tacv2",
+      "teams_responsable": "",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:9672bfc95b5f460e9c2f0e92996ca491@thread.tacv2/1772639121179?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:9672bfc95b5f460e9c2f0e92996ca491@thread.tacv2",
+          "channel_name": "CLA264_267_BOUAM_GIC KAFA_DIANG_01_04",
+          "responsable": "",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla266": {
+      "classe_id": "CLA266",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:450156f6c3f343ab913064527629efb2@thread.tacv2/1772618824959?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA266_ BOUAM_GIC KAFA_DIANG_03",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:450156f6c3f343ab913064527629efb2@thread.tacv2",
+      "teams_responsable": "AMOMBE COLLINS",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:450156f6c3f343ab913064527629efb2@thread.tacv2/1772618824959?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:450156f6c3f343ab913064527629efb2@thread.tacv2",
+          "channel_name": "CLA266_ BOUAM_GIC KAFA_DIANG_03",
+          "responsable": "AMOMBE COLLINS",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla267": {
+      "classe_id": "CLA267",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:2570c9bb8dac4036bfe682e23c574383@thread.tacv2/1772543025988?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA267_ BOUAM_GIC KAFA_DIANG_04",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:2570c9bb8dac4036bfe682e23c574383@thread.tacv2",
+      "teams_responsable": "ESSOMBA MVENG CASIMIR",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:2570c9bb8dac4036bfe682e23c574383@thread.tacv2/1772543025988?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:2570c9bb8dac4036bfe682e23c574383@thread.tacv2",
+          "channel_name": "CLA267_ BOUAM_GIC KAFA_DIANG_04",
+          "responsable": "ESSOMBA MVENG CASIMIR",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla268": {
+      "classe_id": "CLA268",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:e0ec1b494bdd4fbc81727f4610500c07@thread.tacv2/1772528793723?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA268_ BOUAM_GIC KAFA_DIANG_05",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:e0ec1b494bdd4fbc81727f4610500c07@thread.tacv2",
+      "teams_responsable": "ESSOMBA MVENG",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:e0ec1b494bdd4fbc81727f4610500c07@thread.tacv2/1772528793723?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:e0ec1b494bdd4fbc81727f4610500c07@thread.tacv2",
+          "channel_name": "CLA268_ BOUAM_GIC KAFA_DIANG_05",
+          "responsable": "ESSOMBA MVENG",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla285": {
+      "classe_id": "CLA285",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:e8ff3239379c4ff3819db44b0b7192dd@thread.tacv2/1772459857790?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA285_H4BF_LTD_SANTA_01",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:e8ff3239379c4ff3819db44b0b7192dd@thread.tacv2",
+      "teams_responsable": "ESSOMBA MVENG CASIMIR",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:e8ff3239379c4ff3819db44b0b7192dd@thread.tacv2/1772459857790?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:e8ff3239379c4ff3819db44b0b7192dd@thread.tacv2",
+          "channel_name": "CLA285_H4BF_LTD_SANTA_01",
+          "responsable": "ESSOMBA MVENG CASIMIR",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla286": {
+      "classe_id": "CLA286",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:03a6200d6bbc4ed999ddff811b354ccc@thread.tacv2/1772446454644?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA286_SIMTECH_BERTEC_DOUALA_01",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:03a6200d6bbc4ed999ddff811b354ccc@thread.tacv2",
+      "teams_responsable": "ESSOMBA MVENG CASIMIR",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:03a6200d6bbc4ed999ddff811b354ccc@thread.tacv2/1772446454644?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:03a6200d6bbc4ed999ddff811b354ccc@thread.tacv2",
+          "channel_name": "CLA286_SIMTECH_BERTEC_DOUALA_01",
+          "responsable": "ESSOMBA MVENG CASIMIR",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla287": {
+      "classe_id": "CLA287",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:da7894c20e794119a4dbd1ab2a613cc1@thread.tacv2/1772446681435?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA287_SIMTECH_CSS_DOUALA_01",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:da7894c20e794119a4dbd1ab2a613cc1@thread.tacv2",
+      "teams_responsable": "ESSOMBA MVENG CASIMIR",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:da7894c20e794119a4dbd1ab2a613cc1@thread.tacv2/1772446681435?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:da7894c20e794119a4dbd1ab2a613cc1@thread.tacv2",
+          "channel_name": "CLA287_SIMTECH_CSS_DOUALA_01",
+          "responsable": "ESSOMBA MVENG CASIMIR",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla288": {
+      "classe_id": "CLA288",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:e262f0e8e9ca4e01b1a3ede5c5d0cd38@thread.tacv2/1772530225199?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA288_SIMTECH_CSS_DOUALA_02",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:e262f0e8e9ca4e01b1a3ede5c5d0cd38@thread.tacv2",
+      "teams_responsable": "ESSOMBA MVENG CASIMIR",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:e262f0e8e9ca4e01b1a3ede5c5d0cd38@thread.tacv2/1772530225199?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:e262f0e8e9ca4e01b1a3ede5c5d0cd38@thread.tacv2",
+          "channel_name": "CLA288_SIMTECH_CSS_DOUALA_02",
+          "responsable": "ESSOMBA MVENG CASIMIR",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla289": {
+      "classe_id": "CLA289",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:8c62e16a85274eba8d7bfdc991d19aa9@thread.tacv2/1772611920233?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA289_GCS_EZIMAD_DOUALA_01",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:8c62e16a85274eba8d7bfdc991d19aa9@thread.tacv2",
+      "teams_responsable": "",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:8c62e16a85274eba8d7bfdc991d19aa9@thread.tacv2/1772611920233?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:8c62e16a85274eba8d7bfdc991d19aa9@thread.tacv2",
+          "channel_name": "CLA289_GCS_EZIMAD_DOUALA_01",
+          "responsable": "",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla291": {
+      "classe_id": "CLA291",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:4b5089fd5efc4fe784f11458f034bf81@thread.tacv2/1772446423438?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA291_TAF_GIC WADOOBE PADE_GAROUA_01",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:4b5089fd5efc4fe784f11458f034bf81@thread.tacv2",
+      "teams_responsable": "HENRI JOACHIM NTOUDA",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:4b5089fd5efc4fe784f11458f034bf81@thread.tacv2/1772446423438?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:4b5089fd5efc4fe784f11458f034bf81@thread.tacv2",
+          "channel_name": "CLA291_TAF_GIC WADOOBE PADE_GAROUA_01",
+          "responsable": "HENRI JOACHIM NTOUDA",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla292": {
+      "classe_id": "CLA292",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:e567d1f85d874f75aa0f4c86ca736962@thread.tacv2/1772710073656?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA292_DOMINICAINE_BARKANTEWA_ADAMAOUA_01",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:e567d1f85d874f75aa0f4c86ca736962@thread.tacv2",
+      "teams_responsable": "",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:e567d1f85d874f75aa0f4c86ca736962@thread.tacv2/1772710073656?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:e567d1f85d874f75aa0f4c86ca736962@thread.tacv2",
+          "channel_name": "CLA292_DOMINICAINE_BARKANTEWA_ADAMAOUA_01",
+          "responsable": "",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla293": {
+      "classe_id": "CLA293",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:1fcc717142154046a47c6f19cdbb90f9@thread.tacv2/1772802936707?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA293_DOMINICAINE_KAWTAL KALALI_NGAOUNDERE_01",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:1fcc717142154046a47c6f19cdbb90f9@thread.tacv2",
+      "teams_responsable": "TANA",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:1fcc717142154046a47c6f19cdbb90f9@thread.tacv2/1772802936707?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:1fcc717142154046a47c6f19cdbb90f9@thread.tacv2",
+          "channel_name": "CLA293_DOMINICAINE_KAWTAL KALALI_NGAOUNDERE_01",
+          "responsable": "TANA",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla294": {
+      "classe_id": "CLA294",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:380ad0bc53cb414d8592a8197950feda@thread.tacv2/1772698395454?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA294_DOMINICAINE_GOUDALI DE DJOUROUM_DJOUR_01",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:380ad0bc53cb414d8592a8197950feda@thread.tacv2",
+      "teams_responsable": "ESSOMBA MVENG",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:380ad0bc53cb414d8592a8197950feda@thread.tacv2/1772698395454?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:380ad0bc53cb414d8592a8197950feda@thread.tacv2",
+          "channel_name": "CLA294_DOMINICAINE_GOUDALI DE DJOUROUM_DJOUR_01",
+          "responsable": "ESSOMBA MVENG",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla298": {
+      "classe_id": "CLA298",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:e9d312dff6f14eae9354ff039a9932b1@thread.tacv2/1772794775394?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA298_DOMINICAINE_GIC BEELA NGAOUSSAI_NGAO_01",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:e9d312dff6f14eae9354ff039a9932b1@thread.tacv2",
+      "teams_responsable": "MBOMBO SOULTAN",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:e9d312dff6f14eae9354ff039a9932b1@thread.tacv2/1772794775394?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:e9d312dff6f14eae9354ff039a9932b1@thread.tacv2",
+          "channel_name": "CLA298_DOMINICAINE_GIC BEELA NGAOUSSAI_NGAO_01",
+          "responsable": "MBOMBO SOULTAN",
+          "controle_type": "C1"
+        },
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:6c4a7cfe022b404eb4fe81398883f247@thread.tacv2/1772697562659?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:6c4a7cfe022b404eb4fe81398883f247@thread.tacv2",
+          "channel_name": "CLA298_DOMINICAINE_GIC BEELA NGAOUSSAI_NGAO_01 BIS",
+          "responsable": "",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 2
+    },
+    "cla300": {
+      "classe_id": "CLA300",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:d0600295b5684d1daa2a5ffc0a0e16cf@thread.tacv2/1772188272989?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA300_TFC_GIC DYNAMITE_DOUALA_01",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:d0600295b5684d1daa2a5ffc0a0e16cf@thread.tacv2",
+      "teams_responsable": "HENRI JOACHIM NTOUDA",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:d0600295b5684d1daa2a5ffc0a0e16cf@thread.tacv2/1772188272989?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:d0600295b5684d1daa2a5ffc0a0e16cf@thread.tacv2",
+          "channel_name": "CLA300_TFC_GIC DYNAMITE_DOUALA_01",
+          "responsable": "HENRI JOACHIM NTOUDA",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla302": {
+      "classe_id": "CLA302",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:02751cede57b4f1c827a510458d18b2c@thread.tacv2/1773217912752?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA302_EPE_GIC PDPAS__EBOLOWA_01",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:02751cede57b4f1c827a510458d18b2c@thread.tacv2",
+      "teams_responsable": "",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:02751cede57b4f1c827a510458d18b2c@thread.tacv2/1773217912752?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:02751cede57b4f1c827a510458d18b2c@thread.tacv2",
+          "channel_name": "CLA302_EPE_GIC PDPAS__EBOLOWA_01",
+          "responsable": "",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla306": {
+      "classe_id": "CLA306",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:97b5e0ceaa9941e1a359e7212fbc048f@thread.tacv2/1773141623273?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA306_CAE_FEMMES DYNAMIQUE KOUOULOUM_MAROUA_01",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:97b5e0ceaa9941e1a359e7212fbc048f@thread.tacv2",
+      "teams_responsable": "ESSOMBA MVENG",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:97b5e0ceaa9941e1a359e7212fbc048f@thread.tacv2/1773141623273?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:97b5e0ceaa9941e1a359e7212fbc048f@thread.tacv2",
+          "channel_name": "CLA306_CAE_FEMMES DYNAMIQUE KOUOULOUM_MAROUA_01",
+          "responsable": "ESSOMBA MVENG",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla309": {
+      "classe_id": "CLA309",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:91b56223909c40e2a3cf9096275cdb45@thread.tacv2/1772790299686?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA309_NEHEMIE_GIC PETRINNE_YAOUNDE_01",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:91b56223909c40e2a3cf9096275cdb45@thread.tacv2",
+      "teams_responsable": "AMOMBE COLLINS",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:91b56223909c40e2a3cf9096275cdb45@thread.tacv2/1772790299686?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:91b56223909c40e2a3cf9096275cdb45@thread.tacv2",
+          "channel_name": "CLA309_NEHEMIE_GIC PETRINNE_YAOUNDE_01",
+          "responsable": "AMOMBE COLLINS",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla310": {
+      "classe_id": "CLA310",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:4f3e99d4f0364d68954c21e4a3fc69f3@thread.tacv2/1772798330437?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA310_NEHEMIE_GIC PETRINNE_YAOUNDE_02",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:4f3e99d4f0364d68954c21e4a3fc69f3@thread.tacv2",
+      "teams_responsable": "",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:4f3e99d4f0364d68954c21e4a3fc69f3@thread.tacv2/1772798330437?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:4f3e99d4f0364d68954c21e4a3fc69f3@thread.tacv2",
+          "channel_name": "CLA310_NEHEMIE_GIC PETRINNE_YAOUNDE_02",
+          "responsable": "",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla312": {
+      "classe_id": "CLA312",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:476a57d92b374edd888918a79af26a1b@thread.tacv2/1773062651220?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA312_CFAH_SCOOP BOUMDJERE_NGAOUNDERE_01",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:476a57d92b374edd888918a79af26a1b@thread.tacv2",
+      "teams_responsable": "AMOMBE COLLINS",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:476a57d92b374edd888918a79af26a1b@thread.tacv2/1773062651220?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:476a57d92b374edd888918a79af26a1b@thread.tacv2",
+          "channel_name": "CLA312_CFAH_SCOOP BOUMDJERE_NGAOUNDERE_01",
+          "responsable": "AMOMBE COLLINS",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    },
+    "cla326": {
+      "classe_id": "CLA326",
+      "teams_channel_url": "https://teams.microsoft.com/l/message/19:ce96f72383944b7f86459cb5e555b19c@thread.tacv2/1773145548213?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_name": "CLA326_SCOOP LAYOL RISKOU_ALKAWAL LEDI_Ngaoundé_01",
+      "teams_team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+      "teams_tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+      "teams_channel_id": "19:ce96f72383944b7f86459cb5e555b19c@thread.tacv2",
+      "teams_responsable": "",
+      "teams_controle_type": "C1",
+      "teams_channels": [
+        {
+          "channel_url": "https://teams.microsoft.com/l/message/19:ce96f72383944b7f86459cb5e555b19c@thread.tacv2/1773145548213?groupId=adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5&tenantId=2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "team_id": "adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5",
+          "tenant_id": "2c91375e-f3f5-486e-8fdd-c8273053bd5d",
+          "channel_id": "19:ce96f72383944b7f86459cb5e555b19c@thread.tacv2",
+          "channel_name": "CLA326_SCOOP LAYOL RISKOU_ALKAWAL LEDI_Ngaoundé_01",
+          "responsable": "",
+          "controle_type": "C1"
+        }
+      ],
+      "teams_channel_count": 1
+    }
+  }
+}

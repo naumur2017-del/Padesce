@@ -57,7 +57,7 @@ jobs:
           GANDI_SFTP_TOKEN: ${{ secrets.GANDI_SFTP_TOKEN }}
           GANDI_SFTP_REMOTE_PATH: ${{ secrets.GANDI_SFTP_REMOTE_PATH }}
           GANDI_DEPLOY_VERIFY_URL: https://call.naumur.com
-          GANDI_DEPLOY_INCLUDE_PATHS: App_PADESCE,templates,static,admin,manage.py,requirements.txt,Dockerfile,docker-compose.yml,start-command
+          GANDI_DEPLOY_INCLUDE_PATHS: App_PADESCE,templates,static,admin,data,manage.py,requirements.txt,Dockerfile,docker-compose.yml,start-command
         run: python manage.py check
 
       - name: Deploy application
@@ -82,7 +82,7 @@ jobs:
           GANDI_SFTP_TOKEN: ${{ secrets.GANDI_SFTP_TOKEN }}
           GANDI_SFTP_REMOTE_PATH: ${{ secrets.GANDI_SFTP_REMOTE_PATH }}
           GANDI_DEPLOY_VERIFY_URL: https://call.naumur.com
-          GANDI_DEPLOY_INCLUDE_PATHS: App_PADESCE,templates,static,admin,manage.py,requirements.txt,Dockerfile,docker-compose.yml,start-command
+          GANDI_DEPLOY_INCLUDE_PATHS: App_PADESCE,templates,static,admin,data,manage.py,requirements.txt,Dockerfile,docker-compose.yml,start-command
         run: python manage.py gandi_deploy --mode deploy
 
       - name: Upload deployment logs
