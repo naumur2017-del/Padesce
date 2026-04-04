@@ -12,7 +12,6 @@ from App_PADESCE.appels.models import APPEL_ANSWER_QUESTION_FIELDS
 from App_PADESCE.core.call_metrics import has_usable_phone
 
 ANALYSIS_THRESHOLD_PERCENT = 25
-ANALYSIS_EXCLUDED_USERNAMES = frozenset({"yanava"})
 _MANUAL_EXCLUSIONS_LOCK = Lock()
 
 
@@ -25,22 +24,6 @@ def analysis_threshold_target(total: int) -> int:
 
 def analysis_threshold_label() -> str:
     return f"{ANALYSIS_THRESHOLD_PERCENT}%"
-
-
-def normalize_analysis_username(value: object) -> str:
-    return str(value or "").strip().casefold()
-
-
-def is_excluded_analysis_username(value: object) -> bool:
-    return normalize_analysis_username(value) in ANALYSIS_EXCLUDED_USERNAMES
-
-
-def answer_done_by_excluded_user(*, answer=None, survey=None) -> bool:
-    answer_user = getattr(getattr(answer, "modified_by", None), "username", "")
-    survey_user = getattr(getattr(survey, "enqueteur", None), "username", "")
-    return is_excluded_analysis_username(answer_user) or is_excluded_analysis_username(
-        survey_user
-    )
 
 
 def appel_has_analysis_phone(appel) -> bool:
@@ -151,8 +134,6 @@ def appel_analysis_exclusion_reason(appel, *, answer=None, survey=None) -> str:
         return "Exclu manuellement"
     if not appel_has_analysis_phone(appel):
         return "Sans numero"
-    if answer_done_by_excluded_user(answer=answer, survey=survey):
-        return "Utilisateur yanava"
     return ""
 
 

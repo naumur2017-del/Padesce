@@ -10,6 +10,10 @@ from django.urls import reverse
 from django.utils import timezone
 
 from App_PADESCE.appels.models import Appel, AppelAnswers, padesce_form_tracking_cutoff
+from App_PADESCE.core.analysis_rules import (
+    appel_analysis_exclusion_reason,
+    appel_is_analysis_eligible,
+)
 from App_PADESCE.core.views import _consultant_analysis_snapshot
 from App_PADESCE.core.models import UserActivity
 
@@ -96,6 +100,64 @@ class DashboardVisibilityTests(TestCase):
         self.assertContains(response, "Backup")
         self.assertContains(response, "Deploiement Gandi")
         self.assertContains(response, "Admin")
+
+
+class AnalysisEligibilityTests(TestCase):
+    def setUp(self):
+        user_model = get_user_model()
+        self.yanava, _ = user_model.objects.get_or_create(username="yanava")
+        self.yanava.set_password("test-pass-123")
+        self.yanava.is_active = True
+        self.yanava.save(update_fields=["password", "is_active"])
+
+    def test_yanava_answer_with_phone_is_now_eligible(self):
+        appel = Appel.objects.create(
+            code="APP-YAN-001",
+            nom="Apprenant Joignable",
+            telephone1="690001111",
+            fenetre="2",
+            is_active=True,
+        )
+        answer = AppelAnswers.objects.create(
+            appel=appel,
+            q1_clarte_exposes=4,
+            q2_interaction_formateur=4,
+            q3_maitrise_contenu=4,
+            q4_salle_adequate=4,
+            q5_materiel_disponible=4,
+            q6_organisation_temps=4,
+            q7_utilite_formation=4,
+            q8_adequation_besoins=4,
+            q9_satisfaction_globale=4,
+            modified_by=self.yanava,
+        )
+
+        self.assertEqual(appel_analysis_exclusion_reason(appel, answer=answer), "")
+        self.assertTrue(appel_is_analysis_eligible(appel, answer=answer))
+
+    def test_yanava_answer_without_phone_stays_excluded_for_missing_phone(self):
+        appel = Appel.objects.create(
+            code="APP-YAN-002",
+            nom="Apprenant Sans Numero",
+            fenetre="2",
+            is_active=True,
+        )
+        answer = AppelAnswers.objects.create(
+            appel=appel,
+            q1_clarte_exposes=4,
+            q2_interaction_formateur=4,
+            q3_maitrise_contenu=4,
+            q4_salle_adequate=4,
+            q5_materiel_disponible=4,
+            q6_organisation_temps=4,
+            q7_utilite_formation=4,
+            q8_adequation_besoins=4,
+            q9_satisfaction_globale=4,
+            modified_by=self.yanava,
+        )
+
+        self.assertEqual(appel_analysis_exclusion_reason(appel, answer=answer), "Sans numero")
+        self.assertFalse(appel_is_analysis_eligible(appel, answer=answer))
 
 
 class SuperadminTrackingTests(TestCase):

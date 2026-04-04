@@ -43,7 +43,6 @@ from App_PADESCE.core.access import require_analysis_access
 from App_PADESCE.core.analysis_rules import (
     analysis_threshold_label,
     analysis_threshold_target,
-    answer_done_by_excluded_user,
     answer_has_all_three_scores,
     appel_analysis_exclusion_reason,
     appel_has_analysis_phone,
@@ -714,7 +713,6 @@ def _dashboard_row_from_answer(answer_or_appel) -> dict:
         "analysis_exclusion_reason": analysis_exclusion_reason,
         "formulaire_all_three": answer_has_all_three_scores(answer),
         "exclude_from_analysis": appel_is_manually_excluded(appel),
-        "excluded_by_user": answer_done_by_excluded_user(answer=answer, survey=survey),
         **{field: getattr(answer, field, None) if answer else None for field, _ in Q_FIELDS},
     }
 
@@ -1434,8 +1432,6 @@ def _build_call_failure_reasons(
         reasons.append("Sans numero")
     if appel_is_manually_excluded(appel):
         reasons.append("Exclu manuellement")
-    if answer_done_by_excluded_user(answer=answer, survey=survey):
-        reasons.append("Utilisateur yanava")
     if appel.deja_forme or appel.flag_pas_forme:
         reasons.append("Deja forme / pas concerne")
     if appel.flag_faux_nom:
@@ -1540,8 +1536,6 @@ def _build_daily_report_row(appel: Appel, source_records: dict[str, dict]) -> di
         failure_detail_parts.append("Aucun numero joignable n'est disponible pour cet apprenant.")
     if appel_is_manually_excluded(appel):
         failure_detail_parts.append("La ligne a ete exclue manuellement des analyses.")
-    if answer_done_by_excluded_user(answer=answer, survey=survey):
-        failure_detail_parts.append("La saisie a ete realisee par l'utilisateur yanava et n'est pas retenue.")
     if appel.deja_forme or appel.flag_pas_forme:
         failure_detail_parts.append("Le beneficiaire indique qu'il a deja suivi la formation.")
     if appel.flag_faux_nom:
