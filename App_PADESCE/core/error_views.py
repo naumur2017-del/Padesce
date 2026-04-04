@@ -66,6 +66,7 @@ def request_prefers_json(request: HttpRequest, response=None) -> bool:
         or "application/json" in lowered_content_type
         or "application/json" in lowered_response_type
         or path.startswith("/reporting/api/")
+        or path.startswith("/backup/api/")
         or path.endswith("/analyse/rag/")
         or path.endswith("/api/excel-reseau/")
     )

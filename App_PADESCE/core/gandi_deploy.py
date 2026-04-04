@@ -93,6 +93,11 @@ DEFAULT_INCLUDE_PATHS = (
     "start-command",
 )
 APP_ENV_SYNC_KEYS = (
+    # Django runtime — toujours synchronisés pour garantir la config de prod
+    "DJANGO_DEBUG",
+    "DJANGO_ALLOWED_HOSTS",
+    "DJANGO_CSRF_TRUSTED_ORIGINS",
+    # Microsoft Graph / Teams
     "MICROSOFT_GRAPH_CLIENT_ID",
     "MICROSOFT_GRAPH_CLIENT_SECRET",
     "MICROSOFT_GRAPH_TENANT_ID",

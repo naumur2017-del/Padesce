@@ -23,6 +23,15 @@ jobs:
       name: production
 
     steps:
+      - name: Check required secrets
+        run: |
+          if [ -z "${{ secrets.BACKUP_TRIGGER_TOKEN }}" ]; then
+            echo "::error::Le secret BACKUP_TRIGGER_TOKEN n'est pas configuré dans l'environnement 'production'."
+            echo "::notice::Accédez à GitHub → Settings → Environments → production → Secrets et ajoutez BACKUP_TRIGGER_TOKEN."
+            exit 1
+          fi
+          echo "Secret BACKUP_TRIGGER_TOKEN présent."
+
       - name: Trigger backup via API
         run: |
           echo "Envoi de la requete de backup a https://call.naumur.com/backup/api/trigger/"
@@ -33,6 +42,7 @@ jobs:
             -X POST "https://call.naumur.com/backup/api/trigger/" \
             -H "X-Backup-Token: ${{ secrets.BACKUP_TRIGGER_TOKEN }}" \
             -H "Content-Type: application/json" \
+            -H "Accept: application/json" \
             --max-time 30 \
             --retry 2 \
             --retry-delay 5)
@@ -40,6 +50,16 @@ jobs:
           echo "HTTP Status: $HTTP_STATUS"
           echo "Response:"
           cat /tmp/backup_response.json
+
+          if [ "$HTTP_STATUS" = "503" ]; then
+            echo "::error::BACKUP_TRIGGER_TOKEN non configuré sur le serveur. Vérifiez le .env.local de production."
+            exit 1
+          fi
+
+          if [ "$HTTP_STATUS" = "403" ]; then
+            echo "::error::Token invalide. Vérifiez que BACKUP_TRIGGER_TOKEN dans GitHub Secrets correspond à celui du .env.local de production."
+            exit 1
+          fi
 
           if [ "$HTTP_STATUS" != "200" ]; then
             echo "ERREUR : Le serveur a retourne le statut $HTTP_STATUS"
@@ -53,4 +73,4 @@ jobs:
         if: failure()
         run: |
           echo "::error::Le backup quotidien a echoue. Verifiez les logs ci-dessus."
-          echo "::notice::Assurez-vous que le secret BACKUP_TRIGGER_TOKEN est configure dans les secrets GitHub."
+          echo "::notice::Assurez-vous que le secret BACKUP_TRIGGER_TOKEN est configure dans les secrets GitHub (environnement 'production')."
