@@ -12,6 +12,7 @@ from django.urls import reverse
 
 from App_PADESCE.core.deployment_live import LIVE_MARKER_FILENAME
 from App_PADESCE.core.gandi_deploy import (
+    _merge_env_content,
     build_local_manifest,
     compute_diff,
     deployment_config_summary,
@@ -113,6 +114,27 @@ class GandiDeployHelpersTests(SimpleTestCase):
         self.assertIsNotNone(first_entry)
         self.assertIsNotNone(second_entry)
         self.assertNotEqual(first_entry["sha256"], second_entry["sha256"])
+
+    def test_merge_env_content_updates_target_keys_without_erasing_other_lines(self) -> None:
+        existing = (
+            "DJANGO_SECRET_KEY=abc123\n"
+            "MICROSOFT_GRAPH_CLIENT_ID=old-client\n"
+            "# keep comment\n"
+            "EMAIL_HOST=smtp.gmail.com\n"
+        )
+        merged = _merge_env_content(
+            existing,
+            {
+                "MICROSOFT_GRAPH_CLIENT_ID": "new-client",
+                "MICROSOFT_GRAPH_TENANT_ID": "tenant-001",
+            },
+        )
+
+        self.assertIn("DJANGO_SECRET_KEY=abc123", merged)
+        self.assertIn("MICROSOFT_GRAPH_CLIENT_ID=new-client", merged)
+        self.assertIn("MICROSOFT_GRAPH_TENANT_ID=tenant-001", merged)
+        self.assertIn("# keep comment", merged)
+        self.assertIn("EMAIL_HOST=smtp.gmail.com", merged)
 
 
 class DeploymentViewsTests(TestCase):

@@ -92,6 +92,14 @@ DEFAULT_INCLUDE_PATHS = (
     "docker-compose.yml",
     "start-command",
 )
+APP_ENV_SYNC_KEYS = (
+    "MICROSOFT_GRAPH_CLIENT_ID",
+    "MICROSOFT_GRAPH_CLIENT_SECRET",
+    "MICROSOFT_GRAPH_TENANT_ID",
+    "MICROSOFT_GRAPH_PRIMARY_DOMAIN",
+    "MICROSOFT_GRAPH_REDIRECT_URI",
+    "MICROSOFT_TEAMS_DEFAULT_TEAM_ID",
+)
 
 
 class DeploymentError(RuntimeError):
@@ -500,9 +508,10 @@ def local_manifest_entry(local_root: Path, relative_path: str) -> dict[str, Any]
     normalized = relative_path.replace("\\", "/").strip("/")
     if not normalized or should_ignore(normalized):
         return None
-    path = (local_root / normalized).resolve()
+    local_root_resolved = local_root.resolve()
+    path = (local_root_resolved / normalized).resolve()
     try:
-        path.relative_to(local_root)
+        path.relative_to(local_root_resolved)
     except ValueError:
         return None
     if not path.exists() or not path.is_file():
@@ -517,19 +526,20 @@ def local_manifest_entry(local_root: Path, relative_path: str) -> dict[str, Any]
 
 def build_local_manifest(local_root: Path, include_paths: tuple[str, ...] = DEFAULT_INCLUDE_PATHS) -> dict[str, dict[str, Any]]:
     manifest: dict[str, dict[str, Any]] = {}
+    local_root_resolved = local_root.resolve()
     for include in include_paths:
-        candidate = (local_root / include).resolve()
+        candidate = (local_root_resolved / include).resolve()
         try:
-            candidate.relative_to(local_root)
+            candidate.relative_to(local_root_resolved)
         except ValueError:
             continue
         if not candidate.exists():
             continue
         if candidate.is_file():
-            _add_manifest_file(manifest, local_root=local_root, path=candidate)
+            _add_manifest_file(manifest, local_root=local_root_resolved, path=candidate)
             continue
         for path in sorted(candidate.rglob("*")):
-            _add_manifest_file(manifest, local_root=local_root, path=path)
+            _add_manifest_file(manifest, local_root=local_root_resolved, path=path)
     return manifest
 
 
@@ -570,6 +580,79 @@ def remote_write_json(sftp, remote_path: str, payload: dict[str, Any]) -> None:
     ensure_remote_dir(sftp, posixpath.dirname(remote_path))
     with sftp.open(remote_path, "w") as handle:
         handle.write(json.dumps(payload, ensure_ascii=True, indent=2))
+
+
+def remote_read_text(sftp, remote_path: str) -> str:
+    try:
+        with sftp.open(remote_path, "r") as handle:
+            content = handle.read()
+    except OSError:
+        return ""
+    if isinstance(content, bytes):
+        return content.decode("utf-8", errors="replace")
+    return str(content)
+
+
+def remote_write_text(sftp, remote_path: str, content: str) -> None:
+    ensure_remote_dir(sftp, posixpath.dirname(remote_path))
+    with sftp.open(remote_path, "w") as handle:
+        handle.write(content)
+
+
+def _app_env_values_from_env() -> dict[str, str]:
+    values: dict[str, str] = {}
+    for key in APP_ENV_SYNC_KEYS:
+        text = str(os.getenv(key, "") or "").strip()
+        if text:
+            values[key] = text
+    return values
+
+
+def _merge_env_content(existing_content: str, updates: dict[str, str]) -> str:
+    if not updates:
+        return existing_content
+
+    remaining = dict(updates)
+    rendered_lines: list[str] = []
+    for raw_line in str(existing_content or "").splitlines():
+        stripped = raw_line.strip()
+        if not stripped or stripped.startswith("#") or "=" not in raw_line:
+            rendered_lines.append(raw_line)
+            continue
+
+        key, _value = raw_line.split("=", 1)
+        normalized_key = key.strip()
+        if normalized_key in remaining:
+            rendered_lines.append(f"{normalized_key}={remaining.pop(normalized_key)}")
+        else:
+            rendered_lines.append(raw_line)
+
+    if rendered_lines and rendered_lines[-1].strip():
+        rendered_lines.append("")
+    for key in APP_ENV_SYNC_KEYS:
+        if key in remaining:
+            rendered_lines.append(f"{key}={remaining[key]}")
+    return "\n".join(rendered_lines).rstrip() + "\n"
+
+
+def sync_remote_app_env(sftp, *, remote_root: str) -> dict[str, Any]:
+    updates = _app_env_values_from_env()
+    remote_path = remote_join(remote_root, ".env.local")
+    if not updates:
+        return {
+            "written": False,
+            "remote_path": remote_path,
+            "keys": [],
+        }
+
+    existing_content = remote_read_text(sftp, remote_path)
+    merged_content = _merge_env_content(existing_content, updates)
+    remote_write_text(sftp, remote_path, merged_content)
+    return {
+        "written": True,
+        "remote_path": remote_path,
+        "keys": list(updates.keys()),
+    }
 
 
 def parse_iso_datetime(value: Any) -> datetime | None:
@@ -1369,6 +1452,15 @@ def run_deployment(*, run_id: str, mode: str = "deploy") -> dict[str, Any]:
             uploaded_paths.append(relative)
             state.log(f"Transfert termine: {relative}")
 
+        app_env_sync = sync_remote_app_env(sftp, remote_root=remote_root)
+        if app_env_sync.get("written"):
+            state.log(
+                "Configuration applicative synchronisee vers .env.local: "
+                + ", ".join(app_env_sync.get("keys", [])),
+            )
+        else:
+            state.log("Aucune variable applicative Microsoft a synchroniser pour ce deploiement.")
+
         manifest_payload = {
             "generated_at": now_iso(),
             "domain": config.domain,
@@ -1378,6 +1470,7 @@ def run_deployment(*, run_id: str, mode: str = "deploy") -> dict[str, Any]:
         remote_write_json(sftp, remote_manifest_path, manifest_payload)
         state.data["summary"]["uploaded_files"] = len(uploaded_paths)
         state.data["summary"]["uploaded_bytes"] = sum(int(local_manifest[path]["size"]) for path in uploaded_paths)
+        state.data["summary"]["app_env_sync"] = app_env_sync
         state.complete_step(
             "upload",
             message=f"{len(uploaded_paths)} fichiers transferes",
