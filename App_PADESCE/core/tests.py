@@ -159,6 +159,32 @@ class AnalysisEligibilityTests(TestCase):
         self.assertEqual(appel_analysis_exclusion_reason(appel, answer=answer), "Sans numero")
         self.assertFalse(appel_is_analysis_eligible(appel, answer=answer))
 
+    def test_not_formed_flag_excludes_reachable_learner_from_analysis(self):
+        appel = Appel.objects.create(
+            code="APP-NF-001",
+            nom="Apprenant Non Forme",
+            telephone1="690001999",
+            fenetre="2",
+            is_active=True,
+            flag_pas_forme=True,
+        )
+        answer = AppelAnswers.objects.create(
+            appel=appel,
+            q1_clarte_exposes=4,
+            q2_interaction_formateur=4,
+            q3_maitrise_contenu=4,
+            q4_salle_adequate=4,
+            q5_materiel_disponible=4,
+            q6_organisation_temps=4,
+            q7_utilite_formation=4,
+            q8_adequation_besoins=4,
+            q9_satisfaction_globale=4,
+            modified_by=self.yanava,
+        )
+
+        self.assertEqual(appel_analysis_exclusion_reason(appel, answer=answer), "Pas suivi formation")
+        self.assertFalse(appel_is_analysis_eligible(appel, answer=answer))
+
 
 class SuperadminTrackingTests(TestCase):
     def _create_answers(self, appel, modified_by, *, created_at, modified_at):

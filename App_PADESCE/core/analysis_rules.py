@@ -134,6 +134,8 @@ def appel_analysis_exclusion_reason(appel, *, answer=None, survey=None) -> str:
         return "Exclu manuellement"
     if not appel_has_analysis_phone(appel):
         return "Sans numero"
+    if getattr(appel, "flag_pas_forme", False):
+        return "Pas suivi formation"
     return ""
 
 

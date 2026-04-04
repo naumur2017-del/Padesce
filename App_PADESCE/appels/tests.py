@@ -355,3 +355,29 @@ class AppelsIndexFilterTests(TestCase):
         self.assertGreaterEqual(len(recommendations), 1)
         self.assertEqual(recommendations[0]["classe"], "CLA012")
         self.assertEqual(recommendations[0]["priority_label"], "Prestation a finir")
+
+
+class AppelActionFlagTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(
+            username="appels-agent",
+            password="test123",
+        )
+        self.client.force_login(self.user)
+
+    def test_appel_action_persists_not_formed_flag(self):
+        appel = Appel.objects.create(
+            code="APP-FLAG-001",
+            nom="Apprenant Non Forme",
+            status="en_attente",
+            is_active=True,
+        )
+
+        response = self.client.post(
+            reverse("appel_action", args=[appel.pk]),
+            {"action": "terminer", "flag_pas_forme": "1"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        appel.refresh_from_db()
+        self.assertTrue(appel.flag_pas_forme)

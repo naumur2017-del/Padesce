@@ -503,7 +503,7 @@
       
       <div class="flag-grid">
         <label style="display:flex; align-items:center; gap:6px; font-size:0.85rem;">
-          <input type="checkbox" name="flag_pas_forme"> Déjà formé / Pas suivi formation
+          <input type="checkbox" name="flag_pas_forme"> N'a pas suivi la formation
         </label>
         <label style="display:flex; align-items:center; gap:6px; font-size:0.85rem;">
           <input type="checkbox" name="flag_deja_appele"> Déjà appelé auparavant
@@ -555,6 +555,10 @@
       <input type="checkbox" id="js-modal-deja-forme" />
       Déjà formé
     </label>
+    <label class="modal-field">
+      <input type="checkbox" id="js-modal-flag-pas-forme" />
+      N'a pas suivi la formation
+    </label>
     <div class="modal-actions">
       <button type="button" class="btn btn-ghost btn-sm" data-modal-action="cancel">Annuler</button>
       <button type="button" class="btn btn-primary btn-sm" data-modal-action="confirm">Enregistrer</button>
@@ -581,7 +585,7 @@
       
     <div class="flag-grid" style="margin-bottom:10px;">
         <label style="display:flex; align-items:center; gap:6px; font-size:0.82rem;">
-          <input type="checkbox" id="js-sat-flag-pas-forme"> Déjà formé / Pas suivi formation
+          <input type="checkbox" id="js-sat-flag-pas-forme"> N'a pas suivi la formation
         </label>
         <label style="display:flex; align-items:center; gap:6px; font-size:0.82rem;">
           <input type="checkbox" id="js-sat-flag-faux-nom"> Faux nom
@@ -759,6 +763,7 @@
         form.append("action", job.action);
         if (job.extra?.rappel_at) form.append("rappel_at", job.extra.rappel_at);
         if (job.extra?.deja_forme !== undefined) form.append("deja_forme", job.extra.deja_forme ? "1" : "0");
+        if (job.extra?.flag_pas_forme !== undefined) form.append("flag_pas_forme", job.extra.flag_pas_forme ? "1" : "0");
         const res = await fetch(job.url, { method: "POST", headers: { "X-CSRFToken": csrfToken }, body: form });
         if (!res.ok) throw new Error("sync action failed");
         const data = await res.json();
@@ -847,6 +852,7 @@
     const modalRappelCheckbox = document.getElementById("js-modal-rappel");
     const modalRappelAt = document.getElementById("js-modal-rappel-at");
     const modalDejaForme = document.getElementById("js-modal-deja-forme");
+    const modalFlagPasForme = document.getElementById("js-modal-flag-pas-forme");
     const modalConfirmBtn = document.querySelector("[data-modal-action=\"confirm\"]");
     const modalCancelBtn = document.querySelector("[data-modal-action=\"cancel\"]");
     const modalName = document.getElementById("js-modal-nom");
@@ -867,6 +873,7 @@
     function resetTerminationModal() {
       modalRappelCheckbox && (modalRappelCheckbox.checked = false);
       modalDejaForme && (modalDejaForme.checked = false);
+      modalFlagPasForme && (modalFlagPasForme.checked = false);
       if (modalRappelAt) {
         modalRappelAt.value = "";
         modalRappelAt.disabled = true;
@@ -905,6 +912,7 @@
         action: shouldRappeler ? "rappeler" : "terminer",
         rappel_at: shouldRappeler ? modalRappelAt?.value : "",
         deja_forme: !!modalDejaForme?.checked,
+        flag_pas_forme: !!modalFlagPasForme?.checked,
       });
     });
     modalCancelBtn?.addEventListener("click", () => closeTerminationModal(null));
@@ -915,6 +923,64 @@
     const satModalRappel = document.getElementById("js-sat-modal-rappel");
     const satModalRappelAt = document.getElementById("js-sat-modal-rappel-at");
     let currentSatFormData = null;
+
+    function resetSatisfactionFlags() {
+      document.getElementById("js-sat-flag-pas-forme").checked = false;
+      document.getElementById("js-sat-flag-faux-nom").checked = false;
+      document.getElementById("js-sat-flag-deja-appele").checked = false;
+      document.getElementById("js-sat-flag-numero-double").checked = false;
+      document.getElementById("js-sat-vrai-nom").value = "";
+      document.getElementById("js-sat-vrai-nom-wrap").style.display = "none";
+      document.getElementById("js-sat-modal-deja-forme").checked = false;
+    }
+
+    function applySatisfactionAppelState(appel) {
+      const currentAppel = appel || {};
+      document.getElementById("js-sat-flag-pas-forme").checked = !!currentAppel.flag_pas_forme;
+      document.getElementById("js-sat-flag-faux-nom").checked = !!currentAppel.flag_faux_nom;
+      document.getElementById("js-sat-flag-deja-appele").checked = !!currentAppel.flag_deja_appele;
+      document.getElementById("js-sat-flag-numero-double").checked = !!currentAppel.flag_numero_double;
+      document.getElementById("js-sat-vrai-nom").value = currentAppel.flag_vrai_nom || "";
+      document.getElementById("js-sat-vrai-nom-wrap").style.display = currentAppel.flag_faux_nom ? "block" : "none";
+      document.getElementById("js-sat-modal-deja-forme").checked = !!currentAppel.deja_forme;
+    }
+
+    function resetSatisfactionAnswers() {
+      document.querySelectorAll("#js-sat-questions input[type=radio][value='3']").forEach(r => r.checked = true);
+      document.getElementById("js-sat-commentaire").value = "";
+      document.getElementById("js-sat-recommandations").value = "";
+    }
+
+    function applySatisfactionAnswerState(answers) {
+      const currentAnswers = answers || null;
+      if (!currentAnswers) {
+        return;
+      }
+      for (let i = 1; i <= 9; i++) {
+        const value = currentAnswers[`q${i}`];
+        if (value) {
+          const radio = document.querySelector(`#js-sat-questions input[name="q${i}"][value="${value}"]`);
+          if (radio) radio.checked = true;
+        }
+      }
+      document.getElementById("js-sat-commentaire").value = currentAnswers.commentaire || "";
+      document.getElementById("js-sat-recommandations").value = currentAnswers.recommandations || "";
+    }
+
+    async function hydrateSatisfactionModal(id) {
+      resetSatisfactionAnswers();
+      resetSatisfactionFlags();
+      try {
+        const res = await fetch(`/appels/${id}/answers/`);
+        const data = await res.json();
+        if (!data.ok) return;
+        applySatisfactionAppelState(data.appel);
+        applySatisfactionAnswerState(data.answers);
+      } catch (e) {
+        resetSatisfactionAnswers();
+        resetSatisfactionFlags();
+      }
+    }
 
     satModalRappel?.addEventListener("change", () => {
       if (satModalRappelAt) {
@@ -992,6 +1058,7 @@
       form.append("action", action);
       if (extra.rappel_at) form.append("rappel_at", extra.rappel_at);
       if (extra.deja_forme !== undefined) form.append("deja_forme", extra.deja_forme ? "1" : "0");
+      if (extra.flag_pas_forme !== undefined) form.append("flag_pas_forme", extra.flag_pas_forme ? "1" : "0");
       try {
         if (!navigator.onLine) throw new Error("offline");
         const res = await fetch(url, { method: "POST", headers: { "X-CSRFToken": csrfToken }, body: form });
@@ -1261,32 +1328,8 @@
         const id = row.dataset.id;
         const satModal = document.getElementById("js-satisfaction-modal");
         if (!satModal) return;
-        
-        // Initialiser la modale avec les données de la ligne
-        document.querySelectorAll("#js-sat-questions input[type=radio][value='3']").forEach(r => r.checked = true);
-        
-        // Charger les réponses précédentes
-        try {
-          const res = await fetch(`/appels/${id}/answers/`);
-          const data = await res.json();
-          if (data.ok && data.answers) {
-            for(let i=1; i<=9; i++) {
-              const v = data.answers[`q${i}`];
-              if(v) { 
-                const r = document.querySelector(`#js-sat-questions input[name="q${i}"][value="${v}"]`); 
-                if(r) r.checked = true; 
-              }
-            }
-            document.getElementById("js-sat-commentaire").value = data.answers.commentaire || "";
-            document.getElementById("js-sat-recommandations").value = data.answers.recommandations || "";
-          } else {
-            document.getElementById("js-sat-commentaire").value = "";
-            document.getElementById("js-sat-recommandations").value = "";
-          }
-        } catch(e) {
-          document.getElementById("js-sat-commentaire").value = "";
-          document.getElementById("js-sat-recommandations").value = "";
-        }
+
+        await hydrateSatisfactionModal(id);
         
         // Mettre à jour les métadonnées
         document.getElementById("js-sat-modal-nom").textContent = row.dataset.name || "-";
@@ -1294,7 +1337,6 @@
         document.getElementById("js-sat-modal-rappel").checked = false;
         document.getElementById("js-sat-modal-rappel-at").value = "";
         document.getElementById("js-sat-modal-rappel-at").disabled = true;
-        document.getElementById("js-sat-modal-deja-forme").checked = false;
         
         satModal.dataset.rowId = id;
         satModal.hidden = false;
@@ -1310,35 +1352,7 @@
       
       const satModal = document.getElementById("js-satisfaction-modal");
       if (satModal) {
-          // Default values
-          document.querySelectorAll("#js-sat-questions input[type=radio][value='3']").forEach(r => r.checked = true);
-          
-          // Charger les réponses précédentes si disponibles (peu importe le statut)
-          try {
-            const res = await fetch(`/appels/${id}/answers/`);
-            const data = await res.json();
-            if (data.ok && data.answers) {
-              // Charger les réponses Q1-Q9
-              for(let i=1; i<=9; i++) {
-                const v = data.answers[`q${i}`];
-                if(v) { 
-                  const r = document.querySelector(`#js-sat-questions input[name="q${i}"][value="${v}"]`); 
-                  if(r) r.checked = true; 
-                }
-              }
-              // Charger les commentaires et recommandations SANS les réinitialiser
-              document.getElementById("js-sat-commentaire").value = data.answers.commentaire || "";
-              document.getElementById("js-sat-recommandations").value = data.answers.recommandations || "";
-            } else {
-              // Nouveau enregistrement - initialiser à vide
-              document.getElementById("js-sat-commentaire").value = "";
-              document.getElementById("js-sat-recommandations").value = "";
-            }
-          } catch(e) {
-            // Nouveau enregistrement - initialiser à vide
-            document.getElementById("js-sat-commentaire").value = "";
-            document.getElementById("js-sat-recommandations").value = "";
-          }
+          await hydrateSatisfactionModal(id);
           const smr = document.getElementById("js-sat-modal-rappel");
           if (smr) smr.checked = false;
           const smrat = document.getElementById("js-sat-modal-rappel-at");
@@ -1346,8 +1360,6 @@
               smrat.value = "";
               smrat.disabled = true;
           }
-          const satDejaForme = document.getElementById("js-sat-modal-deja-forme");
-          if (satDejaForme) satDejaForme.checked = false;
           
           const satNom = document.getElementById("js-sat-modal-nom");
           if (satNom) satNom.textContent = row.dataset.name || "-";
