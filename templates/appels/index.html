@@ -365,7 +365,7 @@
       </thead>
       <tbody>
         {% for a in appels %}
-        <tr class="clickable-row" data-id="{{ a.id }}" data-status="{{ a.status }}" data-locked-by="{{ a.locked_by.username|default:'' }}" data-name="{{ a.nom }}" data-phone="{{ a.telephone1|default:a.telephone2|default:"" }}" data-audio-name="appel-{{ a.code }}">
+        <tr class="clickable-row" data-id="{{ a.id }}" data-status="{{ a.status }}" data-locked-by="{{ a.locked_by.username|default:'' }}" data-name="{{ a.nom }}" data-phone="{{ a.telephone1|default:a.telephone2|default:"" }}" data-audio-name="{{ a.code }}-{{ a.nom|slugify }}">
           <td class="checkbox-cell">
             <input
               type="checkbox"
@@ -429,7 +429,7 @@
                 <button type="button" class="btn-small js-play" {% if not a.has_audio_file %}disabled{% endif %}><i class="fa-solid fa-play"></i><span>Play</span></button>
                 <button type="button" class="btn-icon js-stop" {% if not a.has_audio_file %}disabled{% endif %} title="Stopper l'audio" aria-label="Stopper l'audio"><i class="fa-solid fa-stop"></i></button>
                 {% if a.has_audio_file %}
-                  <a class="btn-icon js-audio-download" href="{{ a.audio_file_url }}" download="appel-{{ a.code }}.mp3" title="Telecharger l'audio" aria-label="Telecharger l'audio"><i class="fa-solid fa-download"></i></a>
+                  <a class="btn-icon js-audio-download" href="{{ a.audio_file_url }}" download="{{ a.code }}-{{ a.nom|slugify }}.mp3" title="Telecharger l'audio" aria-label="Telecharger l'audio"><i class="fa-solid fa-download"></i></a>
                 {% endif %}
                 <div class="progress"><div class="progress-fill"></div></div>
                 <span class="time-label">0:00</span>
@@ -1046,8 +1046,8 @@
             await new Promise((resolve) => {
                 const originalStop = state.recorder.onstop;
                 state.recorder.onstop = (e) => {
-                    audioBlob = state.blob || (recordState.get(row.dataset.id)?.blob) || null;
                     if (originalStop) originalStop(e);
+                    audioBlob = recordState.get(row.dataset.id)?.blob || null;
                     resolve();
                 };
                 state.recorder.stop();
