@@ -183,6 +183,15 @@
     </select>
   </div>
   <div class="filter-field">
+    <label for="f-status">Status</label>
+    <select id="f-status" name="status">
+      <option value="">Tous</option>
+      {% for s in status %}
+        <option value="{{ s }}" {% if filter_status == s %}selected{% endif %}>{{ s }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="filter-field">
     <label for="f-ville">Ville</label>
     <select id="f-ville" name="ville">
       <option value="">Toutes</option>

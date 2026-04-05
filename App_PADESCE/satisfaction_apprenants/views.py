@@ -941,6 +941,7 @@ FILTER_FIELD_ROW_MAP = {
     "prestataire": "prestataire",
     "beneficiaire": "beneficiaire",
     "cohorte": "cohorte",
+    "status": "status",
 }
 
 
@@ -1152,6 +1153,7 @@ def _build_dashboard_active_filters_summary(filters: dict) -> list[dict]:
         "cohorte": "Cohorte",
         "ville": "Ville",
         "user": "Utilisateur",
+        "status": "Status",
     }
     return [
         {"label": filter_labels[key], "value": str(value).strip()}
@@ -2226,6 +2228,7 @@ def _build_satisfaction_dashboard_data(request):
         "prestataire": request.GET.get("prestataire", ""),
         "beneficiaire": request.GET.get("beneficiaire", ""),
         "cohorte": request.GET.get("cohorte", ""),
+        "status": request.GET.get("status", ""),
     }
 
     all_rows = [
@@ -2537,6 +2540,7 @@ def _build_satisfaction_dashboard_data(request):
         "filter_prestataire": filters["prestataire"],
         "filter_beneficiaire": filters["beneficiaire"],
         "filter_cohorte": filters["cohorte"],
+        "filter_status": filters["status"],
         "analyzed_classes": analyzed_classes,
         "analyzed_prestations": analyzed_prestations,
         "analyzed_fenetres": analyzed_fenetres,
@@ -2567,6 +2571,7 @@ def _build_satisfaction_dashboard_data(request):
         "prestataires": filter_options["prestataire"],
         "beneficiaires": filter_options["beneficiaire"],
         "cohortes": filter_options["cohorte"],
+        "status": filter_options["status"],
         "filter_map_json": filter_map_json,
     }
     context["tab_details"] = _build_dashboard_table_details(context, rows)
@@ -3165,6 +3170,7 @@ def satisfaction_general_page(request):
     without_phone_only = request.GET.get("without_phone") == "1"
     all_three_only = request.GET.get("all_three") == "1"
     excluded_filter = str(request.GET.get("excluded", "") or "").strip().lower()
+    status_filter = (request.GET.get("status") or "").strip()
 
     try:
         source_bundle = build_padesce_source_index(source_key=selected_source)
@@ -3238,6 +3244,9 @@ def satisfaction_general_page(request):
     elif excluded_filter == "no":
         rows = [row for row in rows if row.get("exclude_from_analysis") != "Oui"]
 
+    if status_filter:
+        rows = [row for row in rows if row.get("status") == status_filter]
+
     paginator = Paginator(rows, 50)
     page_obj = paginator.get_page(request.GET.get("page"))
 
@@ -3252,6 +3261,7 @@ def satisfaction_general_page(request):
             "without_phone": without_phone_only,
             "all_three": all_three_only,
             "excluded": excluded_filter,
+            "status": status_filter,
         },
         "source_options": get_workbook_source_options(),
         "analysis_threshold_label": analysis_threshold_label(),
