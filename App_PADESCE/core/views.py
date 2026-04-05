@@ -1102,7 +1102,11 @@ def consultant_dashboard(request):
         ]
     )
 
-    # Strict form counting logic
+    # Strict form counting: q1-q9 must all be non-null.
+    # AppelAnswers fields are nullable so check each individually.
+    # SatisfactionApprenant fields are non-nullable — existence of the related
+    # record is sufficient (avoids Django 6.x ValueError on non-nullable
+    # integer fields used with __isnull via a LEFT JOIN).
     q_fields = [
         "q1_clarte_exposes", "q2_interaction_formateur", "q3_maitrise_contenu",
         "q4_salle_adequate", "q5_materiel_disponible", "q6_organisation_temps",
@@ -1110,11 +1114,9 @@ def consultant_dashboard(request):
     ]
     answers_valid_q = Q()
     for f in q_fields:
-        answers_valid_q &= (Q(**{f"answers__{f}__isnull": False}) & ~Q(**{f"answers__{f}": ""}))
+        answers_valid_q &= Q(**{f"answers__{f}__isnull": False})
 
-    survey_valid_q = Q()
-    for f in q_fields:
-        survey_valid_q &= (Q(**{f"satisfaction_apprenant__{f}__isnull": False}) & ~Q(**{f"satisfaction_apprenant__{f}": ""}))
+    survey_valid_q = Q(satisfaction_apprenant__isnull=False)
 
     strict_form_q = answers_valid_q | survey_valid_q
 
