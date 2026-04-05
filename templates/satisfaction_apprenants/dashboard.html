@@ -211,6 +211,24 @@
 </form>
 
 <div class="analysis-grid" id="js-analysis-grid">
+  <!-- 1. Prestations analysées — en premier -->
+  <div class="analysis-card">
+    <h3>Prestations analysées</h3>
+    <div class="count">
+      {% if missing_analysis.available %}{{ missing_analysis.total_qualified }}/{{ missing_analysis.total_source }}{% else %}{{ analyzed_prestations_ratio }}{% endif %}
+    </div>
+    <div style="font-size:0.78rem; color:var(--muted); margin-bottom:10px;">Prestations terminées analysées sur le total dans la source choisie.</div>
+    <div class="analysis-list">
+      {% for item in analyzed_prestations %}
+      <a class="analysis-item" href="{% url 'prestation_analysis_detail' item.code %}" style="text-decoration:none;color:inherit;">
+        <span>{{ item.label }}</span><strong>{{ item.nb }}</strong>
+      </a>
+      {% empty %}
+      <div class="analysis-item"><span>Aucune prestation analysée</span><strong>0</strong></div>
+      {% endfor %}
+    </div>
+  </div>
+  <!-- 2. Classes analysées — en second -->
   <div class="analysis-card">
     <h3>Classes analysées</h3>
     <div class="count">{{ analyzed_classes_count }}</div>
@@ -224,22 +242,31 @@
       {% endfor %}
     </div>
   </div>
+  <!-- 3. Prestataires analysés -->
   <div class="analysis-card">
-    <h3>Prestations analysées</h3>
-    <div class="count">
-      {% if missing_analysis.available %}{{ missing_analysis.total_qualified }}/{{ missing_analysis.total_source }}{% else %}{{ analyzed_prestations_ratio }}{% endif %}
-    </div>
-    <div style="font-size:0.78rem; color:var(--muted); margin-bottom:10px;">Prestations terminées analysées sur le total des prestations terminées dans la source choisie.</div>
+    <h3>Prestataires analysés</h3>
+    <div class="count">{{ analyzed_prestataires_count }}</div>
     <div class="analysis-list">
-      {% for item in analyzed_prestations %}
-      <a class="analysis-item" href="{% url 'prestation_analysis_detail' item.code %}" style="text-decoration:none;color:inherit;">
-        <span>{{ item.label }}</span><strong>{{ item.nb }}</strong>
-      </a>
+      {% for item in analyzed_prestataires %}
+      <div class="analysis-item"><span>{{ item.label }}</span><strong>{{ item.nb }}</strong></div>
       {% empty %}
-      <div class="analysis-item"><span>Aucune prestation analysée</span><strong>0</strong></div>
+      <div class="analysis-item"><span>Aucun prestataire analysé</span><strong>0</strong></div>
       {% endfor %}
     </div>
   </div>
+  <!-- 4. Bénéficiaires analysés -->
+  <div class="analysis-card">
+    <h3>Bénéficiaires analysés</h3>
+    <div class="count">{{ analyzed_beneficiaires_count }}</div>
+    <div class="analysis-list">
+      {% for item in analyzed_beneficiaires %}
+      <div class="analysis-item"><span>{{ item.label }}</span><strong>{{ item.nb }}</strong></div>
+      {% empty %}
+      <div class="analysis-item"><span>Aucun bénéficiaire analysé</span><strong>0</strong></div>
+      {% endfor %}
+    </div>
+  </div>
+  <!-- 5. Prestations manquantes -->
   <div class="analysis-card" style="border-color:rgba(220,38,38,.25); background:rgba(255,241,242,.45);">
     <h3 style="color:#991b1b;">&#9888; Prestations manquantes</h3>
     {% if missing_analysis.available %}
@@ -260,6 +287,7 @@
     <div style="font-size:0.82rem;color:var(--muted);">Source réseau non disponible.</div>
     {% endif %}
   </div>
+  <!-- 6. Fenêtres analysées -->
   <div class="analysis-card">
     <h3>Fenêtres analysées</h3>
     <div class="count">{{ analyzed_fenetres_count }}</div>
@@ -271,28 +299,7 @@
       {% endfor %}
     </div>
   </div>
-  <div class="analysis-card">
-    <h3>Prestataires analysés</h3>
-    <div class="count">{{ analyzed_prestataires_count }}</div>
-    <div class="analysis-list">
-      {% for item in analyzed_prestataires %}
-      <div class="analysis-item"><span>{{ item.label }}</span><strong>{{ item.nb }}</strong></div>
-      {% empty %}
-      <div class="analysis-item"><span>Aucun prestataire analysé</span><strong>0</strong></div>
-      {% endfor %}
-    </div>
-  </div>
-  <div class="analysis-card">
-    <h3>Bénéficiaires analysés</h3>
-    <div class="count">{{ analyzed_beneficiaires_count }}</div>
-    <div class="analysis-list">
-      {% for item in analyzed_beneficiaires %}
-      <div class="analysis-item"><span>{{ item.label }}</span><strong>{{ item.nb }}</strong></div>
-      {% empty %}
-      <div class="analysis-item"><span>Aucun bénéficiaire analysé</span><strong>0</strong></div>
-      {% endfor %}
-    </div>
-  </div>
+  <!-- 7. Cohortes analysées -->
   <div class="analysis-card">
     <h3>Cohortes analysées</h3>
     <div class="count">{{ analyzed_cohortes_count }}</div>
@@ -305,6 +312,66 @@
     </div>
   </div>
 </div>
+
+<script>
+// Dynamic filter: when prestataire changes, update classe & beneficiaire options
+(function() {
+  const filterMap = {{ filter_map_json|safe }};
+  const prestataireSel = document.getElementById("f-prestataire");
+  const classeSel = document.getElementById("f-classe");
+  const beneficiaireSel = document.getElementById("f-beneficiaire");
+  if (!prestataireSel || !classeSel || !beneficiaireSel) return;
+
+  // Store all original options
+  const allClasseOptions = Array.from(classeSel.options).map(o => ({value: o.value, text: o.text}));
+  const allBenefOptions = Array.from(beneficiaireSel.options).map(o => ({value: o.value, text: o.text}));
+
+  function filterSelects(selectedPrestataire) {
+    const allowedClasses = new Set(
+      selectedPrestataire ? (filterMap.prestataire_to_classes[selectedPrestataire] || []) : []
+    );
+    const allowedBenef = new Set(
+      selectedPrestataire ? (filterMap.prestataire_to_beneficiaires[selectedPrestataire] || []) : []
+    );
+
+    // Rebuild classe options
+    const prevClasse = classeSel.value;
+    classeSel.innerHTML = "";
+    allClasseOptions.forEach(opt => {
+      if (!selectedPrestataire || !opt.value || allowedClasses.has(opt.value)) {
+        const el = document.createElement("option");
+        el.value = opt.value;
+        el.text = opt.text;
+        if (opt.value === prevClasse) el.selected = true;
+        classeSel.appendChild(el);
+      }
+    });
+
+    // Rebuild beneficiaire options
+    const prevBenef = beneficiaireSel.value;
+    beneficiaireSel.innerHTML = "";
+    allBenefOptions.forEach(opt => {
+      if (!selectedPrestataire || !opt.value || allowedBenef.has(opt.value)) {
+        const el = document.createElement("option");
+        el.value = opt.value;
+        el.text = opt.text;
+        if (opt.value === prevBenef) el.selected = true;
+        beneficiaireSel.appendChild(el);
+      }
+    });
+  }
+
+  // Apply on change
+  prestataireSel.addEventListener("change", function() {
+    filterSelects(this.value);
+  });
+
+  // Apply on page load if prestataire already selected
+  if (prestataireSel.value) {
+    filterSelects(prestataireSel.value);
+  }
+})();
+</script>
 
 {% if missing_analysis.available and missing_analysis.total_missing %}
 <div class="panel" style="border-color:rgba(220,38,38,.2); background:rgba(255,241,242,.25);">

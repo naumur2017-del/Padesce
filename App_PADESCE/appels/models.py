@@ -66,6 +66,11 @@ def appel_audio_upload(instance: "Appel", filename: str) -> str:
 class Appel(TimeStampedModel):
     STATUS_CHOICES = [
         ("en_attente", "En attente"),
+        ("appel_tente", "Appel Tenté"),
+        ("appel_reussi", "Appel Réussi"),
+        ("formulaire_rempli", "Formulaire Rempli"),
+        ("formulaire_avec_audio", "Formulaire avec Audio"),
+        # Anciens statuts (rétrocompatibilité)
         ("en_cours", "En cours"),
         ("pause", "Pause"),
         ("a_rappeler", "A rappeler"),
@@ -84,7 +89,7 @@ class Appel(TimeStampedModel):
     telephone1 = models.CharField(max_length=30, blank=True)
     telephone2 = models.CharField(max_length=30, blank=True)
     taux_presence = models.DecimalField(max_digits=5, decimal_places=2, default=0)
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="en_attente")
+    status = models.CharField(max_length=25, choices=STATUS_CHOICES, default="en_attente")
     rappel_at = models.DateTimeField(null=True, blank=True)
     type_formation_declaree = models.TextField(blank=True)
     formation_padesce = models.CharField(max_length=255, blank=True)
@@ -159,7 +164,7 @@ class AppelCGA(TimeStampedModel):
     ville = models.CharField(max_length=120, blank=True)
     telephone = models.CharField(max_length=30, blank=True)
     is_active = models.BooleanField(default=True, db_index=True)
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="en_attente", db_index=True)
+    status = models.CharField(max_length=25, choices=STATUS_CHOICES, default="en_attente", db_index=True)
     rappel_at = models.DateTimeField(null=True, blank=True)
     audio_file = models.FileField(upload_to=appel_cga_audio_upload, null=True, blank=True, max_length=255)
     locked_by = models.ForeignKey(
@@ -198,7 +203,7 @@ class AppelFormateur(TimeStampedModel):
     heure_fin = models.CharField(max_length=30, blank=True)
     source_contact = models.CharField(max_length=255, blank=True)
     is_active = models.BooleanField(default=True, db_index=True)
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="en_attente", db_index=True)
+    status = models.CharField(max_length=25, choices=STATUS_CHOICES, default="en_attente", db_index=True)
     rappel_at = models.DateTimeField(null=True, blank=True)
     audio_file = models.FileField(upload_to=appel_formateur_audio_upload, null=True, blank=True, max_length=255)
     q1_prerequis_apprenants = models.PositiveSmallIntegerField(null=True, blank=True)

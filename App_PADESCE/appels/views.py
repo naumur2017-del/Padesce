@@ -227,13 +227,21 @@ def _attach_appel_audio_to_satisfaction(satisfaction: SatisfactionApprenant | No
 
 def _status_rank(value: str) -> int:
     ranks = {
+        "formulaire_avec_audio": 5,
+        "formulaire_rempli": 4,
+        "appel_reussi": 3,
+        "appel_tente": 2,
+        # Anciens statuts
         "termine": 4,
-        "en_cours": 3,
+        "en_cours": 2,
         "pause": 2,
-        "a_rappeler": 1,
+        "a_rappeler": 2,
         "en_attente": 0,
     }
     return ranks.get(str(value or "").strip(), -1)
+
+
+COMPLETED_STATUSES = {"formulaire_avec_audio", "formulaire_rempli", "appel_reussi", "termine"}
 
 
 def _best_duplicate_winner(rows):
@@ -311,11 +319,16 @@ def _normalize_dashboard_fenetre(value):
 
 
 def _build_progress_metrics(queryset):
+    completed_q = Q(status__in=["formulaire_avec_audio", "formulaire_rempli", "appel_reussi", "termine"])
     stats = queryset.aggregate(
         total=Count("id"),
-        termines=Count("id", filter=Q(status="termine")),
+        termines=Count("id", filter=completed_q),
+        appels_tentes=Count("id", filter=Q(status="appel_tente")),
+        appels_reussis=Count("id", filter=Q(status="appel_reussi")),
+        formulaires_remplis=Count("id", filter=Q(status__in=["formulaire_rempli", "formulaire_avec_audio"])),
+        formulaires_avec_audio=Count("id", filter=Q(status="formulaire_avec_audio")),
         rappels=Count("id", filter=Q(status="a_rappeler")),
-        audios=Count("id", filter=Q(audio_file__isnull=False)),
+        audios=Count("id", filter=Q(audio_file__isnull=False) | Q(status="formulaire_avec_audio")),
     )
     total = int(stats.get("total") or 0)
     termines = int(stats.get("termines") or 0)
@@ -635,7 +648,7 @@ def _build_appel_class_progress_snapshot(source_bundle: dict | None = None) -> d
             label_by_key.setdefault(classe_key, classe_label)
             raw_labels_by_key[classe_key].add(classe_label)
         total_db_appels_by_key[classe_key] += 1
-        if row.get("status") == "termine" and has_usable_phone(row.get("telephone1"), row.get("telephone2")):
+        if row.get("status") in {"formulaire_avec_audio", "formulaire_rempli", "appel_reussi", "termine"} and has_usable_phone(row.get("telephone1"), row.get("telephone2")):
             callable_termines_by_key[classe_key] += 1
 
     source_callable_counts_by_key: dict[str, int] = {}
@@ -1166,7 +1179,7 @@ def appels_index(request):
     appels = _bind_audio_state(list(page_obj.object_list))
     page_obj.object_list = appels
 
-    # ── per-class 50 % threshold ──
+    # ── per-class threshold enrichment ──
     classe_progress = optimization_snapshot["classe_progress"]
     progress_map = {item["classe"]: item for item in classe_progress}
     enriched_classes = []
@@ -1174,10 +1187,16 @@ def appels_index(request):
         prog = progress_map.get(c_label)
         label_with_prog = c_label
         if prog:
-            if int(prog["total"] or 0) <= 0:
+            pct = float(prog.get("pct") or 0)
+            total = int(prog.get("total") or 0)
+            termines = int(prog.get("termines") or 0)
+            if total <= 0:
                 label_with_prog = f"{c_label} (Aucun numero joignable)"
+            elif pct >= 25:
+                marker = "✓ " if prog.get("reached") else "▶ "
+                label_with_prog = f"{marker}{c_label} ({termines}/{total} - {pct}% ≥25%)"
             else:
-                label_with_prog = f"{c_label} ({prog['termines']}/{prog['total']} joignables - {prog['pct']}%)"
+                label_with_prog = f"{c_label} ({termines}/{total} - {pct}%)"
         enriched_classes.append({"value": c_label, "label": label_with_prog})
     filters["classes_enriched"] = enriched_classes
 

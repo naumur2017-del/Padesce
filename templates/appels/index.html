@@ -204,10 +204,14 @@
     <select name="status" class="input">
       <option value="">Statut</option>
       <option value="en_attente" {% if filters.status == "en_attente" %}selected{% endif %}>En attente</option>
-      <option value="en_cours" {% if filters.status == "en_cours" %}selected{% endif %}>En cours</option>
-      <option value="pause" {% if filters.status == "pause" %}selected{% endif %}>Pause</option>
-      <option value="a_rappeler" {% if filters.status == "a_rappeler" %}selected{% endif %}>A rappeler</option>
-      <option value="termine" {% if filters.status == "termine" %}selected{% endif %}>Termine</option>
+      <option value="appel_tente" {% if filters.status == "appel_tente" %}selected{% endif %}>Appel Tenté</option>
+      <option value="appel_reussi" {% if filters.status == "appel_reussi" %}selected{% endif %}>Appel Réussi</option>
+      <option value="formulaire_rempli" {% if filters.status == "formulaire_rempli" %}selected{% endif %}>Formulaire Rempli</option>
+      <option value="formulaire_avec_audio" {% if filters.status == "formulaire_avec_audio" %}selected{% endif %}>Formulaire avec Audio</option>
+      <option value="en_cours" {% if filters.status == "en_cours" %}selected{% endif %}>En cours (ancien)</option>
+      <option value="pause" {% if filters.status == "pause" %}selected{% endif %}>Pause (ancien)</option>
+      <option value="a_rappeler" {% if filters.status == "a_rappeler" %}selected{% endif %}>A rappeler (ancien)</option>
+      <option value="termine" {% if filters.status == "termine" %}selected{% endif %}>Terminé (ancien)</option>
     </select>
     <select name="prestataire" class="input">
       <option value="">Prestataire</option>

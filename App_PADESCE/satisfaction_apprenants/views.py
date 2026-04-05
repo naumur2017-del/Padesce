@@ -2479,6 +2479,22 @@ def _build_satisfaction_dashboard_data(request):
         filters,
     )
 
+    # Build prestataire → classes/beneficiaires mapping for dynamic filters
+    prestataire_to_classes: dict[str, set[str]] = {}
+    prestataire_to_beneficiaires: dict[str, set[str]] = {}
+    for row in all_rows:
+        prest = str(row.get("prestataire") or "").strip()
+        classe = str(row.get("classe_code") or "").strip()
+        benef = str(row.get("beneficiaire") or "").strip()
+        if prest and classe:
+            prestataire_to_classes.setdefault(prest, set()).add(classe)
+        if prest and benef:
+            prestataire_to_beneficiaires.setdefault(prest, set()).add(benef)
+    filter_map_json = json.dumps({
+        "prestataire_to_classes": {k: sorted(v) for k, v in prestataire_to_classes.items()},
+        "prestataire_to_beneficiaires": {k: sorted(v) for k, v in prestataire_to_beneficiaires.items()},
+    })
+
     filter_query_string = request.GET.copy().urlencode()
     analyzed_prestations_total_count = (
         len(terminated_prestation_codes) if source_bundle else len(analyzed_prestations)
@@ -2533,6 +2549,7 @@ def _build_satisfaction_dashboard_data(request):
         "prestataires": filter_options["prestataire"],
         "beneficiaires": filter_options["beneficiaire"],
         "cohortes": filter_options["cohorte"],
+        "filter_map_json": filter_map_json,
     }
     context["tab_details"] = _build_dashboard_table_details(context, rows)
     return {"rows": rows, "filters": filters, "context": context}

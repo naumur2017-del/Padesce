@@ -223,9 +223,12 @@ def _formateur_form_state(row: AppelFormateur) -> dict:
     }
 
 
+COMPLETED_STATUSES = {"formulaire_avec_audio", "formulaire_rempli", "appel_reussi", "appel_tente", "termine", "en_cours", "pause", "a_rappeler"}
+
+
 def _apprenant_call_count(appel: Appel, has_form: bool, has_audio: bool) -> int:
     status = str(getattr(appel, "status", "") or "").strip()
-    return 1 if status and status != "en_attente" or has_form or has_audio else 0
+    return 1 if (status and status != "en_attente") or has_form or has_audio else 0
 
 
 def _formateur_person_key(row: AppelFormateur) -> str:
@@ -240,9 +243,13 @@ def _formateur_person_key(row: AppelFormateur) -> str:
 
 def _status_sort_value(status: str) -> int:
     order = {
+        "formulaire_avec_audio": 0,
+        "formulaire_rempli": 1,
+        "appel_reussi": 2,
+        "appel_tente": 3,
         "termine": 0,
-        "a_rappeler": 1,
-        "pause": 2,
+        "a_rappeler": 3,
+        "pause": 3,
         "en_cours": 3,
         "en_attente": 4,
     }
@@ -501,6 +508,25 @@ def _resolve_classe_for_formateur_analysis(row: AppelFormateur):
     return candidates[0] if candidates else None
 
 
+def _get_apprenant_id_for_appel(appel: Appel) -> str:
+    """Returns the APP1234-format ID from the linked Apprenant if available, else appel.code."""
+    try:
+        apprenant = getattr(appel, "_cached_apprenant", None)
+        if apprenant is None and appel.classe_id:
+            from App_PADESCE.apprenants.models import Apprenant as ApprenantModel
+            apprenant = (
+                ApprenantModel.objects.filter(classe_id=appel.classe_id, code__iexact=appel.code).first()
+                or ApprenantModel.objects.filter(classe_id=appel.classe_id)
+                .filter(Q(telephone1=appel.telephone1) | Q(telephone1=appel.telephone2) | Q(telephone2=appel.telephone1) | Q(telephone2=appel.telephone2))
+                .first()
+            )
+    except Exception:
+        apprenant = None
+    if apprenant and str(apprenant.code or "").strip():
+        return str(apprenant.code).strip()
+    return str(appel.code or "").strip()
+
+
 def _build_apprenant_rows(appels, *, back_url: str):
     rows = []
     for appel in appels:
@@ -513,10 +539,12 @@ def _build_apprenant_rows(appels, *, back_url: str):
         has_audio, audio_url = _resolve_apprenant_audio(appel, satisfaction)
         call_count = _apprenant_call_count(appel, form_state["has_form"], has_audio)
         detail_url = _detail_url("analysis_apprenant_call_detail", appel.pk, back_url)
+        apprenant_id = _get_apprenant_id_for_appel(appel)
         rows.append(
             {
                 "id": appel.pk,
                 "code": appel.code,
+                "apprenant_id": apprenant_id,
                 "nom": appel.nom,
                 "telephone": appel.telephone1 or appel.telephone2 or "",
                 "statut": appel.status,
@@ -579,6 +607,7 @@ def _build_class_chapeau(classe_code: str, appels, source_bundle: dict | None = 
         "title": _dashboard_chapeau_title(classe_code),
         "rows": question_rows,
         "respondents_count": len(respondent_keys),
+        "formulaires_remplis": len(respondent_keys),
         "has_data": any(item["count"] for item in question_rows),
     }
 
@@ -599,6 +628,14 @@ def _build_formateur_rows(rows, *, back_url: str):
         has_audio, audio_url = _file_state(getattr(row, "audio_file", None))
         detail_url = _detail_url("analysis_formateur_call_detail", row.pk, back_url)
         person_key = _formateur_person_key(row)
+        # Try to resolve formateur name from linked Classe
+        resolved_classe = _resolve_classe_for_formateur_analysis(row)
+        formateur_nom = str(
+            getattr(getattr(resolved_classe, "formateur", None), "nom_complet", "") or row.source_contact or ""
+        ).strip()
+        formateur_telephone = str(
+            getattr(getattr(resolved_classe, "formateur", None), "telephone", "") or row.telephone or ""
+        ).strip()
         payload.append(
             {
                 "id": row.pk,
@@ -614,8 +651,11 @@ def _build_formateur_rows(rows, *, back_url: str):
                 "has_audio": has_audio,
                 "audio_url": audio_url,
                 "has_form": form_state["has_form"],
+                "form_state": form_state,
                 "detail_url": detail_url,
                 "updated_at": row.updated_at,
+                "formateur_nom": formateur_nom,
+                "formateur_telephone": formateur_telephone,
             }
         )
     return sorted(
@@ -629,18 +669,39 @@ def _build_formateur_rows(rows, *, back_url: str):
     )
 
 
+FORMATEUR_THRESHOLD_PERCENT = 50
+
+
 def _entity_summary(apprenant_rows, formateur_rows) -> dict:
     analyzed_apprenants = sum(1 for row in apprenant_rows if row["call_count"] or row["has_form"] or row["has_audio"])
     analyzed_formateurs = sum(1 for row in formateur_rows if row["call_count"] or row["has_form"] or row["has_audio"])
+    appels_tentes = sum(1 for row in apprenant_rows if row["statut"] == "appel_tente")
+    appels_reussis = sum(1 for row in apprenant_rows if row["statut"] in {"appel_reussi", "termine"})
+    formulaires_remplis = sum(1 for row in apprenant_rows if row["has_form"])
+    formulaires_avec_audio = sum(1 for row in apprenant_rows if row["has_audio"] and row["has_form"])
+    audios_enregistres = sum(1 for row in apprenant_rows if row["has_audio"])
+
+    total_form = len(formateur_rows)
+    form_threshold_target = max(1, int(total_form * FORMATEUR_THRESHOLD_PERCENT / 100)) if total_form else 0
+    form_threshold_reached = total_form > 0 and analyzed_formateurs >= form_threshold_target
+
     return {
         "apprenants_total": len(apprenant_rows),
         "apprenants_analyzed": analyzed_apprenants,
-        "apprenants_with_audio": sum(1 for row in apprenant_rows if row["has_audio"]),
-        "apprenants_with_form": sum(1 for row in apprenant_rows if row["has_form"]),
-        "formateurs_total": len(formateur_rows),
+        "apprenants_with_audio": audios_enregistres,
+        "apprenants_with_form": formulaires_remplis,
+        "appels_tentes": appels_tentes,
+        "appels_reussis": appels_reussis,
+        "formulaires_remplis": formulaires_remplis,
+        "formulaires_avec_audio": formulaires_avec_audio,
+        "audios_enregistres": audios_enregistres,
+        "formateurs_total": total_form,
         "formateurs_analyzed": analyzed_formateurs,
         "formateurs_with_audio": sum(1 for row in formateur_rows if row["has_audio"]),
         "formateurs_with_form": sum(1 for row in formateur_rows if row["has_form"]),
+        "form_threshold_percent": FORMATEUR_THRESHOLD_PERCENT,
+        "form_threshold_target": form_threshold_target,
+        "form_threshold_reached": form_threshold_reached,
         "has_analysis": bool(analyzed_apprenants or analyzed_formateurs),
     }
 
