@@ -1024,7 +1024,28 @@ def consultant_dashboard(request):
         app.consultant_class_display = _consultant_class_display(app)
         app.consultant_has_audio = has_audio
         app.consultant_audio_duration = audio_duration or 0
+        app.consultant_has_form = answers_complete
         app.consultant_priority = bool(has_audio and answers_complete and (audio_duration or 0) >= 60)
+        
+        # Descriptive status display
+        status_display = app.get_status_display()
+        if getattr(app, 'flag_pas_forme', False):
+            status_display = "Pas formé"
+        elif getattr(app, 'flag_faux_nom', False):
+            status_display = "Faux nom"
+        elif getattr(app, 'flag_numero_double', False):
+            status_display = "Numéro double"
+        elif getattr(app, 'deja_forme', False):
+            status_display = "Déjà formé"
+        elif answers:
+            if not answers_complete:
+                status_display = "Formulaire incomplet"
+            elif (getattr(answers, 'commentaire', '') or 'RAS').strip().upper() == "RAS":
+                status_display = "Formulaire RAS"
+            else:
+                status_display = "Formulaire rempli"
+        app.consultant_status_display = status_display
+
         if app.code in priorities:
             app.priority_avg = priorities[app.code]["avg_satisfaction"]
         rows.append(app)
@@ -1081,6 +1102,25 @@ def consultant_dashboard(request):
         ]
     )
 
+    tentes = reussis = form_remplis = form_audio = audios_enregistres = 0
+    target_class_codes = [opt["value"] for opt in card_snapshot["class_options"] if opt["value"]]
+    if target_class_codes:
+        base_qs = Appel.objects.filter(is_active=True, classe__code__in=target_class_codes)
+        stats = base_qs.aggregate(
+            tentes=Count("id", filter=Q(status__in=["appel_tente", "appel_reussi", "termine", "formulaire_rempli", "formulaire_avec_audio"])),
+            reussis=Count("id", filter=Q(status__in=["appel_reussi", "termine", "formulaire_rempli", "formulaire_avec_audio"])),
+            forms=Count("id", filter=Q(answers__isnull=False) | Q(satisfaction_apprenant__isnull=False)),
+            forms_audio=Count("id", filter=(Q(answers__isnull=False) | Q(satisfaction_apprenant__isnull=False)) & Q(audio_file__isnull=False) & ~Q(audio_file="")),
+            audios=Count("id", filter=Q(audio_file__isnull=False) & ~Q(audio_file=""))
+        )
+        tentes = stats["tentes"] or 0
+        reussis = stats["reussis"] or 0
+        form_remplis = stats["forms"] or 0
+        form_audio = stats["forms_audio"] or 0
+        audios_enregistres = stats["audios"] or 0
+
+        # Optional: refine the count using actual form validation, but database query is much faster for a dashboard.
+
     paginator = Paginator(rows, 25)
     page_number = request.GET.get("page", 1)
     try:
@@ -1109,8 +1149,16 @@ def consultant_dashboard(request):
             "total_rows": len(rows),
             "card_prestations_count": card_snapshot["counts"].get("analyzed_prestations_count", 0),
             "card_classes_count": card_snapshot["counts"].get("analyzed_classes_count", 0),
+            "card_prestataires_count": card_snapshot["counts"].get("analyzed_prestataires_count", 0),
+            "card_beneficiaires_count": card_snapshot["counts"].get("analyzed_beneficiaires_count", 0),
             "card_apprenants_count": card_snapshot["counts"].get("analyzed_learners_count", 0),
             "card_audio_count": card_snapshot["counts"].get("analysis_audio_count", 0),
+            "card_fenetres": card_snapshot["fenetre_options"],
+            "summary_tentes": tentes,
+            "summary_reussis": reussis,
+            "summary_form_remplis": form_remplis,
+            "summary_form_audio": form_audio,
+            "summary_audios": audios_enregistres,
         },
     )
 

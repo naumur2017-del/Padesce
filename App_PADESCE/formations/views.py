@@ -179,6 +179,7 @@ def _apprenant_form_state(appel: Appel) -> dict:
         or commentaire
         or recommandations
         or any(value for value in flags.values())
+        or str(getattr(appel, "status", "")) in ("formulaire_rempli", "formulaire_avec_audio")
     )
     return {
         "answers": answers,
@@ -573,7 +574,9 @@ def _build_class_chapeau(classe_code: str, appels, source_bundle: dict | None = 
     for appel in appels:
         answers = _appel_answers_or_none(appel)
         satisfaction = _satisfaction_or_none(appel)
-        if not answers or not appel_is_analysis_eligible(appel, answer=answers, survey=satisfaction):
+        form_state = _apprenant_form_state(appel)
+
+        if not form_state["has_form"]:
             continue
 
         source_record = _analysis_source_record_for_appel(source_bundle, appel)

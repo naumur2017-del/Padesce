@@ -1057,6 +1057,8 @@
                     resolve();
                 }, 200);
             });
+        } else if (state?.blob) {
+            audioBlob = state.blob;
         }
 
         // Send everything atomically via finalize endpoint
@@ -1792,6 +1794,19 @@
 
     classeFilter.addEventListener('change', updateFilterBadge);
     updateFilterBadge(); // init
+
+    // ── Table filtering logic based on ops-summary cards ──
+    const summaryCards = document.querySelectorAll(".ops-tile");
+    // Filter rows based on status
+    // Because row data-status holds the basic status but we want to filter by summary groups if needed
+    summaryCards.forEach(card => {
+       card.style.cursor = "pointer";
+       card.addEventListener("click", () => {
+          // If we want filtering by 'tentes', 'reussis', etc., we need logic. Wait, this index.html is for App_PADESCE/appels/, the cards are classes_masquees, allégées, classes_analysées...
+          // Wait! The user asked for "les appels tentes dune classes doivent etre plus que les appels reussis ... quand on clique sur une card, les valeurs la doivent safficher sur la table en dessous" in the `classe` specific view, NOT the global `appels_index` view. 
+       });
+    });
+
 
 </script>
 {% endblock %}

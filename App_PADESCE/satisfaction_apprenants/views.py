@@ -708,7 +708,7 @@ def _dashboard_row_from_answer(answer_or_appel) -> dict:
         "recommandations": getattr(answer, "recommandations", "") if answer else "",
         "analysis_scope": analysis_scope,
         "analysis_eligible": analysis_eligible,
-        "analysis_included": bool(answer) and analysis_eligible,
+        "analysis_included": (bool(answer) or bool(survey)) and analysis_eligible,
         "analysis_excluded": not analysis_eligible,
         "analysis_exclusion_reason": analysis_exclusion_reason,
         "formulaire_all_three": answer_has_all_three_scores(answer),

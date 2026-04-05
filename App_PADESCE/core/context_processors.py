@@ -100,6 +100,8 @@ def _build_menu_items(user, path: str, consultant_only: bool) -> list[dict[str, 
                 _safe_reverse("application_report_view"),
                 "/reporting/",
             )
+            add_item("Espace Padesce", _safe_reverse("consultant_dashboard"), "/consultant/")
+            add_item("Excel Source", _safe_reverse("reporting_network_excel"), "/reporting/excel-reseau/")
 
     if superadmin_access:
         add_item("Deploiement Gandi", _safe_reverse("deployment_dashboard"), "/deploiement/")
