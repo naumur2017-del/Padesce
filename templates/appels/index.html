@@ -277,12 +277,22 @@
     <div class="ops-tile">
       <div class="ops-kicker">Classes masquees</div>
       <strong>{{ hidden_class_summary.hidden_class_count }}</strong>
-      <div class="subtitle" style="margin:6px 0 0;">Objectif d'appels deja atteint, retirees de la table et du filtre.</div>
+      <div class="subtitle" style="margin:6px 0 0;">Objectif d'appels deja atteint (≥50%), retirees de la table et du filtre.</div>
     </div>
     <div class="ops-tile">
       <div class="ops-kicker">Lignes allégées</div>
       <strong>{{ hidden_class_summary.hidden_appel_count }}</strong>
       <div class="subtitle" style="margin:6px 0 0;">Lignes masquees pour garder visibles les classes encore a appeler.</div>
+    </div>
+    <div class="ops-tile" style="border-color: rgba(15,139,141,0.3); background: linear-gradient(180deg, rgba(15,139,141,0.1), rgba(255,255,255,0.97));">
+      <div class="ops-kicker" style="color: #0f5f61;">Classes analysées ✅</div>
+      <strong style="color: #0f5f61;">{{ hidden_class_summary.analysis_classes_count }}</strong>
+      <div class="subtitle" style="margin:6px 0 0;">Classes ayant atteint le seuil {{ analysis_threshold_label }} — prises en compte dans l'analyse de satisfaction.</div>
+    </div>
+    <div class="ops-tile" style="border-color: rgba(15,139,141,0.3); background: linear-gradient(180deg, rgba(15,139,141,0.1), rgba(255,255,255,0.97));">
+      <div class="ops-kicker" style="color: #0f5f61;">Prestations analysées ✅</div>
+      <strong style="color: #0f5f61;">{{ hidden_class_summary.analysis_prestations_count }}</strong>
+      <div class="subtitle" style="margin:6px 0 0;">Prestations dont toutes les classes ont atteint le seuil {{ analysis_threshold_label }}.</div>
     </div>
     <div class="ops-tile">
       <div class="ops-kicker">Classes sans numero</div>

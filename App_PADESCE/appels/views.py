@@ -40,7 +40,7 @@ from App_PADESCE.core.call_metrics import (
     phone_variants,
     summarize_source_class_phone_coverage,
 )
-from App_PADESCE.core.analysis_rules import analysis_threshold_label, analysis_threshold_target
+from App_PADESCE.core.analysis_rules import ANALYSIS_THRESHOLD_PERCENT, analysis_threshold_label, analysis_threshold_target
 from App_PADESCE.formations.models import Classe
 from App_PADESCE.reporting.network_excel import build_padesce_source_index, normalize_network_lookup
 
@@ -815,16 +815,37 @@ def _build_appel_class_progress_snapshot(source_bundle: dict | None = None) -> d
     for item in recommended_classes:
         item.pop("score", None)
 
+    # classe_progress only contains classes NOT yet at 50% (shown in the UI filter)
+    # classe_progress_all contains ALL classes including those already hidden (50% reached)
+    classe_progress_all = list(progress_by_key.values())
+
+    # Count prestations where ALL classes reached the 25% analysis threshold
+    analysis_threshold_pct = ANALYSIS_THRESHOLD_PERCENT
+    analysis_prestations_count = 0
+    if source_bundle:
+        for prestation_key, class_keys in prestation_classes.items():
+            if not class_keys:
+                continue
+            all_at_threshold = all(
+                int(progress_by_key.get(ck, {}).get("total") or 0) > 0
+                and float(progress_by_key.get(ck, {}).get("pct") or 0) >= analysis_threshold_pct
+                for ck in class_keys
+            )
+            if all_at_threshold:
+                analysis_prestations_count += 1
+
     return {
         "source_bundle": source_bundle,
         "source_summary": (source_bundle or {}).get("source") or {},
         "classe_progress": classe_progress,
+        "classe_progress_all": classe_progress_all,
         "progress_by_key": progress_by_key,
         "hidden_class_labels": sorted(hidden_class_labels),
         "hidden_class_count": len(hidden_class_keys),
         "hidden_appel_count": hidden_appel_count,
         "classes_without_callable_phone_count": classes_without_callable_phone,
         "recommended_classes": recommended_classes[:8],
+        "analysis_prestations_count": analysis_prestations_count,
     }
 
 
@@ -1197,6 +1218,15 @@ def appels_index(request):
         enriched_classes.append({"value": c_label, "label": label_with_prog})
     filters["classes_enriched"] = enriched_classes
 
+    # ── Analysis threshold stats (25%) across ALL classes (visible + hidden) ──
+    all_classe_progress = optimization_snapshot["classe_progress_all"]
+    analysis_classes_count = sum(
+        1 for item in all_classe_progress
+        if int(item.get("total") or 0) > 0 and float(item.get("pct") or 0) >= ANALYSIS_THRESHOLD_PERCENT
+    )
+    # Count distinct prestations where all their classes reached the 25% threshold
+    analysis_prestations_count = optimization_snapshot.get("analysis_prestations_count", 0)
+
     import json as _json
     return render(
         request,
@@ -1215,8 +1245,11 @@ def appels_index(request):
                 "hidden_class_count": optimization_snapshot["hidden_class_count"],
                 "hidden_appel_count": optimization_snapshot["hidden_appel_count"],
                 "classes_without_callable_phone_count": optimization_snapshot["classes_without_callable_phone_count"],
+                "analysis_classes_count": analysis_classes_count,
+                "analysis_prestations_count": analysis_prestations_count,
             },
             "source_summary": optimization_snapshot["source_summary"],
+            "analysis_threshold_label": analysis_threshold_label(),
         },
     )
 
