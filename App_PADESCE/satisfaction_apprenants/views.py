@@ -1420,7 +1420,7 @@ def _is_ras_text(value: str) -> bool:
 def _has_complete_answer_set(answer: AppelAnswers | None) -> bool:
     if not answer:
         return False
-    return all(getattr(answer, field, None) is not None for field in APPEL_ANSWER_QUESTION_FIELDS)
+    return all(getattr(answer, field, None) not in (None, "") for field in APPEL_ANSWER_QUESTION_FIELDS)
 
 
 def _has_ras_only_form(answer: AppelAnswers | None) -> bool:
@@ -1535,7 +1535,15 @@ def _build_daily_report_row(appel: Appel, source_records: dict[str, dict]) -> di
         answer=answer,
         survey=survey,
     )
-    analysis_included = bool(answer) and analysis_eligible
+    q_filled_count = 0
+    for field in APPEL_ANSWER_QUESTION_FIELDS:
+        val = getattr(answer, field, None) if answer else None
+        if val is None and survey:
+            val = getattr(survey, field, None)
+        if val not in (None, ""):
+            q_filled_count += 1
+    has_form = q_filled_count >= 9
+    analysis_included = has_form and analysis_eligible
     analysis_exclusion_reason = (
         appel_analysis_exclusion_reason(appel, answer=answer, survey=survey)
         if analysis_scope
