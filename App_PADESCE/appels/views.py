@@ -1499,12 +1499,12 @@ def finalize_appel(request, pk: int):
             file_obj = request.FILES.get("audio")
 
             if action == "terminer":
-                # Check if at least one q1-q9 question is filled
-                _has_any_form_response = any(request.POST.get(f"q{i}") and request.POST.get(f"q{i}").strip() for i in range(1, 10))
+                # form_modified=1 uniquement si l'utilisateur a explicitement cliqué un radio Q1-Q9
+                _has_real_form = request.POST.get("form_modified") == "1"
                 _has_audio_upload = bool(request.FILES.get("audio"))
-                if _has_any_form_response and _has_audio_upload:
+                if _has_real_form and _has_audio_upload:
                     appel.status = "formulaire_avec_audio"
-                elif _has_any_form_response:
+                elif _has_real_form:
                     appel.status = "formulaire_rempli"
                 elif _has_audio_upload:
                     appel.status = "formulaire_avec_audio"
@@ -1694,14 +1694,15 @@ def _auto_process_satisfaction_from_appel(appel: Appel, user, manual_data: dict 
 
     satisfaction = _save_satisfaction_for_appel(appel, user, manual_data, apprenant)
     if not apprenant:
+        logger.info(
+            "Satisfaction sauvegardee sans apprenant lie. %s",
+            _appel_reference_details(appel),
+        )
         return {
             "ok": True,
             "satisfaction_saved": True,
             "satisfaction_id": satisfaction.id,
-            "message": (
-                f"Reponses enregistrees et rattachees a la ligne d'appel {_appel_reference_details(appel)}. "
-                "Referentiel apprenant introuvable."
-            ),
+            "message": "Questionnaire apprenant enregistre.",
         }
 
     # Log pour analyse avec ID apprenant, classe, prestataire, bénéficiaire
