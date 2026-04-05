@@ -366,6 +366,10 @@
         <div class="label">Statut</div>
         <div class="value">{{ classe.get_statut_display|default:"-" }}</div>
       </div>
+      <div class="meta-card">
+        <div class="label">Fenêtre</div>
+        <div class="value">{{ classe.fenetre|default:"-" }}</div>
+      </div>
     {% else %}
       <div class="meta-card">
         <div class="label">Prestataire</div>
@@ -374,6 +378,10 @@
       <div class="meta-card">
         <div class="label">Beneficiaire</div>
         <div class="value">{{ prestation.beneficiaire.nom_structure|default:"-" }}</div>
+      </div>
+      <div class="meta-card">
+        <div class="label">Fenêtre</div>
+        <div class="value">{{ prestation.formation.fenetre|default:"-" }}</div>
       </div>
       <div class="meta-card">
         <div class="label">Formation</div>
@@ -430,9 +438,9 @@
     </article>
   {% else %}
     <article class="summary-card">
-      <div class="kicker">Fenêtre</div>
-      <strong>{{ classe.fenetre|default:"-" }}</strong>
-      <div class="row-meta">Formateurs: {{ summary.formateurs_analyzed }}/{{ summary.formateurs_total }}</div>
+      <div class="kicker">Formateurs</div>
+      <strong>{{ summary.formateurs_analyzed }}/{{ summary.formateurs_total }}</strong>
+      <div class="row-meta">Analyzés / Total</div>
     </article>
   {% endif %}
 </section>

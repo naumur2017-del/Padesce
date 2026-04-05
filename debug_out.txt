@@ -1,0 +1,181 @@
+showmigrations STDOUT:
+admin
+ [X] 0001_initial
+ [X] 0002_logentry_remove_auto_add
+ [X] 0003_logentry_add_action_flag_choices
+appels
+ [X] 0001_initial
+ [X] 0002_alter_appel_audio_file
+ [X] 0003_appel_deja_forme_appel_formation_padesce_and_more
+ [X] 0004_appel_fenetre
+ [X] 0005_appel_is_active
+ [X] 0006_appelimportarchive
+ [X] 0007_appelcga
+ [X] 0008_alter_appel_audio_file_alter_appelcga_audio_file
+ [X] 0009_appelanswers_appeltranscription
+ [X] 0010_appelformateur
+ [X] 0011_call_transcription_models
+ [X] 0012_remove_appelanswers_q3_rythme_formation_and_more
+ [X] 0013_appel_flag_deja_appele_appel_flag_faux_nom_and_more
+ [X] 0014_remove_appelformateurtranscription_appel_formateur_and_more
+ [X] 0015_appelformateur_commentaires_and_more
+ [X] 0016_alter_appelanswers_q3_maitrise_contenu_and_more
+ [X] 0017_widen_fields_for_postgres_import
+ [ ] 0018_appel_exclude_from_analysis
+ [ ] 0019_remove_appel_exclude_from_analysis
+apprenants
+ [X] 0001_initial
+ [X] 0002_location_appartenance
+ [X] 0003_optional_telephones
+ [X] 0004_sms_log
+ [X] 0005_rename_apprenants_status_9e3b67_idx_apprenants__status_9c1d64_idx_and_more
+ [X] 0006_import_columns
+auth
+ [X] 0001_initial
+ [X] 0002_alter_permission_name_max_length
+ [X] 0003_alter_user_email_max_length
+ [X] 0004_alter_user_username_opts
+ [X] 0005_alter_user_last_login_null
+ [X] 0006_require_contenttypes_0002
+ [X] 0007_alter_validators_add_error_messages
+ [X] 0008_alter_user_username_max_length
+ [X] 0009_alter_user_last_name_max_length
+ [X] 0010_alter_group_name_max_length
+ [X] 0011_update_proxy_permissions
+ [X] 0012_alter_user_first_name_max_length
+beneficiaires
+ [X] 0001_initial
+ [X] 0002_beneficiaireupload_recap_stats
+contenttypes
+ [X] 0001_initial
+ [X] 0002_remove_content_type_name
+core
+ [X] 0001_initial
+ [X] 0002_default_groups
+ [X] 0003_rename_core_audit_model_n_83dc92_idx_core_auditl_model_n_36490f_idx_and_more
+ [X] 0004_useractivity
+ [X] 0005_dashboard_manager_groups
+ [ ] 0006_public_analysis_auto_login_user
+environnement
+ [X] 0001_initial
+formations
+ [X] 0001_initial
+ [X] 0002_prestation_durees_jalons
+ [X] 0003_seed_beneficiaires
+ [X] 0004_widen_fields_for_postgres_import
+ [X] 0005_widen_lieu_code_for_postgres_import
+messaging
+ [X] 0001_initial
+ [X] 0002_supportalarm_supportmessage
+presences
+ [X] 0001_initial
+reporting
+ [X] 0001_initial
+ [X] 0002_rename_reporting_c_code_96f31f_idx_reporting_c_code_c4eaac_idx_and_more
+ [X] 0003_widen_fields_for_postgres_import
+satisfaction_apprenants
+ [X] 0001_initial
+ [X] 0002_satisfactionapprenant_audio_appel
+ [X] 0003_satisfactionapprenant_transcription
+ [X] 0004_alter_satisfactionapprenant_classe
+ [X] 0005_transcription
+ [X] 0006_rename_q3_rythme_formation_satisfactionapprenant_q3_maitrise_contenu_and_more
+ [X] 0007_satisfactionapprenant_appel
+satisfaction_formateurs
+ [X] 0001_initial
+ [X] 0002_satisfactionformateur_audio_appel
+ [X] 0003_satisfactionformateur_transcription
+ [X] 0004_satisfactionformateur_update_questions
+sessions
+ [X] 0001_initial
+
+showmigrations STDERR:
+
+migrate STDOUT:
+Operations to perform:
+  Apply all migrations: admin, appels, apprenants, auth, beneficiaires, contenttypes, core, environnement, formations, messaging, presences, reporting, satisfaction_apprenants, satisfaction_formateurs, sessions
+Running migrations:
+  Applying appels.0018_appel_exclude_from_analysis...
+migrate STDERR:
+Traceback (most recent call last):
+  File "C:\Users\hp\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\LocalCache\local-packages\Python313\site-packages\django\db\backends\utils.py", line 103, in _execute
+    return self.cursor.execute(sql)
+           ~~~~~~~~~~~~~~~~~~~^^^^^
+  File "C:\Users\hp\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\LocalCache\local-packages\Python313\site-packages\django\db\backends\sqlite3\base.py", line 355, in execute
+    return super().execute(query)
+           ~~~~~~~~~~~~~~~^^^^^^^
+sqlite3.OperationalError: foreign key mismatch - "appels_appel" referencing "auth_user"
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\hp\Documents\CALL APP\Padesce\manage.py", line 22, in <module>
+    main()
+    ~~~~^^
+  File "C:\Users\hp\Documents\CALL APP\Padesce\manage.py", line 18, in main
+    execute_from_command_line(sys.argv)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^
+  File "C:\Users\hp\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\LocalCache\local-packages\Python313\site-packages\django\core\management\__init__.py", line 443, in execute_from_command_line
+    utility.execute()
+    ~~~~~~~~~~~~~~~^^
+  File "C:\Users\hp\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\LocalCache\local-packages\Python313\site-packages\django\core\management\__init__.py", line 437, in execute
+    self.fetch_command(subcommand).run_from_argv(self.argv)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^
+  File "C:\Users\hp\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\LocalCache\local-packages\Python313\site-packages\django\core\management\base.py", line 420, in run_from_argv
+    self.execute(*args, **cmd_options)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\hp\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\LocalCache\local-packages\Python313\site-packages\django\core\management\base.py", line 464, in execute
+    output = self.handle(*args, **options)
+  File "C:\Users\hp\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\LocalCache\local-packages\Python313\site-packages\django\core\management\base.py", line 111, in wrapper
+    res = handle_func(*args, **kwargs)
+  File "C:\Users\hp\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\LocalCache\local-packages\Python313\site-packages\django\core\management\commands\migrate.py", line 354, in handle
+    post_migrate_state = executor.migrate(
+        targets,
+    ...<3 lines>...
+        fake_initial=fake_initial,
+    )
+  File "C:\Users\hp\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\LocalCache\local-packages\Python313\site-packages\django\db\migrations\executor.py", line 137, in migrate
+    state = self._migrate_all_forwards(
+        state, plan, full_plan, fake=fake, fake_initial=fake_initial
+    )
+  File "C:\Users\hp\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\LocalCache\local-packages\Python313\site-packages\django\db\migrations\executor.py", line 169, in _migrate_all_forwards
+    state = self.apply_migration(
+        state, migration, fake=fake, fake_initial=fake_initial
+    )
+  File "C:\Users\hp\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\LocalCache\local-packages\Python313\site-packages\django\db\migrations\executor.py", line 254, in apply_migration
+    with self.connection.schema_editor(
+         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        atomic=migration.atomic
+        ^^^^^^^^^^^^^^^^^^^^^^^
+    ) as schema_editor:
+    ^
+  File "C:\Users\hp\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\LocalCache\local-packages\Python313\site-packages\django\db\backends\sqlite3\schema.py", line 38, in __exit__
+    self.connection.check_constraints()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\hp\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\LocalCache\local-packages\Python313\site-packages\django\db\backends\sqlite3\base.py", line 272, in check_constraints
+    violations = cursor.execute("PRAGMA foreign_key_check").fetchall()
+                 ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\hp\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\LocalCache\local-packages\Python313\site-packages\django\db\backends\utils.py", line 122, in execute
+    return super().execute(sql, params)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+  File "C:\Users\hp\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\LocalCache\local-packages\Python313\site-packages\django\db\backends\utils.py", line 79, in execute
+    return self._execute_with_wrappers(
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        sql, params, many=False, executor=self._execute
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\hp\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\LocalCache\local-packages\Python313\site-packages\django\db\backends\utils.py", line 92, in _execute_with_wrappers
+    return executor(sql, params, many, context)
+  File "C:\Users\hp\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\LocalCache\local-packages\Python313\site-packages\django\db\backends\utils.py", line 100, in _execute
+    with self.db.wrap_database_errors:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\hp\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\LocalCache\local-packages\Python313\site-packages\django\db\utils.py", line 94, in __exit__
+    raise dj_exc_value.with_traceback(traceback) from exc_value
+  File "C:\Users\hp\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\LocalCache\local-packages\Python313\site-packages\django\db\backends\utils.py", line 103, in _execute
+    return self.cursor.execute(sql)
+           ~~~~~~~~~~~~~~~~~~~^^^^^
+  File "C:\Users\hp\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\LocalCache\local-packages\Python313\site-packages\django\db\backends\sqlite3\base.py", line 355, in execute
+    return super().execute(query)
+           ~~~~~~~~~~~~~~~^^^^^^^
+django.db.utils.OperationalError: foreign key mismatch - "appels_appel" referencing "auth_user"

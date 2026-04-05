@@ -673,6 +673,15 @@ def _dashboard_row_from_answer(answer_or_appel) -> dict:
     survey_time = getattr(survey, "heure", None) or timestamp.time().replace(microsecond=0)
     inspecteur = getattr(survey, "inspecteur", None)
 
+    q_filled_count = 0
+    for field, _ in Q_FIELDS:
+        val = getattr(answer, field, None) if answer else None
+        if val is None and survey:
+            val = getattr(survey, field, None)
+        if val not in (None, ""):
+            q_filled_count += 1
+    has_form = q_filled_count >= 9
+
     return {
         "id": getattr(answer, "id", None),
         "appel_id": getattr(appel, "pk", None),
@@ -708,7 +717,8 @@ def _dashboard_row_from_answer(answer_or_appel) -> dict:
         "recommandations": getattr(answer, "recommandations", "") if answer else "",
         "analysis_scope": analysis_scope,
         "analysis_eligible": analysis_eligible,
-        "analysis_included": (bool(answer) or bool(survey)) and analysis_eligible,
+        "analysis_included": has_form and analysis_eligible,
+        "has_form": has_form,
         "analysis_excluded": not analysis_eligible,
         "analysis_exclusion_reason": analysis_exclusion_reason,
         "formulaire_all_three": answer_has_all_three_scores(answer),

@@ -172,15 +172,15 @@ def _apprenant_form_state(appel: Appel) -> dict:
         "vrai_nom": str(getattr(appel, "flag_vrai_nom", "") or "").strip(),
         "deja_forme": bool(getattr(appel, "deja_forme", False)),
     }
-    has_form = bool(
-        answers
-        or satisfaction
-        or filled_questions_count
-        or commentaire
-        or recommandations
-        or any(value for value in flags.values())
-        or str(getattr(appel, "status", "")) in ("formulaire_rempli", "formulaire_avec_audio")
-    )
+    q_filled_count = 0
+    for _label, field_name in APPRENANT_DETAIL_FIELDS:
+        q_val = getattr(answers, field_name, None) if answers else None
+        if q_val is None and satisfaction:
+            q_val = getattr(satisfaction, field_name, None)
+        if q_val not in (None, ""):
+            q_filled_count += 1
+
+    has_form = q_filled_count >= 9
     return {
         "answers": answers,
         "satisfaction": satisfaction,
@@ -676,10 +676,13 @@ FORMATEUR_THRESHOLD_PERCENT = 50
 
 
 def _entity_summary(apprenant_rows, formateur_rows) -> dict:
-    analyzed_apprenants = sum(1 for row in apprenant_rows if row["call_count"] or row["has_form"] or row["has_audio"])
-    analyzed_formateurs = sum(1 for row in formateur_rows if row["call_count"] or row["has_form"] or row["has_audio"])
-    appels_tentes = sum(1 for row in apprenant_rows if row["statut"] == "appel_tente")
-    appels_reussis = sum(1 for row in apprenant_rows if row["statut"] in {"appel_reussi", "termine"})
+    REUSSI_STATUSES = {"appel_reussi", "termine", "formulaire_rempli", "formulaire_avec_audio"}
+    TENTE_STATUSES = REUSSI_STATUSES | {"appel_tente"}
+
+    analyzed_apprenants = sum(1 for row in apprenant_rows if row["has_form"] or row["has_audio"])
+    analyzed_formateurs = sum(1 for row in formateur_rows if row["has_form"] or row["has_audio"])
+    appels_tentes = sum(1 for row in apprenant_rows if row["statut"] in TENTE_STATUSES)
+    appels_reussis = sum(1 for row in apprenant_rows if row["statut"] in REUSSI_STATUSES)
     formulaires_remplis = sum(1 for row in apprenant_rows if row["has_form"])
     formulaires_avec_audio = sum(1 for row in apprenant_rows if row["has_audio"] and row["has_form"])
     audios_enregistres = sum(1 for row in apprenant_rows if row["has_audio"])
@@ -919,7 +922,11 @@ def class_analysis_detail(request, code: str):
         )
         reference_warning = _analysis_reference_warning()
     else:
-        apprenant_appels = list(_analysis_appel_queryset().filter(classe=classe).order_by("nom", "code", "pk"))
+        apprenant_appels = list(
+            _analysis_appel_queryset()
+            .filter(Q(classe=classe) | Q(classe_label__iexact=classe.code))
+            .order_by("nom", "code", "pk")
+        )
 
     active_tab = request.GET.get("tab") if request.GET.get("tab") in {"apprenants", "formateurs"} else "apprenants"
     apprenant_back_url = _resolve_back_url("class_analysis_detail", classe.code, "apprenants")

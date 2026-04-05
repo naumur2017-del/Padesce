@@ -1105,12 +1105,14 @@ def consultant_dashboard(request):
     tentes = reussis = form_remplis = form_audio = audios_enregistres = 0
     target_class_codes = [opt["value"] for opt in card_snapshot["class_options"] if opt["value"]]
     if target_class_codes:
-        base_qs = Appel.objects.filter(is_active=True, classe__code__in=target_class_codes)
+        base_qs = Appel.objects.filter(is_active=True).filter(
+            Q(classe__code__in=target_class_codes) | Q(classe_label__in=target_class_codes)
+        )
         stats = base_qs.aggregate(
             tentes=Count("id", filter=Q(status__in=["appel_tente", "appel_reussi", "termine", "formulaire_rempli", "formulaire_avec_audio"])),
             reussis=Count("id", filter=Q(status__in=["appel_reussi", "termine", "formulaire_rempli", "formulaire_avec_audio"])),
             forms=Count("id", filter=Q(answers__isnull=False) | Q(satisfaction_apprenant__isnull=False)),
-            forms_audio=Count("id", filter=(Q(answers__isnull=False) | Q(satisfaction_apprenant__isnull=False)) & Q(audio_file__isnull=False) & ~Q(audio_file="")),
+            forms_audio=Count("id", filter=(Q(answers__isnull=False) | Q(satisfaction_apprenant__isnull=False)) & (Q(audio_file__isnull=False) & ~Q(audio_file=""))),
             audios=Count("id", filter=Q(audio_file__isnull=False) & ~Q(audio_file=""))
         )
         tentes = stats["tentes"] or 0
