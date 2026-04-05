@@ -574,8 +574,10 @@ def _build_class_chapeau(classe_code: str, appels, source_bundle: dict | None = 
     for appel in appels:
         answers = _appel_answers_or_none(appel)
         satisfaction = _satisfaction_or_none(appel)
-        form_state = _apprenant_form_state(appel)
+        if not appel_is_analysis_eligible(appel, answer=answers, survey=satisfaction):
+            continue
 
+        form_state = _apprenant_form_state(appel)
         if not form_state["has_form"]:
             continue
 
