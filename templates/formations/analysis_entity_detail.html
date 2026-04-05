@@ -505,6 +505,35 @@
       </table>
     </div>
   </section>
+  <section class="panel tab-panel{% if active_tab == 'formateurs' %} active{% endif %}" data-panel="formateurs-chapeau">
+    <div class="panel-head">
+      <div>
+        <strong>Note de satisfaction (Apprenants)</strong>
+        <div class="row-meta">{{ class_chapeau.title }}</div>
+      </div>
+      <span class="badge{% if class_chapeau.has_data %} badge-ok{% else %} badge-wait{% endif %}">
+        {{ class_chapeau.formulaires_remplis }} formulaire(s) rempli(s)
+      </span>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Question</th>
+            <th>Note</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in class_chapeau.rows %}
+            <tr>
+              <td>{{ item.label }}</td>
+              <td>{% if item.count %}{{ item.note }} / 5{% else %}-{% endif %}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
 {% endif %}
 
 <section class="panel tab-panel{% if active_tab == 'apprenants' %} active{% endif %}" data-panel="apprenants">
@@ -681,6 +710,8 @@
         const panelName = panel.dataset.panel;
         if (panelName === "apprenants-chapeau") {
           panel.classList.toggle("active", tabName === "apprenants");
+        } else if (panelName === "formateurs-chapeau") {
+          panel.classList.toggle("active", tabName === "formateurs");
         } else {
           panel.classList.toggle("active", panelName === tabName);
         }

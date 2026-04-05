@@ -323,7 +323,7 @@ def _build_progress_metrics(queryset):
     stats = queryset.aggregate(
         total=Count("id"),
         termines=Count("id", filter=completed_q),
-        appels_tentes=Count("id", filter=Q(status="appel_tente")),
+        appels_tentes=Count("id", filter=Q(status__in=["appel_tente", "appel_reussi", "formulaire_rempli", "formulaire_avec_audio", "termine"])),
         appels_reussis=Count("id", filter=Q(status="appel_reussi")),
         formulaires_remplis=Count("id", filter=Q(status__in=["formulaire_rempli", "formulaire_avec_audio"])),
         formulaires_avec_audio=Count("id", filter=Q(status="formulaire_avec_audio")),
@@ -1418,13 +1418,13 @@ def appel_action(request, pk: int):
     satisfaction_message = ""
 
     if action == "start":
-        appel.status = "en_cours"
+        appel.status = "appel_tente"
         appel.locked_by = request.user
         appel.locked_at = now
     elif action == "pause":
-        appel.status = "pause"
+        appel.status = "appel_tente"
     elif action == "resume":
-        appel.status = "en_cours"
+        appel.status = "appel_tente"
         appel.locked_by = request.user
         appel.locked_at = now
     elif action == "rappeler":
@@ -1499,7 +1499,17 @@ def finalize_appel(request, pk: int):
             file_obj = request.FILES.get("audio")
 
             if action == "terminer":
-                appel.status = "termine"
+                # Determine if user actually filled q1-q9 (not just defaults)
+                _has_real_form = any(request.POST.get(f"q{i}") for i in range(1, 10))
+                _has_audio_upload = bool(request.FILES.get("audio"))
+                if _has_real_form and _has_audio_upload:
+                    appel.status = "formulaire_avec_audio"
+                elif _has_real_form:
+                    appel.status = "formulaire_rempli"
+                elif _has_audio_upload:
+                    appel.status = "formulaire_avec_audio"
+                else:
+                    appel.status = "appel_reussi"
                 appel.rappel_at = None
             elif action == "rappeler":
                 appel.status = "a_rappeler"

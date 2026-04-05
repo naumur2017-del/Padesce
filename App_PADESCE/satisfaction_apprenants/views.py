@@ -2281,6 +2281,7 @@ def _build_satisfaction_dashboard_data(request):
                 "intitule": row.get("formation_intitule") or row["classe_intitule"],
                 "prestation": effective_prestation_code,
                 "cohorte": row["cohorte"],
+                "fenetre": row.get("fenetre", ""),
                 "metrics": _dashboard_bucket(),
             },
         )
@@ -2352,6 +2353,7 @@ def _build_satisfaction_dashboard_data(request):
                 "intitule": item["intitule"],
                 "prestation": item["prestation"],
                 "cohorte": item["cohorte"],
+                "fenetre": item.get("fenetre", ""),
                 "nb": item["metrics"]["nb"],
                 "avgs": _dashboard_bucket_avgs(item["metrics"]),
                 "total_apprenants": _analysis_class_count(classe_apprenant_counts, item["code"]),
@@ -2451,7 +2453,7 @@ def _build_satisfaction_dashboard_data(request):
     )
 
     analyzed_classes = [
-        {"code": item["code"], "label": f"{item['code']} - {item['intitule']}", "nb": item["nb"]}
+        {"code": item["code"], "label": f"{item['code']} - {item['intitule']}", "nb": item["nb"], "fenetre": item.get("fenetre", "")}
         for item in classe_stats_seuil
     ]
     analyzed_prestations = [
@@ -2574,6 +2576,20 @@ def _build_satisfaction_dashboard_data(request):
         "status": filter_options["status"],
         "filter_map_json": filter_map_json,
     }
+    from App_PADESCE.appels.models import Appel as _Appel
+    from django.db.models import Count as _Count, Q as _Q
+    _appel_stats = _Appel.objects.filter(is_active=True).aggregate(
+        appels_tentes=_Count("id", filter=_Q(status__in=["appel_tente", "appel_reussi", "formulaire_rempli", "formulaire_avec_audio", "termine"])),
+        appels_reussis=_Count("id", filter=_Q(status__in=["appel_reussi", "formulaire_rempli", "formulaire_avec_audio", "termine"])),
+        formulaires_remplis=_Count("id", filter=_Q(status__in=["formulaire_rempli", "formulaire_avec_audio"])),
+        formulaires_avec_audio=_Count("id", filter=_Q(status="formulaire_avec_audio")),
+        audios_enregistres=_Count("id", filter=_Q(audio_file__isnull=False) & ~_Q(audio_file="")),
+    )
+    context["appels_tentes"] = _appel_stats["appels_tentes"]
+    context["appels_reussis"] = _appel_stats["appels_reussis"]
+    context["formulaires_remplis_appels"] = _appel_stats["formulaires_remplis"]
+    context["formulaires_avec_audio_appels"] = _appel_stats["formulaires_avec_audio"]
+    context["audios_enregistres_appels"] = _appel_stats["audios_enregistres"]
     context["tab_details"] = _build_dashboard_table_details(context, rows)
     return {"rows": rows, "filters": filters, "context": context}
 

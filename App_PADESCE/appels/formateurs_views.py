@@ -33,6 +33,46 @@ from App_PADESCE.appels.views import (
 )
 
 
+FORMATEUR_THRESHOLD_PERCENT = 50
+
+def _build_formateur_progress_metrics(queryset):
+    from django.db.models import Count, Q
+    completed_q = Q(status__in=["formulaire_avec_audio", "formulaire_rempli", "appel_reussi", "termine"])
+    stats = queryset.aggregate(
+        total=Count("id"),
+        termines=Count("id", filter=completed_q),
+        appels_tentes=Count("id", filter=Q(status__in=["appel_tente", "appel_reussi", "formulaire_rempli", "formulaire_avec_audio", "termine"])),
+        appels_reussis=Count("id", filter=Q(status__in=["appel_reussi", "formulaire_rempli", "formulaire_avec_audio", "termine"])),
+        formulaires_remplis=Count("id", filter=Q(status__in=["formulaire_rempli", "formulaire_avec_audio"])),
+        formulaires_avec_audio=Count("id", filter=Q(status="formulaire_avec_audio")),
+        audios=Count("id", filter=Q(audio_file__isnull=False) | Q(status="formulaire_avec_audio")),
+    )
+    total = int(stats.get("total") or 0)
+    termines = int(stats.get("termines") or 0)
+    threshold_target = max(1, int(total * FORMATEUR_THRESHOLD_PERCENT / 100)) if total else 0
+    threshold_reached = total > 0 and termines >= threshold_target
+    threshold_remaining = max(threshold_target - termines, 0)
+    stats.update({
+        "remaining": max(total - termines, 0),
+        "completion_rate": round((termines / total) * 100, 1) if total else 0.0,
+        "completion_label": f"{termines} / {total}" if total else "0 / 0",
+        "threshold_target": threshold_target,
+        "threshold_remaining": threshold_remaining,
+        "threshold_reached": threshold_reached,
+        "threshold_message": (
+            f"Seuil de {FORMATEUR_THRESHOLD_PERCENT}% atteint. Vous pouvez passer a autre chose."
+            if threshold_reached
+            else (
+                f"Encore {threshold_remaining} appel(s) pour atteindre {FORMATEUR_THRESHOLD_PERCENT}%."
+                if total
+                else "Aucun appel dans ce filtre."
+            )
+        ),
+        "threshold_label": f"{FORMATEUR_THRESHOLD_PERCENT}%",
+    })
+    return stats
+
+
 IMPORT_BATCH_SIZE = 1000
 PAGE_SIZE_DEFAULT = 100
 PAGE_SIZE_MAX = 500
@@ -728,7 +768,7 @@ def formateurs_index(request):
 
     qs, filters = _build_filtered_formateurs_queryset(request)
     total_count = qs.count()
-    stats = _build_progress_metrics(qs)
+    stats = _build_formateur_progress_metrics(qs)
 
     try:
         page_size = int(request.GET.get("page_size") or PAGE_SIZE_DEFAULT)

@@ -1102,6 +1102,22 @@ def consultant_dashboard(request):
         ]
     )
 
+    # Strict form counting logic
+    q_fields = [
+        "q1_clarte_exposes", "q2_interaction_formateur", "q3_maitrise_contenu",
+        "q4_salle_adequate", "q5_materiel_disponible", "q6_organisation_temps",
+        "q7_utilite_formation", "q8_adequation_besoins", "q9_satisfaction_globale"
+    ]
+    answers_valid_q = Q()
+    for f in q_fields:
+        answers_valid_q &= (Q(**{f"answers__{f}__isnull": False}) & ~Q(**{f"answers__{f}": ""}))
+
+    survey_valid_q = Q()
+    for f in q_fields:
+        survey_valid_q &= (Q(**{f"satisfaction_apprenant__{f}__isnull": False}) & ~Q(**{f"satisfaction_apprenant__{f}": ""}))
+
+    strict_form_q = answers_valid_q | survey_valid_q
+
     tentes = reussis = form_remplis = form_audio = audios_enregistres = 0
     target_class_codes = [opt["value"] for opt in card_snapshot["class_options"] if opt["value"]]
     if target_class_codes:
@@ -1111,8 +1127,8 @@ def consultant_dashboard(request):
         stats = base_qs.aggregate(
             tentes=Count("id", filter=Q(status__in=["appel_tente", "appel_reussi", "termine", "formulaire_rempli", "formulaire_avec_audio"])),
             reussis=Count("id", filter=Q(status__in=["appel_reussi", "termine", "formulaire_rempli", "formulaire_avec_audio"])),
-            forms=Count("id", filter=Q(answers__isnull=False) | Q(satisfaction_apprenant__isnull=False)),
-            forms_audio=Count("id", filter=(Q(answers__isnull=False) | Q(satisfaction_apprenant__isnull=False)) & (Q(audio_file__isnull=False) & ~Q(audio_file=""))),
+            forms=Count("id", filter=strict_form_q),
+            forms_audio=Count("id", filter=strict_form_q & (Q(audio_file__isnull=False) & ~Q(audio_file=""))),
             audios=Count("id", filter=Q(audio_file__isnull=False) & ~Q(audio_file=""))
         )
         tentes = stats["tentes"] or 0
