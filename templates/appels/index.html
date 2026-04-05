@@ -1072,6 +1072,14 @@
         const data = await finalizeAction(row, action, satForm, audioBlob);
         updateRow(row, data);
         if (data.satisfaction_message) alert(data.satisfaction_message);
+
+        // Failsafe: si audioBlob était null (race condition onstop), uploader séparément
+        if (!audioBlob) {
+            const remainingState = getRecordState(row);
+            if (remainingState?.blob) {
+                await uploadAudio(row, remainingState.blob);
+            }
+        }
     });
 
     async function sendAction(row, action, extra = {}, formData = null) {
@@ -1361,12 +1369,19 @@
         const satModal = document.getElementById("js-satisfaction-modal");
         if (!satModal) return;
 
-        // Stop recording if active before opening modal
+        // Stop recording if active before opening modal — attendre onstop proprement
         const state = getRecordState(row);
         if (state?.recorder && state.recorder.state !== "inactive") {
-          state.recorder.stop();
-          // Wait for onstop to complete upload
-          await new Promise(resolve => setTimeout(resolve, 500));
+          await new Promise((resolve) => {
+            const origStop = state.recorder.onstop;
+            state.recorder.onstop = (e) => {
+              if (origStop) origStop(e);
+              resolve();
+            };
+            state.recorder.stop();
+            state.stream?.getTracks().forEach(t => t.stop());
+            setTimeout(resolve, 1000); // fallback si onstop ne fire pas
+          });
         }
 
         await hydrateSatisfactionModal(id);
