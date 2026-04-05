@@ -728,7 +728,7 @@ def _build_appel_class_progress_snapshot(source_bundle: dict | None = None) -> d
         progress_by_key[classe_key] = progress
         if callable_total <= 0:
             classes_without_callable_phone += 1
-        if reached:
+        if float(progress["pct"]) >= 25:
             hidden_class_keys.add(classe_key)
             hidden_class_labels.update(raw_labels_by_key.get(classe_key) or {display_label})
             hidden_appel_count += sum(
@@ -1187,14 +1187,11 @@ def appels_index(request):
         prog = progress_map.get(c_label)
         label_with_prog = c_label
         if prog:
-            pct = float(prog.get("pct") or 0)
             total = int(prog.get("total") or 0)
             termines = int(prog.get("termines") or 0)
+            pct = float(prog.get("pct") or 0)
             if total <= 0:
                 label_with_prog = f"{c_label} (Aucun numero joignable)"
-            elif pct >= 25:
-                marker = "✓ " if prog.get("reached") else "▶ "
-                label_with_prog = f"{marker}{c_label} ({termines}/{total} - {pct}% ≥25%)"
             else:
                 label_with_prog = f"{c_label} ({termines}/{total} - {pct}%)"
         enriched_classes.append({"value": c_label, "label": label_with_prog})
