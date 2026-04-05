@@ -673,6 +673,15 @@ def _dashboard_row_from_answer(answer_or_appel) -> dict:
     survey_time = getattr(survey, "heure", None) or timestamp.time().replace(microsecond=0)
     inspecteur = getattr(survey, "inspecteur", None)
 
+    q_filled_count = 0
+    for field, _ in Q_FIELDS:
+        val = getattr(answer, field, None) if answer else None
+        if val is None and survey:
+            val = getattr(survey, field, None)
+        if val not in (None, ""):
+            q_filled_count += 1
+    has_form = q_filled_count >= 9
+
     return {
         "id": getattr(answer, "id", None),
         "appel_id": getattr(appel, "pk", None),
@@ -708,7 +717,8 @@ def _dashboard_row_from_answer(answer_or_appel) -> dict:
         "recommandations": getattr(answer, "recommandations", "") if answer else "",
         "analysis_scope": analysis_scope,
         "analysis_eligible": analysis_eligible,
-        "analysis_included": bool(answer) and analysis_eligible,
+        "analysis_included": has_form and analysis_eligible,
+        "has_form": has_form,
         "analysis_excluded": not analysis_eligible,
         "analysis_exclusion_reason": analysis_exclusion_reason,
         "formulaire_all_three": answer_has_all_three_scores(answer),
@@ -931,6 +941,7 @@ FILTER_FIELD_ROW_MAP = {
     "prestataire": "prestataire",
     "beneficiaire": "beneficiaire",
     "cohorte": "cohorte",
+    "status": "status",
 }
 
 
@@ -1142,6 +1153,7 @@ def _build_dashboard_active_filters_summary(filters: dict) -> list[dict]:
         "cohorte": "Cohorte",
         "ville": "Ville",
         "user": "Utilisateur",
+        "status": "Status",
     }
     return [
         {"label": filter_labels[key], "value": str(value).strip()}
@@ -1410,7 +1422,7 @@ def _is_ras_text(value: str) -> bool:
 def _has_complete_answer_set(answer: AppelAnswers | None) -> bool:
     if not answer:
         return False
-    return all(getattr(answer, field, None) is not None for field in APPEL_ANSWER_QUESTION_FIELDS)
+    return all(getattr(answer, field, None) not in (None, "") for field in APPEL_ANSWER_QUESTION_FIELDS)
 
 
 def _has_ras_only_form(answer: AppelAnswers | None) -> bool:
@@ -1525,7 +1537,15 @@ def _build_daily_report_row(appel: Appel, source_records: dict[str, dict]) -> di
         answer=answer,
         survey=survey,
     )
-    analysis_included = bool(answer) and analysis_eligible
+    q_filled_count = 0
+    for field in APPEL_ANSWER_QUESTION_FIELDS:
+        val = getattr(answer, field, None) if answer else None
+        if val is None and survey:
+            val = getattr(survey, field, None)
+        if val not in (None, ""):
+            q_filled_count += 1
+    has_form = q_filled_count >= 9
+    analysis_included = has_form and analysis_eligible
     analysis_exclusion_reason = (
         appel_analysis_exclusion_reason(appel, answer=answer, survey=survey)
         if analysis_scope
@@ -2208,6 +2228,7 @@ def _build_satisfaction_dashboard_data(request):
         "prestataire": request.GET.get("prestataire", ""),
         "beneficiaire": request.GET.get("beneficiaire", ""),
         "cohorte": request.GET.get("cohorte", ""),
+        "status": request.GET.get("status", ""),
     }
 
     all_rows = [
@@ -2260,6 +2281,7 @@ def _build_satisfaction_dashboard_data(request):
                 "intitule": row.get("formation_intitule") or row["classe_intitule"],
                 "prestation": effective_prestation_code,
                 "cohorte": row["cohorte"],
+                "fenetre": row.get("fenetre", ""),
                 "metrics": _dashboard_bucket(),
             },
         )
@@ -2331,6 +2353,7 @@ def _build_satisfaction_dashboard_data(request):
                 "intitule": item["intitule"],
                 "prestation": item["prestation"],
                 "cohorte": item["cohorte"],
+                "fenetre": item.get("fenetre", ""),
                 "nb": item["metrics"]["nb"],
                 "avgs": _dashboard_bucket_avgs(item["metrics"]),
                 "total_apprenants": _analysis_class_count(classe_apprenant_counts, item["code"]),
@@ -2430,7 +2453,7 @@ def _build_satisfaction_dashboard_data(request):
     )
 
     analyzed_classes = [
-        {"code": item["code"], "label": f"{item['code']} - {item['intitule']}", "nb": item["nb"]}
+        {"code": item["code"], "label": f"{item['code']} - {item['intitule']}", "nb": item["nb"], "fenetre": item.get("fenetre", "")}
         for item in classe_stats_seuil
     ]
     analyzed_prestations = [
@@ -2479,6 +2502,22 @@ def _build_satisfaction_dashboard_data(request):
         filters,
     )
 
+    # Build prestataire → classes/beneficiaires mapping for dynamic filters
+    prestataire_to_classes: dict[str, set[str]] = {}
+    prestataire_to_beneficiaires: dict[str, set[str]] = {}
+    for row in all_rows:
+        prest = str(row.get("prestataire") or "").strip()
+        classe = str(row.get("classe_code") or "").strip()
+        benef = str(row.get("beneficiaire") or "").strip()
+        if prest and classe:
+            prestataire_to_classes.setdefault(prest, set()).add(classe)
+        if prest and benef:
+            prestataire_to_beneficiaires.setdefault(prest, set()).add(benef)
+    filter_map_json = json.dumps({
+        "prestataire_to_classes": {k: sorted(v) for k, v in prestataire_to_classes.items()},
+        "prestataire_to_beneficiaires": {k: sorted(v) for k, v in prestataire_to_beneficiaires.items()},
+    })
+
     filter_query_string = request.GET.copy().urlencode()
     analyzed_prestations_total_count = (
         len(terminated_prestation_codes) if source_bundle else len(analyzed_prestations)
@@ -2503,6 +2542,7 @@ def _build_satisfaction_dashboard_data(request):
         "filter_prestataire": filters["prestataire"],
         "filter_beneficiaire": filters["beneficiaire"],
         "filter_cohorte": filters["cohorte"],
+        "filter_status": filters["status"],
         "analyzed_classes": analyzed_classes,
         "analyzed_prestations": analyzed_prestations,
         "analyzed_fenetres": analyzed_fenetres,
@@ -2533,7 +2573,23 @@ def _build_satisfaction_dashboard_data(request):
         "prestataires": filter_options["prestataire"],
         "beneficiaires": filter_options["beneficiaire"],
         "cohortes": filter_options["cohorte"],
+        "status": filter_options["status"],
+        "filter_map_json": filter_map_json,
     }
+    from App_PADESCE.appels.models import Appel as _Appel
+    from django.db.models import Count as _Count, Q as _Q
+    _appel_stats = _Appel.objects.filter(is_active=True).aggregate(
+        appels_tentes=_Count("id", filter=_Q(status__in=["appel_tente", "appel_reussi", "formulaire_rempli", "formulaire_avec_audio", "termine"])),
+        appels_reussis=_Count("id", filter=_Q(status__in=["appel_reussi", "formulaire_rempli", "formulaire_avec_audio", "termine"])),
+        formulaires_remplis=_Count("id", filter=_Q(status__in=["formulaire_rempli", "formulaire_avec_audio"])),
+        formulaires_avec_audio=_Count("id", filter=_Q(status="formulaire_avec_audio")),
+        audios_enregistres=_Count("id", filter=_Q(audio_file__isnull=False) & ~_Q(audio_file="")),
+    )
+    context["appels_tentes"] = _appel_stats["appels_tentes"]
+    context["appels_reussis"] = _appel_stats["appels_reussis"]
+    context["formulaires_remplis_appels"] = _appel_stats["formulaires_remplis"]
+    context["formulaires_avec_audio_appels"] = _appel_stats["formulaires_avec_audio"]
+    context["audios_enregistres_appels"] = _appel_stats["audios_enregistres"]
     context["tab_details"] = _build_dashboard_table_details(context, rows)
     return {"rows": rows, "filters": filters, "context": context}
 
@@ -3130,6 +3186,7 @@ def satisfaction_general_page(request):
     without_phone_only = request.GET.get("without_phone") == "1"
     all_three_only = request.GET.get("all_three") == "1"
     excluded_filter = str(request.GET.get("excluded", "") or "").strip().lower()
+    status_filter = (request.GET.get("status") or "").strip()
 
     try:
         source_bundle = build_padesce_source_index(source_key=selected_source)
@@ -3203,6 +3260,9 @@ def satisfaction_general_page(request):
     elif excluded_filter == "no":
         rows = [row for row in rows if row.get("exclude_from_analysis") != "Oui"]
 
+    if status_filter:
+        rows = [row for row in rows if row.get("status") == status_filter]
+
     paginator = Paginator(rows, 50)
     page_obj = paginator.get_page(request.GET.get("page"))
 
@@ -3217,6 +3277,7 @@ def satisfaction_general_page(request):
             "without_phone": without_phone_only,
             "all_three": all_three_only,
             "excluded": excluded_filter,
+            "status": status_filter,
         },
         "source_options": get_workbook_source_options(),
         "analysis_threshold_label": analysis_threshold_label(),

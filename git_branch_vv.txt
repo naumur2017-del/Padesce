@@ -1,0 +1,10 @@
++ claude/dazzling-dewdney         a6498c8 (C:/Users/hp/Documents/CALL APP/Padesce/.claude/worktrees/dazzling-dewdney) [origin/claude/dazzling-dewdney: ahead 4] fix(critical): répare views.py dupliqué par merge feature/tana + intègre get_prestations_ranking
++ claude/distracted-roentgen      825fd87 (C:/Users/hp/Documents/CALL APP/Padesce/.claude/worktrees/distracted-roentgen) Add migration to seed beneficiaries and clean invalid appel classes
++ claude/magical-lovelace         4d963e7 (C:/Users/hp/Documents/CALL APP/Padesce/.claude/worktrees/magical-lovelace) Hide classes >= 25% from appels table and filter dropdown
+  codex/github-gandi-ready        1ed9685 [origin/codex/github-gandi-ready: ahead 1] feat: initialize core modules, add administrative assets, and implement data import/backup utilities
+  feature/eyoum                   86b663f [origin/feature/eyoum] Add team branch guide and Black lint checks
+  feature/koulou                  86b663f [origin/feature/koulou: behind 15] Add team branch guide and Black lint checks
+  feature/marcel                  86b663f [origin/feature/marcel: behind 6] Add team branch guide and Black lint checks
+  feature/tana                    86b663f [origin/feature/tana: behind 58] Add team branch guide and Black lint checks
++ hotfix/github-actions-csrf-view 81fe98b (C:/Users/hp/Documents/CALL APP/Padesce-hotfix-csrf) [origin/hotfix/github-actions-csrf-view] Stabilize GitHub Actions when deployment modules are absent
+* main                            4be897f [origin/main] Dashboard Consultant : interactivite cards, descriptions statuts, et corrections coherence donnees satisfaction

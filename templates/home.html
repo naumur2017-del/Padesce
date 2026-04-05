@@ -166,8 +166,8 @@
   {% if can_view_call_cards %}
     <article class="card">
       <h2>PADESCE</h2>
-      <div class="big">{{ padesce_effectues }} / {{ padesce_total }} appels effectues</div>
-      <div class="muted">Statut effectue = hors "En attente".</div>
+      <div class="big">{{ padesce_effectues }} / {{ padesce_total }} appels tentes</div>
+      <div class="muted">Statut tente = hors "En attente".</div>
       <a class="btn" href="{% url 'appels_index' %}">Ouvrir PADESCE</a>
     </article>
   {% endif %}

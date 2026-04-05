@@ -9,6 +9,7 @@
     background: linear-gradient(135deg, rgba(15, 139, 141, 0.08), rgba(255, 255, 255, 0.96));
     box-shadow: var(--shadow);
     margin-bottom: 16px;
+    position: relative;
   }
   .hero-top {
     display: flex;
@@ -52,7 +53,7 @@
   .summary-grid {
     display: grid;
     gap: 12px;
-    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
     margin-bottom: 16px;
   }
   .summary-card {
@@ -74,6 +75,10 @@
     font-size: 1.5rem;
     color: var(--accent-strong);
   }
+  .summary-card.accent-tente strong { color: #92400e; }
+  .summary-card.accent-reussi strong { color: #065f46; }
+  .summary-card.accent-form strong { color: #1d4ed8; }
+  .summary-card.accent-audio strong { color: #5b21b6; }
   .panel {
     border: 1px solid var(--border);
     border-radius: 16px;
@@ -137,7 +142,7 @@
     border-radius: 999px;
     border: 1px solid var(--border);
     background: rgba(15, 139, 141, 0.05);
-    margin-bottom: 16px;
+    margin-bottom: 12px;
   }
   .tab-btn {
     border: none;
@@ -229,11 +234,64 @@
     padding: 12px 14px;
     font-weight: 600;
   }
-  .chapeau-grid {
-    display: grid;
-    gap: 10px;
-    grid-template-columns: minmax(220px, 1fr) minmax(110px, 160px);
+  /* Hamburger menu */
+  .hero-menu {
+    position: absolute;
+    top: 18px;
+    right: 18px;
   }
+  .hamburger-btn {
+    background: rgba(255,255,255,0.9);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 8px 12px;
+    cursor: pointer;
+    font-size: 1.1rem;
+    color: var(--accent-strong);
+  }
+  .hamburger-menu {
+    display: none;
+    position: absolute;
+    right: 0;
+    top: 44px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    box-shadow: var(--shadow);
+    padding: 8px;
+    z-index: 200;
+    min-width: 200px;
+  }
+  .hamburger-menu.open { display: block; }
+  .hamburger-menu a {
+    display: block;
+    padding: 10px 14px;
+    border-radius: 10px;
+    text-decoration: none;
+    color: var(--text);
+    font-weight: 600;
+    font-size: 0.9rem;
+  }
+  .hamburger-menu a:hover { background: rgba(15,139,141,0.08); }
+  /* Synthese formateur */
+  .synth-block {
+    margin-top: 10px;
+    padding: 12px 14px;
+    border-radius: 12px;
+    border: 1px solid rgba(15,139,141,0.14);
+    background: rgba(15,139,141,0.04);
+    font-size: 0.85rem;
+  }
+  .synth-label { font-weight: 700; color: var(--accent-strong); margin-bottom: 4px; }
+  .synth-row { margin-bottom: 4px; }
+  .threshold-bar {
+    height: 6px;
+    border-radius: 999px;
+    background: rgba(15,139,141,0.12);
+    margin-top: 6px;
+    overflow: hidden;
+  }
+  .threshold-fill { height: 100%; background: var(--accent); border-radius: 999px; }
 </style>
 
 <section class="hero">
@@ -248,6 +306,18 @@
     {% else %}
       <span class="badge badge-wait">Pas encore d'analyse exploitable</span>
     {% endif %}
+  </div>
+
+  <!-- Hamburger menu -->
+  <div class="hero-menu">
+    <button class="hamburger-btn" id="js-hamburger-btn" title="Menu">&#9776;</button>
+    <div class="hamburger-menu" id="js-hamburger-menu">
+      <a href="{% url 'satisfaction_dashboard' %}">Espace Padesce</a>
+      <a href="{% url 'reporting_network_excel' %}">Source Excel</a>
+      {% if prestation_detail_url %}
+        <a href="{{ prestation_detail_url }}">Voir la Prestation</a>
+      {% endif %}
+    </div>
   </div>
 
   {% if reference_warning %}
@@ -279,17 +349,26 @@
         <div class="value">
           {% if classe.cohorte %}C{{ classe.cohorte }}{% else %}-{% endif %}
           {% if classe.lieu and classe.lieu.nom_lieu %}
-            {% if classe.cohorte %} · {% endif %}{{ classe.lieu.nom_lieu|default:classe.lieu }}
+            {% if classe.cohorte %} / {% endif %}{{ classe.lieu.nom_lieu|default:classe.lieu }}
           {% endif %}
         </div>
       </div>
       <div class="meta-card">
         <div class="label">Formateur</div>
-        <div class="value">{{ classe.formateur.nom_complet|default:"-" }}</div>
+        <div class="value">
+          {{ classe.formateur.nom_complet|default:"-" }}
+          {% if classe.formateur.telephone %}
+            <div class="row-meta">{{ classe.formateur.telephone }}</div>
+          {% endif %}
+        </div>
       </div>
       <div class="meta-card">
         <div class="label">Statut</div>
         <div class="value">{{ classe.get_statut_display|default:"-" }}</div>
+      </div>
+      <div class="meta-card">
+        <div class="label">Fenêtre</div>
+        <div class="value">{{ classe.fenetre|default:"-" }}</div>
       </div>
     {% else %}
       <div class="meta-card">
@@ -299,6 +378,10 @@
       <div class="meta-card">
         <div class="label">Beneficiaire</div>
         <div class="value">{{ prestation.beneficiaire.nom_structure|default:"-" }}</div>
+      </div>
+      <div class="meta-card">
+        <div class="label">Fenêtre</div>
+        <div class="value">{{ prestation.formation.fenetre|default:"-" }}</div>
       </div>
       <div class="meta-card">
         <div class="label">Formation</div>
@@ -320,67 +403,47 @@
   </div>
 </section>
 
+<!-- Cards statistiques par statut -->
 <section class="summary-grid">
-  <article class="summary-card">
-    <div class="kicker">Apprenants</div>
-    <strong>{{ summary.apprenants_analyzed }}/{{ summary.apprenants_total }}</strong>
-    <div class="row-meta">{{ summary.apprenants_with_audio }} audio(s) · {{ summary.apprenants_with_form }} formulaire(s)</div>
+  <article class="summary-card accent-tente" data-filter="tente" style="cursor:pointer;">
+    <div class="kicker">Appels Tentés</div>
+    <strong>{{ summary.appels_tentes }}</strong>
+    <div class="row-meta">Appels initiés</div>
   </article>
-  <article class="summary-card">
-    <div class="kicker">Formateurs</div>
-    <strong>{{ summary.formateurs_analyzed }}/{{ summary.formateurs_total }}</strong>
-    <div class="row-meta">{{ summary.formateurs_with_audio }} audio(s) · {{ summary.formateurs_with_form }} formulaire(s)</div>
+  <article class="summary-card accent-reussi" data-filter="reussi" style="cursor:pointer;">
+    <div class="kicker">Appels Réussis</div>
+    <strong>{{ summary.appels_reussis }}</strong>
+    <div class="row-meta">Contact établi</div>
+  </article>
+  <article class="summary-card accent-form" data-filter="formulaire" style="cursor:pointer;">
+    <div class="kicker">Formulaires Remplis</div>
+    <strong>{{ summary.formulaires_remplis }}</strong>
+    <div class="row-meta">Questionnaire complété</div>
+  </article>
+  <article class="summary-card accent-audio" data-filter="audio" style="cursor:pointer;">
+    <div class="kicker">Formulaires avec Audio</div>
+    <strong>{{ summary.formulaires_avec_audio }}</strong>
+    <div class="row-meta">Formulaire + enregistrement</div>
+  </article>
+  <article class="summary-card" data-filter="audios_enregistres" style="cursor:pointer;">
+    <div class="kicker">Audios Enregistrés</div>
+    <strong>{{ summary.audios_enregistres }}</strong>
+    <div class="row-meta">Fichiers audio présents</div>
   </article>
   {% if entity_type == "prestation" %}
     <article class="summary-card">
-      <div class="kicker">Classes liees</div>
+      <div class="kicker">Classes liées</div>
       <strong>{{ class_links|length }}</strong>
-      <div class="row-meta">Acces direct a chaque classe de la prestation</div>
+      <div class="row-meta">Accès direct à chaque classe</div>
     </article>
   {% else %}
     <article class="summary-card">
-      <div class="kicker">Fenetre</div>
-      <strong>{{ classe.fenetre|default:"-" }}</strong>
-      <div class="row-meta">Vue lecture seule des appels rattaches a cette classe</div>
+      <div class="kicker">Formateurs</div>
+      <strong>{{ summary.formateurs_analyzed }}/{{ summary.formateurs_total }}</strong>
+      <div class="row-meta">Analyzés / Total</div>
     </article>
   {% endif %}
 </section>
-
-{% if entity_type == "classe" and class_chapeau %}
-  <section class="panel">
-    <div class="panel-head">
-      <div>
-        <strong>Chapeau de satisfaction</strong>
-        <div class="row-meta">{{ class_chapeau.title }}</div>
-      </div>
-      <span class="badge{% if class_chapeau.has_data %} badge-ok{% else %} badge-wait{% endif %}">
-        {{ class_chapeau.respondents_count }} participant(s)
-      </span>
-    </div>
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>Question</th>
-            <th>Note</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for item in class_chapeau.rows %}
-            <tr>
-              <td>{{ item.label }}</td>
-              <td>{% if item.count %}{{ item.note }} / 5{% else %}-{% endif %}</td>
-            </tr>
-          {% endfor %}
-          <tr>
-            <td><strong>TOTAL DES PARTICIPANTS A LA FORMATION</strong></td>
-            <td><strong>{{ class_chapeau.respondents_count }}</strong></td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-  </section>
-{% endif %}
 
 {% if class_links %}
   <section class="panel">
@@ -402,6 +465,7 @@
   </section>
 {% endif %}
 
+<!-- Toggle Apprenant / Formateur -->
 <div class="tabbar" role="tablist" aria-label="Basculer entre apprenants et formateurs">
   <button type="button" class="tab-btn{% if active_tab == 'apprenants' %} active{% endif %}" data-tab="apprenants">
     Apprenants ({{ apprenant_rows|length }})
@@ -411,51 +475,121 @@
   </button>
 </div>
 
+{% if entity_type == "classe" and class_chapeau %}
+  <section class="panel tab-panel{% if active_tab == 'apprenants' %} active{% endif %}" data-panel="apprenants-chapeau">
+    <div class="panel-head">
+      <div>
+        <strong>Note de satisfaction</strong>
+        <div class="row-meta">{{ class_chapeau.title }}</div>
+      </div>
+      <span class="badge{% if class_chapeau.has_data %} badge-ok{% else %} badge-wait{% endif %}">
+        {{ class_chapeau.formulaires_remplis }} formulaire(s) rempli(s)
+      </span>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Question</th>
+            <th>Note</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in class_chapeau.rows %}
+            <tr>
+              <td>{{ item.label }}</td>
+              <td>{% if item.count %}{{ item.note }} / 5{% else %}-{% endif %}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+  <section class="panel tab-panel{% if active_tab == 'formateurs' %} active{% endif %}" data-panel="formateurs-chapeau">
+    <div class="panel-head">
+      <div>
+        <strong>Note de satisfaction (Apprenants)</strong>
+        <div class="row-meta">{{ class_chapeau.title }}</div>
+      </div>
+      <span class="badge{% if class_chapeau.has_data %} badge-ok{% else %} badge-wait{% endif %}">
+        {{ class_chapeau.formulaires_remplis }} formulaire(s) rempli(s)
+      </span>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Question</th>
+            <th>Note</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in class_chapeau.rows %}
+            <tr>
+              <td>{{ item.label }}</td>
+              <td>{% if item.count %}{{ item.note }} / 5{% else %}-{% endif %}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+{% endif %}
+
 <section class="panel tab-panel{% if active_tab == 'apprenants' %} active{% endif %}" data-panel="apprenants">
   <div class="panel-head">
     <div>
       <strong>Liste apprenants</strong>
-      <div class="row-meta">Lecture seule. Aucun demarrage d'appel depuis cet ecran.</div>
+      <div class="row-meta">Lecture seule. Aucun démarrage d'appel depuis cet écran.</div>
     </div>
     <span class="badge{% if summary.apprenants_analyzed %} badge-ok{% else %} badge-wait{% endif %}">
-      {{ summary.apprenants_analyzed }} analyse(s)
+      {{ summary.formulaires_remplis }} formulaire(s) rempli(s)
     </span>
   </div>
   <div class="table-wrap">
     <table>
       <thead>
         <tr>
-          <th>Code</th>
+          <th>Apprenant ID</th>
           <th>Nom</th>
-          <th>Telephone</th>
+          <th>Téléphone</th>
           <th>Statut</th>
-          <th>Nb appels</th>
-          <th>Derniere activite</th>
+          <th>Audio</th>
+          <th>Dernière activité</th>
           <th>Actions</th>
         </tr>
       </thead>
       <tbody>
         {% for row in apprenant_rows %}
-          <tr>
-            <td>{{ row.code }}</td>
+          <tr data-status-id="{{ row.statut }}" data-has-audio="{{ row.has_audio|yesno:'1,0' }}" data-has-form="{{ row.has_form|yesno:'1,0' }}" class="js-apprenant-row">
+            <td><strong>{{ row.apprenant_id|default:row.code }}</strong></td>
             <td>
               <strong>{{ row.nom|default:"-" }}</strong>
-              {% if row.locked_by %}<div class="row-meta">Operateur: {{ row.locked_by }}</div>{% endif %}
+              {% if row.locked_by %}<div class="row-meta">Opérateur: {{ row.locked_by }}</div>{% endif %}
             </td>
             <td>{{ row.telephone|default:"-" }}</td>
             <td>{{ row.statut_label }}</td>
-            <td>{{ row.call_count }}</td>
+            <td>
+              {% if row.has_audio %}
+                <span class="badge badge-ok">Oui</span>
+                {% if row.audio_url %}
+                  <audio controls style="max-width:180px;height:32px;margin-top:4px;" src="{{ row.audio_url }}"></audio>
+                {% endif %}
+              {% else %}
+                <span style="color:var(--muted);">—</span>
+              {% endif %}
+            </td>
             <td>{{ row.updated_at|date:"d/m/Y H:i" }}</td>
             <td>
               <div class="actions">
-                <a class="btn-link{% if not row.has_audio %} disabled{% endif %}" href="{{ row.detail_url }}#audio">Ecouter</a>
+                <a class="btn-link{% if not row.has_audio %} disabled{% endif %}" href="{{ row.detail_url }}#audio">Écouter</a>
                 <a class="btn-link secondary{% if not row.has_form %} disabled{% endif %}" href="{{ row.detail_url }}#formulaire">Formulaire</a>
               </div>
             </td>
           </tr>
         {% empty %}
           <tr>
-            <td colspan="7" style="text-align:center;color:var(--muted);">Aucun appel apprenant rattache a cette entite.</td>
+            <td colspan="7" style="text-align:center;color:var(--muted);">Aucun appel apprenant rattaché à cette entité.</td>
           </tr>
         {% endfor %}
       </tbody>
@@ -467,58 +601,103 @@
   <div class="panel-head">
     <div>
       <strong>Liste formateurs</strong>
-      <div class="row-meta">Lecture seule. Les lignes sont rapprochees automatiquement de l'entite.</div>
+      <div class="row-meta">{{ matching_note }}</div>
     </div>
-    <span class="badge{% if summary.formateurs_analyzed %} badge-ok{% else %} badge-wait{% endif %}">
-      {{ summary.formateurs_analyzed }} analyse(s)
-    </span>
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+      {% if summary.form_threshold_reached %}
+        <span class="badge badge-ok">Seuil {{ summary.form_threshold_percent }}% atteint</span>
+      {% else %}
+        <span class="badge badge-wait">{{ summary.formateurs_analyzed }}/{{ summary.form_threshold_target }} pour {{ summary.form_threshold_percent }}%</span>
+      {% endif %}
+      <span class="badge{% if summary.formateurs_analyzed %} badge-ok{% else %} badge-wait{% endif %}">
+        {{ summary.formateurs_analyzed }} analysé(s)
+      </span>
+    </div>
   </div>
+  <!-- Barre de progression seuil formateurs -->
+  {% if summary.formateurs_total > 0 %}
+  <div style="margin-bottom:12px;">
+    <div style="font-size:0.8rem;color:var(--muted);margin-bottom:4px;">
+      Progression seuil {{ summary.form_threshold_percent }}% : {{ summary.formateurs_analyzed }}/{{ summary.formateurs_total }}
+    </div>
+    <div class="threshold-bar">
+      <div class="threshold-fill" style="width:{% widthratio summary.formateurs_analyzed summary.formateurs_total 100 %}%;"></div>
+    </div>
+  </div>
+  {% endif %}
   <div class="table-wrap">
     <table>
       <thead>
         <tr>
-          <th>Reference</th>
+          <th>Nom Formateur</th>
+          <th>Téléphone</th>
           <th>Formation</th>
-          <th>Telephone</th>
           <th>Cohorte</th>
           <th>Date</th>
           <th>Statut</th>
-          <th>Nb appels</th>
-          <th>Derniere activite</th>
+          <th>Audio</th>
+          <th>Synthèse</th>
           <th>Actions</th>
         </tr>
       </thead>
       <tbody>
         {% for row in formateur_rows %}
-          <tr>
-            <td>{{ row.reference_code }}</td>
+          <tr data-status-id="{{ row.statut }}" data-has-audio="{{ row.has_audio|yesno:'1,0' }}" data-has-form="{{ row.has_form|yesno:'1,0' }}" class="js-formateur-row">
+            <td><strong>{{ row.formateur_nom|default:row.reference_code }}</strong></td>
+            <td>{{ row.formateur_telephone|default:row.telephone|default:"-" }}</td>
             <td>{{ row.formation|default:"-" }}</td>
-            <td>{{ row.telephone|default:"-" }}</td>
             <td>{{ row.cohorte|default:"-" }}</td>
             <td>{% if row.session_date %}{{ row.session_date|date:"d/m/Y" }}{% else %}{{ row.date_label|default:"-" }}{% endif %}</td>
             <td>{{ row.statut_label }}</td>
-            <td>{{ row.call_count }}</td>
-            <td>{{ row.updated_at|date:"d/m/Y H:i" }}</td>
+            <td>
+              {% if row.has_audio %}
+                <span class="badge badge-ok">Oui</span>
+                {% if row.audio_url %}
+                  <audio controls style="max-width:180px;height:32px;margin-top:4px;" src="{{ row.audio_url }}"></audio>
+                {% endif %}
+              {% else %}
+                <span style="color:var(--muted);">—</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if row.has_form and row.form_state %}
+                <div class="synth-block">
+                  {% for label, value in row.form_state.score_rows %}
+                    <div class="synth-row"><span class="synth-label">{{ label }}:</span> {% if value %}{{ value }}/5{% else %}—{% endif %}</div>
+                  {% endfor %}
+                  {% for label, value in row.form_state.text_rows %}
+                    {% if value %}
+                      <div class="synth-row"><span class="synth-label">{{ label }}:</span> {{ value|truncatechars:60 }}</div>
+                    {% endif %}
+                  {% endfor %}
+                  {% if row.form_state.commentaires %}
+                    <div class="synth-row"><span class="synth-label">Commentaires:</span> {{ row.form_state.commentaires|truncatechars:80 }}</div>
+                  {% endif %}
+                </div>
+              {% else %}
+                <span style="color:var(--muted);">—</span>
+              {% endif %}
+            </td>
             <td>
               <div class="actions">
-                <a class="btn-link{% if not row.has_audio %} disabled{% endif %}" href="{{ row.detail_url }}#audio">Ecouter</a>
+                <a class="btn-link{% if not row.has_audio %} disabled{% endif %}" href="{{ row.detail_url }}#audio">Écouter</a>
                 <a class="btn-link secondary{% if not row.has_form %} disabled{% endif %}" href="{{ row.detail_url }}#formulaire">Formulaire</a>
               </div>
             </td>
           </tr>
         {% empty %}
           <tr>
-            <td colspan="9" style="text-align:center;color:var(--muted);">Aucun appel formateur rattache a cette entite.</td>
+            <td colspan="9" style="text-align:center;color:var(--muted);">Aucun appel formateur rattaché à cette entité.</td>
           </tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
-  <p class="note">{{ matching_note }}</p>
 </section>
 
 <script>
   (function() {
+    // Toggle Apprenant / Formateur
     const buttons = Array.from(document.querySelectorAll("[data-tab]"));
     const panels = Array.from(document.querySelectorAll("[data-panel]"));
     const currentUrl = new URL(window.location.href);
@@ -528,7 +707,14 @@
         button.classList.toggle("active", button.dataset.tab === tabName);
       });
       panels.forEach((panel) => {
-        panel.classList.toggle("active", panel.dataset.panel === tabName);
+        const panelName = panel.dataset.panel;
+        if (panelName === "apprenants-chapeau") {
+          panel.classList.toggle("active", tabName === "apprenants");
+        } else if (panelName === "formateurs-chapeau") {
+          panel.classList.toggle("active", tabName === "formateurs");
+        } else {
+          panel.classList.toggle("active", panelName === tabName);
+        }
       });
       currentUrl.searchParams.set("tab", tabName);
       window.history.replaceState({}, "", currentUrl.toString());
@@ -537,6 +723,64 @@
     buttons.forEach((button) => {
       button.addEventListener("click", () => activate(button.dataset.tab));
     });
+
+    // Hamburger menu
+    const hamburgerBtn = document.getElementById("js-hamburger-btn");
+    const hamburgerMenu = document.getElementById("js-hamburger-menu");
+    if (hamburgerBtn && hamburgerMenu) {
+      hamburgerBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        hamburgerMenu.classList.toggle("open");
+      });
+      document.addEventListener("click", () => {
+        hamburgerMenu.classList.remove("open");
+      });
+    }
+
+    // Table filtering logic based on cards
+    const summaryCards = document.querySelectorAll(".summary-card[data-filter]");
+    let activeFilter = null;
+
+    summaryCards.forEach(card => {
+      card.addEventListener("click", () => {
+        const filterType = card.dataset.filter;
+        if (activeFilter === filterType) {
+          activeFilter = null;
+          card.style.boxShadow = "var(--shadow)";
+          card.style.borderColor = "var(--border)";
+        } else {
+          summaryCards.forEach(c => { c.style.boxShadow = "var(--shadow)"; c.style.borderColor = "var(--border)";});
+          activeFilter = filterType;
+          card.style.boxShadow = "0 0 0 2px var(--accent)";
+          card.style.borderColor = "var(--accent)";
+        }
+
+        document.querySelectorAll(".js-apprenant-row, .js-formateur-row").forEach(row => {
+          if (!activeFilter) {
+            row.style.display = "";
+            return;
+          }
+          const s = row.dataset.statusId;
+          const audio = row.dataset.hasAudio === '1';
+          const form = row.dataset.hasForm === '1';
+          
+          let show = false;
+          // Reussis includes: appel_reussi, termine, formulaire_rempli, formulaire_avec_audio
+          // Tentes includes Reussis + appel_tente
+          const isReussi = ["appel_reussi", "termine", "formulaire_rempli", "formulaire_avec_audio"].includes(s);
+          const isTente = isReussi || s === "appel_tente";
+
+          if (activeFilter === "tente" && isTente) show = true;
+          else if (activeFilter === "reussi" && isReussi) show = true;
+          else if (activeFilter === "formulaire" && form) show = true;
+          else if (activeFilter === "audio" && form && audio) show = true;
+          else if (activeFilter === "audios_enregistres" && audio) show = true;
+          
+          row.style.display = show ? "" : "none";
+        });
+      });
+    });
+
   })();
 </script>
 {% endblock %}

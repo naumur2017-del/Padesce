@@ -69,6 +69,21 @@
       </select>
     </div>
     <div class="field">
+      <label for="f-status">Statut appel</label>
+      <select id="f-status" name="status">
+        <option value="" {% if not filters.status %}selected{% endif %}>Tous les statuts</option>
+        <option value="en_attente" {% if filters.status == "en_attente" %}selected{% endif %}>En attente</option>
+        <option value="en_cours" {% if filters.status == "en_cours" %}selected{% endif %}>En cours</option>
+        <option value="pause" {% if filters.status == "pause" %}selected{% endif %}>Pause</option>
+        <option value="a_rappeler" {% if filters.status == "a_rappeler" %}selected{% endif %}>A rappeler</option>
+        <option value="termine" {% if filters.status == "termine" %}selected{% endif %}>Termine (sans form)</option>
+        <option value="formulaire_rempli" {% if filters.status == "formulaire_rempli" %}selected{% endif %}>Formulaire rempli</option>
+        <option value="formulaire_avec_audio" {% if filters.status == "formulaire_avec_audio" %}selected{% endif %}>Formulaire avec audio</option>
+        <option value="appel_reussi" {% if filters.status == "appel_reussi" %}selected{% endif %}>Appel reussi</option>
+        <option value="appel_tente" {% if filters.status == "appel_tente" %}selected{% endif %}>Appel tente</option>
+      </select>
+    </div>
+    <div class="field">
       <label for="f-q">Recherche</label>
       <input id="f-q" type="text" name="q" value="{{ filters.q }}" placeholder="ApprenantID, code, nom, classe, telephone...">
     </div>

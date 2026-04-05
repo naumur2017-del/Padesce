@@ -1,0 +1,48 @@
+appels_appel info:
+{'cid': 0, 'name': 'id', 'type': 'INTEGER', 'notnull': 0, 'dflt_value': None, 'pk': 0}
+{'cid': 1, 'name': 'created_at', 'type': 'TEXT', 'notnull': 0, 'dflt_value': None, 'pk': 0}
+{'cid': 2, 'name': 'updated_at', 'type': 'TEXT', 'notnull': 0, 'dflt_value': None, 'pk': 0}
+{'cid': 3, 'name': 'code', 'type': 'TEXT', 'notnull': 0, 'dflt_value': None, 'pk': 0}
+{'cid': 4, 'name': 'nom', 'type': 'TEXT', 'notnull': 0, 'dflt_value': None, 'pk': 0}
+{'cid': 5, 'name': 'prestataire', 'type': 'TEXT', 'notnull': 0, 'dflt_value': None, 'pk': 0}
+{'cid': 6, 'name': 'beneficiaire', 'type': 'TEXT', 'notnull': 0, 'dflt_value': None, 'pk': 0}
+{'cid': 7, 'name': 'lieu', 'type': 'TEXT', 'notnull': 0, 'dflt_value': None, 'pk': 0}
+{'cid': 8, 'name': 'classe_label', 'type': 'TEXT', 'notnull': 0, 'dflt_value': None, 'pk': 0}
+{'cid': 9, 'name': 'telephone1', 'type': 'TEXT', 'notnull': 0, 'dflt_value': None, 'pk': 0}
+{'cid': 10, 'name': 'telephone2', 'type': 'TEXT', 'notnull': 0, 'dflt_value': None, 'pk': 0}
+{'cid': 11, 'name': 'taux_presence', 'type': 'REAL', 'notnull': 0, 'dflt_value': None, 'pk': 0}
+{'cid': 12, 'name': 'status', 'type': 'TEXT', 'notnull': 0, 'dflt_value': None, 'pk': 0}
+{'cid': 13, 'name': 'rappel_at', 'type': 'TEXT', 'notnull': 0, 'dflt_value': None, 'pk': 0}
+{'cid': 14, 'name': 'audio_file', 'type': 'TEXT', 'notnull': 0, 'dflt_value': None, 'pk': 0}
+{'cid': 15, 'name': 'locked_at', 'type': 'TEXT', 'notnull': 0, 'dflt_value': None, 'pk': 0}
+{'cid': 16, 'name': 'classe_id', 'type': 'INTEGER', 'notnull': 0, 'dflt_value': None, 'pk': 0}
+{'cid': 17, 'name': 'locked_by_id', 'type': 'INTEGER', 'notnull': 0, 'dflt_value': None, 'pk': 0}
+{'cid': 18, 'name': 'deja_forme', 'type': 'INTEGER', 'notnull': 0, 'dflt_value': None, 'pk': 0}
+{'cid': 19, 'name': 'formation_padesce', 'type': 'TEXT', 'notnull': 0, 'dflt_value': None, 'pk': 0}
+{'cid': 20, 'name': 'type_formation_declaree', 'type': 'TEXT', 'notnull': 0, 'dflt_value': None, 'pk': 0}
+{'cid': 21, 'name': 'fenetre', 'type': 'TEXT', 'notnull': 0, 'dflt_value': None, 'pk': 0}
+{'cid': 22, 'name': 'is_active', 'type': 'INTEGER', 'notnull': 0, 'dflt_value': None, 'pk': 0}
+{'cid': 23, 'name': 'flag_deja_appele', 'type': 'INTEGER', 'notnull': 0, 'dflt_value': None, 'pk': 0}
+{'cid': 24, 'name': 'flag_faux_nom', 'type': 'INTEGER', 'notnull': 0, 'dflt_value': None, 'pk': 0}
+{'cid': 25, 'name': 'flag_numero_double', 'type': 'INTEGER', 'notnull': 0, 'dflt_value': None, 'pk': 0}
+{'cid': 26, 'name': 'flag_pas_forme', 'type': 'INTEGER', 'notnull': 0, 'dflt_value': None, 'pk': 0}
+{'cid': 27, 'name': 'flag_vrai_nom', 'type': 'TEXT', 'notnull': 0, 'dflt_value': None, 'pk': 0}
+
+appels_appel FKs:
+
+auth_user info:
+{'cid': 0, 'name': 'id', 'type': 'INTEGER', 'notnull': 0, 'dflt_value': None, 'pk': 0}
+{'cid': 1, 'name': 'password', 'type': 'TEXT', 'notnull': 0, 'dflt_value': None, 'pk': 0}
+{'cid': 2, 'name': 'last_login', 'type': 'TEXT', 'notnull': 0, 'dflt_value': None, 'pk': 0}
+{'cid': 3, 'name': 'is_superuser', 'type': 'INTEGER', 'notnull': 0, 'dflt_value': None, 'pk': 0}
+{'cid': 4, 'name': 'username', 'type': 'TEXT', 'notnull': 0, 'dflt_value': None, 'pk': 0}
+{'cid': 5, 'name': 'first_name', 'type': 'TEXT', 'notnull': 0, 'dflt_value': None, 'pk': 0}
+{'cid': 6, 'name': 'last_name', 'type': 'TEXT', 'notnull': 0, 'dflt_value': None, 'pk': 0}
+{'cid': 7, 'name': 'email', 'type': 'TEXT', 'notnull': 0, 'dflt_value': None, 'pk': 0}
+{'cid': 8, 'name': 'is_staff', 'type': 'INTEGER', 'notnull': 0, 'dflt_value': None, 'pk': 0}
+{'cid': 9, 'name': 'is_active', 'type': 'INTEGER', 'notnull': 0, 'dflt_value': None, 'pk': 0}
+{'cid': 10, 'name': 'date_joined', 'type': 'TEXT', 'notnull': 0, 'dflt_value': None, 'pk': 0}
+
+auth_user indices:
+
+Done.

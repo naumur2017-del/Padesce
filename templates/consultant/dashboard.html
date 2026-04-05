@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Espace PADESCE{% endblock %}
+{% block title %}Enquête de satisfaction - PADESCE{% endblock %}
 {% block content %}
 <style>
   .hero { border:1px solid var(--border); border-radius:18px; padding:18px; background:linear-gradient(135deg,#faf7ff,#fff); box-shadow:var(--shadow); margin-bottom:16px; }
@@ -31,18 +31,60 @@
   .pagination { display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; margin-top:12px; }
   .pagination-info { color:var(--muted); font-weight:600; }
   .pagination-actions { display:flex; gap:8px; flex-wrap:wrap; }
+  .pagination-actions { display:flex; gap:8px; flex-wrap:wrap; }
+  .card[data-filter] { cursor:pointer; border:2px solid transparent; transition:border-color .2s ease; }
+  .card[data-filter]:hover { border-color:var(--accent); }
+  .card[data-filter].active { border-color:var(--accent); box-shadow:0 0 0 4px rgba(124,58,237,0.12); }
 </style>
 
 <section class="hero">
-  <h1>Espace PADESCE</h1>
-  <p>Consultation professionnelle des enquetes de satisfaction PADESCE.</p>
+  <h1>Enquête de satisfaction</h1>
+  <p>Padesce</p>
 </section>
 
-<section class="cards">
-  <article class="card"><div class="value">{{ card_prestations_count }}</div><div class="label">Prestations</div></article>
-  <article class="card"><div class="value">{{ card_classes_count }}</div><div class="label">Classes</div></article>
-  <article class="card"><div class="value">{{ card_apprenants_count }}</div><div class="label">Apprenants analyses</div></article>
-  <article class="card"><div class="value">{{ card_audio_count }}</div><div class="label">Nombre d'audios</div></article>
+<section class="cards" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));">
+  <article class="card">
+    <div class="value">{{ card_prestations_count }}</div>
+    <div class="label">Prestations analysées</div>
+  </article>
+  <article class="card">
+    <div class="value">{{ card_classes_count }}</div>
+    <div class="label">
+      Classes analysées
+      {% if card_fenetres %}
+      <div style="font-size:0.75rem; color:var(--muted); font-weight:normal;">Fenêtre: {{ card_fenetres|join:", " }}</div>
+      {% endif %}
+    </div>
+  </article>
+  <article class="card">
+    <div class="value">{{ card_prestataires_count }}</div>
+    <div class="label">Prestataires</div>
+  </article>
+  <article class="card">
+    <div class="value">{{ card_beneficiaires_count }}</div>
+    <div class="label">Bénéficiaires</div>
+  </article>
+  
+  <article class="card" style="border-top: 3px solid #f59e0b;" data-filter="tente">
+    <div class="value">{{ summary_tentes }}</div>
+    <div class="label">Appels tentés</div>
+  </article>
+  <article class="card" style="border-top: 3px solid #10b981;" data-filter="reussi">
+    <div class="value">{{ summary_reussis }}</div>
+    <div class="label">Appels réussis</div>
+  </article>
+  <article class="card" style="border-top: 3px solid #6366f1;" data-filter="form">
+    <div class="value">{{ summary_form_remplis }}</div>
+    <div class="label">Formulaires remplis</div>
+  </article>
+  <article class="card" style="border-top: 3px solid #8b5cf6;" data-filter="form-audio">
+    <div class="value">{{ summary_form_audio }}</div>
+    <div class="label">Formulaires avec audio</div>
+  </article>
+  <article class="card" style="border-top: 3px solid #14b8a6;" data-filter="audio">
+    <div class="value">{{ summary_audios }}</div>
+    <div class="label">Audios enregistrés</div>
+  </article>
 </section>
 
 <section class="panel">
@@ -54,36 +96,103 @@
 
   </div>
   <div class="toolbar">
-    <input class="input" type="text" name="q" form="consultant-filter-form" placeholder="Recherche apprenant..." value="{{ filters.q }}">
-    <select class="input" name="classe" form="consultant-filter-form">
-      <option value="">Classe</option>
-      {% for item in filters.classes %}
-        <option value="{{ item.value }}" {% if filters.classe == item.value %}selected{% endif %}>{{ item.label }}</option>
+    <input class="input" type="text" name="q" id="f-q" form="consultant-filter-form" placeholder="Recherche apprenant..." value="{{ filters.q }}">
+    <select class="input" name="beneficiaire" id="f-beneficiaire" form="consultant-filter-form">
+      <option value="">Bénéficiaire</option>
+      {% for item in filters.beneficiaires %}
+        <option value="{{ item }}" {% if filters.beneficiaire == item %}selected{% endif %}>{{ item }}</option>
       {% endfor %}
     </select>
-    <select class="input" name="prestation" form="consultant-filter-form">
+    <select class="input" name="prestation" id="f-prestataire" form="consultant-filter-form">
       <option value="">Prestataire</option>
       {% for item in filters.prestataires %}
         <option value="{{ item }}" {% if filters.prestation == item %}selected{% endif %}>{{ item }}</option>
       {% endfor %}
     </select>
-    <select class="input" name="beneficiaire" form="consultant-filter-form">
-      <option value="">Beneficiaire</option>
-      {% for item in filters.beneficiaires %}
-        <option value="{{ item }}" {% if filters.beneficiaire == item %}selected{% endif %}>{{ item }}</option>
+    <select class="input" name="classe" id="f-classe" form="consultant-filter-form">
+      <option value="">Classe</option>
+      {% for item in filters.classes %}
+        <option value="{{ item.value }}" {% if filters.classe == item.value %}selected{% endif %}>{{ item.label }}</option>
       {% endfor %}
     </select>
-    <select class="input" name="fenetre" form="consultant-filter-form">
-      <option value="">Fenetre</option>
+    <select class="input" name="fenetre" id="f-fenetre" form="consultant-filter-form">
+      <option value="">Fenêtre</option>
       {% for item in filters.fenetres %}
         <option value="{{ item }}" {% if filters.fenetre == item %}selected{% endif %}>{{ item }}</option>
       {% endfor %}
+    </select>
+    <select class="input" name="status" id="f-status" form="consultant-filter-form">
+      <option value="">Statut</option>
     </select>
     <form id="consultant-filter-form" method="get"></form>
     <button class="btn btn-primary" type="submit" form="consultant-filter-form">Filtrer</button>
     <a class="btn" href="{% url 'consultant_dashboard' %}">Reset</a>
     <a class="btn" href="{% url 'satisfaction_dashboard' %}">Voir analyse satisfaction</a>
   </div>
+  <script>
+  (function() {
+    const FILTER_DATA = {{ filter_map_json|safe }};
+    const ACTIVE = {
+      beneficiaire: "{{ filters.beneficiaire|default:""|escapejs }}",
+      prestataire:  "{{ filters.prestation|default:""|escapejs }}",
+      classe:       "{{ filters.classe|default:""|escapejs }}",
+      fenetre:      "{{ filters.fenetre|default:""|escapejs }}",
+      status:       "{{ filters.status|default:""|escapejs }}",
+    };
+    const SELECTS = {
+      beneficiaire: document.getElementById('f-beneficiaire'),
+      prestataire:  document.getElementById('f-prestataire'),
+      classe:       document.getElementById('f-classe'),
+      fenetre:      document.getElementById('f-fenetre'),
+      status:       document.getElementById('f-status'),
+    };
+    const LABELS = {beneficiaire:'Bénéficiaire', prestataire:'Prestataire', classe:'Classe', fenetre:'Fenêtre', status:'Statut'};
+
+    function filteredRows(skipField) {
+      return FILTER_DATA.filter(r => {
+        return Object.keys(SELECTS).every(k => {
+          if (k === skipField) return true;
+          const v = SELECTS[k].value;
+          if (!v) return true;
+          return (k === 'classe' ? r.classe_value : k === 'prestataire' ? r.prestataire : r[k]) === v;
+        });
+      });
+    }
+
+    function rebuildSelect(field) {
+      const sel = SELECTS[field];
+      const current = sel.value;
+      const rows = filteredRows(field);
+      const seen = new Set();
+      const opts = [];
+      rows.forEach(r => {
+        const val = field === 'classe' ? r.classe_value : field === 'prestataire' ? r.prestataire : r[field];
+        const lbl = field === 'classe' ? r.classe_label : field === 'status' ? r.status_label : val;
+        if (val && !seen.has(val)) { seen.add(val); opts.push({val, lbl}); }
+      });
+      opts.sort((a, b) => a.lbl.localeCompare(b.lbl));
+      sel.innerHTML = `<option value="">${LABELS[field]}</option>`;
+      opts.forEach(({val, lbl}) => {
+        const o = document.createElement('option');
+        o.value = val; o.textContent = lbl;
+        if (val === current) o.selected = true;
+        sel.appendChild(o);
+      });
+    }
+
+    function onFilterChange(changedField) {
+      Object.keys(SELECTS).forEach(f => { if (f !== changedField) rebuildSelect(f); });
+    }
+
+    // Init all dropdowns
+    Object.keys(SELECTS).forEach(f => {
+      rebuildSelect(f);
+      // restore server-side selected value
+      if (ACTIVE[f]) SELECTS[f].value = ACTIVE[f];
+      SELECTS[f].addEventListener('change', () => onFilterChange(f));
+    });
+  })();
+  </script>
 
   <div class="table-wrap">
     <table>
@@ -100,14 +209,25 @@
       </thead>
       <tbody>
         {% for row in rows %}
-          <tr class="clickable-row js-open-modal" data-detail-url="{% url 'consultant_call_detail' row.id %}" data-audio-url="{% if row.audio_file %}{{ row.audio_file.url }}{% endif %}">
+          <tr class="clickable-row js-open-modal" 
+              data-detail-url="{% url 'consultant_call_detail' row.id %}" 
+              data-audio-url="{% if row.audio_file %}{{ row.audio_file.url }}{% endif %}"
+              data-status="{{ row.status }}"
+              data-has-form="{{ row.consultant_has_form|yesno:'1,0' }}"
+              data-has-audio="{{ row.consultant_has_audio|yesno:'1,0' }}">
             <td>{{ row.nom }}</td>
             <td>{{ row.code }}</td>
-            <td>{{ row.consultant_class_display|default:row.classe_label|default:"-" }}</td>
+            <td>
+              {% if row.classe %}
+                <a href="{% url 'class_detail' row.classe.id %}" style="text-decoration:underline;">{{ row.consultant_class_display|default:row.classe_label|default:"-" }}</a>
+              {% else %}
+                {{ row.consultant_class_display|default:row.classe_label|default:"-" }}
+              {% endif %}
+            </td>
             <td>{{ row.prestataire|default:"-" }}</td>
             <td>{{ row.beneficiaire|default:"-" }}</td>
             <td>{{ row.telephone1|default:row.telephone2|default:"-" }}</td>
-            <td>{{ row.get_status_display }}</td>
+            <td>{{ row.consultant_status_display }}</td>
           </tr>
         {% empty %}
           <tr><td colspan="7">Aucun appel termine a consulter.</td></tr>
@@ -227,6 +347,45 @@
     });
 
     prioritizeLongAudios();
+
+    // Table Filtering from Cards
+    const cards = document.querySelectorAll(".card[data-filter]");
+    const rows = document.querySelectorAll(".table-wrap tbody .clickable-row");
+
+    cards.forEach((card) => {
+      card.addEventListener("click", () => {
+        const filterKey = card.getAttribute("data-filter");
+        const isActive = card.classList.contains("active");
+
+        cards.forEach((c) => c.classList.remove("active"));
+
+        if (isActive) {
+          rows.forEach((row) => (row.style.display = ""));
+        } else {
+          card.classList.add("active");
+          rows.forEach((row) => {
+            const rowStatus = row.getAttribute("data-status");
+            const hasForm = row.getAttribute("data-has-form") === "1";
+            const hasAudio = row.getAttribute("data-has-audio") === "1";
+            let show = false;
+
+            if (filterKey === "tente") {
+              show = ["appel_tente", "appel_reussi", "termine", "formulaire_rempli", "formulaire_avec_audio"].includes(rowStatus);
+            } else if (filterKey === "reussi") {
+              show = ["appel_reussi", "termine", "formulaire_rempli", "formulaire_avec_audio"].includes(rowStatus);
+            } else if (filterKey === "form") {
+              show = hasForm;
+            } else if (filterKey === "form-audio") {
+              show = hasForm && hasAudio;
+            } else if (filterKey === "audio") {
+              show = hasAudio;
+            }
+
+            row.style.display = show ? "" : "none";
+          });
+        }
+      });
+    });
   })();
 </script>
 {% endblock %}

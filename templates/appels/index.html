@@ -204,10 +204,14 @@
     <select name="status" class="input">
       <option value="">Statut</option>
       <option value="en_attente" {% if filters.status == "en_attente" %}selected{% endif %}>En attente</option>
-      <option value="en_cours" {% if filters.status == "en_cours" %}selected{% endif %}>En cours</option>
-      <option value="pause" {% if filters.status == "pause" %}selected{% endif %}>Pause</option>
-      <option value="a_rappeler" {% if filters.status == "a_rappeler" %}selected{% endif %}>A rappeler</option>
-      <option value="termine" {% if filters.status == "termine" %}selected{% endif %}>Termine</option>
+      <option value="appel_tente" {% if filters.status == "appel_tente" %}selected{% endif %}>Appel Tenté</option>
+      <option value="appel_reussi" {% if filters.status == "appel_reussi" %}selected{% endif %}>Appel Réussi</option>
+      <option value="formulaire_rempli" {% if filters.status == "formulaire_rempli" %}selected{% endif %}>Formulaire Rempli</option>
+      <option value="formulaire_avec_audio" {% if filters.status == "formulaire_avec_audio" %}selected{% endif %}>Formulaire avec Audio</option>
+      <option value="en_cours" {% if filters.status == "en_cours" %}selected{% endif %}>En cours (ancien)</option>
+      <option value="pause" {% if filters.status == "pause" %}selected{% endif %}>Pause (ancien)</option>
+      <option value="a_rappeler" {% if filters.status == "a_rappeler" %}selected{% endif %}>A rappeler (ancien)</option>
+      <option value="termine" {% if filters.status == "termine" %}selected{% endif %}>Terminé (ancien)</option>
     </select>
     <select name="prestataire" class="input">
       <option value="">Prestataire</option>
@@ -273,12 +277,22 @@
     <div class="ops-tile">
       <div class="ops-kicker">Classes masquees</div>
       <strong>{{ hidden_class_summary.hidden_class_count }}</strong>
-      <div class="subtitle" style="margin:6px 0 0;">Objectif d'appels deja atteint, retirees de la table et du filtre.</div>
+      <div class="subtitle" style="margin:6px 0 0;">Objectif d'appels deja atteint (≥50%), retirees de la table et du filtre.</div>
     </div>
     <div class="ops-tile">
       <div class="ops-kicker">Lignes allégées</div>
       <strong>{{ hidden_class_summary.hidden_appel_count }}</strong>
       <div class="subtitle" style="margin:6px 0 0;">Lignes masquees pour garder visibles les classes encore a appeler.</div>
+    </div>
+    <div class="ops-tile" style="border-color: rgba(15,139,141,0.3); background: linear-gradient(180deg, rgba(15,139,141,0.1), rgba(255,255,255,0.97));">
+      <div class="ops-kicker" style="color: #0f5f61;">Classes analysées ✅</div>
+      <strong style="color: #0f5f61;">{{ hidden_class_summary.analysis_classes_count }}</strong>
+      <div class="subtitle" style="margin:6px 0 0;">Classes ayant atteint le seuil {{ analysis_threshold_label }} — prises en compte dans l'analyse de satisfaction.</div>
+    </div>
+    <div class="ops-tile" style="border-color: rgba(15,139,141,0.3); background: linear-gradient(180deg, rgba(15,139,141,0.1), rgba(255,255,255,0.97));">
+      <div class="ops-kicker" style="color: #0f5f61;">Prestations analysées ✅</div>
+      <strong style="color: #0f5f61;">{{ hidden_class_summary.analysis_prestations_count }}</strong>
+      <div class="subtitle" style="margin:6px 0 0;">Prestations dont toutes les classes ont atteint le seuil {{ analysis_threshold_label }}.</div>
     </div>
     <div class="ops-tile">
       <div class="ops-kicker">Classes sans numero</div>
@@ -1043,6 +1057,8 @@
                     resolve();
                 }, 200);
             });
+        } else if (state?.blob) {
+            audioBlob = state.blob;
         }
 
         // Send everything atomically via finalize endpoint
@@ -1795,6 +1811,19 @@
 
     classeFilter.addEventListener('change', updateFilterBadge);
     updateFilterBadge(); // init
+
+    // ── Table filtering logic based on ops-summary cards ──
+    const summaryCards = document.querySelectorAll(".ops-tile");
+    // Filter rows based on status
+    // Because row data-status holds the basic status but we want to filter by summary groups if needed
+    summaryCards.forEach(card => {
+       card.style.cursor = "pointer";
+       card.addEventListener("click", () => {
+          // If we want filtering by 'tentes', 'reussis', etc., we need logic. Wait, this index.html is for App_PADESCE/appels/, the cards are classes_masquees, allégées, classes_analysées...
+          // Wait! The user asked for "les appels tentes dune classes doivent etre plus que les appels reussis ... quand on clique sur une card, les valeurs la doivent safficher sur la table en dessous" in the `classe` specific view, NOT the global `appels_index` view. 
+       });
+    });
+
 
 </script>
 {% endblock %}

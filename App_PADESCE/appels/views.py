@@ -40,7 +40,7 @@ from App_PADESCE.core.call_metrics import (
     phone_variants,
     summarize_source_class_phone_coverage,
 )
-from App_PADESCE.core.analysis_rules import analysis_threshold_label, analysis_threshold_target
+from App_PADESCE.core.analysis_rules import ANALYSIS_THRESHOLD_PERCENT, analysis_threshold_label, analysis_threshold_target
 from App_PADESCE.formations.models import Classe
 from App_PADESCE.reporting.network_excel import build_padesce_source_index, normalize_network_lookup
 
@@ -227,13 +227,21 @@ def _attach_appel_audio_to_satisfaction(satisfaction: SatisfactionApprenant | No
 
 def _status_rank(value: str) -> int:
     ranks = {
+        "formulaire_avec_audio": 5,
+        "formulaire_rempli": 4,
+        "appel_reussi": 3,
+        "appel_tente": 2,
+        # Anciens statuts
         "termine": 4,
-        "en_cours": 3,
+        "en_cours": 2,
         "pause": 2,
-        "a_rappeler": 1,
+        "a_rappeler": 2,
         "en_attente": 0,
     }
     return ranks.get(str(value or "").strip(), -1)
+
+
+COMPLETED_STATUSES = {"formulaire_avec_audio", "formulaire_rempli", "appel_reussi", "termine"}
 
 
 def _best_duplicate_winner(rows):
@@ -311,11 +319,16 @@ def _normalize_dashboard_fenetre(value):
 
 
 def _build_progress_metrics(queryset):
+    completed_q = Q(status__in=["formulaire_avec_audio", "formulaire_rempli", "appel_reussi", "termine"])
     stats = queryset.aggregate(
         total=Count("id"),
-        termines=Count("id", filter=Q(status="termine")),
+        termines=Count("id", filter=completed_q),
+        appels_tentes=Count("id", filter=Q(status__in=["appel_tente", "appel_reussi", "formulaire_rempli", "formulaire_avec_audio", "termine"])),
+        appels_reussis=Count("id", filter=Q(status="appel_reussi")),
+        formulaires_remplis=Count("id", filter=Q(status__in=["formulaire_rempli", "formulaire_avec_audio"])),
+        formulaires_avec_audio=Count("id", filter=Q(status="formulaire_avec_audio")),
         rappels=Count("id", filter=Q(status="a_rappeler")),
-        audios=Count("id", filter=Q(audio_file__isnull=False)),
+        audios=Count("id", filter=Q(audio_file__isnull=False) | Q(status="formulaire_avec_audio")),
     )
     total = int(stats.get("total") or 0)
     termines = int(stats.get("termines") or 0)
@@ -635,7 +648,7 @@ def _build_appel_class_progress_snapshot(source_bundle: dict | None = None) -> d
             label_by_key.setdefault(classe_key, classe_label)
             raw_labels_by_key[classe_key].add(classe_label)
         total_db_appels_by_key[classe_key] += 1
-        if row.get("status") == "termine" and has_usable_phone(row.get("telephone1"), row.get("telephone2")):
+        if row.get("status") in {"formulaire_avec_audio", "formulaire_rempli", "appel_reussi", "termine"} and has_usable_phone(row.get("telephone1"), row.get("telephone2")):
             callable_termines_by_key[classe_key] += 1
 
     source_callable_counts_by_key: dict[str, int] = {}
@@ -715,7 +728,7 @@ def _build_appel_class_progress_snapshot(source_bundle: dict | None = None) -> d
         progress_by_key[classe_key] = progress
         if callable_total <= 0:
             classes_without_callable_phone += 1
-        if reached:
+        if float(progress["pct"]) >= 25:
             hidden_class_keys.add(classe_key)
             hidden_class_labels.update(raw_labels_by_key.get(classe_key) or {display_label})
             hidden_appel_count += sum(
@@ -802,16 +815,37 @@ def _build_appel_class_progress_snapshot(source_bundle: dict | None = None) -> d
     for item in recommended_classes:
         item.pop("score", None)
 
+    # classe_progress only contains classes NOT yet at 50% (shown in the UI filter)
+    # classe_progress_all contains ALL classes including those already hidden (50% reached)
+    classe_progress_all = list(progress_by_key.values())
+
+    # Count prestations where ALL classes reached the 25% analysis threshold
+    analysis_threshold_pct = ANALYSIS_THRESHOLD_PERCENT
+    analysis_prestations_count = 0
+    if source_bundle:
+        for prestation_key, class_keys in prestation_classes.items():
+            if not class_keys:
+                continue
+            all_at_threshold = all(
+                int(progress_by_key.get(ck, {}).get("total") or 0) > 0
+                and float(progress_by_key.get(ck, {}).get("pct") or 0) >= analysis_threshold_pct
+                for ck in class_keys
+            )
+            if all_at_threshold:
+                analysis_prestations_count += 1
+
     return {
         "source_bundle": source_bundle,
         "source_summary": (source_bundle or {}).get("source") or {},
         "classe_progress": classe_progress,
+        "classe_progress_all": classe_progress_all,
         "progress_by_key": progress_by_key,
         "hidden_class_labels": sorted(hidden_class_labels),
         "hidden_class_count": len(hidden_class_keys),
         "hidden_appel_count": hidden_appel_count,
         "classes_without_callable_phone_count": classes_without_callable_phone,
         "recommended_classes": recommended_classes[:8],
+        "analysis_prestations_count": analysis_prestations_count,
     }
 
 
@@ -1166,7 +1200,7 @@ def appels_index(request):
     appels = _bind_audio_state(list(page_obj.object_list))
     page_obj.object_list = appels
 
-    # ── per-class 50 % threshold ──
+    # ── per-class threshold enrichment ──
     classe_progress = optimization_snapshot["classe_progress"]
     progress_map = {item["classe"]: item for item in classe_progress}
     enriched_classes = []
@@ -1174,12 +1208,24 @@ def appels_index(request):
         prog = progress_map.get(c_label)
         label_with_prog = c_label
         if prog:
-            if int(prog["total"] or 0) <= 0:
+            total = int(prog.get("total") or 0)
+            termines = int(prog.get("termines") or 0)
+            pct = float(prog.get("pct") or 0)
+            if total <= 0:
                 label_with_prog = f"{c_label} (Aucun numero joignable)"
             else:
-                label_with_prog = f"{c_label} ({prog['termines']}/{prog['total']} joignables - {prog['pct']}%)"
+                label_with_prog = f"{c_label} ({termines}/{total} - {pct}%)"
         enriched_classes.append({"value": c_label, "label": label_with_prog})
     filters["classes_enriched"] = enriched_classes
+
+    # ── Analysis threshold stats (25%) across ALL classes (visible + hidden) ──
+    all_classe_progress = optimization_snapshot["classe_progress_all"]
+    analysis_classes_count = sum(
+        1 for item in all_classe_progress
+        if int(item.get("total") or 0) > 0 and float(item.get("pct") or 0) >= ANALYSIS_THRESHOLD_PERCENT
+    )
+    # Count distinct prestations where all their classes reached the 25% threshold
+    analysis_prestations_count = optimization_snapshot.get("analysis_prestations_count", 0)
 
     import json as _json
     return render(
@@ -1199,8 +1245,11 @@ def appels_index(request):
                 "hidden_class_count": optimization_snapshot["hidden_class_count"],
                 "hidden_appel_count": optimization_snapshot["hidden_appel_count"],
                 "classes_without_callable_phone_count": optimization_snapshot["classes_without_callable_phone_count"],
+                "analysis_classes_count": analysis_classes_count,
+                "analysis_prestations_count": analysis_prestations_count,
             },
             "source_summary": optimization_snapshot["source_summary"],
+            "analysis_threshold_label": analysis_threshold_label(),
         },
     )
 
@@ -1369,13 +1418,13 @@ def appel_action(request, pk: int):
     satisfaction_message = ""
 
     if action == "start":
-        appel.status = "en_cours"
+        appel.status = "appel_tente"
         appel.locked_by = request.user
         appel.locked_at = now
     elif action == "pause":
-        appel.status = "pause"
+        appel.status = "appel_tente"
     elif action == "resume":
-        appel.status = "en_cours"
+        appel.status = "appel_tente"
         appel.locked_by = request.user
         appel.locked_at = now
     elif action == "rappeler":
@@ -1450,7 +1499,17 @@ def finalize_appel(request, pk: int):
             file_obj = request.FILES.get("audio")
 
             if action == "terminer":
-                appel.status = "termine"
+                # Determine if user actually filled q1-q9 (not just defaults)
+                _has_real_form = any(request.POST.get(f"q{i}") for i in range(1, 10))
+                _has_audio_upload = bool(request.FILES.get("audio"))
+                if _has_real_form and _has_audio_upload:
+                    appel.status = "formulaire_avec_audio"
+                elif _has_real_form:
+                    appel.status = "formulaire_rempli"
+                elif _has_audio_upload:
+                    appel.status = "formulaire_avec_audio"
+                else:
+                    appel.status = "appel_reussi"
                 appel.rappel_at = None
             elif action == "rappeler":
                 appel.status = "a_rappeler"

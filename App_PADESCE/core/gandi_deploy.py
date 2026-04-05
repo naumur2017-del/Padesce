@@ -1269,6 +1269,19 @@ class DeploymentRunState:
         self.save(force=True)
 
 
+def _sftp_put_with_retry(sftp, local_path: str, remote_path: str, callback=None, retries: int = 3) -> None:
+    """Upload a file over SFTP, retrying on 'size mismatch in put!' errors."""
+    for attempt in range(1, retries + 1):
+        try:
+            sftp.put(local_path, remote_path, callback=callback)
+            return
+        except OSError as exc:
+            msg = str(exc).lower()
+            if "size mismatch" not in msg or attempt >= retries:
+                raise
+            time.sleep(1 * attempt)
+
+
 def _connect_sftp(config: DeploymentConfig):
     if paramiko is None:
         raise DeploymentError(
@@ -1462,7 +1475,7 @@ def run_deployment(*, run_id: str, mode: str = "deploy") -> dict[str, Any]:
                     progress=progress,
                 )
 
-            sftp.put(str(local_path), remote_path, callback=_callback)
+            _sftp_put_with_retry(sftp, str(local_path), remote_path, callback=_callback)
             if last_sent < 0:
                 uploaded_bytes += int(local_manifest[relative]["size"])
             uploaded_paths.append(relative)
@@ -1516,12 +1529,21 @@ def run_deployment(*, run_id: str, mode: str = "deploy") -> dict[str, Any]:
         verification_errors: list[str] = []
         for relative in uploaded_paths:
             remote_path = remote_join(remote_root, relative)
-            try:
-                remote_stat = sftp.stat(remote_path)
-            except OSError:
+            expected_size = int(local_manifest[relative]["size"])
+            remote_stat = None
+            for _attempt in range(6):
+                try:
+                    remote_stat = sftp.stat(remote_path)
+                except OSError:
+                    break
+                actual = int(getattr(remote_stat, "st_size", 0) or 0)
+                if actual == expected_size:
+                    break
+                time.sleep(2)
+            if remote_stat is None:
                 verification_errors.append(f"Fichier distant introuvable apres transfert: {relative}")
                 continue
-            if int(getattr(remote_stat, "st_size", 0) or 0) != int(local_manifest[relative]["size"]):
+            if int(getattr(remote_stat, "st_size", 0) or 0) != expected_size:
                 verification_errors.append(f"Taille distante invalide: {relative}")
 
         for relative in deleted_paths:
