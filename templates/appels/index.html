@@ -963,6 +963,7 @@
       document.querySelectorAll("#js-sat-questions input[type=radio][value='3']").forEach(r => r.checked = true);
       document.getElementById("js-sat-commentaire").value = "";
       document.getElementById("js-sat-recommandations").value = "";
+      if (satModal) satModal.dataset.formModified = "0";
     }
 
     function applySatisfactionAnswerState(answers) {
@@ -995,6 +996,11 @@
         resetSatisfactionFlags();
       }
     }
+
+    // Track explicit Q1-Q9 radio clicks
+    document.getElementById("js-sat-questions")?.addEventListener("change", () => {
+      if (satModal) satModal.dataset.formModified = "1";
+    });
 
     satModalRappel?.addEventListener("change", () => {
       if (satModalRappelAt) {
@@ -1035,6 +1041,7 @@
         satForm.append("flag_numero_double", document.getElementById("js-sat-flag-numero-double").checked ? "1" : "0");
         satForm.append("deja_forme", de_forme_check ? "1" : "0");
         satForm.append("rappel_at", rappelAt || "");
+        satForm.append("form_modified", satModal?.dataset.formModified || "0");
 
         satModal.hidden = true;
 
