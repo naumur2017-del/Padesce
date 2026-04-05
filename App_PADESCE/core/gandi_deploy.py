@@ -1529,12 +1529,21 @@ def run_deployment(*, run_id: str, mode: str = "deploy") -> dict[str, Any]:
         verification_errors: list[str] = []
         for relative in uploaded_paths:
             remote_path = remote_join(remote_root, relative)
-            try:
-                remote_stat = sftp.stat(remote_path)
-            except OSError:
+            expected_size = int(local_manifest[relative]["size"])
+            remote_stat = None
+            for _attempt in range(4):
+                try:
+                    remote_stat = sftp.stat(remote_path)
+                except OSError:
+                    break
+                actual = int(getattr(remote_stat, "st_size", 0) or 0)
+                if actual == expected_size:
+                    break
+                time.sleep(1)
+            if remote_stat is None:
                 verification_errors.append(f"Fichier distant introuvable apres transfert: {relative}")
                 continue
-            if int(getattr(remote_stat, "st_size", 0) or 0) != int(local_manifest[relative]["size"]):
+            if int(getattr(remote_stat, "st_size", 0) or 0) != expected_size:
                 verification_errors.append(f"Taille distante invalide: {relative}")
 
         for relative in deleted_paths:

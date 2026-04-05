@@ -96,36 +96,103 @@
 
   </div>
   <div class="toolbar">
-    <input class="input" type="text" name="q" form="consultant-filter-form" placeholder="Recherche apprenant..." value="{{ filters.q }}">
-    <select class="input" name="classe" form="consultant-filter-form">
-      <option value="">Classe</option>
-      {% for item in filters.classes %}
-        <option value="{{ item.value }}" {% if filters.classe == item.value %}selected{% endif %}>{{ item.label }}</option>
+    <input class="input" type="text" name="q" id="f-q" form="consultant-filter-form" placeholder="Recherche apprenant..." value="{{ filters.q }}">
+    <select class="input" name="beneficiaire" id="f-beneficiaire" form="consultant-filter-form">
+      <option value="">Bénéficiaire</option>
+      {% for item in filters.beneficiaires %}
+        <option value="{{ item }}" {% if filters.beneficiaire == item %}selected{% endif %}>{{ item }}</option>
       {% endfor %}
     </select>
-    <select class="input" name="prestation" form="consultant-filter-form">
+    <select class="input" name="prestation" id="f-prestataire" form="consultant-filter-form">
       <option value="">Prestataire</option>
       {% for item in filters.prestataires %}
         <option value="{{ item }}" {% if filters.prestation == item %}selected{% endif %}>{{ item }}</option>
       {% endfor %}
     </select>
-    <select class="input" name="beneficiaire" form="consultant-filter-form">
-      <option value="">Beneficiaire</option>
-      {% for item in filters.beneficiaires %}
-        <option value="{{ item }}" {% if filters.beneficiaire == item %}selected{% endif %}>{{ item }}</option>
+    <select class="input" name="classe" id="f-classe" form="consultant-filter-form">
+      <option value="">Classe</option>
+      {% for item in filters.classes %}
+        <option value="{{ item.value }}" {% if filters.classe == item.value %}selected{% endif %}>{{ item.label }}</option>
       {% endfor %}
     </select>
-    <select class="input" name="fenetre" form="consultant-filter-form">
-      <option value="">Fenetre</option>
+    <select class="input" name="fenetre" id="f-fenetre" form="consultant-filter-form">
+      <option value="">Fenêtre</option>
       {% for item in filters.fenetres %}
         <option value="{{ item }}" {% if filters.fenetre == item %}selected{% endif %}>{{ item }}</option>
       {% endfor %}
+    </select>
+    <select class="input" name="status" id="f-status" form="consultant-filter-form">
+      <option value="">Statut</option>
     </select>
     <form id="consultant-filter-form" method="get"></form>
     <button class="btn btn-primary" type="submit" form="consultant-filter-form">Filtrer</button>
     <a class="btn" href="{% url 'consultant_dashboard' %}">Reset</a>
     <a class="btn" href="{% url 'satisfaction_dashboard' %}">Voir analyse satisfaction</a>
   </div>
+  <script>
+  (function() {
+    const FILTER_DATA = {{ filter_map_json|safe }};
+    const ACTIVE = {
+      beneficiaire: "{{ filters.beneficiaire|default:""|escapejs }}",
+      prestataire:  "{{ filters.prestation|default:""|escapejs }}",
+      classe:       "{{ filters.classe|default:""|escapejs }}",
+      fenetre:      "{{ filters.fenetre|default:""|escapejs }}",
+      status:       "{{ filters.status|default:""|escapejs }}",
+    };
+    const SELECTS = {
+      beneficiaire: document.getElementById('f-beneficiaire'),
+      prestataire:  document.getElementById('f-prestataire'),
+      classe:       document.getElementById('f-classe'),
+      fenetre:      document.getElementById('f-fenetre'),
+      status:       document.getElementById('f-status'),
+    };
+    const LABELS = {beneficiaire:'Bénéficiaire', prestataire:'Prestataire', classe:'Classe', fenetre:'Fenêtre', status:'Statut'};
+
+    function filteredRows(skipField) {
+      return FILTER_DATA.filter(r => {
+        return Object.keys(SELECTS).every(k => {
+          if (k === skipField) return true;
+          const v = SELECTS[k].value;
+          if (!v) return true;
+          return (k === 'classe' ? r.classe_value : k === 'prestataire' ? r.prestataire : r[k]) === v;
+        });
+      });
+    }
+
+    function rebuildSelect(field) {
+      const sel = SELECTS[field];
+      const current = sel.value;
+      const rows = filteredRows(field);
+      const seen = new Set();
+      const opts = [];
+      rows.forEach(r => {
+        const val = field === 'classe' ? r.classe_value : field === 'prestataire' ? r.prestataire : r[field];
+        const lbl = field === 'classe' ? r.classe_label : field === 'status' ? r.status_label : val;
+        if (val && !seen.has(val)) { seen.add(val); opts.push({val, lbl}); }
+      });
+      opts.sort((a, b) => a.lbl.localeCompare(b.lbl));
+      sel.innerHTML = `<option value="">${LABELS[field]}</option>`;
+      opts.forEach(({val, lbl}) => {
+        const o = document.createElement('option');
+        o.value = val; o.textContent = lbl;
+        if (val === current) o.selected = true;
+        sel.appendChild(o);
+      });
+    }
+
+    function onFilterChange(changedField) {
+      Object.keys(SELECTS).forEach(f => { if (f !== changedField) rebuildSelect(f); });
+    }
+
+    // Init all dropdowns
+    Object.keys(SELECTS).forEach(f => {
+      rebuildSelect(f);
+      // restore server-side selected value
+      if (ACTIVE[f]) SELECTS[f].value = ACTIVE[f];
+      SELECTS[f].addEventListener('change', () => onFilterChange(f));
+    });
+  })();
+  </script>
 
   <div class="table-wrap">
     <table>

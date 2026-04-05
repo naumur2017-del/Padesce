@@ -975,8 +975,10 @@ def consultant_dashboard(request):
     prestation_filter = (request.GET.get("prestation") or "").strip()
     beneficiaire_filter = (request.GET.get("beneficiaire") or "").strip()
     fenetre_filter = (request.GET.get("fenetre") or "").strip()
+    status_filter = (request.GET.get("status") or "").strip()
 
-    rows_qs = Appel.objects.filter(is_active=True, status="termine").select_related(
+    _terminal_statuses = ["appel_tente", "appel_reussi", "formulaire_rempli", "formulaire_avec_audio", "termine", "en_cours", "pause", "a_rappeler"]
+    rows_qs = Appel.objects.filter(is_active=True, status__in=_terminal_statuses).select_related(
         "classe",
         "classe__prestation__beneficiaire",
         "classe__prestation__prestataire",
@@ -1003,6 +1005,8 @@ def consultant_dashboard(request):
         rows_qs = rows_qs.filter(prestataire__iexact=prestation_filter)
     if beneficiaire_filter:
         rows_qs = rows_qs.filter(beneficiaire__iexact=beneficiaire_filter)
+    if status_filter:
+        rows_qs = rows_qs.filter(status=status_filter)
 
     priorities = _load_conformity_ranking_priorities()
     rows: list[Appel] = []
@@ -1053,54 +1057,53 @@ def consultant_dashboard(request):
     rows.sort(key=_consultant_row_sort_key)
 
     # Unfiltered snapshot for card counts (must match satisfaction analysis page)
+    _all_eligible_qs = (
+        Appel.objects.filter(is_active=True, status__in=_terminal_statuses)
+        .select_related(
+            "classe",
+            "classe__prestation__beneficiaire",
+            "classe__prestation__prestataire",
+            "answers",
+            "answers__modified_by",
+            "satisfaction_apprenant",
+            "satisfaction_apprenant__enqueteur",
+        )
+        .order_by("nom", "pk")
+    )
+    _all_eligible = [
+        app for app in _all_eligible_qs
+        if _consultant_dashboard_fenetre(app) in {"2", "3"}
+        and appel_is_analysis_eligible(
+            app,
+            answer=_consultant_answer_or_none(app),
+            survey=_consultant_survey_or_none(app),
+        )
+    ]
+
     card_snapshot = _consultant_analysis_snapshot(
         getattr(request, "user", None)
-    ) or _fallback_consultant_analysis_snapshot(
-        [
-            app
-            for app in Appel.objects.filter(is_active=True, status="termine")
-            .select_related(
-                "classe",
-                "classe__prestation__beneficiaire",
-                "classe__prestation__prestataire",
-                "answers",
-                "answers__modified_by",
-                "satisfaction_apprenant",
-                "satisfaction_apprenant__enqueteur",
-            )
-            .order_by("nom", "pk")
-            if _consultant_dashboard_fenetre(app) in {"2", "3"}
-            and appel_is_analysis_eligible(
-                app,
-                answer=_consultant_answer_or_none(app),
-                survey=_consultant_survey_or_none(app),
-            )
-        ]
-    )
+    ) or _fallback_consultant_analysis_snapshot(_all_eligible)
 
-    # Filtered snapshot for filter dropdown options
-    analysis_snapshot = _fallback_consultant_analysis_snapshot(
-        [
-            app
-            for app in Appel.objects.filter(is_active=True, status="termine")
-            .select_related(
-                "classe",
-                "classe__prestation__beneficiaire",
-                "classe__prestation__prestataire",
-                "answers",
-                "answers__modified_by",
-                "satisfaction_apprenant",
-                "satisfaction_apprenant__enqueteur",
-            )
-            .order_by("nom", "pk")
-            if _consultant_dashboard_fenetre(app) in {"2", "3"}
-            and appel_is_analysis_eligible(
-                app,
-                answer=_consultant_answer_or_none(app),
-                survey=_consultant_survey_or_none(app),
-            )
-        ]
-    )
+    analysis_snapshot = _fallback_consultant_analysis_snapshot(_all_eligible)
+
+    # Build filter_map for dynamic JS cascading
+    _status_label_map = dict(Appel.STATUS_CHOICES)
+    _filter_rows = []
+    for app in _all_eligible:
+        fenetre = _consultant_dashboard_fenetre(app)
+        classe = getattr(app, "classe", None)
+        class_code = str(getattr(classe, "code", "") or "").strip() or (app.classe_label or "").strip()
+        class_label = _consultant_class_display(app)
+        _filter_rows.append({
+            "beneficiaire": (app.beneficiaire or "").strip(),
+            "prestataire": (app.prestataire or "").strip(),
+            "classe_value": class_code,
+            "classe_label": class_label if class_label != "-" else class_code,
+            "fenetre": fenetre,
+            "status": app.status or "",
+            "status_label": _status_label_map.get(app.status, app.status or ""),
+        })
+    filter_map_json = json.dumps(_filter_rows, ensure_ascii=False)
 
     # Strict form counting: q1-q9 must all be non-null.
     # AppelAnswers fields are nullable so check each individually.
@@ -1161,11 +1164,13 @@ def consultant_dashboard(request):
                 "prestation": prestation_filter,
                 "beneficiaire": beneficiaire_filter,
                 "fenetre": fenetre_filter,
+                "status": status_filter,
                 "classes": analysis_snapshot["class_options"],
                 "prestataires": analysis_snapshot["prestataire_options"],
                 "beneficiaires": analysis_snapshot.get("beneficiaire_options", []),
                 "fenetres": analysis_snapshot.get("fenetre_options", []),
             },
+            "filter_map_json": filter_map_json,
             "total_rows": len(rows),
             "card_prestations_count": card_snapshot["counts"].get("analyzed_prestations_count", 0),
             "card_classes_count": card_snapshot["counts"].get("analyzed_classes_count", 0),
