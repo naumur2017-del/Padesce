@@ -1280,6 +1280,15 @@
 
     const recordState = new Map();
 
+    // Stop all active recordings on page unload to ensure audio is saved
+    window.addEventListener('beforeunload', () => {
+      for (let [id, state] of recordState) {
+        if (state.recorder && state.recorder.state === 'recording') {
+          state.recorder.stop();
+        }
+      }
+    });
+
     function getRecordState(row) {
       return recordState.get(row.dataset.id);
     }
@@ -1328,6 +1337,14 @@
         const id = row.dataset.id;
         const satModal = document.getElementById("js-satisfaction-modal");
         if (!satModal) return;
+
+        // Stop recording if active before opening modal
+        const state = getRecordState(row);
+        if (state?.recorder && state.recorder.state !== "inactive") {
+          state.recorder.stop();
+          // Wait for onstop to complete upload
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
 
         await hydrateSatisfactionModal(id);
         
