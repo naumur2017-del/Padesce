@@ -1499,17 +1499,17 @@ def finalize_appel(request, pk: int):
             file_obj = request.FILES.get("audio")
 
             if action == "terminer":
-                # Check if ALL q1-q9 questions are filled (not just defaults)
-                _has_complete_form = all(request.POST.get(f"q{i}") and request.POST.get(f"q{i}").strip() for i in range(1, 10))
+                # Check if at least one q1-q9 question is filled
+                _has_any_form_response = any(request.POST.get(f"q{i}") and request.POST.get(f"q{i}").strip() for i in range(1, 10))
                 _has_audio_upload = bool(request.FILES.get("audio"))
-                if _has_complete_form and _has_audio_upload:
+                if _has_any_form_response and _has_audio_upload:
                     appel.status = "formulaire_avec_audio"
-                elif _has_complete_form:
+                elif _has_any_form_response:
                     appel.status = "formulaire_rempli"
                 elif _has_audio_upload:
                     appel.status = "formulaire_avec_audio"
                 else:
-                    appel.status = "appel_reussi"
+                    appel.status = "appel_tente"
                 appel.rappel_at = None
             elif action == "rappeler":
                 appel.status = "a_rappeler"
