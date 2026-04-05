@@ -1269,6 +1269,19 @@ class DeploymentRunState:
         self.save(force=True)
 
 
+def _sftp_put_with_retry(sftp, local_path: str, remote_path: str, callback=None, retries: int = 3) -> None:
+    """Upload a file over SFTP, retrying on 'size mismatch in put!' errors."""
+    for attempt in range(1, retries + 1):
+        try:
+            sftp.put(local_path, remote_path, callback=callback)
+            return
+        except OSError as exc:
+            msg = str(exc).lower()
+            if "size mismatch" not in msg or attempt >= retries:
+                raise
+            time.sleep(1 * attempt)
+
+
 def _connect_sftp(config: DeploymentConfig):
     if paramiko is None:
         raise DeploymentError(
@@ -1462,7 +1475,7 @@ def run_deployment(*, run_id: str, mode: str = "deploy") -> dict[str, Any]:
                     progress=progress,
                 )
 
-            sftp.put(str(local_path), remote_path, callback=_callback)
+            _sftp_put_with_retry(sftp, str(local_path), remote_path, callback=_callback)
             if last_sent < 0:
                 uploaded_bytes += int(local_manifest[relative]["size"])
             uploaded_paths.append(relative)
