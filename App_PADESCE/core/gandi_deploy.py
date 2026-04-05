@@ -1531,7 +1531,7 @@ def run_deployment(*, run_id: str, mode: str = "deploy") -> dict[str, Any]:
             remote_path = remote_join(remote_root, relative)
             expected_size = int(local_manifest[relative]["size"])
             remote_stat = None
-            for _attempt in range(4):
+            for _attempt in range(6):
                 try:
                     remote_stat = sftp.stat(remote_path)
                 except OSError:
@@ -1539,7 +1539,7 @@ def run_deployment(*, run_id: str, mode: str = "deploy") -> dict[str, Any]:
                 actual = int(getattr(remote_stat, "st_size", 0) or 0)
                 if actual == expected_size:
                     break
-                time.sleep(1)
+                time.sleep(2)
             if remote_stat is None:
                 verification_errors.append(f"Fichier distant introuvable apres transfert: {relative}")
                 continue

@@ -977,8 +977,7 @@ def consultant_dashboard(request):
     fenetre_filter = (request.GET.get("fenetre") or "").strip()
     status_filter = (request.GET.get("status") or "").strip()
 
-    _terminal_statuses = ["appel_tente", "appel_reussi", "formulaire_rempli", "formulaire_avec_audio"]
-    rows_qs = Appel.objects.filter(is_active=True, status__in=_terminal_statuses).select_related(
+    rows_qs = Appel.objects.filter(is_active=True).exclude(status="en_attente").select_related(
         "classe",
         "classe__prestation__beneficiaire",
         "classe__prestation__prestataire",
@@ -1058,7 +1057,7 @@ def consultant_dashboard(request):
 
     # Unfiltered snapshot for card counts (must match satisfaction analysis page)
     _all_eligible_qs = (
-        Appel.objects.filter(is_active=True, status__in=_terminal_statuses)
+        Appel.objects.filter(is_active=True).exclude(status="en_attente")
         .select_related(
             "classe",
             "classe__prestation__beneficiaire",
@@ -1130,8 +1129,8 @@ def consultant_dashboard(request):
             Q(classe__code__in=target_class_codes) | Q(classe_label__in=target_class_codes)
         )
         stats = base_qs.aggregate(
-            tentes=Count("id", filter=Q(status__in=["appel_tente", "appel_reussi", "formulaire_rempli", "formulaire_avec_audio"])),
-            reussis=Count("id", filter=Q(status__in=["appel_reussi", "formulaire_rempli", "formulaire_avec_audio"])),
+            tentes=Count("id", filter=~Q(status="en_attente")),
+            reussis=Count("id", filter=~Q(status__in=["en_attente", "a_rappeler"])),
             forms=Count("id", filter=strict_form_q),
             forms_audio=Count("id", filter=strict_form_q & (Q(audio_file__isnull=False) & ~Q(audio_file=""))),
             audios=Count("id", filter=Q(audio_file__isnull=False) & ~Q(audio_file=""))
