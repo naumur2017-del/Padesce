@@ -1,7 +1,14 @@
 import json
 import os
+import time
 import traceback
 from pathlib import Path
+
+AUTO_MIGRATE_LOCK_FILENAME = ".django-auto-migrate.lock"
+AUTO_MIGRATE_DONE_FILENAME = ".django-auto-migrate.done"
+AUTO_MIGRATE_ERROR_FILENAME = ".django-auto-migrate.error"
+AUTO_MIGRATE_WAIT_SECONDS = 90
+AUTO_MIGRATE_STALE_SECONDS = 15 * 60
 
 
 def load_runtime_env(base_dir: Path) -> None:
@@ -197,3 +204,97 @@ def maybe_run_postgres_migration(base_dir: Path) -> None:
         encoding="utf-8",
     )
     error_file.unlink(missing_ok=True)
+
+
+def _auto_migrate_enabled() -> bool:
+    raw_value = str(os.environ.get("NAUMUR_AUTO_MIGRATE_ON_BOOT", "1") or "").strip().lower()
+    return raw_value not in {"0", "false", "no", "off"}
+
+
+def _runtime_marker_dir(base_dir: Path) -> Path:
+    path = base_dir / "logs" / "runtime"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def _acquire_bootstrap_lock(lock_path: Path) -> bool:
+    while True:
+        try:
+            fd = os.open(str(lock_path), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        except FileExistsError:
+            try:
+                age_seconds = time.time() - lock_path.stat().st_mtime
+            except OSError:
+                age_seconds = 0
+            if age_seconds > AUTO_MIGRATE_STALE_SECONDS:
+                lock_path.unlink(missing_ok=True)
+                continue
+            return False
+        else:
+            with os.fdopen(fd, "w", encoding="utf-8") as handle:
+                handle.write(json.dumps({"pid": os.getpid(), "created_at": time.time()}))
+            return True
+
+
+def _wait_for_bootstrap_lock(lock_path: Path, timeout_seconds: int = AUTO_MIGRATE_WAIT_SECONDS) -> None:
+    deadline = time.monotonic() + max(0, timeout_seconds)
+    while lock_path.exists() and time.monotonic() < deadline:
+        time.sleep(1)
+
+
+def _has_pending_django_migrations() -> bool:
+    import django
+    from django.db import DEFAULT_DB_ALIAS, connections
+    from django.db.migrations.executor import MigrationExecutor
+
+    django.setup()
+    connection = connections[DEFAULT_DB_ALIAS]
+    executor = MigrationExecutor(connection)
+    targets = executor.loader.graph.leaf_nodes()
+    return bool(executor.migration_plan(targets))
+
+
+def maybe_run_django_migrations(base_dir: Path) -> bool:
+    if not _auto_migrate_enabled():
+        return False
+
+    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "App_PADESCE.settings")
+
+    marker_dir = _runtime_marker_dir(base_dir)
+    lock_path = marker_dir / AUTO_MIGRATE_LOCK_FILENAME
+    done_path = marker_dir / AUTO_MIGRATE_DONE_FILENAME
+    error_path = marker_dir / AUTO_MIGRATE_ERROR_FILENAME
+
+    if not _acquire_bootstrap_lock(lock_path):
+        _wait_for_bootstrap_lock(lock_path)
+        return False
+
+    try:
+        if not _has_pending_django_migrations():
+            done_path.write_text(
+                json.dumps({"pid": os.getpid(), "status": "up_to_date", "checked_at": time.time()}, indent=2),
+                encoding="utf-8",
+            )
+            error_path.unlink(missing_ok=True)
+            return False
+
+        from django.core.management import call_command
+
+        call_command("migrate", interactive=False, verbosity=0)
+        done_path.write_text(
+            json.dumps({"pid": os.getpid(), "status": "migrated", "completed_at": time.time()}, indent=2),
+            encoding="utf-8",
+        )
+        error_path.unlink(missing_ok=True)
+        return True
+    except Exception:
+        error_path.write_text(traceback.format_exc(), encoding="utf-8")
+        return False
+    finally:
+        lock_path.unlink(missing_ok=True)
+
+
+def bootstrap_runtime(base_dir: Path) -> None:
+    load_runtime_env(base_dir)
+    maybe_run_postgres_migration(base_dir)
+    maybe_run_django_migrations(base_dir)
