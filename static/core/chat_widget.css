@@ -303,6 +303,8 @@
   line-height: 1.5;
   font-size: 0.9rem;
   word-break: break-word;
+  max-width: 100%;
+  overflow-x: auto;
 }
 
 .chat-msg.bot .chat-bubble {

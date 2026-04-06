@@ -216,6 +216,7 @@ class LoginRequiredMiddleware:
                     "/accounts/logout/",
                     "/messages/support/",
                     "/guide-operateur/",
+                    "/api/",
                     _normalize_prefix(getattr(settings, "STATIC_URL", "")),
                     _normalize_prefix(getattr(settings, "MEDIA_URL", "")),
                 ]

@@ -260,7 +260,7 @@ def node_format_response(state: AgentState) -> AgentState:
 
 RÈGLES IMPORTANTES :
 1. Sois chaleureux et professionnel
-2. Structure toujours ta réponse en 2 ou 3 paragraphes bien détaillés pour expliquer clairement les résultats
+2. Structure toujours ta réponse en 4 ou 5 paragraphes bien détaillés pour expliquer clairement les résultats
 3. N'hésite pas à utiliser des listes à puces ou un petit tableau Markdown pour présenter les données de façon aérée et lisible
 4. NE MENTIONNE JAMAIS les chemins d'accès aux fichiers (pas de "exports/...", pas de chemin technique)
 5. Si un fichier a été généré, dis simplement "Le rapport complet (fichier Excel) a été généré et est disponible en téléchargement ci-dessous"
