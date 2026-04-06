@@ -506,25 +506,27 @@
         <span class="legend-chip"><span class="continent-swatch continent-oceania"></span>Oceanie</span>
       </div>
     </div>
-    <div class="online-feed" id="online-feed">
+    <div class="online-feed">
       <article class="online-feed-header">
         <h3 id="country-users-title">Agents actifs sur la plateforme</h3>
         <p id="country-users-subtitle">Clique sur un pays du globe pour voir les utilisateurs connectes dans ce pays et leur ville.</p>
       </article>
-      {% for row in online_rows %}
-        <article class="online-card">
-          <h3>{{ row.username }}</h3>
-          <p><strong>Page:</strong> {{ row.current_page_title|default:row.current_page|default:"-" }}</p>
-          <p><strong>Derniere action:</strong> {{ row.last_action_type|default:"-" }}{% if row.last_action_label %} - {{ row.last_action_label }}{% endif %}</p>
-          <p><strong>Lieu:</strong> {{ row.last_city|default:"-" }}, {{ row.last_country|default:"-" }}</p>
-          <p><strong>Vu a:</strong> {% if row.last_seen %}{{ row.last_seen|date:"d/m/Y H:i:s" }}{% else %}-{% endif %}</p>
-        </article>
-      {% empty %}
-        <article class="online-card">
-          <h3>Aucun agent actif</h3>
-          <p>La liste se mettra a jour automatiquement des qu'un utilisateur sera detecte en ligne.</p>
-        </article>
-      {% endfor %}
+      <div id="online-feed-list">
+        {% for row in online_rows %}
+          <article class="online-card">
+            <h3>{{ row.username }}</h3>
+            <p><strong>Page:</strong> {{ row.current_page_title|default:row.current_page|default:"-" }}</p>
+            <p><strong>Derniere action:</strong> {{ row.last_action_type|default:"-" }}{% if row.last_action_label %} - {{ row.last_action_label }}{% endif %}</p>
+            <p><strong>Lieu:</strong> {{ row.last_city|default:"-" }}, {{ row.last_country|default:"-" }}</p>
+            <p><strong>Vu a:</strong> {% if row.last_seen %}{{ row.last_seen|date:"d/m/Y H:i:s" }}{% else %}-{% endif %}</p>
+          </article>
+        {% empty %}
+          <article class="online-card">
+            <h3>Aucun agent actif</h3>
+            <p>La liste se mettra a jour automatiquement des qu'un utilisateur sera detecte en ligne.</p>
+          </article>
+        {% endfor %}
+      </div>
     </div>
   </div>
 </section>
@@ -580,7 +582,7 @@
     const statsOnline = document.getElementById("online-users-value");
     const statsTotal = document.getElementById("total-users-value");
     const statsPoints = document.getElementById("globe-points-value");
-    const onlineFeed = document.getElementById("online-feed");
+    const onlineFeedList = document.getElementById("online-feed-list");
     const liveApiUrl = "{% url 'user_tracking_live_api' %}";
     const worldGeoJsonUrl = "{% static 'geojson/world-countries.geojson' %}";
     const zoomInButton = document.getElementById("globe-zoom-in");
@@ -1014,17 +1016,12 @@
     }
 
     function renderOnlineFeed(rows) {
-      if (!onlineFeed) return;
-      var headerHtml = "";
-      var headerCard = document.querySelector(".online-feed-header");
-      if (headerCard) {
-        headerHtml = headerCard.outerHTML;
-      }
+      if (!onlineFeedList) return;
       if (!rows.length) {
-        onlineFeed.innerHTML = headerHtml + "<article class=\"online-card\"><h3>Aucun agent actif</h3><p>La liste se mettra a jour automatiquement des qu'un utilisateur sera detecte en ligne.</p></article>";
+        onlineFeedList.innerHTML = "<article class=\"online-card\"><h3>Aucun agent actif</h3><p>La liste se mettra a jour automatiquement des qu'un utilisateur sera detecte en ligne.</p></article>";
         return;
       }
-      onlineFeed.innerHTML = headerHtml + rows.map((row) => `
+      onlineFeedList.innerHTML = rows.map((row) => `
         <article class="online-card">
           <h3>${row.username}</h3>
           <p><strong>Page:</strong> ${row.current_page_title || row.current_page || "-"}</p>
@@ -1045,7 +1042,7 @@
       renderCountryHeader(country, rows);
       if (!rows.length) {
         renderOnlineFeed([]);
-        var cards = onlineFeed.querySelectorAll(".online-card");
+        var cards = onlineFeedList ? onlineFeedList.querySelectorAll(".online-card") : [];
         if (cards.length) {
           cards[0].innerHTML = "<h3>Aucun utilisateur en ligne dans " + country.name + "</h3><p>Le pays est bien selectionne, mais aucune connexion active n'y est detectee pour l'instant.</p>";
         }
