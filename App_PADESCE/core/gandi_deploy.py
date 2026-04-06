@@ -85,6 +85,7 @@ DEFAULT_INCLUDE_PATHS = (
     "App_PADESCE",
     "templates",
     "static",
+    "data",
     "admin",
     "manage.py",
     "requirements.txt",
