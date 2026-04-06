@@ -17,7 +17,13 @@ from django.utils import timezone
 from django.utils.text import slugify
 from django.views.decorators.http import require_POST
 
-from App_PADESCE.appels.models import AppelFormateur, CALL_COMPLETED_STATUSES
+from App_PADESCE.appels.models import (
+    AppelFormateur,
+    CALL_COMPLETED_STATUSES,
+    CALL_FORM_STATUSES,
+    CALL_SUCCESS_STATUSES,
+    sync_formateur_status,
+)
 from App_PADESCE.formations.models import Classe
 from App_PADESCE.satisfaction_formateurs.models import SatisfactionFormateur
 from App_PADESCE.appels.views import (
@@ -37,13 +43,14 @@ FORMATEUR_THRESHOLD_PERCENT = 50
 
 def _build_formateur_progress_metrics(queryset):
     from django.db.models import Count, Q
-    completed_q = Q(status__in=CALL_COMPLETED_STATUSES)
+    completed_q = Q(status__in=CALL_SUCCESS_STATUSES)
+    threshold_q = Q(status__in=CALL_FORM_STATUSES)
     stats = queryset.aggregate(
         total=Count("id"),
-        termines=Count("id", filter=completed_q),
+        termines=Count("id", filter=threshold_q),
         appels_tentes=Count("id", filter=~Q(status="en_attente")),
-        appels_reussis=Count("id", filter=~Q(status__in=["en_attente", "a_rappeler"])),
-        formulaires_remplis=Count("id", filter=Q(status__in=["formulaire_rempli", "formulaire_avec_audio"])),
+        appels_reussis=Count("id", filter=completed_q),
+        formulaires_remplis=Count("id", filter=Q(status__in=CALL_FORM_STATUSES)),
         formulaires_avec_audio=Count("id", filter=Q(status="formulaire_avec_audio")),
         audios=Count("id", filter=Q(audio_file__isnull=False) | Q(status="formulaire_avec_audio")),
     )
@@ -887,6 +894,7 @@ def formateur_action(request, pk: int):
         return JsonResponse({"ok": False, "error": "Action inconnue."}, status=400)
 
     row.save(update_fields=list(dict.fromkeys(update_fields)))
+    sync_formateur_status(row)
 
     if survey_saved and (
         action in ("terminer", "rappeler")
@@ -921,7 +929,15 @@ def formateur_upload_audio(request, pk: int):
         return JsonResponse({"ok": False, "error": "Aucun fichier audio."}, status=400)
     row.audio_file = file_obj
     row.save(update_fields=["audio_file", "updated_at"])
-    return JsonResponse({"ok": True, "audio_url": _safe_audio_url(row)})
+    sync_formateur_status(row)
+    return JsonResponse(
+        {
+            "ok": True,
+            "audio_url": _safe_audio_url(row),
+            "status": row.status,
+            "status_label": row.get_status_display(),
+        }
+    )
 
 
 @login_required

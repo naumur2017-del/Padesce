@@ -64,6 +64,14 @@
     <div class="value">{{ card_beneficiaires_count }}</div>
     <div class="label">Bénéficiaires</div>
   </article>
+  <article class="card">
+    <div class="value">{{ card_apprenants_count }}</div>
+    <div class="label">Apprenants analyses</div>
+  </article>
+  <article class="card">
+    <div class="value">{{ card_audio_count }}</div>
+    <div class="label">Nombre d'audios</div>
+  </article>
   
   <article class="card" style="border-top: 3px solid #f59e0b;" data-filter="tente">
     <div class="value">{{ summary_tentes }}</div>
@@ -90,7 +98,7 @@
 <section class="panel">
   <div class="panel-head">
     <div>
-      <h2 style="margin:0 0 4px; color:var(--accent-strong);">Appels PADESCE termines</h2>
+      <h2 style="margin:0 0 4px; color:var(--accent-strong);">Appels PADESCE finalises</h2>
       <p>Les audios de plus d'une minute remontent en tete. Clique sur une ligne pour ouvrir le dossier complet.</p>
     </div>
 
@@ -230,7 +238,7 @@
             <td>{{ row.consultant_status_display }}</td>
           </tr>
         {% empty %}
-          <tr><td colspan="7">Aucun appel termine a consulter.</td></tr>
+          <tr><td colspan="7">Aucun appel finalise a consulter.</td></tr>
         {% endfor %}
       </tbody>
     </table>
@@ -370,7 +378,7 @@
             let show = false;
 
             if (filterKey === "tente") {
-              show = ["appel_tente", "appel_reussi", "termine", "formulaire_rempli", "formulaire_avec_audio"].includes(rowStatus);
+              show = ["appel_tente", "en_cours", "pause", "appel_reussi", "termine", "formulaire_rempli", "formulaire_avec_audio"].includes(rowStatus);
             } else if (filterKey === "reussi") {
               show = ["appel_reussi", "termine", "formulaire_rempli", "formulaire_avec_audio"].includes(rowStatus);
             } else if (filterKey === "form") {

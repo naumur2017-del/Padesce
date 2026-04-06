@@ -208,10 +208,10 @@
       <option value="appel_reussi" {% if filters.status == "appel_reussi" %}selected{% endif %}>Appel Réussi</option>
       <option value="formulaire_rempli" {% if filters.status == "formulaire_rempli" %}selected{% endif %}>Formulaire Rempli</option>
       <option value="formulaire_avec_audio" {% if filters.status == "formulaire_avec_audio" %}selected{% endif %}>Formulaire avec Audio</option>
+      <option value="a_rappeler" {% if filters.status == "a_rappeler" %}selected{% endif %}>A rappeler</option>
       <option value="completed" {% if filters.status == "completed" %}selected{% endif %}>Finalisés</option>
       <option value="en_cours" {% if filters.status == "en_cours" %}selected{% endif %}>En cours (ancien)</option>
       <option value="pause" {% if filters.status == "pause" %}selected{% endif %}>Pause (ancien)</option>
-      <option value="a_rappeler" {% if filters.status == "a_rappeler" %}selected{% endif %}>A rappeler (ancien)</option>
       <option value="termine" {% if filters.status == "termine" %}selected{% endif %}>Terminé (ancien)</option>
     </select>
     <select name="prestataire" class="input">
@@ -278,7 +278,7 @@
     <div class="ops-tile">
       <div class="ops-kicker">Classes masquees</div>
       <strong>{{ hidden_class_summary.hidden_class_count }}</strong>
-      <div class="subtitle" style="margin:6px 0 0;">Objectif d'appels deja atteint (≥50%), retirees de la table et du filtre.</div>
+      <div class="subtitle" style="margin:6px 0 0;">Seuil {{ analysis_threshold_label }} de formulaires joignables deja atteint, retirees de la table et du filtre.</div>
     </div>
     <div class="ops-tile">
       <div class="ops-kicker">Lignes allégées</div>
@@ -388,7 +388,7 @@
           <td>{{ a.telephone1|default:a.telephone2|default:"-" }}</td>
           <td>{{ a.taux_presence_display|default:a.taux_presence }}%</td>
           <td>
-            <span class="badge {% if a.status == 'en_cours' %}run{% elif a.status == 'pause' %}pause{% elif a.status == 'termine' %}done{% else %}wait{% endif %}" data-badge>{{ a.get_status_display }}</span>
+            <span class="badge {% if a.status == 'en_cours' %}run{% elif a.status == 'pause' %}pause{% elif a.status == 'termine' or a.status == 'appel_reussi' or a.status == 'formulaire_rempli' or a.status == 'formulaire_avec_audio' %}done{% else %}wait{% endif %}" data-badge>{{ a.get_status_display }}</span>
             {% if a.locked_by %}<div class="subtitle">Par {{ a.locked_by.username }}</div>{% endif %}
           </td>
           <td>
@@ -396,7 +396,7 @@
               <button
                 type="button"
                 class="btn-small primary js-start"
-                {% if a.status != "en_attente" and a.status != "a_rappeler" and a.status != "appel_tente" %}hidden{% endif %}
+                {% if a.status != "en_attente" and a.status != "a_rappeler" and a.status != "appel_tente" and a.status != "appel_reussi" %}hidden{% endif %}
               ><i class="fa-solid fa-phone"></i><span>Demarrer</span></button>
               <button
                 type="button"
@@ -618,39 +618,39 @@
 <div id="js-sat-questions">
         <div class="form-inline" style="justify-content:space-between; margin-bottom:4px;">
           <label style="font-size:0.85rem;">1. Clarté des exposés et explications</label>
-          <div style="font-size:0.85rem;"><input type="radio" name="q1" value="1"> 1 <input type="radio" name="q1" value="2"> 2 <input type="radio" name="q1" value="3" checked> 3 <input type="radio" name="q1" value="4"> 4 <input type="radio" name="q1" value="5"> 5</div>
+          <div style="font-size:0.85rem;"><input type="radio" name="q1" value="1"> 1 <input type="radio" name="q1" value="2"> 2 <input type="radio" name="q1" value="3"> 3 <input type="radio" name="q1" value="4"> 4 <input type="radio" name="q1" value="5"> 5</div>
         </div>
         <div class="form-inline" style="justify-content:space-between; margin-bottom:4px;">
           <label style="font-size:0.85rem;">2. Interaction avec le formateur</label>
-          <div style="font-size:0.85rem;"><input type="radio" name="q2" value="1"> 1 <input type="radio" name="q2" value="2"> 2 <input type="radio" name="q2" value="3" checked> 3 <input type="radio" name="q2" value="4"> 4 <input type="radio" name="q2" value="5"> 5</div>
+          <div style="font-size:0.85rem;"><input type="radio" name="q2" value="1"> 1 <input type="radio" name="q2" value="2"> 2 <input type="radio" name="q2" value="3"> 3 <input type="radio" name="q2" value="4"> 4 <input type="radio" name="q2" value="5"> 5</div>
         </div>
         <div class="form-inline" style="justify-content:space-between; margin-bottom:4px;">
           <label style="font-size:0.85rem;">3. Maîtrise du contenu par le formateur</label>
-          <div style="font-size:0.85rem;"><input type="radio" name="q3" value="1"> 1 <input type="radio" name="q3" value="2"> 2 <input type="radio" name="q3" value="3" checked> 3 <input type="radio" name="q3" value="4"> 4 <input type="radio" name="q3" value="5"> 5</div>
+          <div style="font-size:0.85rem;"><input type="radio" name="q3" value="1"> 1 <input type="radio" name="q3" value="2"> 2 <input type="radio" name="q3" value="3"> 3 <input type="radio" name="q3" value="4"> 4 <input type="radio" name="q3" value="5"> 5</div>
         </div>
         <div class="form-inline" style="justify-content:space-between; margin-bottom:4px;">
           <label style="font-size:0.85rem;">4. Adéquation et confort de la salle</label>
-          <div style="font-size:0.85rem;"><input type="radio" name="q4" value="1"> 1 <input type="radio" name="q4" value="2"> 2 <input type="radio" name="q4" value="3" checked> 3 <input type="radio" name="q4" value="4"> 4 <input type="radio" name="q4" value="5"> 5</div>
+          <div style="font-size:0.85rem;"><input type="radio" name="q4" value="1"> 1 <input type="radio" name="q4" value="2"> 2 <input type="radio" name="q4" value="3"> 3 <input type="radio" name="q4" value="4"> 4 <input type="radio" name="q4" value="5"> 5</div>
         </div>
         <div class="form-inline" style="justify-content:space-between; margin-bottom:4px;">
           <label style="font-size:0.85rem;">5. Disponibilité du matériel pédagogique</label>
-          <div style="font-size:0.85rem;"><input type="radio" name="q5" value="1"> 1 <input type="radio" name="q5" value="2"> 2 <input type="radio" name="q5" value="3" checked> 3 <input type="radio" name="q5" value="4"> 4 <input type="radio" name="q5" value="5"> 5</div>
+          <div style="font-size:0.85rem;"><input type="radio" name="q5" value="1"> 1 <input type="radio" name="q5" value="2"> 2 <input type="radio" name="q5" value="3"> 3 <input type="radio" name="q5" value="4"> 4 <input type="radio" name="q5" value="5"> 5</div>
         </div>
         <div class="form-inline" style="justify-content:space-between; margin-bottom:4px;">
           <label style="font-size:0.85rem;">6. Organisation et gestion du temps</label>
-          <div style="font-size:0.85rem;"><input type="radio" name="q6" value="1"> 1 <input type="radio" name="q6" value="2"> 2 <input type="radio" name="q6" value="3" checked> 3 <input type="radio" name="q6" value="4"> 4 <input type="radio" name="q6" value="5"> 5</div>
+          <div style="font-size:0.85rem;"><input type="radio" name="q6" value="1"> 1 <input type="radio" name="q6" value="2"> 2 <input type="radio" name="q6" value="3"> 3 <input type="radio" name="q6" value="4"> 4 <input type="radio" name="q6" value="5"> 5</div>
         </div>
         <div class="form-inline" style="justify-content:space-between; margin-bottom:4px;">
           <label style="font-size:0.85rem;">7. Utilité et applicabilité de la formation</label>
-          <div style="font-size:0.85rem;"><input type="radio" name="q7" value="1"> 1 <input type="radio" name="q7" value="2"> 2 <input type="radio" name="q7" value="3" checked> 3 <input type="radio" name="q7" value="4"> 4 <input type="radio" name="q7" value="5"> 5</div>
+          <div style="font-size:0.85rem;"><input type="radio" name="q7" value="1"> 1 <input type="radio" name="q7" value="2"> 2 <input type="radio" name="q7" value="3"> 3 <input type="radio" name="q7" value="4"> 4 <input type="radio" name="q7" value="5"> 5</div>
         </div>
         <div class="form-inline" style="justify-content:space-between; margin-bottom:4px;">
           <label style="font-size:0.85rem;">8. Adéquation du contenu avec les besoins</label>
-          <div style="font-size:0.85rem;"><input type="radio" name="q8" value="1"> 1 <input type="radio" name="q8" value="2"> 2 <input type="radio" name="q8" value="3" checked> 3 <input type="radio" name="q8" value="4"> 4 <input type="radio" name="q8" value="5"> 5</div>
+          <div style="font-size:0.85rem;"><input type="radio" name="q8" value="1"> 1 <input type="radio" name="q8" value="2"> 2 <input type="radio" name="q8" value="3"> 3 <input type="radio" name="q8" value="4"> 4 <input type="radio" name="q8" value="5"> 5</div>
         </div>
         <div class="form-inline" style="justify-content:space-between; margin-bottom:10px;">
           <label style="font-size:0.85rem;">9. Satisfaction globale</label>
-          <div style="font-size:0.85rem;"><input type="radio" name="q9" value="1"> 1 <input type="radio" name="q9" value="2"> 2 <input type="radio" name="q9" value="3" checked> 3 <input type="radio" name="q9" value="4"> 4 <input type="radio" name="q9" value="5"> 5</div>
+          <div style="font-size:0.85rem;"><input type="radio" name="q9" value="1"> 1 <input type="radio" name="q9" value="2"> 2 <input type="radio" name="q9" value="3"> 3 <input type="radio" name="q9" value="4"> 4 <input type="radio" name="q9" value="5"> 5</div>
         </div>
         <div class="modal-field">
           <label style="font-size:0.85rem;">Commentaire général</label>
@@ -704,6 +704,7 @@
     const offlineDbName = "padesce-offline-cache";
     const offlineStoreName = "jobs";
     const completedStatuses = new Set(["termine", "appel_reussi", "formulaire_rempli", "formulaire_avec_audio"]);
+    const startableStatuses = new Set(["en_attente", "appel_tente", "appel_reussi", "a_rappeler"]);
 
     function buildStatusLabel(status) {
       const labels = {
@@ -767,11 +768,29 @@
       ));
     }
 
-    function optimisticStatusFromAction(action) {
+    function hasQueuedSuccessSignal(entriesLike) {
+      return normalizeStoredFormEntries(entriesLike).some(([name, value]) => {
+        const field = String(name || "");
+        const normalized = String(value ?? "").trim();
+        if (!normalized) return false;
+        if (["flag_pas_forme", "flag_faux_nom", "flag_deja_appele", "flag_numero_double", "deja_forme"].includes(field)) {
+          return ["1", "true", "True"].includes(normalized);
+        }
+        if (field === "flag_vrai_nom") return true;
+        if (["commentaire", "recommandations"].includes(field)) {
+          return normalized.toUpperCase() !== "RAS";
+        }
+        return false;
+      });
+    }
+
+    function optimisticStatusFromAction(action, extra = {}) {
       if (action === "start" || action === "resume") return "en_cours";
       if (action === "pause") return "pause";
       if (action === "rappeler") return "a_rappeler";
-      if (action === "terminer") return "termine";
+      if (action === "terminer") {
+        return (extra?.deja_forme || extra?.flag_pas_forme) ? "appel_reussi" : "appel_tente";
+      }
       return "";
     }
 
@@ -779,9 +798,10 @@
       if (action === "rappeler") return "a_rappeler";
       if (action !== "terminer") return optimisticStatusFromAction(action);
       const hasForm = hasQueuedQuestionnaireAnswer(entriesLike);
+      const hasSuccessSignal = hasQueuedSuccessSignal(entriesLike);
       if (hasForm && hasAudio) return "formulaire_avec_audio";
       if (hasForm) return "formulaire_rempli";
-      if (hasAudio) return "formulaire_avec_audio";
+      if (hasAudio || hasSuccessSignal) return "appel_reussi";
       return "appel_tente";
     }
 
@@ -870,6 +890,9 @@
         if (!res.ok) throw new Error("sync audio failed");
         const payload = await res.json();
         const row = document.querySelector(`tr[data-id="${job.rowId}"]`);
+        if (row && payload?.status) {
+          updateRow(row, payload);
+        }
         if (row && payload?.audio_url) {
           const audio = row.querySelector(".js-audio");
           if (audio) audio.src = payload.audio_url;
@@ -1040,7 +1063,9 @@
     }
 
     function resetSatisfactionAnswers() {
-      document.querySelectorAll("#js-sat-questions input[type=radio][value='3']").forEach(r => r.checked = true);
+      document.querySelectorAll("#js-sat-questions input[type=radio]").forEach((radio) => {
+        radio.checked = false;
+      });
       document.getElementById("js-sat-commentaire").value = "";
       document.getElementById("js-sat-recommandations").value = "";
       if (satModal) satModal.dataset.formModified = "0";
@@ -1104,13 +1129,13 @@
         const de_forme_check = document.getElementById("js-sat-modal-deja-forme")?.checked;
         const action = shouldRappeler ? "rappeler" : "terminer";
         
-        // Build satisfaction form data - TOUJOURS envoyer les réponses (même les valeurs par défaut)
+        // Build satisfaction form data from the answers that were explicitly selected.
         const satForm = new FormData();
         for (let i = 1; i <= 9; i++) {
             const checked = satQuestions?.querySelector(`input[name="q${i}"]:checked`);
-            // Toujours inclure la réponse (cochez par défaut ou par l'utilisateur)
-            const value = checked?.value || "3";
-            satForm.append(`q${i}`, value);
+            if (checked?.value) {
+                satForm.append(`q${i}`, checked.value);
+            }
         }
         satForm.append("commentaire", document.getElementById("js-sat-commentaire").value || "");
         satForm.append("recommandations", document.getElementById("js-sat-recommandations").value || "");
@@ -1180,7 +1205,7 @@
         return data;
       } catch (err) {
         await queueOfflineJob({ kind: "action", rowId: id, url, action, extra });
-        const status = optimisticStatusFromAction(action);
+        const status = optimisticStatusFromAction(action, extra);
         return { ok: true, queued: true, status, status_label: buildStatusLabel(status) };
       }
     }
@@ -1361,7 +1386,7 @@
         const pause = actions.querySelector(".js-pause");
         const resume = actions.querySelector(".js-resume");
         const terminer = actions.querySelector(".js-terminer");
-        const canStart = ["en_attente", "a_rappeler", "appel_tente"].includes(status);
+        const canStart = startableStatuses.has(status);
         if (canStart) {
           start.hidden = false;
           pause.hidden = true;

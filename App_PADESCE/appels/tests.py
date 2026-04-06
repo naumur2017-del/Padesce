@@ -194,7 +194,7 @@ class AppelsIndexFilterTests(TestCase):
         self.client.force_login(self.user)
 
     def test_appels_index_filters_formulaire_and_modified_by(self):
-        first = Appel.objects.create(code="APP001", nom="Alpha One", locked_by=self.user, status="termine")
+        first = Appel.objects.create(code="APP001", nom="Alpha One", locked_by=self.user, status="formulaire_rempli")
         second = Appel.objects.create(code="APP002", nom="Beta Two", locked_by=self.user, status="en_cours")
         AppelAnswers.objects.create(
             appel=first,
@@ -308,7 +308,7 @@ class AppelsIndexFilterTests(TestCase):
             },
         }
 
-        Appel.objects.create(code="CLA001-A", nom="Alpha", classe_label="CLA001", telephone1="690000001", status="termine")
+        Appel.objects.create(code="CLA001-A", nom="Alpha", classe_label="CLA001", telephone1="690000001", status="formulaire_rempli")
         Appel.objects.create(code="CLA001-B", nom="Bravo", classe_label="CLA001", telephone1="690000002", status="en_attente")
         Appel.objects.create(code="CLA001-C", nom="Charlie", classe_label="CLA001", telephone1="", status="en_attente")
         Appel.objects.create(code="CLA002-A", nom="Delta", classe_label="CLA002", telephone1="690000010", status="en_attente")
@@ -387,9 +387,9 @@ class AppelsIndexFilterTests(TestCase):
             },
         }
 
-        Appel.objects.create(code="CLA010-A", nom="A", classe_label="CLA010", telephone1="690100001", status="termine")
+        Appel.objects.create(code="CLA010-A", nom="A", classe_label="CLA010", telephone1="690100001", status="formulaire_rempli")
         Appel.objects.create(code="CLA010-B", nom="B", classe_label="CLA010", telephone1="690100002", status="en_attente")
-        Appel.objects.create(code="CLA011-A", nom="C", classe_label="CLA011", telephone1="690110001", status="termine")
+        Appel.objects.create(code="CLA011-A", nom="C", classe_label="CLA011", telephone1="690110001", status="formulaire_rempli")
         Appel.objects.create(code="CLA011-B", nom="D", classe_label="CLA011", telephone1="690110002", status="en_attente")
         Appel.objects.create(code="CLA012-A", nom="E", classe_label="CLA012", telephone1="690120001", status="en_attente")
         Appel.objects.create(code="CLA020-A", nom="F", classe_label="CLA020", telephone1="690200001", status="en_attente")
@@ -427,6 +427,23 @@ class AppelActionFlagTests(TestCase):
         self.assertEqual(response.status_code, 200)
         appel.refresh_from_db()
         self.assertTrue(appel.flag_pas_forme)
+
+    def test_appel_action_start_marks_call_in_progress(self):
+        appel = Appel.objects.create(
+            code="APP-FLAG-002",
+            nom="Apprenant En Cours",
+            status="en_attente",
+            is_active=True,
+        )
+
+        response = self.client.post(
+            reverse("appel_action", args=[appel.pk]),
+            {"action": "start"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        appel.refresh_from_db()
+        self.assertEqual(appel.status, "en_cours")
 
 
 class AppelFinalizeSaveTests(TestCase):
@@ -475,12 +492,41 @@ class AppelFinalizeSaveTests(TestCase):
 
         self.assertEqual(appel.status, "formulaire_rempli")
         self.assertEqual(payload["status"], "formulaire_rempli")
-        self.assertTrue(payload["satisfaction_saved"])
+        self.assertFalse(payload["satisfaction_saved"])
         self.assertEqual(answers.q1_clarte_exposes, 4)
         self.assertEqual(answers.q9_satisfaction_globale, 5)
         self.assertEqual(answers.commentaire, "Formulaire PADESCE bien renseigne")
         self.assertEqual(answers.recommandations, "Continuer comme cela")
-        self.assertTrue(SatisfactionApprenant.objects.filter(appel=appel).exists())
+        self.assertFalse(SatisfactionApprenant.objects.filter(appel=appel).exists())
         self.assertEqual(payload["class_progress"]["termines"], 1)
         self.assertEqual(payload["class_progress"]["target"], 1)
         self.assertTrue(payload["class_progress"]["reached"])
+
+    def test_finalize_without_questionnaire_answers_marks_call_successful(self):
+        appel = Appel.objects.create(
+            code="APP-FINAL-003",
+            nom="Apprenant Sans Formulaire",
+            classe_label="CLA-FINAL-2",
+            telephone1="690000003",
+            status="en_cours",
+            is_active=True,
+        )
+
+        response = self.client.post(
+            reverse("appel_finalize", args=[appel.pk]),
+            {
+                "action": "terminer",
+                "commentaire": "Pas de notes disponibles",
+                "recommandations": "",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+
+        appel.refresh_from_db()
+
+        self.assertEqual(appel.status, "appel_reussi")
+        self.assertEqual(payload["status"], "appel_reussi")
+        self.assertFalse(payload["satisfaction_saved"])
+        self.assertFalse(SatisfactionApprenant.objects.filter(appel=appel).exists())

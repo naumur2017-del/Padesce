@@ -23,7 +23,9 @@ from App_PADESCE.appels.models import (
     AppelAnswers,
     AppelCGA,
     AppelFormateur,
+    CALL_ANALYSIS_THRESHOLD_STATUSES,
     CALL_COMPLETED_STATUSES,
+    CALL_SUCCESS_STATUSES,
     CALL_TENTATIVE_STATUSES,
     appel_answers_completed_q,
     appel_answers_modified_completion_q,
@@ -119,7 +121,7 @@ def _consultant_qualified_prestation_codes(source_bundle: dict | None) -> set[st
     terminated_by_class = {
         normalize_network_lookup(code): count
         for code, count in (
-            Appel.objects.filter(is_active=True, status__in=CALL_COMPLETED_STATUSES)
+            Appel.objects.filter(is_active=True, status__in=CALL_ANALYSIS_THRESHOLD_STATUSES)
             .exclude(classe_label="")
             .values("classe_label")
             .annotate(total=Count("id"))
@@ -1038,7 +1040,7 @@ def consultant_dashboard(request):
         )
         stats = base_qs.aggregate(
             tentes=Count("id", filter=~Q(status="en_attente")),
-            reussis=Count("id", filter=~Q(status__in=["en_attente", "a_rappeler"])),
+            reussis=Count("id", filter=Q(status__in=CALL_SUCCESS_STATUSES)),
             forms=Count("id", filter=strict_form_q),
             forms_audio=Count("id", filter=strict_form_q & (Q(audio_file__isnull=False) & ~Q(audio_file=""))),
             audios=Count("id", filter=Q(audio_file__isnull=False) & ~Q(audio_file=""))

@@ -11,7 +11,13 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views.decorators.http import require_POST
 
-from App_PADESCE.appels.models import Appel, AppelAnswers, AppelFormateur
+from App_PADESCE.appels.models import (
+    Appel,
+    AppelAnswers,
+    AppelFormateur,
+    CALL_SUCCESS_STATUSES,
+    is_call_success_status,
+)
 from App_PADESCE.apprenants.models import Apprenant
 from App_PADESCE.core.access import require_analysis_access
 from App_PADESCE.core.analysis_rules import appel_is_analysis_eligible
@@ -224,7 +230,7 @@ def _formateur_form_state(row: AppelFormateur) -> dict:
     }
 
 
-COMPLETED_STATUSES = {"formulaire_avec_audio", "formulaire_rempli", "appel_reussi", "appel_tente", "termine", "en_cours", "pause", "a_rappeler"}
+COMPLETED_STATUSES = set(CALL_SUCCESS_STATUSES)
 
 
 def _apprenant_call_count(appel: Appel, has_form: bool, has_audio: bool) -> int:
@@ -680,13 +686,11 @@ FORMATEUR_THRESHOLD_PERCENT = 50
 def _entity_summary(apprenant_rows, formateur_rows) -> dict:
     # Appels tentés = tous sauf "en_attente" (Demarrer pressé au moins une fois)
     EXCLUDED_TENTE = {"en_attente"}
-    # Appels réussis = tous sauf "en_attente" et "a_rappeler"
-    EXCLUDED_REUSSI = {"en_attente", "a_rappeler"}
 
     analyzed_apprenants = sum(1 for row in apprenant_rows if row["has_form"] or row["has_audio"])
     analyzed_formateurs = sum(1 for row in formateur_rows if row["has_form"] or row["has_audio"])
     appels_tentes = sum(1 for row in apprenant_rows if row["statut"] not in EXCLUDED_TENTE)
-    appels_reussis = sum(1 for row in apprenant_rows if row["statut"] not in EXCLUDED_REUSSI)
+    appels_reussis = sum(1 for row in apprenant_rows if is_call_success_status(row["statut"]))
     formulaires_remplis = sum(1 for row in apprenant_rows if row["has_form"])
     formulaires_avec_audio = sum(1 for row in apprenant_rows if row["has_audio"] and row["has_form"])
     audios_enregistres = sum(1 for row in apprenant_rows if row["has_audio"])

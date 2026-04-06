@@ -20,7 +20,13 @@ from django.db.models import Count, Max, Min, Q
 from django.http import QueryDict
 from django.utils import timezone
 
-from App_PADESCE.appels.models import Appel, AppelFormateur, CALL_COMPLETED_STATUSES, CALL_TENTATIVE_STATUSES
+from App_PADESCE.appels.models import (
+    Appel,
+    AppelFormateur,
+    CALL_ANALYSIS_THRESHOLD_STATUSES,
+    CALL_COMPLETED_STATUSES,
+    CALL_TENTATIVE_STATUSES,
+)
 from App_PADESCE.core.analysis_rules import analysis_threshold_target
 from App_PADESCE.core.models import UserActivity
 from App_PADESCE.formations.models import Classe
@@ -624,7 +630,7 @@ def _qualified_prestation_codes(source_bundle: dict | None) -> set[str]:
     terminated_by_class = {
         normalize_network_lookup(code): count
         for code, count in (
-            Appel.objects.filter(is_active=True, status__in=CALL_COMPLETED_STATUSES)
+            Appel.objects.filter(is_active=True, status__in=CALL_ANALYSIS_THRESHOLD_STATUSES)
             .exclude(classe_label="")
             .values("classe_label")
             .annotate(total=Count("id"))

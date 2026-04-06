@@ -10,7 +10,7 @@ from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.table import Table, TableStyleInfo
 
-from App_PADESCE.appels.models import Appel, AppelAnswers
+from App_PADESCE.appels.models import Appel, AppelAnswers, CALL_SUCCESS_STATUSES
 
 
 QUESTION_FIELDS = (
@@ -172,7 +172,7 @@ def _failure_reasons(appel: Appel, answer: AppelAnswers | None) -> list[str]:
         reasons.append(f"Faux nom / vrai nom: {vrai_nom}" if vrai_nom else "Faux nom")
     if appel.flag_numero_double:
         reasons.append("Numero double")
-    if appel.status != "termine":
+    if appel.status not in CALL_SUCCESS_STATUSES:
         reasons.append(f"Statut {appel.get_status_display()}")
     if not answer:
         reasons.append("Formulaire absent")
@@ -188,7 +188,7 @@ def _failure_reasons(appel: Appel, answer: AppelAnswers | None) -> list[str]:
 
 
 def _is_success(appel: Appel, answer: AppelAnswers | None) -> bool:
-    if appel.status != "termine":
+    if appel.status not in CALL_SUCCESS_STATUSES:
         return False
     if not _answer_complete(answer):
         return False
@@ -531,7 +531,7 @@ def build_padesce_calls_report(output_path: str | Path) -> dict:
         transcription = _clean_text(getattr(satisfaction, "transcription", ""))
         answer_values = _answer_values(answer)
         avg_score = _average_score(answer)
-        if appel.status == "termine":
+        if appel.status in CALL_SUCCESS_STATUSES:
             finished_calls += 1
         if appel.is_active:
             active_calls += 1
