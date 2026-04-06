@@ -15,7 +15,7 @@ from App_PADESCE.core.analysis_rules import (
     appel_is_analysis_eligible,
 )
 from App_PADESCE.core.views import _consultant_analysis_snapshot
-from App_PADESCE.core.models import UserActivity
+from App_PADESCE.core.models import UserActivity, UserActivityEvent
 
 
 class DashboardVisibilityTests(TestCase):
@@ -232,8 +232,52 @@ class SuperadminTrackingTests(TestCase):
             username="other-agent",
             password="test-pass-123",
         )
-        UserActivity.objects.create(user=self.agent, last_seen=timezone.now())
-        UserActivity.objects.create(user=self.other_agent, last_seen=timezone.now())
+        UserActivity.objects.create(
+            user=self.agent,
+            last_seen=timezone.now(),
+            last_ip="196.216.2.10",
+            last_latitude=4.0511,
+            last_longitude=9.7679,
+            last_city="Douala",
+            last_country="Cameroon",
+            current_page="/appels/",
+            current_page_title="Appels Padesce",
+            last_action_type="button_click",
+            last_action_label="Sauvegarder",
+            last_action_target="save-call",
+            last_action_at=timezone.now(),
+        )
+        UserActivity.objects.create(
+            user=self.other_agent,
+            last_seen=timezone.now(),
+            last_ip="41.202.10.12",
+            last_latitude=3.848,
+            last_longitude=11.5021,
+            last_city="Yaounde",
+            last_country="Cameroon",
+            current_page="/dashboard/",
+            current_page_title="Dashboard",
+            last_action_type="page_view",
+            last_action_label="Dashboard",
+            last_action_target="/dashboard/",
+            last_action_at=timezone.now(),
+        )
+        UserActivityEvent.objects.create(
+            user=self.agent,
+            event_type=UserActivityEvent.EVENT_PAGE_VIEW,
+            page_path="/appels/",
+            page_title="Appels Padesce",
+            target_label="Appels Padesce",
+            target_path="/appels/",
+        )
+        UserActivityEvent.objects.create(
+            user=self.agent,
+            event_type=UserActivityEvent.EVENT_BUTTON_CLICK,
+            page_path="/appels/",
+            page_title="Appels Padesce",
+            target_label="Sauvegarder",
+            target_path="save-call",
+        )
 
         Appel.objects.create(
             code="APP900",
@@ -279,31 +323,48 @@ class SuperadminTrackingTests(TestCase):
             is_active=True,
         )
 
-    def test_superadmin_dashboard_shows_user_tracking_table(self):
+    def test_superadmin_user_tracking_page_shows_user_tracking_table(self):
         self.client.force_login(self.superuser)
 
-        response = self.client.get(reverse("home"))
+        response = self.client.get(reverse("user_tracking"))
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Suivi des utilisateurs PADESCE")
         self.assertContains(response, 'name="user_search"', html=False)
         self.assertContains(response, "agent-dashboard")
         self.assertContains(response, "?agent=agent-dashboard")
-        self.assertContains(response, "?agent=agent-dashboard&amp;status=appel_tente")
-        self.assertContains(response, '?agent=agent-dashboard&amp;status=appel_reussi">1</a>', html=False)
-        self.assertContains(response, '?agent=agent-dashboard&amp;status=formulaire_rempli">1</a>', html=False)
-        self.assertContains(response, '?agent=agent-dashboard&amp;status=formulaire_avec_audio">1</a>', html=False)
+        self.assertContains(response, "?agent=agent-dashboard&amp;status=a_rappeler")
+        self.assertContains(response, "?agent=agent-dashboard&amp;formulaire=rempli")
+        self.assertContains(response, "?modified_by=agent-dashboard&amp;formulaire=modifie")
         self.assertContains(response, "APP900 - Apprenant En Cours")
+        self.assertContains(response, "Adresse IP")
+        self.assertContains(response, "Localisation")
+        self.assertContains(response, "Carte du globe")
+        self.assertContains(response, "Sauvegarder")
+        self.assertContains(response, "Appels Padesce")
+        self.assertContains(response, "Voir historique")
 
-    def test_superadmin_dashboard_sorts_rows_by_finished_calls(self):
+    def test_home_links_to_user_tracking_page(self):
         self.client.force_login(self.superuser)
 
         response = self.client.get(reverse("home"))
 
         self.assertEqual(response.status_code, 200)
+        self.assertContains(response, reverse("user_tracking"))
+        self.assertNotContains(response, "Suivi des utilisateurs PADESCE")
+
+    def test_superadmin_user_tracking_sorts_rows_by_finished_calls(self):
+        self.client.force_login(self.superuser)
+
+        response = self.client.get(reverse("user_tracking"))
+
+        self.assertEqual(response.status_code, 200)
         rows = response.context["user_activity_rows"]
         self.assertEqual(rows[0]["username"], "agent-dashboard")
         agent_row = next(row for row in rows if row["username"] == "agent-dashboard")
+        self.assertEqual(agent_row["total_appels"], 5)
+        self.assertEqual(agent_row["last_city"], "Douala")
+        self.assertEqual(agent_row["last_country"], "Cameroon")
         self.assertEqual(agent_row["appels_tentes"], 1)
         self.assertEqual(agent_row["appels_reussis"], 1)
         self.assertEqual(agent_row["formulaires_remplis"], 1)
@@ -312,15 +373,73 @@ class SuperadminTrackingTests(TestCase):
         self.assertEqual(agent_row["push_sur_main"], 0)
         self.assertEqual(agent_row["deploiements"], 0)
 
-    def test_superadmin_dashboard_filters_users_by_search(self):
+    def test_superadmin_user_tracking_filters_users_by_search(self):
         self.client.force_login(self.superuser)
 
-        response = self.client.get(reverse("home"), {"user_search": "other"})
+        response = self.client.get(reverse("user_tracking"), {"user_search": "other"})
 
         self.assertEqual(response.status_code, 200)
         rows = response.context["user_activity_rows"]
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0]["username"], "other-agent")
+
+
+class ActivityTrackingApiTests(TestCase):
+    def setUp(self):
+        user_model = get_user_model()
+        self.user = user_model.objects.create_user(
+            username="tracker-user",
+            password="test-pass-123",
+        )
+        self.superuser = user_model.objects.create_user(
+            username="tracker-admin",
+            password="test-pass-123",
+            is_superuser=True,
+            is_staff=True,
+        )
+
+    def test_activity_track_api_updates_user_activity_and_creates_event(self):
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("activity_track_api"),
+            data='{"event_type":"button_click","page_path":"/appels/","page_title":"Appels","target_label":"Valider","target_path":"#save"}',
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        activity = UserActivity.objects.get(user=self.user)
+        self.assertEqual(activity.current_page, "/appels/")
+        self.assertEqual(activity.current_page_title, "Appels")
+        self.assertEqual(activity.last_action_type, "button_click")
+        self.assertEqual(activity.last_action_label, "Valider")
+        self.assertTrue(UserActivityEvent.objects.filter(user=self.user, target_label="Valider").exists())
+
+    def test_superuser_live_api_returns_online_rows(self):
+        UserActivity.objects.create(
+            user=self.user,
+            last_seen=timezone.now(),
+            last_latitude=4.05,
+            last_longitude=9.76,
+            last_city="Douala",
+            last_country="Cameroon",
+            current_page="/appels/",
+            current_page_title="Appels",
+            last_action_type="button_click",
+            last_action_label="Valider",
+            last_action_target="#save",
+            last_action_at=timezone.now(),
+        )
+        self.client.force_login(self.superuser)
+
+        response = self.client.get(reverse("user_tracking_live_api"))
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload["ok"])
+        self.assertGreaterEqual(payload["online_count"], 1)
+        self.assertIn("tracker-user", [row["username"] for row in payload["online_rows"]])
+        self.assertIn("Douala", [point["city"] for point in payload["globe_points"]])
 
 
 @override_settings(
