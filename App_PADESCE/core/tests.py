@@ -4,6 +4,7 @@ from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
+from django.db import OperationalError
 from django.test import override_settings
 from django.test import SimpleTestCase, TestCase
 from django.urls import reverse
@@ -100,6 +101,22 @@ class DashboardVisibilityTests(TestCase):
         self.assertContains(response, "Backup")
         self.assertContains(response, "Deploiement Gandi")
         self.assertContains(response, "Admin")
+
+
+class UserActivityMiddlewareFallbackTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(
+            username="middleware-fallback-user",
+            password="test-pass-123",
+        )
+
+    @patch("App_PADESCE.core.middleware.UserActivity.objects.filter", side_effect=OperationalError("missing column"))
+    def test_missing_useractivity_column_does_not_break_request(self, _mock_filter):
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("home"))
+
+        self.assertEqual(response.status_code, 200)
 
 
 class AnalysisEligibilityTests(TestCase):

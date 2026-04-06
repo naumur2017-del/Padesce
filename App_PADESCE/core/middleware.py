@@ -7,6 +7,7 @@ from django.conf import settings
 from django.contrib.auth import authenticate, login
 from django.contrib.auth.views import redirect_to_login
 from django.core.exceptions import PermissionDenied, SuspiciousOperation
+from django.db import OperationalError, ProgrammingError
 from django.http import Http404
 from django.http import HttpRequest, HttpResponseRedirect
 from django.shortcuts import resolve_url
@@ -324,27 +325,33 @@ class UserActivityMiddleware:
     def __call__(self, request: HttpRequest):
         user = getattr(request, "user", None)
         if user and user.is_authenticated:
-            now = timezone.now()
-            ip = _get_client_ip(request)
-            activity = UserActivity.objects.filter(user=user).first()
-            if activity:
-                delta = (now - activity.last_seen).total_seconds()
-                if delta > 60:
-                    # Mise à jour rapide de last_seen, géo en arrière-plan
-                    UserActivity.objects.filter(user=user).update(last_seen=now)
+            try:
+                now = timezone.now()
+                ip = _get_client_ip(request)
+                activity = UserActivity.objects.filter(user=user).first()
+                if activity:
+                    delta = (now - activity.last_seen).total_seconds()
+                    if delta > 60:
+                        # Mise à jour rapide de last_seen, géo en arrière-plan
+                        UserActivity.objects.filter(user=user).update(last_seen=now)
+                        t = threading.Thread(
+                            target=_update_activity_with_geo,
+                            args=(user.pk, ip, now),
+                            daemon=True,
+                        )
+                        t.start()
+                else:
+                    UserActivity.objects.create(user=user, last_seen=now, last_ip=ip or None)
                     t = threading.Thread(
                         target=_update_activity_with_geo,
                         args=(user.pk, ip, now),
                         daemon=True,
                     )
                     t.start()
-            else:
-                obj = UserActivity.objects.create(user=user, last_seen=now, last_ip=ip or None)
-                t = threading.Thread(
-                    target=_update_activity_with_geo,
-                    args=(user.pk, ip, now),
-                    daemon=True,
+            except (OperationalError, ProgrammingError):
+                logger.warning(
+                    "UserActivity tracking skipped because the database schema is not up to date.",
+                    exc_info=True,
                 )
-                t.start()
         response = self.get_response(request)
         return response
