@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 from collections import defaultdict
 from datetime import date, timedelta
@@ -9,6 +10,7 @@ from urllib.parse import urlencode
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
+from django.db import OperationalError, ProgrammingError
 from django.db.models import Count, Q
 from django.http import JsonResponse, QueryDict
 from django.shortcuts import get_object_or_404, render
@@ -58,6 +60,8 @@ from App_PADESCE.formations.models import Classe
 from App_PADESCE.presences.models import Presence
 from App_PADESCE.satisfaction_apprenants.models import SatisfactionApprenant
 from App_PADESCE.satisfaction_formateurs.models import SatisfactionFormateur
+
+logger = logging.getLogger(__name__)
 
 
 def _normalize_dashboard_fenetre(value: str) -> str:
@@ -1329,10 +1333,42 @@ def _serialize_activity_event(event: UserActivityEvent) -> dict[str, str]:
     }
 
 
+def _log_tracking_schema_warning(scope: str) -> None:
+    logger.warning(
+        "User tracking %s skipped because the database schema is not up to date.",
+        scope,
+        exc_info=True,
+    )
+
+
+def _safe_user_activities_index() -> tuple[dict[int, UserActivity], bool]:
+    try:
+        return {activity.user_id: activity for activity in UserActivity.objects.select_related("user")}, True
+    except (OperationalError, ProgrammingError):
+        _log_tracking_schema_warning("activity read")
+        return {}, False
+
+
+def _safe_recent_activity_events(limit: int = 1000) -> tuple[list[UserActivityEvent], bool]:
+    try:
+        return list(UserActivityEvent.objects.select_related("user").order_by("-occurred_at")[:limit]), True
+    except (OperationalError, ProgrammingError):
+        _log_tracking_schema_warning("event read")
+        return [], False
+
+
+def _safe_recent_login_logs(limit: int = 50) -> tuple[list[UserLoginLog], bool]:
+    try:
+        return list(UserLoginLog.objects.select_related("user").order_by("-logged_at")[:limit]), True
+    except (OperationalError, ProgrammingError):
+        _log_tracking_schema_warning("login log read")
+        return [], False
+
+
 def _build_tracking_payload(*, user_search: str = "") -> dict[str, object]:
     User = get_user_model()
     cutoff = timezone.now() - timedelta(minutes=10)
-    activities = {a.user_id: a for a in UserActivity.objects.select_related("user")}
+    activities, activities_ready = _safe_user_activities_index()
     appels_index_url = reverse("appels_index")
     completed_answers_filter = appel_answers_completed_q("answers__")
     modified_answers_filter = appel_answers_modified_completion_q("answers__")
@@ -1407,7 +1443,7 @@ def _build_tracking_payload(*, user_search: str = "") -> dict[str, object]:
             }
         )
 
-    recent_events = UserActivityEvent.objects.select_related("user").order_by("-occurred_at")[:1000]
+    recent_events, events_ready = _safe_recent_activity_events()
     events_by_user: dict[int, list[dict[str, str]]] = defaultdict(list)
     for event in recent_events:
         if len(events_by_user[event.user_id]) >= 50:
@@ -1497,9 +1533,7 @@ def _build_tracking_payload(*, user_search: str = "") -> dict[str, object]:
         )
     )
 
-    recent_login_logs = list(
-        UserLoginLog.objects.select_related("user").order_by("-logged_at")[:50]
-    )
+    recent_login_logs, login_logs_ready = _safe_recent_login_logs()
     online_rows = [row for row in user_rows if row["is_online"]]
     globe_points = [
         {
@@ -1516,6 +1550,7 @@ def _build_tracking_payload(*, user_search: str = "") -> dict[str, object]:
         for row in user_rows
         if row["last_latitude"] is not None and row["last_longitude"] is not None
     ]
+    tracking_schema_ready = activities_ready and events_ready and login_logs_ready
 
     return {
         "user_activity_rows": user_rows,
@@ -1526,6 +1561,7 @@ def _build_tracking_payload(*, user_search: str = "") -> dict[str, object]:
         "recent_login_logs": recent_login_logs,
         "globe_points": globe_points,
         "online_rows": online_rows,
+        "tracking_schema_ready": tracking_schema_ready,
     }
 
 
@@ -1567,65 +1603,69 @@ def activity_track_api(request):
     except (TypeError, ValueError):
         browser_longitude = None
 
-    activity, _created = UserActivity.objects.get_or_create(
-        user=request.user,
-        defaults={"last_seen": now},
-    )
-    activity.last_seen = now
-    activity.current_page = page_path
-    activity.current_page_title = page_title
-    activity.last_action_type = event_type
-    activity.last_action_label = target_label
-    activity.last_action_target = target_path
-    activity.last_action_at = now
-    if browser_latitude is not None and browser_longitude is not None:
-        activity.last_latitude = browser_latitude
-        activity.last_longitude = browser_longitude
-    if browser_city:
-        activity.last_city = browser_city
-    if browser_country:
-        activity.last_country = browser_country
-    activity.save(
-        update_fields=[
-            "last_seen",
-            "current_page",
-            "current_page_title",
-            "last_action_type",
-            "last_action_label",
-            "last_action_target",
-            "last_action_at",
-            "last_latitude",
-            "last_longitude",
-            "last_city",
-            "last_country",
-        ]
-    )
-
-    should_create_event = True
-    if event_type == UserActivityEvent.EVENT_PAGE_VIEW:
-        latest_page_event = (
-            UserActivityEvent.objects.filter(
-                user=request.user,
-                event_type=UserActivityEvent.EVENT_PAGE_VIEW,
-                page_path=page_path,
-            )
-            .order_by("-occurred_at")
-            .first()
-        )
-        if latest_page_event and (now - latest_page_event.occurred_at).total_seconds() < 20:
-            should_create_event = False
-
-    if should_create_event:
-        UserActivityEvent.objects.create(
+    try:
+        activity, _created = UserActivity.objects.get_or_create(
             user=request.user,
-            event_type=event_type,
-            page_path=page_path,
-            page_title=page_title,
-            target_label=target_label,
-            target_path=target_path,
+            defaults={"last_seen": now},
+        )
+        activity.last_seen = now
+        activity.current_page = page_path
+        activity.current_page_title = page_title
+        activity.last_action_type = event_type
+        activity.last_action_label = target_label
+        activity.last_action_target = target_path
+        activity.last_action_at = now
+        if browser_latitude is not None and browser_longitude is not None:
+            activity.last_latitude = browser_latitude
+            activity.last_longitude = browser_longitude
+        if browser_city:
+            activity.last_city = browser_city
+        if browser_country:
+            activity.last_country = browser_country
+        activity.save(
+            update_fields=[
+                "last_seen",
+                "current_page",
+                "current_page_title",
+                "last_action_type",
+                "last_action_label",
+                "last_action_target",
+                "last_action_at",
+                "last_latitude",
+                "last_longitude",
+                "last_city",
+                "last_country",
+            ]
         )
 
-    return JsonResponse({"ok": True})
+        should_create_event = True
+        if event_type == UserActivityEvent.EVENT_PAGE_VIEW:
+            latest_page_event = (
+                UserActivityEvent.objects.filter(
+                    user=request.user,
+                    event_type=UserActivityEvent.EVENT_PAGE_VIEW,
+                    page_path=page_path,
+                )
+                .order_by("-occurred_at")
+                .first()
+            )
+            if latest_page_event and (now - latest_page_event.occurred_at).total_seconds() < 20:
+                should_create_event = False
+
+        if should_create_event:
+            UserActivityEvent.objects.create(
+                user=request.user,
+                event_type=event_type,
+                page_path=page_path,
+                page_title=page_title,
+                target_label=target_label,
+                target_path=target_path,
+            )
+    except (OperationalError, ProgrammingError):
+        _log_tracking_schema_warning("write")
+        return JsonResponse({"ok": True, "tracking_disabled": True})
+
+    return JsonResponse({"ok": True, "tracking_disabled": False})
 
 
 @require_GET
@@ -1639,6 +1679,7 @@ def user_tracking_live_api(request):
             "ok": True,
             "online_count": payload["online_count"],
             "total_users": payload["total_users"],
+            "tracking_schema_ready": payload["tracking_schema_ready"],
             "globe_points": payload["globe_points"],
             "online_rows": [
                 {

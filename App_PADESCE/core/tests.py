@@ -400,6 +400,31 @@ class SuperadminTrackingTests(TestCase):
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0]["username"], "other-agent")
 
+    @patch("App_PADESCE.core.views.UserLoginLog.objects.select_related", side_effect=OperationalError("missing column"))
+    @patch("App_PADESCE.core.views.UserActivityEvent.objects.select_related", side_effect=OperationalError("missing column"))
+    @patch("App_PADESCE.core.views.UserActivity.objects.select_related", side_effect=OperationalError("missing column"))
+    def test_superadmin_user_tracking_page_handles_outdated_schema(self, *_mocks):
+        self.client.force_login(self.superuser)
+
+        response = self.client.get(reverse("user_tracking"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Certaines donnees de suivi avance sont temporairement indisponibles")
+
+    @patch("App_PADESCE.core.views.UserLoginLog.objects.select_related", side_effect=OperationalError("missing column"))
+    @patch("App_PADESCE.core.views.UserActivityEvent.objects.select_related", side_effect=OperationalError("missing column"))
+    @patch("App_PADESCE.core.views.UserActivity.objects.select_related", side_effect=OperationalError("missing column"))
+    def test_superadmin_user_tracking_live_api_handles_outdated_schema(self, *_mocks):
+        self.client.force_login(self.superuser)
+
+        response = self.client.get(reverse("user_tracking_live_api"))
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload["ok"])
+        self.assertFalse(payload["tracking_schema_ready"])
+        self.assertIn("super-dashboard", [row["username"] for row in payload["online_rows"]])
+
 
 class ActivityTrackingApiTests(TestCase):
     def setUp(self):
@@ -431,6 +456,19 @@ class ActivityTrackingApiTests(TestCase):
         self.assertEqual(activity.last_action_type, "button_click")
         self.assertEqual(activity.last_action_label, "Valider")
         self.assertTrue(UserActivityEvent.objects.filter(user=self.user, target_label="Valider").exists())
+
+    @patch("App_PADESCE.core.views.UserActivity.objects.get_or_create", side_effect=OperationalError("missing column"))
+    def test_activity_track_api_ignores_outdated_schema(self, _mock_get_or_create):
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("activity_track_api"),
+            data='{"event_type":"button_click","page_path":"/appels/","page_title":"Appels","target_label":"Valider","target_path":"#save"}',
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"ok": True, "tracking_disabled": True})
 
     def test_superuser_live_api_returns_online_rows(self):
         UserActivity.objects.create(

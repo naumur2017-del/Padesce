@@ -351,6 +351,15 @@
   <p>Lecture en temps reel des connexions, localisations, pages consultees et derniers clics effectues sur la plateforme.</p>
 </section>
 
+{% if not tracking_schema_ready %}
+  <section class="panel">
+    <div class="muted">
+      Certaines donnees de suivi avance sont temporairement indisponibles parce que la base n'est pas encore alignee sur le schema attendu.
+      La page reste consultable avec les informations disponibles.
+    </div>
+  </section>
+{% endif %}
+
 <section class="stats-grid">
   <article class="stat-card">
     <div class="stat-label">Total utilisateurs</div>
