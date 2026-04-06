@@ -41,8 +41,8 @@ def _build_formateur_progress_metrics(queryset):
     stats = queryset.aggregate(
         total=Count("id"),
         termines=Count("id", filter=completed_q),
-        appels_tentes=Count("id", filter=Q(status__in=["appel_tente", "appel_reussi", "formulaire_rempli", "formulaire_avec_audio", "termine"])),
-        appels_reussis=Count("id", filter=Q(status__in=["appel_reussi", "formulaire_rempli", "formulaire_avec_audio", "termine"])),
+        appels_tentes=Count("id", filter=~Q(status="en_attente")),
+        appels_reussis=Count("id", filter=~Q(status__in=["en_attente", "a_rappeler"])),
         formulaires_remplis=Count("id", filter=Q(status__in=["formulaire_rempli", "formulaire_avec_audio"])),
         formulaires_avec_audio=Count("id", filter=Q(status="formulaire_avec_audio")),
         audios=Count("id", filter=Q(audio_file__isnull=False) | Q(status="formulaire_avec_audio")),

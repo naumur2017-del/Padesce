@@ -2581,10 +2581,10 @@ def _build_satisfaction_dashboard_data(request):
     _appel_stats = _Appel.objects.filter(is_active=True).aggregate(
         # Appels = tous ceux où "Demarrer" a été pressé au moins une fois (status != en_attente)
         appels_tentes=_Count("id", filter=~_Q(status="en_attente")),
-        # Appels réussis = formulaire rempli (Q1-Q9), pas "à rappeler"
-        appels_reussis=_Count("id", filter=_Q(status__in=["formulaire_rempli", "formulaire_avec_audio"])),
-        # Formulaires remplis = au moins une question Q1-Q9, sans audio
-        formulaires_remplis=_Count("id", filter=_Q(status="formulaire_rempli")),
+        # Appels réussis = tous sauf "en_attente" et "a_rappeler"
+        appels_reussis=_Count("id", filter=~_Q(status__in=["en_attente", "a_rappeler"])),
+        # Formulaires remplis = formulaire_rempli OU formulaire_avec_audio
+        formulaires_remplis=_Count("id", filter=_Q(status__in=["formulaire_rempli", "formulaire_avec_audio"])),
         # Formulaires avec audio = formulaire rempli Q1-Q9 + audio enregistré
         formulaires_avec_audio=_Count("id", filter=_Q(status="formulaire_avec_audio")),
         # Audios = présence d'un fichier audio (indépendant du statut)

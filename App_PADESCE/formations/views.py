@@ -678,13 +678,15 @@ FORMATEUR_THRESHOLD_PERCENT = 50
 
 
 def _entity_summary(apprenant_rows, formateur_rows) -> dict:
-    REUSSI_STATUSES = {"appel_reussi", "termine", "formulaire_rempli", "formulaire_avec_audio"}
-    TENTE_STATUSES = REUSSI_STATUSES | {"appel_tente"}
+    # Appels tentés = tous sauf "en_attente" (Demarrer pressé au moins une fois)
+    EXCLUDED_TENTE = {"en_attente"}
+    # Appels réussis = tous sauf "en_attente" et "a_rappeler"
+    EXCLUDED_REUSSI = {"en_attente", "a_rappeler"}
 
     analyzed_apprenants = sum(1 for row in apprenant_rows if row["has_form"] or row["has_audio"])
     analyzed_formateurs = sum(1 for row in formateur_rows if row["has_form"] or row["has_audio"])
-    appels_tentes = sum(1 for row in apprenant_rows if row["statut"] in TENTE_STATUSES)
-    appels_reussis = sum(1 for row in apprenant_rows if row["statut"] in REUSSI_STATUSES)
+    appels_tentes = sum(1 for row in apprenant_rows if row["statut"] not in EXCLUDED_TENTE)
+    appels_reussis = sum(1 for row in apprenant_rows if row["statut"] not in EXCLUDED_REUSSI)
     formulaires_remplis = sum(1 for row in apprenant_rows if row["has_form"])
     formulaires_avec_audio = sum(1 for row in apprenant_rows if row["has_audio"] and row["has_form"])
     audios_enregistres = sum(1 for row in apprenant_rows if row["has_audio"])

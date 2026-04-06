@@ -325,10 +325,10 @@ def _build_progress_metrics(queryset):
         termines=Count("id", filter=completed_q),
         # Appels = tous ceux où Demarrer a été pressé au moins une fois (status != en_attente)
         appels_tentes=Count("id", filter=~Q(status="en_attente")),
-        # Appels réussis = formulaire rempli (Q1-Q9), pas à rappeler
-        appels_reussis=Count("id", filter=Q(status__in=["formulaire_rempli", "formulaire_avec_audio"])),
-        # Formulaires remplis = au moins une Q1-Q9, sans audio
-        formulaires_remplis=Count("id", filter=Q(status="formulaire_rempli")),
+        # Appels réussis = tous sauf "en_attente" et "a_rappeler"
+        appels_reussis=Count("id", filter=~Q(status__in=["en_attente", "a_rappeler"])),
+        # Formulaires remplis = formulaire_rempli OU formulaire_avec_audio
+        formulaires_remplis=Count("id", filter=Q(status__in=["formulaire_rempli", "formulaire_avec_audio"])),
         formulaires_avec_audio=Count("id", filter=Q(status="formulaire_avec_audio")),
         rappels=Count("id", filter=Q(status="a_rappeler")),
         # Audios = présence fichier audio (indépendant du statut)
