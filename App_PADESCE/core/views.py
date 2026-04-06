@@ -1344,9 +1344,22 @@ def _build_tracking_payload(*, user_search: str = "") -> dict[str, object]:
         .annotate(
             total_appels=Count("id"),
             a_rappeler=Count("id", filter=Q(status="a_rappeler")),
+            appels_tentes=Count("id", filter=Q(status="appel_tente")),
+            appels_reussis=Count("id", filter=Q(status="appel_reussi")),
+            formulaires_remplis_status=Count("id", filter=Q(status="formulaire_rempli")),
+            formulaires_avec_audio=Count("id", filter=Q(status="formulaire_avec_audio")),
             en_cours=Count("id", filter=Q(status="en_cours")),
         )
     }
+    push_counts_by_user = _count_audit_events_by_user(
+        model_name="core.git_push_main",
+        event_name="push_main",
+    )
+    deploy_counts_by_user = _count_audit_events_by_user(
+        model_name="core.deployment_run",
+        event_name="deployment_start",
+        expected_extra={"mode": "deploy"},
+    )
     formulaires_remplis_by_user = _group_appel_ids_by_user(
         Appel.objects.filter(is_active=True, locked_by__isnull=False)
         .filter(completed_answers_filter)
@@ -1379,10 +1392,10 @@ def _build_tracking_payload(*, user_search: str = "") -> dict[str, object]:
     )
     current_calls_by_user = {}
     for appel in Appel.objects.filter(
-        is_active=True, status="en_cours", locked_by__isnull=False
+        is_active=True, status__in=CALL_TENTATIVE_STATUSES, locked_by__isnull=False
     ).order_by("locked_by__username", "nom"):
         query_params = urlencode(
-            {"agent": appel.locked_by.username, "status": "en_cours", "q": appel.code}
+            {"agent": appel.locked_by.username, "status": appel.status, "q": appel.code}
         )
         current_calls_by_user.setdefault(appel.locked_by_id, []).append(
             {
