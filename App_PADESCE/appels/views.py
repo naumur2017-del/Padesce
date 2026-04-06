@@ -70,10 +70,6 @@ APPEL_QUESTION_FIELDS = [
     "q9_satisfaction_globale",
 ]
 
-
-
-
-
 def _normalize_header(value):
     if value is None:
         return ""
@@ -261,12 +257,23 @@ def _find_existing_satisfaction_for_appel(appel: Appel, apprenant: Apprenant | N
     return None
 
 
-def _save_satisfaction_for_appel(appel: Appel, user, payload: dict, apprenant: Apprenant | None):
+def _save_satisfaction_for_appel(
+    appel: Appel,
+    user,
+    payload: dict,
+    apprenant: Apprenant | None,
+    *,
+    existing_satisfaction: SatisfactionApprenant | None = None,
+):
     defaults = _build_satisfaction_defaults(payload, user)
     defaults["apprenant"] = apprenant
     defaults["classe"] = getattr(apprenant, "classe", None) or appel.classe
 
-    satisfaction = _find_existing_satisfaction_for_appel(appel, apprenant, defaults["date"])
+    satisfaction = existing_satisfaction or _find_existing_satisfaction_for_appel(
+        appel,
+        apprenant,
+        defaults["date"],
+    )
     if satisfaction:
         for field, value in defaults.items():
             setattr(satisfaction, field, value)
@@ -713,7 +720,10 @@ def _build_appel_class_progress_snapshot(source_bundle: dict | None = None) -> d
         total_db_appels_by_key[classe_key] += 1
         if (
             str(row.get("status") or "").strip() in CALL_ANALYSIS_THRESHOLD_STATUSES
-            and has_usable_phone(row.get("telephone1"), row.get("telephone2"))
+            and has_usable_phone(
+            row.get("telephone1"),
+            row.get("telephone2"),
+            )
         ):
             callable_termines_by_key[classe_key] += 1
 
@@ -1596,8 +1606,6 @@ def finalize_appel(request, pk: int):
                         setattr(appel, flag_name, _parse_bool_flag(val) or False)
                     update_fields.append(flag_name)
 
-            appel.save(update_fields=list(dict.fromkeys(update_fields)))
-
             satisfaction_saved = False
             satisfaction_message = ""
             if action == "terminer":
@@ -1626,12 +1634,15 @@ def finalize_appel(request, pk: int):
 
             if file_obj:
                 appel.audio_file = file_obj
-                appel.save(update_fields=["audio_file", "updated_at"])
-                if satisfaction_id:
-                    satisfaction = SatisfactionApprenant.objects.filter(pk=satisfaction_id).first()
-                    _attach_appel_audio_to_satisfaction(satisfaction, appel)
+                update_fields.append("audio_file")
+
+            appel.save(update_fields=list(dict.fromkeys(update_fields)))
 
             sync_padesce_status(appel)
+
+            if file_obj and satisfaction_id:
+                satisfaction = SatisfactionApprenant.objects.filter(pk=satisfaction_id).first()
+                _attach_appel_audio_to_satisfaction(satisfaction, appel)
             
             # 5. Get class progress
             class_info = None
@@ -1743,7 +1754,11 @@ def _auto_process_satisfaction_from_appel(appel: Appel, user, manual_data: dict 
             "satisfaction_id": None,
             "message": message,
         }
-
+    existing_satisfaction = (
+        SatisfactionApprenant.objects.select_related("apprenant", "classe")
+        .filter(appel=appel)
+        .first()
+    )
     base_qs = Apprenant.objects.all()
     scoped_qs = base_qs
     if appel.classe_id:
@@ -1751,11 +1766,19 @@ def _auto_process_satisfaction_from_appel(appel: Appel, user, manual_data: dict 
     elif appel.classe_label:
         scoped_qs = scoped_qs.filter(classe__code__iexact=str(appel.classe_label).strip())
 
-    apprenant = _find_apprenant_for_appel(scoped_qs, appel)
+    apprenant = existing_satisfaction.apprenant if existing_satisfaction and existing_satisfaction.apprenant_id else None
     if not apprenant:
+        apprenant = _find_apprenant_for_appel(scoped_qs, appel)
+    if not apprenant and (appel.classe_id or appel.classe_label):
         apprenant = _find_apprenant_for_appel(base_qs, appel)
 
-    satisfaction = _save_satisfaction_for_appel(appel, user, manual_data, apprenant)
+    satisfaction = _save_satisfaction_for_appel(
+        appel,
+        user,
+        manual_data,
+        apprenant,
+        existing_satisfaction=existing_satisfaction,
+    )
     if not apprenant:
         logger.info(
             "Satisfaction sauvegardee sans apprenant lie. %s",

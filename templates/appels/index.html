@@ -278,7 +278,7 @@
     <div class="ops-tile">
       <div class="ops-kicker">Classes masquees</div>
       <strong>{{ hidden_class_summary.hidden_class_count }}</strong>
-      <div class="subtitle" style="margin:6px 0 0;">Seuil {{ analysis_threshold_label }} de formulaires joignables deja atteint, retirees de la table et du filtre.</div>
+      <div class="subtitle" style="margin:6px 0 0;">Seuil {{ analysis_threshold_label }} atteint sur les joignables avec formulaire sauvegarde, retirees de la table et du filtre.</div>
     </div>
     <div class="ops-tile">
       <div class="ops-kicker">Lignes allégées</div>
@@ -1040,6 +1040,7 @@
     const satModalRappel = document.getElementById("js-sat-modal-rappel");
     const satModalRappelAt = document.getElementById("js-sat-modal-rappel-at");
     let currentSatFormData = null;
+    const satisfactionStateCache = new Map();
 
     function resetSatisfactionFlags() {
       document.getElementById("js-sat-flag-pas-forme").checked = false;
@@ -1087,19 +1088,93 @@
       document.getElementById("js-sat-recommandations").value = currentAnswers.recommandations || "";
     }
 
-    async function hydrateSatisfactionModal(id) {
+    function cacheSatisfactionState(id, payload) {
+      if (!id || !payload) return;
+      satisfactionStateCache.set(String(id), {
+        appel: payload.appel ? { ...payload.appel } : null,
+        answers: payload.answers ? { ...payload.answers } : null,
+      });
+    }
+
+    function applyCachedSatisfactionState(id) {
+      const cached = satisfactionStateCache.get(String(id));
+      if (!cached) return false;
+      resetSatisfactionAnswers();
+      resetSatisfactionFlags();
+      applySatisfactionAppelState(cached.appel);
+      applySatisfactionAnswerState(cached.answers);
+      return true;
+    }
+
+    function captureSatisfactionModalState() {
+      const answers = {};
+      for (let i = 1; i <= 9; i++) {
+        const checked = document.querySelector(`#js-sat-questions input[name="q${i}"]:checked`);
+        answers[`q${i}`] = checked?.value || "3";
+      }
+      answers.commentaire = document.getElementById("js-sat-commentaire").value || "";
+      answers.recommandations = document.getElementById("js-sat-recommandations").value || "";
+      return {
+        appel: {
+          deja_forme: document.getElementById("js-sat-modal-deja-forme").checked,
+          flag_pas_forme: document.getElementById("js-sat-flag-pas-forme").checked,
+          flag_faux_nom: document.getElementById("js-sat-flag-faux-nom").checked,
+          flag_vrai_nom: document.getElementById("js-sat-vrai-nom").value || "",
+          flag_deja_appele: document.getElementById("js-sat-flag-deja-appele").checked,
+          flag_numero_double: document.getElementById("js-sat-flag-numero-double").checked,
+        },
+        answers,
+      };
+    }
+
+    async function hydrateSatisfactionModal(id, { force = false } = {}) {
+      if (!force && applyCachedSatisfactionState(id)) {
+        return satisfactionStateCache.get(String(id));
+      }
       resetSatisfactionAnswers();
       resetSatisfactionFlags();
       try {
         const res = await fetch(`/appels/${id}/answers/`);
         const data = await res.json();
-        if (!data.ok) return;
+        if (!data.ok) return null;
+        cacheSatisfactionState(id, data);
         applySatisfactionAppelState(data.appel);
         applySatisfactionAnswerState(data.answers);
+        return data;
       } catch (e) {
         resetSatisfactionAnswers();
         resetSatisfactionFlags();
+        return null;
       }
+    }
+
+    async function stopRecordingAndCollectBlob(row, timeoutMs = 350) {
+      const state = row ? getRecordState(row) : null;
+      if (!state) return null;
+      if (!state.recorder || state.recorder.state === "inactive") {
+        return state.blob || null;
+      }
+      return new Promise((resolve) => {
+        let settled = false;
+        const finish = () => {
+          if (settled) return;
+          settled = true;
+          resolve(recordState.get(row.dataset.id)?.blob || state.blob || null);
+        };
+        const originalStop = state.recorder.onstop;
+        state.recorder.onstop = (event) => {
+          if (originalStop) originalStop(event);
+          finish();
+        };
+        try {
+          state.recorder.requestData?.();
+        } catch (err) {
+          // Best effort flush before stop.
+        }
+        state.recorder.stop();
+        state.stream?.getTracks().forEach((track) => track.stop());
+        setTimeout(finish, timeoutMs);
+      });
     }
 
     // Track explicit Q1-Q9 radio clicks
@@ -1148,29 +1223,13 @@
         satForm.append("rappel_at", rappelAt || "");
         satForm.append("form_modified", satModal?.dataset.formModified || "0");
 
+        cacheSatisfactionState(rowId, captureSatisfactionModalState());
         satModal.hidden = true;
 
         // Collect audio blob if recording is active
-        let audioBlob = null;
-        const state = getRecordState(row);
-        if (state?.recorder && state.recorder.state !== "inactive") {
-            // Stop recorder and wait for blob
-            await new Promise((resolve) => {
-                const originalStop = state.recorder.onstop;
-                state.recorder.onstop = (e) => {
-                    if (originalStop) originalStop(e);
-                    audioBlob = recordState.get(row.dataset.id)?.blob || null;
-                    resolve();
-                };
-                state.recorder.stop();
-                state.stream?.getTracks().forEach(t => t.stop());
-                setTimeout(() => {
-                    audioBlob = recordState.get(row.dataset.id)?.blob || null;
-                    resolve();
-                }, 200);
-            });
-        } else if (state?.blob) {
-            audioBlob = state.blob;
+        let audioBlob = await stopRecordingAndCollectBlob(row);
+        if (!audioBlob) {
+            audioBlob = getRecordState(row)?.blob || null;
         }
 
         // Send everything atomically via finalize endpoint
@@ -1488,20 +1547,7 @@
         const satModal = document.getElementById("js-satisfaction-modal");
         if (!satModal) return;
 
-        // Stop recording if active before opening modal — attendre onstop proprement
-        const state = getRecordState(row);
-        if (state?.recorder && state.recorder.state !== "inactive") {
-          await new Promise((resolve) => {
-            const origStop = state.recorder.onstop;
-            state.recorder.onstop = (e) => {
-              if (origStop) origStop(e);
-              resolve();
-            };
-            state.recorder.stop();
-            state.stream?.getTracks().forEach(t => t.stop());
-            setTimeout(resolve, 1000); // fallback si onstop ne fire pas
-          });
-        }
+        await stopRecordingAndCollectBlob(row, 450);
 
         await hydrateSatisfactionModal(id);
         
@@ -1523,10 +1569,10 @@
 
     async function startRecording(row) {
       const id = row.dataset.id;
+      const hydratePromise = hydrateSatisfactionModal(id);
       
       const satModal = document.getElementById("js-satisfaction-modal");
       if (satModal) {
-          await hydrateSatisfactionModal(id);
           const smr = document.getElementById("js-sat-modal-rappel");
           if (smr) smr.checked = false;
           const smrat = document.getElementById("js-sat-modal-rappel-at");
@@ -1539,19 +1585,25 @@
           if (satNom) satNom.textContent = row.dataset.name || "-";
           satModal.dataset.rowId = id;
           document.getElementById("js-sat-modal-phone").textContent = row.dataset.phone || "-";
-          satModal.hidden = false;
       }
       
       let stream;
       try {
-        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const mediaPromise = navigator.mediaDevices.getUserMedia({ audio: true });
+        const [, resolvedStream] = await Promise.all([
+          hydratePromise.catch(() => null),
+          mediaPromise,
+        ]);
+        stream = resolvedStream;
       } catch (err) {
+        await hydratePromise.catch(() => null);
         const reason = (err && err.message) ? `(${err.message})` : "";
         const insecure = location.protocol !== "https:" && location.hostname !== "localhost";
         const hint = insecure ? "\\nActivez HTTPS ou utilisez http://localhost pour autoriser le micro." : "\\nVerifiez les permissions micro dans le navigateur.";
         alert(`Micro non accessible ${reason}. ${hint}`);
         return;
       }
+      if (satModal) satModal.hidden = false;
       const audioCtx = new AudioContext();
       const source = audioCtx.createMediaStreamSource(stream);
       const analyser = audioCtx.createAnalyser();
@@ -1592,7 +1644,7 @@
         syncAudioControls(row);
         // Audio upload now handled atomic by finalize endpoint
       };
-      recorder.start();
+      recorder.start(250);
       recordState.set(id, { recorder, chunks, stream, raf, ctx, canvas, audioCtx });
     }
 
@@ -1918,13 +1970,11 @@
     });
 
     const stopRecBtn = document.getElementById("js-sat-stop-record");
-    stopRecBtn.addEventListener("click", () => {
+    stopRecBtn.addEventListener("click", async () => {
        const id = satModal.dataset.rowId;
        const row = document.querySelector(`tr[data-id="${id}"]`);
-       const state = getRecordState(row);
-       if (state?.recorder && state.recorder.state !== "inactive") {
-         state.recorder.stop();
-         state.stream?.getTracks().forEach(t => t.stop());
+       const audioBlob = await stopRecordingAndCollectBlob(row, 450);
+       if (audioBlob) {
          alert("Enregistrement arrêté. Vous pouvez finir de remplir le formulaire.");
        }
     });

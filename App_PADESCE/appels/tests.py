@@ -330,6 +330,52 @@ class AppelsIndexFilterTests(TestCase):
         self.assertTrue(classe_progress["CLA001"]["reached"])
 
     @patch("App_PADESCE.appels.views.build_padesce_source_index")
+    def test_appels_index_uses_saved_forms_for_25_percent_threshold(self, mock_build_source_index):
+        mock_build_source_index.return_value = {
+            "source": {"label": "Fichier consolide", "modified_label": "27/03/2026 a 12:20"},
+            "classes": {
+                "cla100": {"classe_id": "CLA100", "prestation_id": "PRESTA100", "statut_prestation": "TERMINE"},
+            },
+            "prestations": {
+                "presta100": {"prestation_id": "PRESTA100", "statut_prestation": "TERMINE"},
+            },
+            "records": {
+                "a1": {"classe_id": "CLA100", "telephone1": "690100001", "telephone2": ""},
+                "a2": {"classe_id": "CLA100", "telephone1": "690100002", "telephone2": ""},
+                "a3": {"classe_id": "CLA100", "telephone1": "690100003", "telephone2": ""},
+                "a4": {"classe_id": "CLA100", "telephone1": "690100004", "telephone2": ""},
+            },
+        }
+
+        counted_row = Appel.objects.create(
+            code="CLA100-A",
+            nom="Alpha",
+            classe_label="CLA100",
+            telephone1="690100001",
+            status="appel_reussi",
+        )
+        Appel.objects.create(code="CLA100-B", nom="Bravo", classe_label="CLA100", telephone1="690100002", status="en_attente")
+        Appel.objects.create(code="CLA100-C", nom="Charlie", classe_label="CLA100", telephone1="690100003", status="en_attente")
+        Appel.objects.create(code="CLA100-D", nom="Delta", classe_label="CLA100", telephone1="690100004", status="en_attente")
+
+        response = self.client.get(reverse("appels_index"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual({row.classe_label for row in response.context["appels"]}, {"CLA100"})
+        classe_progress = {item["classe"]: item for item in response.context["classe_progress"]}
+        self.assertEqual(classe_progress["CLA100"]["termines"], 0)
+        self.assertFalse(classe_progress["CLA100"]["reached"])
+
+        counted_row.status = "formulaire_rempli"
+        counted_row.save(update_fields=["status"])
+
+        response = self.client.get(reverse("appels_index"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(list(response.context["filters"]["classes_enriched"]), [])
+        self.assertEqual(list(response.context["appels"]), [])
+
+    @patch("App_PADESCE.appels.views.build_padesce_source_index")
     def test_appels_index_recommends_last_class_to_finish_prestation(self, mock_build_source_index):
         mock_build_source_index.return_value = {
             "source": {"label": "Fichier consolide", "modified_label": "27/03/2026 a 12:20"},
