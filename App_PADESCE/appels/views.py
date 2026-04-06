@@ -29,9 +29,11 @@ from App_PADESCE.appels.models import (
     AppelCGA,
     AppelFormateur,
     AppelImportArchive,
-    appel_answers_completed_q,
-    appel_answers_modified_completion_q,
+    CALL_COMPLETED_STATUSES,
+    appel_answers_has_any_answer_q,
+    appel_answers_modified_any_answer_q,
     padesce_form_tracking_cutoff,
+    sync_padesce_status,
 )
 from App_PADESCE.core.call_metrics import (
     count_callable_source_records_by_class,
@@ -267,7 +269,7 @@ def _status_rank(value: str) -> int:
     return ranks.get(str(value or "").strip(), -1)
 
 
-COMPLETED_STATUSES = {"formulaire_avec_audio", "formulaire_rempli", "appel_reussi", "termine"}
+COMPLETED_STATUSES = set(CALL_COMPLETED_STATUSES)
 
 
 def _best_duplicate_winner(rows):
@@ -345,14 +347,13 @@ def _normalize_dashboard_fenetre(value):
 
 
 def _build_progress_metrics(queryset):
-    completed_q = Q(status__in=["formulaire_avec_audio", "formulaire_rempli", "appel_reussi", "termine"])
+    completed_q = Q(status__in=CALL_COMPLETED_STATUSES)
     stats = queryset.aggregate(
         total=Count("id"),
         termines=Count("id", filter=completed_q),
         # Appels = tous ceux où Demarrer a été pressé au moins une fois (status != en_attente)
         appels_tentes=Count("id", filter=~Q(status="en_attente")),
-        # Appels réussis = tous sauf "en_attente" et "a_rappeler"
-        appels_reussis=Count("id", filter=~Q(status__in=["en_attente", "a_rappeler"])),
+        appels_reussis=Count("id", filter=Q(status__in=CALL_COMPLETED_STATUSES)),
         # Formulaires remplis = formulaire_rempli OU formulaire_avec_audio
         formulaires_remplis=Count("id", filter=Q(status__in=["formulaire_rempli", "formulaire_avec_audio"])),
         formulaires_avec_audio=Count("id", filter=Q(status="formulaire_avec_audio")),
@@ -884,10 +885,10 @@ def _build_filtered_appels_queryset(request, *, hidden_class_labels: list[str] |
     hidden_class_labels = [label for label in (hidden_class_labels or []) if str(label or "").strip()]
     if hidden_class_labels:
         appels_qs = appels_qs.exclude(classe_label__in=hidden_class_labels)
-    completed_answers_filter = appel_answers_completed_q("answers__")
-    modified_answers_filter = appel_answers_modified_completion_q("answers__")
+    completed_answers_filter = appel_answers_has_any_answer_q("answers__")
+    modified_answers_filter = appel_answers_modified_any_answer_q("answers__")
     tracked_audio_filter = Q(audio_file__isnull=False) & ~Q(audio_file="")
-    status_filter = request.GET.get("status") or ""
+    status_filter = (request.GET.get("status") or "").strip()
     prestataire_filter = request.GET.get("prestataire") or ""
     beneficiaire_filter = request.GET.get("beneficiaire") or ""
     classe_filter = request.GET.get("classe") or ""
@@ -903,7 +904,10 @@ def _build_filtered_appels_queryset(request, *, hidden_class_labels: list[str] |
     search = request.GET.get("q", "").strip()
 
     if status_filter:
-        appels_qs = appels_qs.filter(status=status_filter)
+        if status_filter == "completed":
+            appels_qs = appels_qs.filter(status__in=CALL_COMPLETED_STATUSES)
+        else:
+            appels_qs = appels_qs.filter(status=status_filter)
     if prestataire_filter:
         appels_qs = appels_qs.filter(prestataire__icontains=prestataire_filter)
     if beneficiaire_filter:
@@ -1517,18 +1521,7 @@ def finalize_appel(request, pk: int):
             file_obj = request.FILES.get("audio")
 
             if action == "terminer":
-                # Un formulaire compte comme rempli dès qu'une note valide Q1-Q9 est soumise.
-                # Le flag JS reste un indice, mais le serveur doit rester la source de vérité.
-                _has_real_form = request.POST.get("form_modified") == "1" or _payload_has_any_question_answer(request.POST)
-                _has_audio_upload = bool(request.FILES.get("audio"))
-                if _has_real_form and _has_audio_upload:
-                    appel.status = "formulaire_avec_audio"
-                elif _has_real_form:
-                    appel.status = "formulaire_rempli"
-                elif _has_audio_upload:
-                    appel.status = "formulaire_avec_audio"
-                else:
-                    appel.status = "appel_tente"
+                appel.status = "appel_tente"
                 appel.rappel_at = None
             elif action == "rappeler":
                 appel.status = "a_rappeler"
@@ -1542,7 +1535,9 @@ def finalize_appel(request, pk: int):
                 else:
                     appel.rappel_at = None
 
-            update_fields = ["status", "updated_at", "rappel_at"]
+            update_fields = ["updated_at", "rappel_at"]
+            if action in {"terminer", "rappeler"}:
+                update_fields.append("status")
             deja_forme_flag = _parse_bool_flag(request.POST.get("deja_forme")) or False
             appel.deja_forme = deja_forme_flag
             update_fields.append("deja_forme")
@@ -1590,6 +1585,8 @@ def finalize_appel(request, pk: int):
                 if satisfaction_id:
                     satisfaction = SatisfactionApprenant.objects.filter(pk=satisfaction_id).first()
                     _attach_appel_audio_to_satisfaction(satisfaction, appel)
+
+            sync_padesce_status(appel)
             
             # 5. Get class progress
             class_info = None
@@ -1659,6 +1656,9 @@ def appel_upload_audio(request, pk: int):
                 "satisfaction_message": auto_result["message"],
             }
         )
+    sync_padesce_status(appel)
+    payload["status"] = appel.status
+    payload["status_label"] = appel.get_status_display()
     # Progress info for the UI
     class_info = None
     if appel.classe_label:
@@ -1839,6 +1839,7 @@ def appel_answers_detail(request, pk: int):
                 update_fields.append(flag_name)
         if len(update_fields) > 1:
             appel.save(update_fields=update_fields)
+        sync_padesce_status(appel)
 
         return JsonResponse({"ok": True, "message": "Réponses mises à jour."})
 

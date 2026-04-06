@@ -24,6 +24,8 @@ APPEL_ANSWER_QUESTION_FIELDS = (
 )
 
 PADESCE_FORM_TRACKING_CUTOFF = datetime.datetime(2026, 3, 9, 0, 0, 0)
+CALL_TENTATIVE_STATUSES = ("appel_tente", "en_cours", "pause")
+CALL_COMPLETED_STATUSES = ("appel_reussi", "formulaire_rempli", "formulaire_avec_audio", "termine")
 
 
 def appel_answers_completed_q(prefix: str = "answers__") -> Q:
@@ -34,9 +36,25 @@ def appel_answers_completed_q(prefix: str = "answers__") -> Q:
     return query
 
 
+def appel_answers_has_any_answer_q(prefix: str = "answers__") -> Q:
+    lookup_prefix = prefix or ""
+    query = Q()
+    for field in APPEL_ANSWER_QUESTION_FIELDS:
+        query |= Q(**{f"{lookup_prefix}{field}__isnull": False})
+    return query
+
+
 def appel_answers_modified_completion_q(prefix: str = "answers__") -> Q:
     lookup_prefix = prefix or ""
     query = appel_answers_completed_q(prefix)
+    query &= Q(**{f"{lookup_prefix}modified_by__isnull": False})
+    query &= Q(**{f"{lookup_prefix}modified_at__gt": F(f"{lookup_prefix}created_at")})
+    return query
+
+
+def appel_answers_modified_any_answer_q(prefix: str = "answers__") -> Q:
+    lookup_prefix = prefix or ""
+    query = appel_answers_has_any_answer_q(prefix)
     query &= Q(**{f"{lookup_prefix}modified_by__isnull": False})
     query &= Q(**{f"{lookup_prefix}modified_at__gt": F(f"{lookup_prefix}created_at")})
     return query
@@ -61,6 +79,83 @@ def appel_audio_upload(instance: "Appel", filename: str) -> str:
     code_slug = _short_slug(instance.code, "code", max_len=12)
     ext = filename.split(".")[-1] if "." in filename else "mp3"
     return f"padesce/{now:%Y}/{now:%m}/{now:%d}/{prestataire_slug}-{beneficiaire_slug}/{code_slug}-{nom_slug}-{cohorte_slug}-{ts}.{ext}"
+
+
+def answers_have_any_answer(answers) -> bool:
+    return bool(answers and any(getattr(answers, field, None) is not None for field in APPEL_ANSWER_QUESTION_FIELDS))
+
+
+def satisfaction_has_any_answer(satisfaction) -> bool:
+    return bool(
+        satisfaction and any(getattr(satisfaction, field, None) is not None for field in APPEL_ANSWER_QUESTION_FIELDS)
+    )
+
+
+def appel_has_any_form_data(appel: "Appel") -> bool:
+    try:
+        answers = appel.answers
+    except Exception:
+        answers = None
+    if answers_have_any_answer(answers):
+        return True
+    try:
+        satisfaction = appel.satisfaction_apprenant
+    except Exception:
+        satisfaction = None
+    return satisfaction_has_any_answer(satisfaction)
+
+
+def _file_field_has_name(file_field) -> bool:
+    return bool(getattr(file_field, "name", "") or "")
+
+
+def appel_has_any_audio(appel: "Appel") -> bool:
+    if _file_field_has_name(getattr(appel, "audio_file", None)):
+        return True
+    try:
+        satisfaction = appel.satisfaction_apprenant
+    except Exception:
+        satisfaction = None
+    return _file_field_has_name(getattr(satisfaction, "audio_appel", None))
+
+
+def infer_padesce_status(current_status: str, *, has_form: bool, has_audio: bool) -> str:
+    normalized_status = str(current_status or "").strip()
+    if has_form and has_audio:
+        return "formulaire_avec_audio"
+    if has_form:
+        return "formulaire_rempli"
+    if has_audio:
+        return "appel_reussi"
+    if normalized_status == "en_attente":
+        return "en_attente"
+    if normalized_status == "a_rappeler":
+        return "a_rappeler"
+    if normalized_status in CALL_TENTATIVE_STATUSES:
+        return "appel_tente"
+    if normalized_status in CALL_COMPLETED_STATUSES:
+        return "appel_reussi"
+    if normalized_status:
+        return "appel_tente"
+    return "en_attente"
+
+
+def derive_padesce_status(appel: "Appel") -> str:
+    return infer_padesce_status(
+        getattr(appel, "status", ""),
+        has_form=appel_has_any_form_data(appel),
+        has_audio=appel_has_any_audio(appel),
+    )
+
+
+def sync_padesce_status(appel: "Appel", *, save: bool = True) -> str:
+    new_status = derive_padesce_status(appel)
+    if save and new_status != appel.status:
+        appel.status = new_status
+        appel.save(update_fields=["status", "updated_at"])
+    else:
+        appel.status = new_status
+    return new_status
 
 
 class Appel(TimeStampedModel):

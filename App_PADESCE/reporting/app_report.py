@@ -20,7 +20,7 @@ from django.db.models import Count, Max, Min, Q
 from django.http import QueryDict
 from django.utils import timezone
 
-from App_PADESCE.appels.models import Appel, AppelFormateur
+from App_PADESCE.appels.models import Appel, AppelFormateur, CALL_COMPLETED_STATUSES, CALL_TENTATIVE_STATUSES
 from App_PADESCE.core.analysis_rules import analysis_threshold_target
 from App_PADESCE.core.models import UserActivity
 from App_PADESCE.formations.models import Classe
@@ -624,7 +624,7 @@ def _qualified_prestation_codes(source_bundle: dict | None) -> set[str]:
     terminated_by_class = {
         normalize_network_lookup(code): count
         for code, count in (
-            Appel.objects.filter(is_active=True, status="termine")
+            Appel.objects.filter(is_active=True, status__in=CALL_COMPLETED_STATUSES)
             .exclude(classe_label="")
             .values("classe_label")
             .annotate(total=Count("id"))
@@ -913,7 +913,7 @@ def _build_analysis_summary(padesce_qs) -> dict:
     except Exception:
         pass
 
-    terminated_rows = list(padesce_qs.filter(status="termine").select_related("classe__prestation"))
+    terminated_rows = list(padesce_qs.filter(status__in=CALL_COMPLETED_STATUSES).select_related("classe__prestation"))
     classes = sorted(
         {
             (row.classe_label or "").strip()
@@ -966,7 +966,7 @@ def _build_formateurs_satisfaction_summary(start_dt, end_dt) -> dict:
 
     qs = AppelFormateur.objects.filter(
         is_active=True,
-        status="termine",
+        status__in=CALL_COMPLETED_STATUSES,
         updated_at__gte=start_dt,
         updated_at__lte=end_dt,
     )
@@ -1023,7 +1023,7 @@ def _build_user_call_rows(*querysets) -> list[dict]:
             .values("locked_by_id", "locked_by__username")
             .annotate(
                 calls_made=Count("id"),
-                completed_calls=Count("id", filter=Q(status="termine")),
+                completed_calls=Count("id", filter=Q(status__in=CALL_COMPLETED_STATUSES)),
                 first_activity=Min("updated_at"),
                 last_activity=Max("updated_at"),
             )
@@ -1140,9 +1140,9 @@ def _clear_cell_border(cell) -> None:
 
 def _build_call_source_summary(label: str, queryset) -> dict:
     total = queryset.count()
-    completed = queryset.filter(status="termine").count()
+    completed = queryset.filter(status__in=CALL_COMPLETED_STATUSES).count()
     pending = queryset.filter(status="en_attente").count()
-    in_progress = queryset.filter(status="en_cours").count()
+    in_progress = queryset.filter(status__in=CALL_TENTATIVE_STATUSES).count()
     callbacks = queryset.filter(status="a_rappeler").count()
     processed = total - pending
     with_audio = queryset.exclude(audio_file="").exclude(audio_file__isnull=True).count()
@@ -1162,7 +1162,7 @@ def _hourly_completed_counts(queryset) -> dict[int, int]:
     """Compte les appels termines par heure (compatible SQLite et PostgreSQL)."""
     counts: dict[int, int] = {}
     tz = timezone.get_current_timezone()
-    for updated_at in queryset.filter(status="termine").values_list("updated_at", flat=True):
+    for updated_at in queryset.filter(status__in=CALL_COMPLETED_STATUSES).values_list("updated_at", flat=True):
         if updated_at is None:
             continue
         local_dt = (

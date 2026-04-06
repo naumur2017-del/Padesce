@@ -227,6 +227,51 @@ class AppelsIndexFilterTests(TestCase):
         self.assertContains(response, "APP001")
         self.assertNotContains(response, "APP002")
 
+    def test_appels_index_treats_single_answer_as_filled_form(self):
+        appel = Appel.objects.create(code="APP003", nom="Gamma Three", locked_by=self.user, status="appel_tente")
+        AppelAnswers.objects.create(
+            appel=appel,
+            q1_clarte_exposes=5,
+            commentaire="Premier point repondu",
+            recommandations="RAS",
+            modified_by=self.modifier,
+        )
+
+        response = self.client.get(reverse("appels_index"), {"formulaire": "rempli", "q": "APP003"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "APP003")
+
+    def test_appels_index_completed_filter_includes_all_finalized_statuses(self):
+        Appel.objects.create(code="APP005", nom="Echo Five", locked_by=self.user, status="appel_reussi")
+        Appel.objects.create(code="APP006", nom="Foxtrot Six", locked_by=self.user, status="formulaire_rempli")
+        Appel.objects.create(code="APP007", nom="Golf Seven", locked_by=self.user, status="formulaire_avec_audio")
+        Appel.objects.create(code="APP008", nom="Hotel Eight", locked_by=self.user, status="a_rappeler")
+
+        response = self.client.get(reverse("appels_index"), {"status": "completed"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "APP005")
+        self.assertContains(response, "APP006")
+        self.assertContains(response, "APP007")
+        self.assertNotContains(response, "APP008")
+
+    def test_appel_answers_detail_syncs_status_after_single_answer(self):
+        appel = Appel.objects.create(code="APP004", nom="Delta Four", locked_by=self.user, status="appel_tente")
+
+        response = self.client.post(
+            reverse("appel_answers_detail", args=[appel.pk]),
+            {
+                "q1": "4",
+                "commentaire": "Reponse partielle",
+                "recommandations": "RAS",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        appel.refresh_from_db()
+        self.assertEqual(appel.status, "formulaire_rempli")
+
     def test_appels_index_hides_missing_audio_files(self):
         Appel.objects.create(
             code="APP404",

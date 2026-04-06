@@ -9,7 +9,7 @@ from django.test import SimpleTestCase, TestCase
 from django.urls import reverse
 from django.utils import timezone
 
-from App_PADESCE.appels.models import Appel, AppelAnswers, padesce_form_tracking_cutoff
+from App_PADESCE.appels.models import Appel, AppelAnswers
 from App_PADESCE.core.analysis_rules import (
     appel_analysis_exclusion_reason,
     appel_is_analysis_eligible,
@@ -232,22 +232,21 @@ class SuperadminTrackingTests(TestCase):
             username="other-agent",
             password="test-pass-123",
         )
-        self.form_cutoff = padesce_form_tracking_cutoff()
         UserActivity.objects.create(user=self.agent, last_seen=timezone.now())
         UserActivity.objects.create(user=self.other_agent, last_seen=timezone.now())
 
-        current_call = Appel.objects.create(
+        Appel.objects.create(
             code="APP900",
             nom="Apprenant En Cours",
             locked_by=self.agent,
-            status="en_cours",
+            status="appel_tente",
             is_active=True,
         )
-        legacy_termine = Appel.objects.create(
+        Appel.objects.create(
             code="APP901",
-            nom="Apprenant Termine Ancien",
+            nom="Apprenant Reussi",
             locked_by=self.agent,
-            status="termine",
+            status="appel_reussi",
             is_active=True,
         )
         Appel.objects.create(
@@ -257,38 +256,27 @@ class SuperadminTrackingTests(TestCase):
             status="a_rappeler",
             is_active=True,
         )
-        audio_termine = Appel.objects.create(
+        Appel.objects.create(
             code="APP903",
             nom="Apprenant Audio",
             locked_by=self.agent,
-            status="termine",
+            status="formulaire_avec_audio",
             is_active=True,
             audio_file="padesce/tests/audio.mp3",
         )
-        modified_elsewhere = Appel.objects.create(
+        Appel.objects.create(
             code="APP904",
-            nom="Apprenant Modifie",
-            locked_by=self.other_agent,
-            status="pause",
+            nom="Apprenant Formulaire",
+            locked_by=self.agent,
+            status="formulaire_rempli",
             is_active=True,
         )
-
-        self._set_appel_updated_at(legacy_termine, self.form_cutoff - timedelta(days=2))
-        self._set_appel_updated_at(audio_termine, self.form_cutoff + timedelta(days=2))
-        self._set_appel_updated_at(current_call, self.form_cutoff + timedelta(days=1))
-        self._set_appel_updated_at(modified_elsewhere, self.form_cutoff + timedelta(days=3))
-
-        self._create_answers(
-            current_call,
-            self.agent,
-            created_at=self.form_cutoff + timedelta(days=1),
-            modified_at=self.form_cutoff + timedelta(days=1),
-        )
-        self._create_answers(
-            modified_elsewhere,
-            self.agent,
-            created_at=self.form_cutoff + timedelta(days=1),
-            modified_at=self.form_cutoff + timedelta(days=2),
+        Appel.objects.create(
+            code="APP905",
+            nom="Apprenant Autre Agent",
+            locked_by=self.other_agent,
+            status="appel_tente",
+            is_active=True,
         )
 
     def test_superadmin_dashboard_shows_user_tracking_table(self):
@@ -301,18 +289,10 @@ class SuperadminTrackingTests(TestCase):
         self.assertContains(response, 'name="user_search"', html=False)
         self.assertContains(response, "agent-dashboard")
         self.assertContains(response, "?agent=agent-dashboard")
-        self.assertContains(response, "?agent=agent-dashboard&amp;status=en_cours")
-        self.assertContains(response, '?agent=agent-dashboard&amp;formulaire=rempli">1</a>', html=False)
-        self.assertContains(
-            response,
-            '?modified_by=agent-dashboard&amp;formulaire=modifie">1</a>',
-            html=False,
-        )
-        self.assertContains(
-            response,
-            '?tracking_termine=1&amp;tracking_user=agent-dashboard">4</a>',
-            html=False,
-        )
+        self.assertContains(response, "?agent=agent-dashboard&amp;status=appel_tente")
+        self.assertContains(response, '?agent=agent-dashboard&amp;status=appel_reussi">1</a>', html=False)
+        self.assertContains(response, '?agent=agent-dashboard&amp;status=formulaire_rempli">1</a>', html=False)
+        self.assertContains(response, '?agent=agent-dashboard&amp;status=formulaire_avec_audio">1</a>', html=False)
         self.assertContains(response, "APP900 - Apprenant En Cours")
 
     def test_superadmin_dashboard_sorts_rows_by_finished_calls(self):
@@ -324,11 +304,13 @@ class SuperadminTrackingTests(TestCase):
         rows = response.context["user_activity_rows"]
         self.assertEqual(rows[0]["username"], "agent-dashboard")
         agent_row = next(row for row in rows if row["username"] == "agent-dashboard")
+        self.assertEqual(agent_row["appels_tentes"], 1)
+        self.assertEqual(agent_row["appels_reussis"], 1)
         self.assertEqual(agent_row["formulaires_remplis"], 1)
-        self.assertEqual(agent_row["formulaires_modifies"], 1)
-        self.assertEqual(agent_row["termines"], 4)
+        self.assertEqual(agent_row["formulaires_avec_audio"], 1)
         self.assertEqual(agent_row["a_rappeler"], 1)
-        self.assertEqual(agent_row["en_cours"], 1)
+        self.assertEqual(agent_row["push_sur_main"], 0)
+        self.assertEqual(agent_row["deploiements"], 0)
 
     def test_superadmin_dashboard_filters_users_by_search(self):
         self.client.force_login(self.superuser)

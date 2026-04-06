@@ -22,9 +22,8 @@ from App_PADESCE.appels.models import (
     AppelAnswers,
     AppelCGA,
     AppelFormateur,
-    appel_answers_completed_q,
-    appel_answers_modified_completion_q,
-    padesce_form_tracking_cutoff,
+    CALL_COMPLETED_STATUSES,
+    CALL_TENTATIVE_STATUSES,
 )
 from App_PADESCE.apprenants.models import Apprenant
 from App_PADESCE.core.access import (
@@ -42,7 +41,7 @@ from App_PADESCE.core.fast_stats import (
     build_fast_stats_api_response,
     build_fast_stats_export_response,
 )
-from App_PADESCE.core.models import UserActivity
+from App_PADESCE.core.models import AuditLog, UserActivity
 from App_PADESCE.environnement.models import EnqueteEnvironnement
 from App_PADESCE.formations.models import Classe
 from App_PADESCE.presences.models import Presence
@@ -69,6 +68,29 @@ def _group_appel_ids_by_user(queryset, user_field: str) -> dict[int, set[int]]:
     return grouped
 
 
+def _count_audit_events_by_user(
+    *,
+    model_name: str,
+    event_name: str | None = None,
+    expected_extra: dict[str, str] | None = None,
+) -> dict[int, int]:
+    counts: dict[int, int] = defaultdict(int)
+    for entry in AuditLog.objects.filter(actor__isnull=False, model_name=model_name).only("actor_id", "extra"):
+        extra = entry.extra if isinstance(entry.extra, dict) else {}
+        if event_name and str(extra.get("event", "") or "").strip() != event_name:
+            continue
+        if expected_extra:
+            matches = True
+            for key, value in expected_extra.items():
+                if str(extra.get(key, "") or "").strip() != str(value):
+                    matches = False
+                    break
+            if not matches:
+                continue
+        counts[entry.actor_id] += 1
+    return counts
+
+
 def _source_class_apprenant_counts(source_bundle: dict | None) -> dict[str, int]:
     from App_PADESCE.core.call_metrics import count_callable_source_records_by_class
 
@@ -88,7 +110,7 @@ def _consultant_qualified_prestation_codes(source_bundle: dict | None) -> set[st
     terminated_by_class = {
         normalize_network_lookup(code): count
         for code, count in (
-            Appel.objects.filter(is_active=True, status="termine")
+            Appel.objects.filter(is_active=True, status__in=CALL_COMPLETED_STATUSES)
             .exclude(classe_label="")
             .values("classe_label")
             .annotate(total=Count("id"))
@@ -466,7 +488,7 @@ def home(request):
     progress_pct = round((elapsed_days / total_days) * 100, 1)
     countdown_days = max(0, (end_date - today).days)
 
-    appels_termine_qs = Appel.objects.filter(is_active=True, status="termine")
+    appels_termine_qs = Appel.objects.filter(is_active=True, status__in=CALL_COMPLETED_STATUSES)
     prestataire_appels = (
         appels_termine_qs.values("prestataire")
         .annotate(total=Count("id"))
@@ -556,10 +578,6 @@ def home(request):
         if is_superuser:
             activities = {a.user_id: a for a in UserActivity.objects.select_related("user")}
             appels_index_url = reverse("appels_index")
-            completed_answers_filter = appel_answers_completed_q("answers__")
-            modified_answers_filter = appel_answers_modified_completion_q("answers__")
-            form_tracking_cutoff = padesce_form_tracking_cutoff()
-            tracked_audio_filter = Q(audio_file__isnull=False) & ~Q(audio_file="")
             call_stats = {
                 row["locked_by_id"]: row
                 for row in Appel.objects.filter(is_active=True, locked_by__isnull=False)
@@ -567,45 +585,27 @@ def home(request):
                 .annotate(
                     total_appels=Count("id"),
                     a_rappeler=Count("id", filter=Q(status="a_rappeler")),
-                    en_cours=Count("id", filter=Q(status="en_cours")),
+                    appels_tentes=Count("id", filter=Q(status="appel_tente")),
+                    appels_reussis=Count("id", filter=Q(status="appel_reussi")),
+                    formulaires_remplis=Count("id", filter=Q(status="formulaire_rempli")),
+                    formulaires_avec_audio=Count("id", filter=Q(status="formulaire_avec_audio")),
                 )
             }
-            formulaires_remplis_by_user = _group_appel_ids_by_user(
-                Appel.objects.filter(is_active=True, locked_by__isnull=False)
-                .filter(completed_answers_filter)
-                .distinct(),
-                "locked_by_id",
+            push_counts_by_user = _count_audit_events_by_user(
+                model_name="core.git_push_main",
+                event_name="push_main",
             )
-            formulaires_modifies_by_user = _group_appel_ids_by_user(
-                Appel.objects.filter(is_active=True).filter(modified_answers_filter).distinct(),
-                "answers__modified_by_id",
-            )
-            legacy_termines_by_user = _group_appel_ids_by_user(
-                Appel.objects.filter(
-                    is_active=True,
-                    status="termine",
-                    updated_at__lt=form_tracking_cutoff,
-                    locked_by__isnull=False,
-                ),
-                "locked_by_id",
-            )
-            audio_termines_by_user = _group_appel_ids_by_user(
-                Appel.objects.filter(
-                    is_active=True,
-                    status="termine",
-                    updated_at__gte=form_tracking_cutoff,
-                    locked_by__isnull=False,
-                )
-                .filter(tracked_audio_filter)
-                .distinct(),
-                "locked_by_id",
+            deploy_counts_by_user = _count_audit_events_by_user(
+                model_name="core.deployment_run",
+                event_name="deployment_start",
+                expected_extra={"mode": "deploy"},
             )
             current_calls_by_user = {}
             for appel in Appel.objects.filter(
-                is_active=True, status="en_cours", locked_by__isnull=False
+                is_active=True, status__in=CALL_TENTATIVE_STATUSES, locked_by__isnull=False
             ).order_by("locked_by__username", "nom"):
                 query_params = urlencode(
-                    {"agent": appel.locked_by.username, "status": "en_cours", "q": appel.code}
+                    {"agent": appel.locked_by.username, "status": appel.status, "q": appel.code}
                 )
                 current_calls_by_user.setdefault(appel.locked_by_id, []).append(
                     {
@@ -630,12 +630,6 @@ def home(request):
                 last_seen = activity.last_seen if activity else user.last_login
                 is_online = bool(last_seen and last_seen >= cutoff)
                 stats_row = call_stats.get(user.id, {})
-                formulaires_remplis_ids = formulaires_remplis_by_user.get(user.id, set())
-                formulaires_modifies_ids = formulaires_modifies_by_user.get(user.id, set())
-                termines_ids = set(legacy_termines_by_user.get(user.id, set()))
-                termines_ids.update(formulaires_remplis_ids)
-                termines_ids.update(formulaires_modifies_ids)
-                termines_ids.update(audio_termines_by_user.get(user.id, set()))
                 user_rows.append(
                     {
                         "username": username,
@@ -644,28 +638,34 @@ def home(request):
                         "last_login": user.last_login,
                         "total_appels": int(stats_row.get("total_appels") or 0),
                         "a_rappeler": int(stats_row.get("a_rappeler") or 0),
-                        "formulaires_remplis": len(formulaires_remplis_ids),
-                        "formulaires_modifies": len(formulaires_modifies_ids),
-                        "termines": len(termines_ids),
-                        "en_cours": int(stats_row.get("en_cours") or 0),
+                        "appels_tentes": int(stats_row.get("appels_tentes") or 0),
+                        "appels_reussis": int(stats_row.get("appels_reussis") or 0),
+                        "formulaires_remplis": int(stats_row.get("formulaires_remplis") or 0),
+                        "formulaires_avec_audio": int(stats_row.get("formulaires_avec_audio") or 0),
+                        "push_sur_main": int(push_counts_by_user.get(user.id, 0) or 0),
+                        "deploiements": int(deploy_counts_by_user.get(user.id, 0) or 0),
                         "current_calls": current_calls_by_user.get(user.id, []),
                         "total_url": build_appels_url(agent=username),
                         "rappel_url": build_appels_url(agent=username, status="a_rappeler"),
-                        "formulaires_url": build_appels_url(agent=username, formulaire="rempli"),
-                        "modifies_url": build_appels_url(
-                            modified_by=username, formulaire="modifie"
+                        "appels_tentes_url": build_appels_url(agent=username, status="appel_tente"),
+                        "appels_reussis_url": build_appels_url(agent=username, status="appel_reussi"),
+                        "formulaires_url": build_appels_url(
+                            agent=username,
+                            status="formulaire_rempli",
                         ),
-                        "termines_url": build_appels_url(
-                            tracking_termine=1, tracking_user=username
+                        "audio_url": build_appels_url(
+                            agent=username,
+                            status="formulaire_avec_audio",
                         ),
-                        "en_cours_url": build_appels_url(agent=username, status="en_cours"),
                     }
                 )
             user_rows.sort(
                 key=lambda row: (
-                    -row["termines"],
+                    -(row["appels_reussis"] + row["formulaires_remplis"] + row["formulaires_avec_audio"]),
+                    -row["formulaires_avec_audio"],
                     -row["formulaires_remplis"],
-                    -row["formulaires_modifies"],
+                    -row["appels_reussis"],
+                    -row["appels_tentes"],
                     row["username"].lower(),
                 )
             )
@@ -678,7 +678,7 @@ def home(request):
 
             # --- KPIs 24h ---
             padesce_24h_qs = Appel.objects.filter(
-                is_active=True, status="termine", updated_at__gte=since_24h
+                is_active=True, status__in=CALL_COMPLETED_STATUSES, updated_at__gte=since_24h
             )
             context["kpi_24h_total_termines"] = padesce_24h_qs.count()
 
@@ -729,7 +729,7 @@ def home(request):
                 .values("prestataire")
                 .annotate(
                     total_appeles=Count("id", filter=~Q(status="en_attente")),
-                    total_termines=Count("id", filter=Q(status="termine")),
+                    total_termines=Count("id", filter=Q(status__in=CALL_COMPLETED_STATUSES)),
                 )
                 .order_by("-total_termines", "-total_appeles", "prestataire")
             )
@@ -744,7 +744,7 @@ def home(request):
                 .annotate(
                     total_apprenants=Count("id"),
                     total_appeles=Count("id", filter=~Q(status="en_attente")),
-                    total_termines=Count("id", filter=Q(status="termine")),
+                    total_termines=Count("id", filter=Q(status__in=CALL_COMPLETED_STATUSES)),
                 )
                 .order_by("prestataire", "beneficiaire")
             )
@@ -789,7 +789,7 @@ def home(request):
                 .values("locked_by__username")
                 .annotate(
                     total_appeles=Count("id"),
-                    total_termines=Count("id", filter=Q(status="termine")),
+                    total_termines=Count("id", filter=Q(status__in=CALL_COMPLETED_STATUSES)),
                     recent_24h=Count("id", filter=Q(updated_at__gte=since_24h)),
                 )
                 .order_by("-total_termines", "-total_appeles", "locked_by__username")
@@ -800,7 +800,7 @@ def home(request):
                 padesce_called_qs.values("classe_label", "prestataire", "beneficiaire")
                 .annotate(
                     total_appeles=Count("id"),
-                    total_termines=Count("id", filter=Q(status="termine")),
+                    total_termines=Count("id", filter=Q(status__in=CALL_COMPLETED_STATUSES)),
                 )
                 .order_by(
                     "-total_termines",
@@ -826,7 +826,7 @@ def home(request):
                 .values("locked_by__username", "classe_label", "prestataire", "beneficiaire")
                 .annotate(
                     total_appeles=Count("id"),
-                    total_termines=Count("id", filter=Q(status="termine")),
+                    total_termines=Count("id", filter=Q(status__in=CALL_COMPLETED_STATUSES)),
                 )
                 .order_by(
                     "-total_termines", "-total_appeles", "locked_by__username", "classe_label"
@@ -852,7 +852,7 @@ def home(request):
                 formateurs_all_qs.values("prestataire")
                 .annotate(
                     total_appels=Count("id", filter=~Q(status="en_attente")),
-                    total_termines=Count("id", filter=Q(status="termine")),
+                    total_termines=Count("id", filter=Q(status__in=CALL_COMPLETED_STATUSES)),
                 )
                 .order_by("-total_termines", "-total_appels", "prestataire")
             )
@@ -866,7 +866,7 @@ def home(request):
                 formateurs_all_qs.values("cohorte")
                 .annotate(
                     total=Count("id"),
-                    total_termines=Count("id", filter=Q(status="termine")),
+                    total_termines=Count("id", filter=Q(status__in=CALL_COMPLETED_STATUSES)),
                 )
                 .order_by("-total", "cohorte")
             )
@@ -894,7 +894,7 @@ def home(request):
                 .values("locked_by__username")
                 .annotate(
                     total_appels=Count("id"),
-                    total_termines=Count("id", filter=Q(status="termine")),
+                    total_termines=Count("id", filter=Q(status__in=CALL_COMPLETED_STATUSES)),
                 )
                 .order_by("-total_termines", "-total_appels", "locked_by__username")
             )
@@ -907,7 +907,7 @@ def home(request):
                 cga_called_qs.values("regime")
                 .annotate(
                     total_appeles=Count("id"),
-                    total_termines=Count("id", filter=Q(status="termine")),
+                    total_termines=Count("id", filter=Q(status__in=CALL_COMPLETED_STATUSES)),
                 )
                 .order_by("-total_termines", "-total_appeles", "regime")
             )
@@ -919,7 +919,7 @@ def home(request):
                 cga_called_qs.values("cri")
                 .annotate(
                     total_appeles=Count("id"),
-                    total_termines=Count("id", filter=Q(status="termine")),
+                    total_termines=Count("id", filter=Q(status__in=CALL_COMPLETED_STATUSES)),
                 )
                 .order_by("-total_termines", "-total_appeles", "cri")
             )
@@ -931,7 +931,7 @@ def home(request):
                 cga_called_qs.values("centre_de_rattachement")
                 .annotate(
                     total_appeles=Count("id"),
-                    total_termines=Count("id", filter=Q(status="termine")),
+                    total_termines=Count("id", filter=Q(status__in=CALL_COMPLETED_STATUSES)),
                 )
                 .order_by("-total_termines", "-total_appeles", "centre_de_rattachement")
             )
@@ -946,7 +946,7 @@ def home(request):
                 .values("locked_by__username")
                 .annotate(
                     total_appeles=Count("id"),
-                    total_termines=Count("id", filter=Q(status="termine")),
+                    total_termines=Count("id", filter=Q(status__in=CALL_COMPLETED_STATUSES)),
                 )
                 .order_by("-total_termines", "-total_appeles", "locked_by__username")
             )
@@ -1194,7 +1194,7 @@ def consultant_call_detail(request, pk: int):
         Appel.objects.select_related("classe", "locked_by", "answers"),
         pk=pk,
         is_active=True,
-        status="termine",
+        status__in=CALL_COMPLETED_STATUSES,
     )
     try:
         answers = appel.answers

@@ -17,7 +17,7 @@ from django.utils import timezone
 from django.utils.text import slugify
 from django.views.decorators.http import require_POST
 
-from App_PADESCE.appels.models import AppelFormateur
+from App_PADESCE.appels.models import AppelFormateur, CALL_COMPLETED_STATUSES
 from App_PADESCE.formations.models import Classe
 from App_PADESCE.satisfaction_formateurs.models import SatisfactionFormateur
 from App_PADESCE.appels.views import (
@@ -37,7 +37,7 @@ FORMATEUR_THRESHOLD_PERCENT = 50
 
 def _build_formateur_progress_metrics(queryset):
     from django.db.models import Count, Q
-    completed_q = Q(status__in=["formulaire_avec_audio", "formulaire_rempli", "appel_reussi", "termine"])
+    completed_q = Q(status__in=CALL_COMPLETED_STATUSES)
     stats = queryset.aggregate(
         total=Count("id"),
         termines=Count("id", filter=completed_q),
@@ -282,7 +282,10 @@ def _build_filtered_formateurs_queryset(request):
     search = (request.GET.get("q") or "").strip()
 
     if status_filter:
-        qs = qs.filter(status=status_filter)
+        if status_filter == "completed":
+            qs = qs.filter(status__in=CALL_COMPLETED_STATUSES)
+        else:
+            qs = qs.filter(status=status_filter)
     if prestataire_filter:
         qs = qs.filter(prestataire__iexact=prestataire_filter)
     if beneficiaire_filter:
