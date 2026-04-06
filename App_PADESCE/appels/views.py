@@ -137,6 +137,32 @@ def _coerce_note_value(value, default=None):
     return note if 1 <= note <= 5 else default
 
 
+def _payload_has_any_question_answer(payload: dict) -> bool:
+    for index, field in enumerate(APPEL_QUESTION_FIELDS, 1):
+        raw_value = payload.get(field, payload.get(f"q{index}"))
+        if _coerce_note_value(raw_value) is not None:
+            return True
+    return False
+
+
+def _build_live_class_progress(classe_label: str | None):
+    if not classe_label:
+        return None
+    q_count = Appel.objects.filter(classe_label=classe_label, is_active=True)
+    total_c = q_count.count()
+    termines_c = q_count.filter(status__in=COMPLETED_STATUSES).count()
+    target_c = (total_c + 1) // 2
+    reached_c = total_c > 0 and termines_c >= target_c
+    return {
+        "label": classe_label,
+        "total": total_c,
+        "termines": termines_c,
+        "target": target_c,
+        "reached": reached_c,
+        "pct": round((termines_c / total_c) * 100, 1) if total_c else 0,
+    }
+
+
 def _save_appel_answers(appel: Appel, user, payload: dict, *, apply_defaults: bool = False):
     defaults = {}
     for index, field in enumerate(APPEL_QUESTION_FIELDS, 1):
@@ -1464,19 +1490,7 @@ def appel_action(request, pk: int):
     # Progress info for the UI
     class_info = None
     if appel.classe_label:
-        q_count = Appel.objects.filter(classe_label=appel.classe_label, is_active=True)
-        total_c = q_count.count()
-        termines_c = q_count.filter(status="termine").count()
-        target_c = (total_c + 1) // 2
-        reached_c = total_c > 0 and termines_c >= target_c
-        class_info = {
-            "label": appel.classe_label,
-            "total": total_c,
-            "termines": termines_c,
-            "target": target_c,
-            "reached": reached_c,
-            "pct": round((termines_c / total_c) * 100, 1) if total_c else 0,
-        }
+        class_info = _build_live_class_progress(appel.classe_label)
 
     return JsonResponse(
         {
@@ -1503,8 +1517,9 @@ def finalize_appel(request, pk: int):
             file_obj = request.FILES.get("audio")
 
             if action == "terminer":
-                # form_modified=1 uniquement si l'utilisateur a explicitement cliqué un radio Q1-Q9
-                _has_real_form = request.POST.get("form_modified") == "1"
+                # Un formulaire compte comme rempli dès qu'une note valide Q1-Q9 est soumise.
+                # Le flag JS reste un indice, mais le serveur doit rester la source de vérité.
+                _has_real_form = request.POST.get("form_modified") == "1" or _payload_has_any_question_answer(request.POST)
                 _has_audio_upload = bool(request.FILES.get("audio"))
                 if _has_real_form and _has_audio_upload:
                     appel.status = "formulaire_avec_audio"
@@ -1579,19 +1594,7 @@ def finalize_appel(request, pk: int):
             # 5. Get class progress
             class_info = None
             if appel.classe_label:
-                q_count = Appel.objects.filter(classe_label=appel.classe_label, is_active=True)
-                total_c = q_count.count()
-                termines_c = q_count.filter(status="termine").count()
-                target_c = (total_c + 1) // 2
-                reached_c = total_c > 0 and termines_c >= target_c
-                class_info = {
-                    "label": appel.classe_label,
-                    "total": total_c,
-                    "termines": termines_c,
-                    "target": target_c,
-                    "reached": reached_c,
-                    "pct": round((termines_c / total_c) * 100, 1) if total_c else 0,
-                }
+                class_info = _build_live_class_progress(appel.classe_label)
             
             audio_url = _safe_audio_url(appel)
             return JsonResponse({
@@ -1659,19 +1662,7 @@ def appel_upload_audio(request, pk: int):
     # Progress info for the UI
     class_info = None
     if appel.classe_label:
-        q_count = Appel.objects.filter(classe_label=appel.classe_label, is_active=True)
-        total_c = q_count.count()
-        termines_c = q_count.filter(status="termine").count()
-        target_c = (total_c + 1) // 2
-        reached_c = total_c > 0 and termines_c >= target_c
-        class_info = {
-            "label": appel.classe_label,
-            "total": total_c,
-            "termines": termines_c,
-            "target": target_c,
-            "reached": reached_c,
-            "pct": round((termines_c / total_c) * 100, 1) if total_c else 0,
-        }
+        class_info = _build_live_class_progress(appel.classe_label)
     payload["class_progress"] = class_info
 
     return JsonResponse(payload)

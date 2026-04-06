@@ -702,6 +702,7 @@
     const consolidationFrame = document.getElementById("js-consolidation-frame");
     const offlineDbName = "padesce-offline-cache";
     const offlineStoreName = "jobs";
+    const completedStatuses = new Set(["termine", "appel_reussi", "formulaire_rempli", "formulaire_avec_audio"]);
 
     function buildStatusLabel(status) {
       const labels = {
@@ -710,8 +711,59 @@
         pause: "Pause",
         a_rappeler: "A rappeler",
         termine: "Termine",
+        appel_tente: "Appel Tenté",
+        appel_reussi: "Appel Réussi",
+        formulaire_rempli: "Formulaire Rempli",
+        formulaire_avec_audio: "Formulaire avec Audio",
       };
       return labels[status] || status || "";
+    }
+
+    function isCompletedStatus(status) {
+      return completedStatuses.has(status);
+    }
+
+    function normalizeStoredFormEntries(entriesLike) {
+      if (!entriesLike) return [];
+      if (Array.isArray(entriesLike)) {
+        return entriesLike
+          .map((entry) => {
+            if (Array.isArray(entry) && entry.length >= 2) return [entry[0], entry[1]];
+            if (entry && typeof entry === "object" && "name" in entry) {
+              return [entry.name, entry.value ?? ""];
+            }
+            return null;
+          })
+          .filter(Boolean);
+      }
+      if (typeof entriesLike.entries === "function") {
+        try {
+          return Array.from(entriesLike.entries());
+        } catch (err) {}
+      }
+      if (typeof entriesLike[Symbol.iterator] === "function") {
+        try {
+          return Array.from(entriesLike);
+        } catch (err) {}
+      }
+      if (typeof entriesLike === "object") return Object.entries(entriesLike);
+      return [];
+    }
+
+    function appendStoredFormEntries(form, entriesLike) {
+      normalizeStoredFormEntries(entriesLike).forEach(([name, value]) => {
+        if (Array.isArray(value)) {
+          value.forEach((item) => form.append(name, item ?? ""));
+          return;
+        }
+        form.append(name, value ?? "");
+      });
+    }
+
+    function hasQueuedQuestionnaireAnswer(entriesLike) {
+      return normalizeStoredFormEntries(entriesLike).some(([name, value]) => (
+        /^q[1-9]$/.test(String(name || "")) && ["1", "2", "3", "4", "5"].includes(String(value ?? ""))
+      ));
     }
 
     function optimisticStatusFromAction(action) {
@@ -720,6 +772,16 @@
       if (action === "rappeler") return "a_rappeler";
       if (action === "terminer") return "termine";
       return "";
+    }
+
+    function optimisticStatusFromFinalize(action, entriesLike, hasAudio) {
+      if (action === "rappeler") return "a_rappeler";
+      if (action !== "terminer") return optimisticStatusFromAction(action);
+      const hasForm = hasQueuedQuestionnaireAnswer(entriesLike);
+      if (hasForm && hasAudio) return "formulaire_avec_audio";
+      if (hasForm) return "formulaire_rempli";
+      if (hasAudio) return "formulaire_avec_audio";
+      return "appel_tente";
     }
 
     function openOfflineDb() {
@@ -785,6 +847,21 @@
         if (row) updateRow(row, data);
         return;
       }
+      if (job.kind === "finalize") {
+        const form = new FormData();
+        form.append("action", job.action || "terminer");
+        appendStoredFormEntries(form, job.satFormEntries || job.satFormData);
+        if (job.audioBlob) {
+          form.append("audio", job.audioBlob, job.audioFilename || `appel-${job.rowId}.webm`);
+        }
+        const res = await fetch(job.url, { method: "POST", headers: { "X-CSRFToken": csrfToken }, body: form });
+        if (!res.ok) throw new Error("sync finalize failed");
+        const payload = await res.json();
+        const row = document.querySelector(`tr[data-id="${job.rowId}"]`);
+        if (row) updateRow(row, payload);
+        if (payload?.audio_url) updateDownloadButtonState();
+        return;
+      }
       if (job.kind === "audio") {
         const form = new FormData();
         form.append("audio", job.blob, job.filename);
@@ -804,7 +881,9 @@
           syncAudioControls(row);
           updateDownloadButtonState();
         }
+        return;
       }
+      throw new Error(`unsupported offline job kind: ${job.kind || "unknown"}`);
     }
 
     async function syncOfflineJobs() {
@@ -1117,10 +1196,12 @@
       }
       
       // Add audio if available
+      let audioFilename = "";
       if (audioBlob) {
         const blobType = (audioBlob && audioBlob.type) ? audioBlob.type.toLowerCase() : "";
         const ext = blobType.includes("webm") ? "webm" : "mp3";
-        form.append("audio", audioBlob, `appel-${id}.${ext}`);
+        audioFilename = `appel-${id}.${ext}`;
+        form.append("audio", audioBlob, audioFilename);
       }
       
       try {
@@ -1152,15 +1233,17 @@
         return data;
       } catch (err) {
         console.error("Finalize offline/error:", err);
+        const satFormEntries = Array.from(satFormData.entries());
         await queueOfflineJob({ 
           kind: "finalize", 
           rowId: id, 
           url, 
           action,
-          satFormData,
-          audioBlob
+          satFormEntries,
+          audioBlob,
+          audioFilename
         });
-        const status = optimisticStatusFromAction(action);
+        const status = optimisticStatusFromFinalize(action, satFormEntries, !!audioBlob);
         return { ok: true, queued: true, status, status_label: buildStatusLabel(status) };
       }
     }
@@ -1263,20 +1346,21 @@
 
     function updateRow(row, data) {
       if (!data) return;
-      row.dataset.status = data.status || row.dataset.status;
+      const status = data.status || row.dataset.status;
+      row.dataset.status = status;
       const badge = row.querySelector("[data-badge]");
       if (badge && data.status_label) badge.textContent = data.status_label;
-      badge?.classList.toggle("run", data.status === "en_cours");
-      badge?.classList.toggle("pause", data.status === "pause");
-      badge?.classList.toggle("done", data.status === "termine");
-      badge?.classList.toggle("wait", !["en_cours","pause","termine"].includes(data.status));
+      badge?.classList.toggle("run", status === "en_cours");
+      badge?.classList.toggle("pause", status === "pause");
+      badge?.classList.toggle("done", isCompletedStatus(status));
+      badge?.classList.toggle("wait", !["en_cours", "pause"].includes(status) && !isCompletedStatus(status));
       const actions = row.querySelector(".js-actions");
       if (actions) {
         const start = actions.querySelector(".js-start");
         const pause = actions.querySelector(".js-pause");
         const resume = actions.querySelector(".js-resume");
         const terminer = actions.querySelector(".js-terminer");
-        const canStart = ["en_attente", "a_rappeler", "appel_tente"].includes(data.status);
+        const canStart = ["en_attente", "a_rappeler", "appel_tente"].includes(status);
         if (canStart) {
           start.hidden = false;
           pause.hidden = true;
@@ -1284,14 +1368,14 @@
           pause.disabled = true;
           resume.disabled = true;
           terminer.hidden = true;
-        } else if (data.status === "en_cours") {
+        } else if (status === "en_cours") {
           start.hidden = true;
           pause.hidden = false;
           resume.hidden = false;
           pause.disabled = false;
           resume.disabled = true;
           terminer.hidden = false;
-        } else if (data.status === "pause") {
+        } else if (status === "pause") {
           start.hidden = true;
           pause.hidden = false;
           resume.hidden = false;

@@ -11,6 +11,7 @@ from App_PADESCE.appels.consolidation_views import (
     consolidation_pending_appels,
 )
 from App_PADESCE.appels.models import Appel, AppelAnswers, AppelImportArchive
+from App_PADESCE.satisfaction_apprenants.models import SatisfactionApprenant
 
 
 class ConsolidationFilterTests(SimpleTestCase):
@@ -381,3 +382,60 @@ class AppelActionFlagTests(TestCase):
         self.assertEqual(response.status_code, 200)
         appel.refresh_from_db()
         self.assertTrue(appel.flag_pas_forme)
+
+
+class AppelFinalizeSaveTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(
+            username="appels-finalize-agent",
+            password="test123",
+        )
+        self.client.force_login(self.user)
+
+    def test_finalize_saves_form_when_questions_are_submitted_without_form_modified_flag(self):
+        Appel.objects.create(
+            code="APP-FINAL-002",
+            nom="Autre Apprenant",
+            classe_label="CLA-FINAL",
+            telephone1="690000001",
+            status="en_attente",
+            is_active=True,
+        )
+        appel = Appel.objects.create(
+            code="APP-FINAL-001",
+            nom="Apprenant Test",
+            classe_label="CLA-FINAL",
+            telephone1="690000002",
+            status="en_cours",
+            is_active=True,
+        )
+
+        response = self.client.post(
+            reverse("appel_finalize", args=[appel.pk]),
+            {
+                "action": "terminer",
+                "q1": "4",
+                "q9": "5",
+                "commentaire": "Formulaire PADESCE bien renseigne",
+                "recommandations": "Continuer comme cela",
+                "form_modified": "0",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+
+        appel.refresh_from_db()
+        answers = appel.answers
+
+        self.assertEqual(appel.status, "formulaire_rempli")
+        self.assertEqual(payload["status"], "formulaire_rempli")
+        self.assertTrue(payload["satisfaction_saved"])
+        self.assertEqual(answers.q1_clarte_exposes, 4)
+        self.assertEqual(answers.q9_satisfaction_globale, 5)
+        self.assertEqual(answers.commentaire, "Formulaire PADESCE bien renseigne")
+        self.assertEqual(answers.recommandations, "Continuer comme cela")
+        self.assertTrue(SatisfactionApprenant.objects.filter(appel=appel).exists())
+        self.assertEqual(payload["class_progress"]["termines"], 1)
+        self.assertEqual(payload["class_progress"]["target"], 1)
+        self.assertTrue(payload["class_progress"]["reached"])
