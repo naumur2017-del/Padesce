@@ -203,6 +203,12 @@
   </article>
   {% endif %}
   {% if user.is_superuser %}
+  <article class="card" style="border-top: 4px solid #1d7a74;">
+    <h2>Suivi utilisateurs</h2>
+    <div class="big">Connexions PADESCE</div>
+    <div class="muted">Voir l'activite des agents, leur adresse IP et leur localisation recente.</div>
+    <a class="btn" href="{% url 'user_tracking' %}">Ouvrir le suivi</a>
+  </article>
   <article class="card" style="border-top: 4px solid #0f766e;">
     <h2>Deploiement Gandi</h2>
     <div class="big">Ajouts, modifs, suppressions</div>
@@ -355,82 +361,6 @@
     {% else %}
       <p class="muted">Aucune donnee.</p>
     {% endif %}
-  </section>
-{% endif %}
-
-{% if is_superuser_dashboard %}
-  <section class="section">
-    <h3>Suivi des utilisateurs PADESCE</h3>
-    <div class="section-toolbar">
-      <div class="muted">Trié du plus grand nombre de statuts PADESCE finalisés au plus faible.</div>
-      <form method="get" class="search-form">
-        <input
-          id="user-search"
-          class="search-input"
-          type="search"
-          name="user_search"
-          value="{{ user_search|default:'' }}"
-          placeholder="Rechercher un nom d'utilisateur"
-          aria-label="Rechercher un utilisateur PADESCE"
-        >
-        <button type="submit" class="btn" style="margin-top:0;">Rechercher</button>
-        {% if user_search %}
-          <a class="btn" style="margin-top:0; background:#fff; color:var(--accent-strong);" href="{% url 'home' %}">Effacer</a>
-        {% endif %}
-      </form>
-    </div>
-    <div class="scroll-table">
-      <table>
-        <thead>
-          <tr>
-            <th>Utilisateur</th>
-            <th>Statut</th>
-            <th>Nombre d'appels</th>
-            <th>A rappeler</th>
-            <th>Appels tentes</th>
-            <th>Appels reussis</th>
-            <th>Formulaire rempli</th>
-            <th>Formulaire rempli + audios</th>
-            <th>Push sur main</th>
-            <th>Deploiements</th>
-            <th>Lignes ouvertes</th>
-            <th>Derniere activite</th>
-            <th>Derniere connexion</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for row in user_activity_rows %}
-            <tr>
-              <td><a class="drill-link" href="{{ row.total_url }}">{{ row.username }}</a></td>
-              <td>
-                <span class="status-pill {% if row.is_online %}online{% else %}offline{% endif %}">
-                  {% if row.is_online %}En ligne{% else %}Hors ligne{% endif %}
-                </span>
-              </td>
-              <td><a class="drill-link" href="{{ row.total_url }}">{{ row.total_appels }}</a></td>
-              <td><a class="drill-link" href="{{ row.rappel_url }}">{{ row.a_rappeler }}</a></td>
-              <td><a class="drill-link" href="{{ row.appels_tentes_url }}">{{ row.appels_tentes }}</a></td>
-              <td><a class="drill-link" href="{{ row.appels_reussis_url }}">{{ row.appels_reussis }}</a></td>
-              <td><a class="drill-link" href="{{ row.formulaires_url }}">{{ row.formulaires_remplis }}</a></td>
-              <td><a class="drill-link" href="{{ row.audio_url }}">{{ row.formulaires_avec_audio }}</a></td>
-              <td>{{ row.push_sur_main }}</td>
-              <td>{{ row.deploiements }}</td>
-              <td>
-                {% for current_call in row.current_calls %}
-                  <div><a class="drill-link" href="{{ current_call.url }}">{{ current_call.code }} - {{ current_call.nom }}</a></div>
-                {% empty %}
-                  -
-                {% endfor %}
-              </td>
-              <td>{% if row.last_seen %}{{ row.last_seen|date:"d/m/Y H:i:s" }}{% else %}-{% endif %}</td>
-              <td>{% if row.last_login %}{{ row.last_login|date:"d/m/Y H:i:s" }}{% else %}-{% endif %}</td>
-            </tr>
-          {% empty %}
-            <tr><td colspan="13">Aucun utilisateur.</td></tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
   </section>
 {% endif %}
 
