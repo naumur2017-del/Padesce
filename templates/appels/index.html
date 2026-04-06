@@ -1073,11 +1073,12 @@
         updateRow(row, data);
         if (data.satisfaction_message) alert(data.satisfaction_message);
 
-        // Failsafe: si audioBlob était null (race condition onstop), uploader séparément
-        if (!audioBlob) {
-            const remainingState = getRecordState(row);
-            if (remainingState?.blob) {
-                await uploadAudio(row, remainingState.blob);
+        // Garantir upload audio : si finalize n'a pas reçu/sauvegardé l'audio, uploader séparément
+        if (!data.audio_url) {
+            const stateAfter = getRecordState(row);
+            const pendingBlob = audioBlob || stateAfter?.blob;
+            if (pendingBlob) {
+                await uploadAudio(row, pendingBlob);
             }
         }
     });
@@ -1305,6 +1306,14 @@
           resume.disabled = true;
           terminer.hidden = true;
         }
+      }
+      // Mettre à jour le player audio si audio_url dans la réponse
+      if (data.audio_url) {
+        const audio = row.querySelector(".js-audio");
+        if (audio) audio.src = data.audio_url;
+        const checkbox = row.querySelector(".js-audio-select");
+        if (checkbox) { checkbox.disabled = false; checkbox.removeAttribute("title"); }
+        ensureDownloadLink(row, data.audio_url);
       }
       syncAudioControls(row);
     }
