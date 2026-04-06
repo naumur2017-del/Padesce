@@ -33,6 +33,14 @@ PAGE_SIZE = 20
 CACHE_DIRECTORY = Path(settings.BASE_DIR) / "data" / "network_excel_cache"
 LOCAL_WORKBOOK_COPY = CACHE_DIRECTORY / "network-fichier-consolide.xlsm"
 LOCAL_CUTOFF_WORKBOOK_COPY = CACHE_DIRECTORY / "network-fichier-consolide-cutoff.xlsm"
+BUNDLED_DIRECTORY = Path(settings.BASE_DIR) / "data" / "network_excel_bundle"
+BUNDLED_WORKBOOK_COPY = BUNDLED_DIRECTORY / "network-fichier-consolide.xlsm"
+BUNDLED_CUTOFF_WORKBOOK_COPY = BUNDLED_DIRECTORY / "network-fichier-consolide-cutoff.xlsm"
+LEGACY_BUNDLED_DIRECTORY = Path(settings.BASE_DIR) / "docs" / "data" / "network_excel_cache"
+LEGACY_BUNDLED_WORKBOOK_COPY = LEGACY_BUNDLED_DIRECTORY / "network-fichier-consolide.xlsm"
+LEGACY_BUNDLED_CUTOFF_WORKBOOK_COPY = (
+    LEGACY_BUNDLED_DIRECTORY / "network-fichier-consolide-cutoff.xlsm"
+)
 DEFAULT_DESCENTE_WORKBOOK_GLOB = "DESCENTES CLASSES*.xlsx"
 DESCENTE_CHANNEL_SNAPSHOT = Path(settings.BASE_DIR) / "data" / "teams_channel_links.json"
 
@@ -65,14 +73,24 @@ def _workbook_source_configs() -> dict[str, dict]:
             "label": "Fichier consolide",
             "directory": NETWORK_WORKBOOK_DIRECTORY,
             "name": NETWORK_WORKBOOK_NAME,
+            "env_var": "PADESCE_MAIN_WORKBOOK_PATH",
             "cached_path": LOCAL_WORKBOOK_COPY,
+            "bundled_paths": [
+                BUNDLED_WORKBOOK_COPY,
+                LEGACY_BUNDLED_WORKBOOK_COPY,
+            ],
         },
         "cutoff": {
             "key": "cutoff",
             "label": "Fichier consolide CutOff",
             "directory": NETWORK_WORKBOOK_CUTOFF_DIRECTORY,
             "name": NETWORK_WORKBOOK_CUTOFF_NAME,
+            "env_var": "PADESCE_CUTOFF_WORKBOOK_PATH",
             "cached_path": LOCAL_CUTOFF_WORKBOOK_COPY,
+            "bundled_paths": [
+                BUNDLED_CUTOFF_WORKBOOK_COPY,
+                LEGACY_BUNDLED_CUTOFF_WORKBOOK_COPY,
+            ],
         },
     }
 
@@ -119,11 +137,25 @@ def _display_cell(value) -> str:
     return str(value).strip()
 
 
+def _resolve_configured_workbook_path(env_var_name: str) -> Path | None:
+    configured_path = str(os.getenv(env_var_name, "") or "").strip()
+    if not configured_path:
+        return None
+    candidate = Path(configured_path).expanduser()
+    if candidate.exists() and candidate.is_file():
+        return candidate
+    return None
+
+
 def _resolve_network_workbook(source_key: str = DEFAULT_WORKBOOK_SOURCE) -> Path:
     config = _workbook_source_config(source_key)
     expected_name = _normalize_lookup(config["name"])
     workbook_directory = config["directory"]
     cached_path = config["cached_path"]
+    configured_path = _resolve_configured_workbook_path(config["env_var"])
+
+    if configured_path is not None:
+        return configured_path
 
     if workbook_directory.exists():
         for child in sorted(
@@ -142,8 +174,12 @@ def _resolve_network_workbook(source_key: str = DEFAULT_WORKBOOK_SOURCE) -> Path
     if cached_path.exists():
         return cached_path
 
+    for bundled_path in config.get("bundled_paths", []):
+        if bundled_path.exists() and bundled_path.is_file():
+            return bundled_path
+
     raise FileNotFoundError(
-        f"Le fichier Excel consolide attendu ({config['name']}) n'a ete trouve ni sur le partage reseau ni dans le cache local."
+        f"Le fichier Excel consolide attendu ({config['name']}) n'a ete trouve ni sur le partage reseau, ni dans le cache local, ni dans le fallback embarque."
     )
 
 

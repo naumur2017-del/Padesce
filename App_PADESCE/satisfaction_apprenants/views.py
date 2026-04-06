@@ -2241,7 +2241,16 @@ def _build_satisfaction_dashboard_data(request):
     ]
 
     classe_apprenant_counts = _local_analysis_class_counts()
-    rows, classe_stats_all = _thresholded_dashboard_rows(all_rows, filters, classe_apprenant_counts)
+    analysis_scope_filters = {key: "" for key in filters}
+    analysis_scope_filters["source"] = selected_source
+    rows, _filtered_classe_stats = _thresholded_dashboard_rows(
+        all_rows, filters, classe_apprenant_counts
+    )
+    _, classe_stats_all = _thresholded_dashboard_rows(
+        all_rows,
+        analysis_scope_filters,
+        classe_apprenant_counts,
+    )
     try:
         source_bundle = build_padesce_source_index(source_key=selected_source)
     except Exception:
@@ -2254,9 +2263,14 @@ def _build_satisfaction_dashboard_data(request):
     rows = _assign_enquete_ids(rows)
     total = len(rows)
     analysis_audio_count = sum(1 for row in rows if row.get("has_audio"))
-    terminated_prestation_codes = _terminated_prestation_codes_from_source(filters, source_bundle)
+    terminated_prestation_codes = _terminated_prestation_codes_from_source(
+        analysis_scope_filters,
+        source_bundle,
+    )
     qualified_prestation_codes = _qualified_prestation_codes_from_source(
-        filters, classe_stats_all, source_bundle
+        analysis_scope_filters,
+        classe_stats_all,
+        source_bundle,
     )
 
     global_bucket = _dashboard_bucket()
@@ -2499,7 +2513,7 @@ def _build_satisfaction_dashboard_data(request):
         qualified_prestation_codes,
         source_bundle,
         classe_stats_all,
-        filters,
+        analysis_scope_filters,
     )
 
     # Build prestataire → classes/beneficiaires mapping for dynamic filters
@@ -2519,10 +2533,19 @@ def _build_satisfaction_dashboard_data(request):
     })
 
     filter_query_string = request.GET.copy().urlencode()
-    analyzed_prestations_total_count = (
-        len(terminated_prestation_codes) if source_bundle else len(analyzed_prestations)
+    analyzed_prestations_count = (
+        int(missing_analysis.get("total_qualified") or 0)
+        if missing_analysis.get("available")
+        else len(analyzed_prestations)
     )
-    analyzed_prestations_ratio = f"{len(analyzed_prestations)}/{analyzed_prestations_total_count}"
+    analyzed_prestations_total_count = (
+        int(missing_analysis.get("total_source") or 0)
+        if missing_analysis.get("available")
+        else len(analyzed_prestations)
+    )
+    analyzed_prestations_ratio = (
+        f"{analyzed_prestations_count}/{analyzed_prestations_total_count}"
+    )
     context = {
         "total": total,
         "global_avgs": global_avgs,
@@ -2550,7 +2573,7 @@ def _build_satisfaction_dashboard_data(request):
         "analyzed_beneficiaires": analyzed_beneficiaires,
         "analyzed_cohortes": analyzed_cohortes,
         "analyzed_classes_count": len(analyzed_classes),
-        "analyzed_prestations_count": len(analyzed_prestations),
+        "analyzed_prestations_count": analyzed_prestations_count,
         "analyzed_prestations_total_count": analyzed_prestations_total_count,
         "analyzed_prestations_ratio": analyzed_prestations_ratio,
         "analyzed_fenetres_count": len(analyzed_fenetres),
@@ -3495,6 +3518,27 @@ def satisfaction_dashboard_export_csv(request):
 _PHONE_RE_IMPORT = re.compile(r"[0-9]{7,}")
 
 
+def _safe_import_appel_code(record: dict) -> str:
+    raw_code = str(record.get("code") or "").strip()
+    max_length = Appel._meta.get_field("code").max_length or 50
+    if len(raw_code) <= max_length:
+        return raw_code
+
+    phone_digits = _normalize_phone(
+        (record.get("telephone1") or record.get("telephone2") or record.get("numero") or "").strip()
+    )
+    row_marker = str(record.get("row_number") or record.get("numero") or "").strip()
+    classe_id = str(record.get("classe_label") or record.get("classe_id") or "").strip()
+    nom = str(record.get("nom") or record.get("nom_individu") or "").strip()
+    seed = "||".join(part for part in [raw_code, phone_digits, row_marker, classe_id, nom] if part)
+    digest = hashlib.sha1(seed.encode("utf-8")).hexdigest()[:20]
+    suffix = phone_digits[-8:] if phone_digits else ""
+    safe_code = f"XL-{digest}"
+    if suffix:
+        safe_code = f"{safe_code}-{suffix}"
+    return safe_code[:max_length]
+
+
 @require_analysis_access
 def apprenants_manquants_page(request):
     """Page dédiée : liste et import des apprenants des prestations manquantes.
@@ -3774,9 +3818,8 @@ def import_missing_apprenants(request):
         )
 
     # Pre-fetch existing Appel codes to avoid duplicates
-    existing_codes: set[str] = set(
-        Appel.objects.filter(is_active=True).values_list("code", flat=True)
-    )
+    existing_codes: set[str] = set(Appel.objects.filter(is_active=True).values_list("code", flat=True))
+    seen_import_codes = set(existing_codes)
 
     # Collect importable records: in target prestations, have phone, not already in DB
     # consol_bundle["records"] est une LISTE
@@ -3788,10 +3831,11 @@ def import_missing_apprenants(request):
         numero = (rec.get("telephone1") or rec.get("telephone2") or rec.get("numero") or "").strip()
         if not _PHONE_RE_IMPORT.search(numero):
             continue
-        code = (rec.get("code") or "").strip()
-        if not code or code in existing_codes:
+        code = _safe_import_appel_code(rec)
+        if not code or code in seen_import_codes:
             continue
-        importable.append(rec)
+        importable.append({**rec, "_import_code": code})
+        seen_import_codes.add(code)
 
     # Stable ordering for consistent pagination
     importable.sort(key=lambda r: (r.get("classe_label", ""), r.get("code", "")))
@@ -3820,7 +3864,7 @@ def import_missing_apprenants(request):
     appels_to_create: list = []
 
     for rec in batch:
-        code = rec["code"].strip()
+        code = rec["_import_code"].strip()
         classe_id = (rec.get("classe_label") or rec.get("classe_id") or "").strip()
         local_classe = local_classes_map.get(normalize_network_lookup(classe_id))
 

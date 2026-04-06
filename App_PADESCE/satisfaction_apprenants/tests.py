@@ -31,6 +31,7 @@ from App_PADESCE.satisfaction_apprenants.views import (
     _assign_enquete_ids,
     _merge_class_apprenant_counts,
     _qualified_prestation_codes_from_source,
+    _safe_import_appel_code,
     _source_class_apprenant_counts,
     _terminated_prestation_codes_from_source,
     satisfaction_dashboard_export_chapeau,
@@ -650,6 +651,111 @@ class SatisfactionDashboardRegressionTests(SimpleTestCase):
         self.assertEqual(dashboard["context"]["prestation_stats"][0]["effectif"], 2)
         self.assertEqual(dashboard["context"]["prestation_stats_all"][0]["effectif"], 2)
 
+    @patch("App_PADESCE.satisfaction_apprenants.views._build_table_details_context", return_value={})
+    @patch(
+        "App_PADESCE.satisfaction_apprenants.views._build_missing_prestations_analysis",
+        return_value={"available": True, "total_source": 75, "total_qualified": 47, "total_missing": 28},
+    )
+    @patch("App_PADESCE.satisfaction_apprenants.views._build_dashboard_active_filters_summary", return_value=[])
+    @patch("App_PADESCE.satisfaction_apprenants.views._build_class_filter_options", return_value=[])
+    @patch(
+        "App_PADESCE.satisfaction_apprenants.views._build_dashboard_filter_options",
+        return_value={
+            "prestation": [],
+            "fenetre": [],
+            "ville": [],
+            "user": [],
+            "classe": [],
+            "prestataire": [],
+            "beneficiaire": [],
+            "cohorte": [],
+            "status": [],
+        },
+    )
+    @patch("App_PADESCE.satisfaction_apprenants.views._assign_enquete_ids", side_effect=lambda rows: rows)
+    @patch(
+        "App_PADESCE.satisfaction_apprenants.views._attach_network_source_to_rows",
+        side_effect=lambda rows, **kwargs: (rows, {"available": False}),
+    )
+    @patch("App_PADESCE.satisfaction_apprenants.views.build_padesce_source_index", return_value=None)
+    @patch("App_PADESCE.satisfaction_apprenants.views.get_workbook_source_options", return_value=[])
+    @patch(
+        "App_PADESCE.satisfaction_apprenants.views._qualified_prestation_codes_from_source",
+        return_value={"presta001"},
+    )
+    @patch(
+        "App_PADESCE.satisfaction_apprenants.views._terminated_prestation_codes_from_source",
+        return_value={"presta001"},
+    )
+    @patch("App_PADESCE.satisfaction_apprenants.views._thresholded_dashboard_rows")
+    @patch("App_PADESCE.satisfaction_apprenants.views._dashboard_row_from_answer")
+    @patch("App_PADESCE.satisfaction_apprenants.views._satisfaction_dashboard_base_queryset", return_value=[object()])
+    @patch("App_PADESCE.satisfaction_apprenants.views._local_analysis_class_counts", return_value={"cla001": 2})
+    def test_build_satisfaction_dashboard_data_uses_missing_analysis_totals_for_prestation_count(
+        self,
+        _mock_class_counts,
+        _mock_base_queryset,
+        mock_dashboard_row_from_answer,
+        mock_thresholded_dashboard_rows,
+        _mock_terminated,
+        _mock_qualified,
+        _mock_source_options,
+        _mock_source_index,
+        _mock_attach_network_rows,
+        _mock_assign_enquete_ids,
+        _mock_filter_options,
+        _mock_class_filter_options,
+        _mock_active_filter_summary,
+        _mock_missing_analysis,
+        _mock_table_details,
+    ):
+        row = {
+            "fenetre": "2",
+            "prestation_code": "PRESTA001",
+            "prestataire": "Prestataire A",
+            "beneficiaire": "Beneficiaire A",
+            "classe_code": "CLA001",
+            "formation_intitule": "Formation A",
+            "classe_intitule": "Formation A",
+            "cohorte": "1",
+            "ville": "Garoua",
+            "user": "agent-a",
+            "modified_at": 1,
+            "q1_clarte_exposes": 5,
+            "q2_interaction_formateur": 4,
+            "q3_maitrise_contenu": 4,
+            "q4_salle_adequate": 5,
+            "q5_materiel_disponible": 4,
+            "q6_organisation_temps": 5,
+            "q7_utilite_formation": 4,
+            "q8_adequation_besoins": 5,
+            "q9_satisfaction_globale": 5,
+        }
+        mock_dashboard_row_from_answer.return_value = row
+        mock_thresholded_dashboard_rows.return_value = (
+            [row],
+            [
+                {
+                    "code": "CLA001",
+                    "intitule": "Formation A",
+                    "prestation": "PRESTA001",
+                    "cohorte": "1",
+                    "nb": 1,
+                    "avgs": [4.56] * 9,
+                    "total_apprenants": 2,
+                    "threshold_reached": True,
+                }
+            ],
+        )
+
+        request = SimpleNamespace(GET=QueryDict("prestataire=Prestataire+A", mutable=True))
+
+        dashboard = _build_satisfaction_dashboard_data(request)
+
+        self.assertEqual(dashboard["context"]["analyzed_prestations_count"], 47)
+        self.assertEqual(dashboard["context"]["analyzed_prestations_total_count"], 75)
+        self.assertEqual(dashboard["context"]["analyzed_prestations_ratio"], "47/75")
+
 
 class SatisfactionMissingPrestationsAnalysisTests(TestCase):
     def test_missing_analysis_ignores_non_callable_classes_for_category(self):
@@ -1046,3 +1152,59 @@ class SatisfactionImportExcelSyncTests(TestCase):
             payload["error"],
             "Acces reserve aux superadmins et aux managers PADESCE/CGA.",
         )
+
+
+class MissingLearnerImportTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        user_model = get_user_model()
+        cls.user = user_model.objects.create_superuser(
+            username="superadmin",
+            email="superadmin@example.com",
+            password="testpass123",
+        )
+
+    @patch("App_PADESCE.satisfaction_apprenants.views.build_padesce_source_index", return_value={"classes": {}})
+    @patch("App_PADESCE.satisfaction_apprenants.views.build_consolidation_call_candidates")
+    def test_import_missing_apprenants_shortens_oversized_codes_and_skips_reimports(
+        self,
+        mock_build_consolidation,
+        _mock_build_source_index,
+    ):
+        raw_code = "9" * 81
+        record = {
+            "row_number": 1745,
+            "numero": "1744",
+            "code": raw_code,
+            "nom": "BOUSATA Martha",
+            "prestataire": "CFEM",
+            "beneficiaire": "IRISA",
+            "lieu": "Gueme",
+            "classe_label": "CLA069",
+            "fenetre": "3",
+            "telephone1": "699112233",
+            "formation": "Itineraire technique de bonne production du riz",
+            "prestation_id": "PRESTA066",
+        }
+        mock_build_consolidation.return_value = {"records": [record]}
+        expected_code = _safe_import_appel_code(record)
+
+        self.client.force_login(self.user)
+        url = reverse("import_missing_apprenants") + "?source=cutoff"
+        payload = json.dumps({"offset": 0, "prestation_ids": ["PRESTA066"]})
+
+        response = self.client.post(url, data=payload, content_type="application/json")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["imported"], 1)
+        self.assertEqual(Appel.objects.count(), 1)
+        appel = Appel.objects.get()
+        self.assertEqual(appel.code, expected_code)
+        self.assertNotEqual(appel.code, raw_code)
+        self.assertLessEqual(len(appel.code), Appel._meta.get_field("code").max_length)
+
+        second_response = self.client.post(url, data=payload, content_type="application/json")
+
+        self.assertEqual(second_response.status_code, 200)
+        self.assertEqual(second_response.json()["imported"], 0)
+        self.assertEqual(Appel.objects.count(), 1)
