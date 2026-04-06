@@ -2579,10 +2579,15 @@ def _build_satisfaction_dashboard_data(request):
     from App_PADESCE.appels.models import Appel as _Appel
     from django.db.models import Count as _Count, Q as _Q
     _appel_stats = _Appel.objects.filter(is_active=True).aggregate(
-        appels_tentes=_Count("id", filter=_Q(status__in=["appel_tente", "appel_reussi", "formulaire_rempli", "formulaire_avec_audio", "termine"])),
-        appels_reussis=_Count("id", filter=_Q(status__in=["appel_reussi", "formulaire_rempli", "formulaire_avec_audio", "termine"])),
-        formulaires_remplis=_Count("id", filter=_Q(status__in=["formulaire_rempli", "formulaire_avec_audio"])),
+        # Appels = tous ceux où "Demarrer" a été pressé au moins une fois (status != en_attente)
+        appels_tentes=_Count("id", filter=~_Q(status="en_attente")),
+        # Appels réussis = formulaire rempli (Q1-Q9), pas "à rappeler"
+        appels_reussis=_Count("id", filter=_Q(status__in=["formulaire_rempli", "formulaire_avec_audio"])),
+        # Formulaires remplis = au moins une question Q1-Q9, sans audio
+        formulaires_remplis=_Count("id", filter=_Q(status="formulaire_rempli")),
+        # Formulaires avec audio = formulaire rempli Q1-Q9 + audio enregistré
         formulaires_avec_audio=_Count("id", filter=_Q(status="formulaire_avec_audio")),
+        # Audios = présence d'un fichier audio (indépendant du statut)
         audios_enregistres=_Count("id", filter=_Q(audio_file__isnull=False) & ~_Q(audio_file="")),
     )
     context["appels_tentes"] = _appel_stats["appels_tentes"]

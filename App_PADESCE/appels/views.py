@@ -323,12 +323,16 @@ def _build_progress_metrics(queryset):
     stats = queryset.aggregate(
         total=Count("id"),
         termines=Count("id", filter=completed_q),
-        appels_tentes=Count("id", filter=Q(status__in=["appel_tente", "appel_reussi", "formulaire_rempli", "formulaire_avec_audio", "termine"])),
-        appels_reussis=Count("id", filter=Q(status="appel_reussi")),
-        formulaires_remplis=Count("id", filter=Q(status__in=["formulaire_rempli", "formulaire_avec_audio"])),
+        # Appels = tous ceux où Demarrer a été pressé au moins une fois (status != en_attente)
+        appels_tentes=Count("id", filter=~Q(status="en_attente")),
+        # Appels réussis = formulaire rempli (Q1-Q9), pas à rappeler
+        appels_reussis=Count("id", filter=Q(status__in=["formulaire_rempli", "formulaire_avec_audio"])),
+        # Formulaires remplis = au moins une Q1-Q9, sans audio
+        formulaires_remplis=Count("id", filter=Q(status="formulaire_rempli")),
         formulaires_avec_audio=Count("id", filter=Q(status="formulaire_avec_audio")),
         rappels=Count("id", filter=Q(status="a_rappeler")),
-        audios=Count("id", filter=Q(audio_file__isnull=False) | Q(status="formulaire_avec_audio")),
+        # Audios = présence fichier audio (indépendant du statut)
+        audios=Count("id", filter=Q(audio_file__isnull=False) & ~Q(audio_file="")),
     )
     total = int(stats.get("total") or 0)
     termines = int(stats.get("termines") or 0)
