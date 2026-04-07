@@ -29,7 +29,6 @@ from App_PADESCE.satisfaction_apprenants.models import SatisfactionApprenant
 from App_PADESCE.satisfaction_formateurs.models import SatisfactionFormateur
 from App_PADESCE.environnement.models import EnqueteEnvironnement
 
-
 APPRENANT_DETAIL_FIELDS = (
     ("Clarte des exposes", "q1_clarte_exposes"),
     ("Interaction avec le formateur", "q2_interaction_formateur"),

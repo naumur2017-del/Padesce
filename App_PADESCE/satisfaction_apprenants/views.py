@@ -3685,9 +3685,9 @@ def _build_update_form_candidate_row(
         "classe_code": classe_code,
         "prestation_code": prestation_code,
         "audio_label": "Oui" if appel_has_any_audio(appel) else "Non",
-        "formulaire_label": "Complet"
-        if has_complete_form
-        else ("Partiel" if has_partial_form else "Non"),
+        "formulaire_label": (
+            "Complet" if has_complete_form else ("Partiel" if has_partial_form else "Non")
+        ),
         "current_status": current_status,
         "current_status_label": appel.get_status_display(),
         "computed_status": computed_status,

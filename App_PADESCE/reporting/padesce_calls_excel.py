@@ -12,7 +12,6 @@ from openpyxl.worksheet.table import Table, TableStyleInfo
 
 from App_PADESCE.appels.models import Appel, AppelAnswers, CALL_SUCCESS_STATUSES
 
-
 QUESTION_FIELDS = (
     "q1_clarte_exposes",
     "q2_interaction_formateur",
@@ -564,9 +563,11 @@ def build_padesce_calls_report(output_path: str | Path) -> dict:
             success_rows.append(
                 _build_common_prefix(appel)
                 + [
-                    timezone.localtime(answer.modified_at).strftime("%Y-%m-%d %H:%M")
-                    if answer and answer.modified_at
-                    else "",
+                    (
+                        timezone.localtime(answer.modified_at).strftime("%Y-%m-%d %H:%M")
+                        if answer and answer.modified_at
+                        else ""
+                    ),
                     *answer_values,
                     avg_score,
                     _clean_text(getattr(answer, "commentaire", "")),
@@ -603,12 +604,16 @@ def build_padesce_calls_report(output_path: str | Path) -> dict:
                 appel.type_formation_declaree,
                 appel.get_status_display(),
                 "Oui" if appel.is_active else "Non",
-                timezone.localtime(appel.created_at).strftime("%Y-%m-%d %H:%M")
-                if appel.created_at
-                else "",
-                timezone.localtime(appel.updated_at).strftime("%Y-%m-%d %H:%M")
-                if appel.updated_at
-                else "",
+                (
+                    timezone.localtime(appel.created_at).strftime("%Y-%m-%d %H:%M")
+                    if appel.created_at
+                    else ""
+                ),
+                (
+                    timezone.localtime(appel.updated_at).strftime("%Y-%m-%d %H:%M")
+                    if appel.updated_at
+                    else ""
+                ),
                 _clean_text(appel.flag_vrai_nom),
                 "Oui" if appel.deja_forme else "Non",
                 "Oui" if appel.flag_pas_forme else "Non",

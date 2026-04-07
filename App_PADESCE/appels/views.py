@@ -629,12 +629,12 @@ def _archive_before_import_overwrite(appel: Appel, import_mode: str):
             "audio_file": appel.audio_file.name if appel.audio_file else "",
             "locked_by_id": appel.locked_by_id,
             "locked_at": appel.locked_at.isoformat() if appel.locked_at else None,
-            "created_at": appel.created_at.isoformat()
-            if getattr(appel, "created_at", None)
-            else None,
-            "updated_at": appel.updated_at.isoformat()
-            if getattr(appel, "updated_at", None)
-            else None,
+            "created_at": (
+                appel.created_at.isoformat() if getattr(appel, "created_at", None) else None
+            ),
+            "updated_at": (
+                appel.updated_at.isoformat() if getattr(appel, "updated_at", None) else None
+            ),
         },
     )
 

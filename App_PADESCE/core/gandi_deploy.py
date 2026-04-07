@@ -467,41 +467,60 @@ def deployment_config_summary() -> dict[str, Any]:
     return {
         "ready": not errors,
         "errors": errors,
-        "host": config.host
-        if config
-        else str(
-            os.getenv(
-                "GANDI_SFTP_HOST", runtime_config.get("GANDI_SFTP_HOST", "sftp.sd3.gpaas.net")
+        "host": (
+            config.host
+            if config
+            else str(
+                os.getenv(
+                    "GANDI_SFTP_HOST", runtime_config.get("GANDI_SFTP_HOST", "sftp.sd3.gpaas.net")
+                )
             )
         ),
-        "port": config.port
-        if config
-        else int(
-            str(os.getenv("GANDI_SFTP_PORT", runtime_config.get("GANDI_SFTP_PORT", "22")) or "22")
-        ),
-        "domain": config.domain
-        if config
-        else str(
-            os.getenv(
-                "GANDI_SFTP_DOMAIN", runtime_config.get("GANDI_SFTP_DOMAIN", "call.naumur.com")
+        "port": (
+            config.port
+            if config
+            else int(
+                str(
+                    os.getenv("GANDI_SFTP_PORT", runtime_config.get("GANDI_SFTP_PORT", "22"))
+                    or "22"
+                )
             )
         ),
-        "remote_path": config.remote_path
-        if config
-        else str(
-            os.getenv("GANDI_SFTP_REMOTE_PATH", runtime_config.get("GANDI_SFTP_REMOTE_PATH", ""))
+        "domain": (
+            config.domain
+            if config
+            else str(
+                os.getenv(
+                    "GANDI_SFTP_DOMAIN", runtime_config.get("GANDI_SFTP_DOMAIN", "call.naumur.com")
+                )
+            )
         ),
-        "verify_url": config.verify_url
-        if config
-        else str(
-            os.getenv("GANDI_DEPLOY_VERIFY_URL", runtime_config.get("GANDI_DEPLOY_VERIFY_URL", ""))
+        "remote_path": (
+            config.remote_path
+            if config
+            else str(
+                os.getenv(
+                    "GANDI_SFTP_REMOTE_PATH", runtime_config.get("GANDI_SFTP_REMOTE_PATH", "")
+                )
+            )
+        ),
+        "verify_url": (
+            config.verify_url
+            if config
+            else str(
+                os.getenv(
+                    "GANDI_DEPLOY_VERIFY_URL", runtime_config.get("GANDI_DEPLOY_VERIFY_URL", "")
+                )
+            )
         ),
         "local_root": str(config.local_root if config else Path(settings.BASE_DIR)),
         "include_paths": list(config.include_paths if config else DEFAULT_INCLUDE_PATHS),
         "username_masked": username_value,
-        "token_present": bool(config.token)
-        if config
-        else bool(os.getenv("GANDI_SFTP_TOKEN", runtime_config.get("GANDI_SFTP_TOKEN", ""))),
+        "token_present": (
+            bool(config.token)
+            if config
+            else bool(os.getenv("GANDI_SFTP_TOKEN", runtime_config.get("GANDI_SFTP_TOKEN", "")))
+        ),
         "runtime_config_present": bool(runtime_config),
         "runtime_config_updated_at": runtime_config.get("updated_at", ""),
         "active_run": get_active_run(),
