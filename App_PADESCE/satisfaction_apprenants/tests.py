@@ -1078,6 +1078,28 @@ class SatisfactionGeneralPageTests(TestCase):
             prestataire="Prestataire A",
             telephone1="690001103",
         )
+        self.fallback_lookup_appel = Appel.objects.create(
+            code="CALL104",
+            nom="Fatou Fallback",
+            classe_label="CLA001",
+            classe=self.classe,
+            prestataire="Prestataire A",
+            beneficiaire="Beneficiaire A",
+            telephone1="690001104",
+            fenetre="2",
+            status="termine",
+            is_active=True,
+        )
+        self.fallback_lookup_apprenant = Apprenant.objects.create(
+            code="APP104",
+            classe=self.classe,
+            formation=self.formation,
+            nom_complet="Fatou Fallback",
+            beneficiaire="Beneficiaire A",
+            fenetre="2",
+            prestataire="Prestataire A",
+            telephone1="690001104",
+        )
 
     @patch("App_PADESCE.satisfaction_apprenants.views.get_workbook_source_options")
     @patch("App_PADESCE.satisfaction_apprenants.views.build_padesce_source_index")
@@ -1185,6 +1207,7 @@ class SatisfactionGeneralPageTests(TestCase):
         self.assertContains(response, "Formulaire Present / Statut Non Termine")
         self.assertContains(response, "APP102")
         self.assertContains(response, "APP103")
+        self.assertContains(response, "CALL104")
 
     def test_update_form_page_updates_batch_codes_in_declared_order(self):
         response = self.client.post(

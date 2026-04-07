@@ -3598,9 +3598,14 @@ def _resolve_batch_update_apprenant(appel: Appel) -> Apprenant | None:
         return apprenant
     from App_PADESCE.appels.views import _find_apprenant_for_appel
 
-    return _find_apprenant_for_appel(
-        Apprenant.objects.select_related("classe", "formation"),
-        appel,
+    fallback = _find_apprenant_for_appel(Apprenant.objects.all(), appel)
+    if fallback is None:
+        return None
+    return (
+        Apprenant.objects.select_related("classe", "formation")
+        .filter(pk=fallback.pk)
+        .first()
+        or fallback
     )
 
 
