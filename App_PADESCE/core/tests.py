@@ -735,6 +735,24 @@ class PublicConsultantAccessTests(TestCase):
         self.assertContains(response, "numero joignable dans le dossier")
         self.assertNotContains(response, "<td>-</td>", html=False)
 
+    @override_settings(PUBLIC_CONSULTANT_ACCESS=True)
+    def test_consultant_detail_allows_dashboard_rows_that_are_not_completed(self):
+        appel = Appel.objects.create(
+            code="APP961",
+            nom="Apprenant Tente",
+            classe_label="CLA001",
+            fenetre="2",
+            telephone1="690009961",
+            status="appel_tente",
+            is_active=True,
+        )
+
+        response = self.client.get(reverse("consultant_call_detail", args=[appel.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Dossier PADESCE")
+        self.assertContains(response, "Apprenant Tente")
+
 
 class PublicAnalysisAutoLoginTests(TestCase):
     def setUp(self):

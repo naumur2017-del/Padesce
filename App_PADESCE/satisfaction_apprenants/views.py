@@ -20,12 +20,14 @@ from types import SimpleNamespace
 import openpyxl
 import requests
 from django.contrib import messages
+from django.core.cache import cache
 from django.core.exceptions import ObjectDoesNotExist
 from django.core.files.storage import default_storage
 from django.core.paginator import Paginator
-from django.db.models import Count
+from django.db import transaction
+from django.db.models import Count, Q
 from django.http import HttpResponse, JsonResponse, QueryDict
-from django.shortcuts import redirect, render
+from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
@@ -34,12 +36,17 @@ from openpyxl.utils import get_column_letter
 
 from App_PADESCE.appels.models import (
     APPEL_ANSWER_QUESTION_FIELDS,
-    CALL_ANALYSIS_THRESHOLD_STATUSES,
-    CALL_FORM_STATUSES,
-    CALL_SUCCESS_STATUSES,
     Appel,
     AppelAnswers,
     AppelFormateur,
+    CALL_ANALYSIS_THRESHOLD_STATUSES,
+    CALL_FORM_STATUSES,
+    CALL_SUCCESS_STATUSES,
+    appel_answers_completed_q,
+    appel_has_any_audio,
+    appel_has_any_form_data,
+    derive_padesce_status,
+    sync_padesce_status,
 )
 from App_PADESCE.apprenants.models import Apprenant
 from App_PADESCE.core.access import require_analysis_access
@@ -54,6 +61,7 @@ from App_PADESCE.core.analysis_rules import (
     set_appel_manual_exclusion,
     toggle_appel_manual_exclusion,
 )
+from App_PADESCE.core.cache_versions import get_analysis_cache_version
 from App_PADESCE.core.call_metrics import (
     count_callable_source_records_by_class,
     has_usable_phone,
@@ -68,7 +76,10 @@ from App_PADESCE.reporting.network_excel import (
     normalize_network_lookup,
     normalize_workbook_source_key,
 )
-from App_PADESCE.satisfaction_apprenants.forms import SatisfactionApprenantForm
+from App_PADESCE.satisfaction_apprenants.forms import (
+    SatisfactionApprenantForm,
+    SatisfactionBatchUpdateForm,
+)
 from App_PADESCE.satisfaction_apprenants.models import SatisfactionApprenant
 from App_PADESCE.satisfaction_apprenants.rag import answer_dashboard_prompt
 from App_PADESCE.satisfaction_apprenants.services import get_prestations_ranking
@@ -140,6 +151,17 @@ DEFAULT_TRANSCRIBE_MODEL = "google/gemini-2.5-flash"
 SUPPORTED_AUDIO_FORMATS = {"wav", "mp3", "m4a", "ogg", "webm", "flac"}
 
 logger = logging.getLogger(__name__)
+ANALYSIS_CACHE_TIMEOUT = int(str(os.getenv("PADESCE_ANALYSIS_CACHE_TIMEOUT", "300") or "300"))
+
+
+def _analysis_cache_key(prefix: str, *parts) -> str:
+    rendered_parts = [str(part or "").strip() for part in parts]
+    digest = hashlib.sha1("||".join(rendered_parts).encode("utf-8")).hexdigest()
+    return f"satisfaction:{prefix}:{digest}"
+
+
+def _analysis_queryset_marker(model) -> str:
+    return get_analysis_cache_version(f"model:{model._meta.label_lower}")
 
 
 def _normalize_phone(value: str) -> str:
@@ -1333,21 +1355,48 @@ def _build_table_details_context(context: dict, rows: list[dict]) -> dict[str, d
     return _build_dashboard_table_details(context, rows)
 
 
-def _build_appel_status_summary() -> dict[str, int]:
-    from django.db.models import Count as _Count
-    from django.db.models import Q as _Q
-
+def _build_appel_status_summary(
+    *,
+    target_class_codes: list[str] | None = None,
+    strict_form_q=None,
+) -> dict[str, int]:
     from App_PADESCE.appels.models import Appel as _Appel
+    from django.db.models import Count as _Count, Q as _Q
 
     try:
-        return _Appel.objects.filter(is_active=True).aggregate(
+        queryset = _Appel.objects.filter(is_active=True)
+        if target_class_codes is not None:
+            if target_class_codes:
+                queryset = queryset.filter(
+                    _Q(classe__code__in=target_class_codes)
+                    | _Q(classe_label__in=target_class_codes)
+                )
+            else:
+                queryset = queryset.none()
+
+        form_filter = strict_form_q if strict_form_q is not None else _Q(status__in=CALL_FORM_STATUSES)
+        success_filter = (
+            ~_Q(status__in=["en_attente", "a_rappeler"])
+            | _Q(deja_forme=True)
+            | _Q(flag_numero_double=True)
+            | _Q(flag_pas_forme=True)
+            | _Q(flag_faux_nom=True)
+        )
+        forms_with_audio_filter = (
+            form_filter & _Q(audio_file__isnull=False) & ~_Q(audio_file="")
+            if strict_form_q is not None
+            else _Q(status="formulaire_avec_audio")
+        )
+        forms_without_audio_filter = form_filter & (_Q(audio_file__isnull=True) | _Q(audio_file=""))
+
+        return queryset.aggregate(
+            appels_cibles=_Count("id"),
             appels_tentes=_Count("id", filter=~_Q(status="en_attente")),
-            appels_reussis=_Count("id", filter=_Q(status__in=CALL_SUCCESS_STATUSES)),
-            formulaires_remplis=_Count("id", filter=_Q(status__in=CALL_FORM_STATUSES)),
-            formulaires_avec_audio=_Count("id", filter=_Q(status="formulaire_avec_audio")),
-            audios_enregistres=_Count(
-                "id", filter=_Q(audio_file__isnull=False) & ~_Q(audio_file="")
-            ),
+            appels_reussis=_Count("id", filter=success_filter),
+            formulaires_remplis=_Count("id", filter=form_filter),
+            formulaires_remplis_sans_audio=_Count("id", filter=forms_without_audio_filter),
+            formulaires_avec_audio=_Count("id", filter=forms_with_audio_filter),
+            audios_enregistres=_Count("id", filter=_Q(audio_file__isnull=False) & ~_Q(audio_file="")),
         )
     except Exception as exc:
         try:
@@ -1356,9 +1405,11 @@ def _build_appel_status_summary() -> dict[str, int]:
             DatabaseOperationForbidden = None
         if DatabaseOperationForbidden and isinstance(exc, DatabaseOperationForbidden):
             return {
+                "appels_cibles": 0,
                 "appels_tentes": 0,
                 "appels_reussis": 0,
                 "formulaires_remplis": 0,
+                "formulaires_remplis_sans_audio": 0,
                 "formulaires_avec_audio": 0,
                 "audios_enregistres": 0,
             }
@@ -1577,9 +1628,20 @@ def _is_ras_text(value: str) -> bool:
 def _has_complete_answer_set(answer: AppelAnswers | None) -> bool:
     if not answer:
         return False
-    return all(
-        getattr(answer, field, None) not in (None, "") for field in APPEL_ANSWER_QUESTION_FIELDS
-    )
+    return all(getattr(answer, field, None) not in (None, "") for field in APPEL_ANSWER_QUESTION_FIELDS)
+
+
+def _has_complete_satisfaction_set(survey: SatisfactionApprenant | None) -> bool:
+    if not survey:
+        return False
+    return all(getattr(survey, field, None) not in (None, "") for field in APPEL_ANSWER_QUESTION_FIELDS)
+
+
+def _has_complete_form_record(
+    answer: AppelAnswers | None,
+    survey: SatisfactionApprenant | None,
+) -> bool:
+    return _has_complete_answer_set(answer) or _has_complete_satisfaction_set(survey)
 
 
 def _has_ras_only_form(answer: AppelAnswers | None) -> bool:
@@ -2396,13 +2458,27 @@ def _build_satisfaction_dashboard_data(request):
         source_bundle = build_padesce_source_index(source_key=selected_source)
     except Exception:
         source_bundle = None
+    cache_key = _analysis_cache_key(
+        "dashboard-data",
+        selected_source,
+        request.GET.urlencode(),
+        ((source_bundle or {}).get("source") or {}).get("modified_at", "no-source"),
+        _analysis_queryset_marker(Appel),
+        _analysis_queryset_marker(AppelAnswers),
+        _analysis_queryset_marker(SatisfactionApprenant),
+    )
+    cached_payload = cache.get(cache_key)
+    if cached_payload is not None:
+        return cached_payload
     threshold_class_codes = _status_threshold_class_codes(source_bundle)
 
     all_rows = [
         _dashboard_row_from_answer(answer) for answer in _satisfaction_dashboard_base_queryset()
     ]
     all_rows = [
-        row for row in all_rows if row["fenetre"] in {"2", "3"} and row.get("analysis_included")
+        row
+        for row in all_rows
+        if row["fenetre"] in {"2", "3"} and row.get("analysis_included")
     ]
 
     classe_apprenant_counts = _local_analysis_class_counts()

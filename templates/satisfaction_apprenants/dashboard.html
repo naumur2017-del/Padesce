@@ -102,6 +102,7 @@
   </div>
   <div class="filter-actions">
     <button type="button" class="btn btn-ghost btn-sm" id="js-open-fast-stats">FAST STATS</button>
+    <a class="btn btn-ghost btn-sm" href="{% url 'satisfaction_update_form_page' %}?source={{ filter_source|urlencode }}">UPDATE FORM</a>
     <a class="btn btn-ghost btn-sm" href="{% url 'satisfaction_general_page' %}{% if request.GET.urlencode %}?{{ request.GET.urlencode }}{% endif %}">General</a>
     <a class="btn btn-primary btn-sm" href="{% url 'satisfaction_dashboard_daily_report_xlsx' %}?source={{ filter_source|urlencode }}">Télécharger le rapport quotidien (Excel)</a>
     <a class="btn btn-ghost btn-sm" href="{% url 'satisfaction_apprenants_index' %}">Retour enquêtes</a>
@@ -221,6 +222,10 @@
 
 <!-- Cards statuts appels Padesce -->
 <div class="kpi-row" style="margin-bottom:16px;">
+  <div class="kpi-card" style="border-color:rgba(99,102,241,0.25);background:rgba(238,242,255,0.7);">
+    <div class="kpi-value" style="color:#3730a3;">{{ appels_cibles }}</div>
+    <div class="kpi-label">Appels Cibles</div>
+  </div>
   <div class="kpi-card" style="border-color:rgba(234,179,8,0.25);background:rgba(254,252,232,0.6);">
     <div class="kpi-value" style="color:#92400e;">{{ appels_tentes }}</div>
     <div class="kpi-label">Appels Tentés</div>
@@ -233,9 +238,13 @@
     <div class="kpi-value" style="color:#1d4ed8;">{{ formulaires_remplis_appels }}</div>
     <div class="kpi-label">Formulaires Remplis</div>
   </div>
+  <div class="kpi-card" style="border-color:rgba(14,165,233,0.25);background:rgba(240,249,255,0.7);">
+    <div class="kpi-value" style="color:#0369a1;">{{ formulaires_remplis_sans_audio_appels }}</div>
+    <div class="kpi-label">Formulaires remplis sans audio</div>
+  </div>
   <div class="kpi-card" style="border-color:rgba(139,92,246,0.25);background:rgba(245,243,255,0.6);">
     <div class="kpi-value" style="color:#5b21b6;">{{ formulaires_avec_audio_appels }}</div>
-    <div class="kpi-label">Formulaires avec Audio</div>
+    <div class="kpi-label">Fomulaires remplis avec audios</div>
   </div>
   <div class="kpi-card">
     <div class="kpi-value">{{ audios_enregistres_appels }}</div>

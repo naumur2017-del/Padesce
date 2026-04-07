@@ -1,7 +1,7 @@
 services:
   web:
     build: .
-    command: python manage.py runserver 0.0.0.0:8000
+    command: gunicorn App_PADESCE.asgi:application -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000 --workers 2 --timeout 180 --keep-alive 5 --access-logfile - --error-logfile -
     volumes:
       - .:/app
       - sqlite_data:/app/db

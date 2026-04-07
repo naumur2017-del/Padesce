@@ -1,6 +1,21 @@
 from App_PADESCE.formations.models import Beneficiaire, Prestation
 
 
+def _build_prestation_lookup_maps() -> tuple[dict[str, dict[str, object]], dict[str, str]]:
+    prestation_lookup: dict[str, dict[str, object]] = {}
+    for prestation in Prestation.objects.filter(actif=True).select_related("beneficiaire"):
+        prestation_lookup[str(prestation.code or "").strip().upper()] = {
+            "effectif": int(prestation.effectif_a_former or 0),
+            "region": getattr(getattr(prestation, "beneficiaire", None), "region", "") or "",
+        }
+
+    beneficiary_regions = {
+        str(item["nom_structure"] or "").strip(): str(item["region"] or "").strip()
+        for item in Beneficiaire.objects.values("nom_structure", "region")
+    }
+    return prestation_lookup, beneficiary_regions
+
+
 def get_prestations_ranking(prestation_stats=None, order="desc"):
     """
     Returns a list of dictionaries with Prestation ranking details.
@@ -10,32 +25,25 @@ def get_prestations_ranking(prestation_stats=None, order="desc"):
     if prestation_stats is None:
         return []
 
-    # 1. Pre-fetch beneficiary regions and class counts for speed
-    beneficiary_map = {b.nom_structure: b.region for b in Beneficiaire.objects.all()}
-    # We also need a mapping of codes to their original Prestation objects if available
-    # to get regions more accurately if the name structure isn't direct.
-    prestation_regions = {
-        p.code: p.beneficiaire.region
-        for p in Prestation.objects.filter(actif=True).select_related("beneficiaire")
-        if p.beneficiaire
-    }
+    prestation_lookup, beneficiary_map = _build_prestation_lookup_maps()
 
     ranking = []
 
     # We expect prestation_stats to be a list of dicts:
     # {'code': ..., 'prestataire': ..., 'beneficiaire': ..., 'nb': ..., 'avg': ..., 'avgs': [...]}
     for item in prestation_stats:
-        code = item["code"]
-        nb_reponses = item["nb"]
-        avg_sat = item["avg"]
+        code = str(item.get("code") or "").strip()
+        lookup_key = code.upper()
+        prestation_data = prestation_lookup.get(lookup_key, {})
+        nb_reponses = int(item.get("nb") or 0)
+        avg_sat = float(item.get("avg") or 0.0)
+        beneficiaire = str(item.get("beneficiaire") or "").strip()
 
         # We need the effectif (total participants) to calculate TR.
         # Use provided effectif from view if available, otherwise fallback to DB lookup
         effectif = item.get("effectif")
         if effectif is None:
-            # Normalize code to UPPERCASE to match DB schema (e.g. PRESTA001)
-            presta_obj = Prestation.objects.filter(code=code.upper(), actif=True).first()
-            effectif = presta_obj.effectif_a_former if presta_obj else nb_reponses
+            effectif = prestation_data.get("effectif", nb_reponses)
 
         # If effectif is 0, we use nb_reponses as floor
         effectif = max(int(effectif or 0), nb_reponses)
@@ -51,18 +59,15 @@ def get_prestations_ranking(prestation_stats=None, order="desc"):
         sat_pct = (avg_sat / 5.0) * 100
         score_global = (0.7 * taux_reponse) + (0.3 * sat_pct)
 
-        # Region lookup (normalize to UPPER for DB mapping)
-        region = prestation_regions.get(code.upper()) or beneficiary_map.get(
-            item["beneficiaire"], ""
-        )
+        region = str(prestation_data.get("region") or beneficiary_map.get(beneficiaire, ""))
 
         if effectif > 1:
             ranking.append(
                 {
                     "code": code,
                     "intitule": code,  # Simplified
-                    "prestataire": item["prestataire"],
-                    "beneficiaire": item["beneficiaire"],
+                    "prestataire": item.get("prestataire", ""),
+                    "beneficiaire": beneficiaire,
                     "region": region,
                     "effectif": effectif,
                     "nb_reponses": nb_reponses,

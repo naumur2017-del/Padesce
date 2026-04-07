@@ -983,10 +983,39 @@ class SatisfactionGeneralPageTests(TestCase):
         self.user.groups.add(manager_group)
         self.client.force_login(self.user)
 
+        self.prestataire = Prestataire.objects.create(
+            code="PREST-A",
+            raison_sociale="Prestataire A",
+        )
+        self.beneficiaire = Beneficiaire.objects.create(nom_structure="Beneficiaire A")
+        self.formation = Formation.objects.create(
+            code="FORM-A",
+            nom="Formation A",
+            fenetre="2",
+            statut="termine",
+        )
+        self.prestation = Prestation.objects.create(
+            code="PRESTA001",
+            prestataire=self.prestataire,
+            formation=self.formation,
+            beneficiaire=self.beneficiaire,
+        )
+        self.lieu = Lieu.objects.create(code="LIEU001", nom_lieu="Lieu Test", ville="Garoua")
+        self.classe = Classe.objects.create(
+            code="CLA001",
+            prestation=self.prestation,
+            lieu=self.lieu,
+            formation=self.formation,
+            intitule_formation="Formation A",
+            fenetre="2",
+            statut="termine",
+        )
+
         self.eligible_appel = Appel.objects.create(
             code="APP100",
             nom="Amina Analyse",
             classe_label="CLA001",
+            classe=self.classe,
             prestataire="Prestataire A",
             beneficiaire="Beneficiaire A",
             telephone1="690001100",
@@ -1014,6 +1043,7 @@ class SatisfactionGeneralPageTests(TestCase):
             code="APP101",
             nom="Binta Sans Numero",
             classe_label="CLA001",
+            classe=self.classe,
             prestataire="Prestataire A",
             beneficiaire="Beneficiaire A",
             fenetre="2",
@@ -1034,6 +1064,107 @@ class SatisfactionGeneralPageTests(TestCase):
             commentaire="Tout a 3",
             recommandations="Verifier numero",
             modified_by=self.user,
+        )
+
+        self.eligible_apprenant = Apprenant.objects.create(
+            code="APP100",
+            classe=self.classe,
+            formation=self.formation,
+            nom_complet="Amina Analyse",
+            beneficiaire="Beneficiaire A",
+            fenetre="2",
+            prestataire="Prestataire A",
+            telephone1="690001100",
+        )
+        self.no_phone_apprenant = Apprenant.objects.create(
+            code="APP101",
+            classe=self.classe,
+            formation=self.formation,
+            nom_complet="Binta Sans Numero",
+            beneficiaire="Beneficiaire A",
+            fenetre="2",
+            prestataire="Prestataire A",
+        )
+        self.termine_without_form_appel = Appel.objects.create(
+            code="APP102",
+            nom="Celia Sans Formulaire",
+            classe_label="CLA001",
+            classe=self.classe,
+            prestataire="Prestataire A",
+            beneficiaire="Beneficiaire A",
+            telephone1="690001102",
+            fenetre="2",
+            status="termine",
+            is_active=True,
+        )
+        self.termine_without_form_apprenant = Apprenant.objects.create(
+            code="APP102",
+            classe=self.classe,
+            formation=self.formation,
+            nom_complet="Celia Sans Formulaire",
+            beneficiaire="Beneficiaire A",
+            fenetre="2",
+            prestataire="Prestataire A",
+            telephone1="690001102",
+        )
+        self.formulaire_non_termine_appel = Appel.objects.create(
+            code="APP103",
+            nom="David Statut A Corriger",
+            classe_label="CLA001",
+            classe=self.classe,
+            prestataire="Prestataire A",
+            beneficiaire="Beneficiaire A",
+            telephone1="690001103",
+            fenetre="2",
+            status="formulaire_rempli",
+            is_active=True,
+        )
+        AppelAnswers.objects.create(
+            appel=self.formulaire_non_termine_appel,
+            q1_clarte_exposes=5,
+            q2_interaction_formateur=5,
+            q3_maitrise_contenu=4,
+            q4_salle_adequate=4,
+            q5_materiel_disponible=4,
+            q6_organisation_temps=4,
+            q7_utilite_formation=5,
+            q8_adequation_besoins=5,
+            q9_satisfaction_globale=5,
+            commentaire="Formulaire deja rempli",
+            recommandations="Passer en termine",
+            modified_by=self.user,
+        )
+        self.formulaire_non_termine_apprenant = Apprenant.objects.create(
+            code="APP103",
+            classe=self.classe,
+            formation=self.formation,
+            nom_complet="David Statut A Corriger",
+            beneficiaire="Beneficiaire A",
+            fenetre="2",
+            prestataire="Prestataire A",
+            telephone1="690001103",
+        )
+        self.fallback_lookup_appel = Appel.objects.create(
+            code="CALL104",
+            nom="Fatou Fallback",
+            classe_label="CLA001",
+            classe=self.classe,
+            prestataire="Prestataire A",
+            beneficiaire="Beneficiaire A",
+            telephone1="690001104",
+            fenetre="2",
+            status="termine",
+            is_active=True,
+        )
+        self.fallback_lookup_apprenant = Apprenant.objects.create(
+            code="APP104",
+            classe=self.classe,
+            formation=self.formation,
+            nom_complet="Fatou Fallback",
+            beneficiaire="Beneficiaire A",
+            fenetre="2",
+            prestataire="Prestataire A",
+            telephone1="690001104",
         )
 
     @patch("App_PADESCE.satisfaction_apprenants.views.get_workbook_source_options")
@@ -1143,6 +1274,181 @@ class SatisfactionGeneralPageTests(TestCase):
         self.no_phone_appel.refresh_from_db()
         self.assertTrue(appel_is_manually_excluded(self.eligible_appel))
         self.assertTrue(appel_is_manually_excluded(self.no_phone_appel))
+
+    def test_update_form_page_is_available(self):
+        response = self.client.get(reverse("satisfaction_update_form_page"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "UPDATE FORM")
+        self.assertContains(response, "[APP100, APP101]")
+        self.assertContains(response, "Termine Sans Formulaire")
+        self.assertContains(response, "Formulaire Present / Statut Non Termine")
+        self.assertContains(response, "APP102")
+        self.assertContains(response, "APP103")
+        self.assertContains(response, "CALL104")
+
+    def test_update_form_page_updates_batch_codes_in_declared_order(self):
+        response = self.client.post(
+            reverse("satisfaction_update_form_page"),
+            {
+                "classe_code": "CLA001",
+                "codes_text": "[APP100, APP101]",
+                "q1_clarte_exposes": "[5,4]",
+                "q2_interaction_formateur": "5",
+                "q3_maitrise_contenu": "5",
+                "q4_salle_adequate": "5",
+                "q5_materiel_disponible": "5",
+                "q6_organisation_temps": "5",
+                "q7_utilite_formation": "5",
+                "q8_adequation_besoins": "5",
+                "q9_satisfaction_globale": "[4,5]",
+                "commentaire_values": "[Commentaire A, Commentaire B]",
+                "recommandations_values": "[Reco A, Reco B]",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "2 formulaire(s) mis a jour.")
+        self.assertContains(response, "Formulaire mis a jour et fiche satisfaction synchronisee.")
+
+        answers_one = AppelAnswers.objects.get(appel=self.eligible_appel)
+        answers_two = AppelAnswers.objects.get(appel=self.no_phone_appel)
+        self.assertEqual(answers_one.q1_clarte_exposes, 5)
+        self.assertEqual(answers_two.q1_clarte_exposes, 4)
+        self.assertEqual(answers_one.q9_satisfaction_globale, 4)
+        self.assertEqual(answers_two.q9_satisfaction_globale, 5)
+        self.assertEqual(answers_one.commentaire, "Commentaire A")
+        self.assertEqual(answers_two.commentaire, "Commentaire B")
+        self.assertEqual(answers_one.recommandations, "Reco A")
+        self.assertEqual(answers_two.recommandations, "Reco B")
+        self.assertEqual(answers_one.modified_by, self.user)
+
+        self.eligible_appel.refresh_from_db()
+        self.no_phone_appel.refresh_from_db()
+        self.assertEqual(self.eligible_appel.status, "formulaire_rempli")
+        self.assertEqual(self.no_phone_appel.status, "formulaire_rempli")
+
+        survey_one = SatisfactionApprenant.objects.get(appel=self.eligible_appel)
+        survey_two = SatisfactionApprenant.objects.get(appel=self.no_phone_appel)
+        self.assertEqual(survey_one.apprenant, self.eligible_apprenant)
+        self.assertEqual(survey_two.apprenant, self.no_phone_apprenant)
+        self.assertEqual(survey_one.classe, self.classe)
+        self.assertEqual(survey_two.classe, self.classe)
+        self.assertEqual(survey_one.q1_clarte_exposes, 5)
+        self.assertEqual(survey_two.q1_clarte_exposes, 4)
+        self.assertEqual(survey_one.commentaire, "Commentaire A")
+        self.assertEqual(survey_two.recommandations, "Reco B")
+
+    def test_update_form_page_rejects_mismatched_class(self):
+        response = self.client.post(
+            reverse("satisfaction_update_form_page"),
+            {
+                "codes_text": "APP100|CLA999",
+                "q1_clarte_exposes": "5",
+                "commentaire_values": "Commentaire force",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Classe attendue CLA999 differente de la classe trouvee CLA001.")
+
+        self.eligible_appel.refresh_from_db()
+        answers = AppelAnswers.objects.get(appel=self.eligible_appel)
+        self.assertEqual(self.eligible_appel.status, "termine")
+        self.assertEqual(answers.q1_clarte_exposes, 4)
+        self.assertEqual(answers.commentaire, "RAS")
+        self.assertFalse(SatisfactionApprenant.objects.filter(appel=self.eligible_appel).exists())
+
+    def test_update_form_page_applies_default_values_when_fields_are_blank(self):
+        response = self.client.post(
+            reverse("satisfaction_update_form_page"),
+            {
+                "classe_code": "CLA001",
+                "codes_text": "[APP100, APP101]",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "2 formulaire(s) mis a jour.")
+
+        answers_one = AppelAnswers.objects.get(appel=self.eligible_appel)
+        answers_two = AppelAnswers.objects.get(appel=self.no_phone_appel)
+        for answer in (answers_one, answers_two):
+            self.assertEqual(answer.q1_clarte_exposes, 3)
+            self.assertEqual(answer.q2_interaction_formateur, 3)
+            self.assertEqual(answer.q3_maitrise_contenu, 3)
+            self.assertEqual(answer.q4_salle_adequate, 3)
+            self.assertEqual(answer.q5_materiel_disponible, 3)
+            self.assertEqual(answer.q6_organisation_temps, 3)
+            self.assertEqual(answer.q7_utilite_formation, 3)
+            self.assertEqual(answer.q8_adequation_besoins, 3)
+            self.assertEqual(answer.q9_satisfaction_globale, 3)
+            self.assertEqual(answer.commentaire, "RAS")
+            self.assertEqual(answer.recommandations, "RAS")
+
+        self.eligible_appel.refresh_from_db()
+        self.no_phone_appel.refresh_from_db()
+        self.assertEqual(self.eligible_appel.status, "formulaire_rempli")
+        self.assertEqual(self.no_phone_appel.status, "formulaire_rempli")
+
+    def test_update_form_page_updates_selected_termine_without_form_rows(self):
+        response = self.client.post(
+            reverse("satisfaction_update_form_page"),
+            {
+                "selected_targets": [f"{self.termine_without_form_appel.code}|CLA001"],
+                "action": "update_form",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "1 formulaire(s) mis a jour.")
+
+        answers = AppelAnswers.objects.get(appel=self.termine_without_form_appel)
+        self.assertEqual(answers.q1_clarte_exposes, 3)
+        self.assertEqual(answers.q9_satisfaction_globale, 3)
+        self.assertEqual(answers.commentaire, "RAS")
+        self.assertEqual(answers.recommandations, "RAS")
+
+        self.termine_without_form_appel.refresh_from_db()
+        self.assertEqual(self.termine_without_form_appel.status, "formulaire_rempli")
+        survey = SatisfactionApprenant.objects.get(appel=self.termine_without_form_appel)
+        self.assertEqual(survey.apprenant, self.termine_without_form_apprenant)
+        self.assertEqual(survey.classe, self.classe)
+
+    def test_update_form_page_changes_status_for_rows_with_existing_form(self):
+        response = self.client.post(
+            reverse("satisfaction_update_form_page"),
+            {
+                "selected_targets": [f"{self.formulaire_non_termine_appel.code}|CLA001"],
+                "target_status": "termine",
+                "action": "update_status",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "1 statut(s) mis a jour.")
+        self.assertContains(response, "Statut mis a jour vers Termine.")
+
+        self.formulaire_non_termine_appel.refresh_from_db()
+        self.assertEqual(self.formulaire_non_termine_appel.status, "termine")
+        answers = AppelAnswers.objects.get(appel=self.formulaire_non_termine_appel)
+        self.assertEqual(answers.commentaire, "Formulaire deja rempli")
+        self.assertEqual(answers.recommandations, "Passer en termine")
+
+    def test_update_form_page_requires_target_status_for_status_action(self):
+        response = self.client.post(
+            reverse("satisfaction_update_form_page"),
+            {
+                "selected_targets": [f"{self.formulaire_non_termine_appel.code}|CLA001"],
+                "action": "update_status",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Statut a appliquer: Choisissez le statut a appliquer.")
+
+        self.formulaire_non_termine_appel.refresh_from_db()
+        self.assertEqual(self.formulaire_non_termine_appel.status, "formulaire_rempli")
 
 
 class SatisfactionImportExcelSyncTests(TestCase):
@@ -1364,3 +1670,44 @@ class MissingLearnerImportTests(TestCase):
         self.assertEqual(second_response.status_code, 200)
         self.assertEqual(second_response.json()["imported"], 0)
         self.assertEqual(Appel.objects.count(), 1)
+
+
+class PrestationRankingServiceTests(TestCase):
+    def test_get_prestations_ranking_uses_fixed_query_count(self):
+        beneficiaire = Beneficiaire.objects.create(nom_structure="Beneficiaire Nord", region="Nord")
+        prestataire = Prestataire.objects.create(code="P001", raison_sociale="Prestataire Alpha")
+        formation = Formation.objects.create(code="F001", nom="Formation X")
+        Prestation.objects.create(
+            code="PRESTA001",
+            prestataire=prestataire,
+            formation=formation,
+            beneficiaire=beneficiaire,
+            effectif_a_former=20,
+            actif=True,
+        )
+
+        prestation_stats = [
+            {
+                "code": "PRESTA001",
+                "prestataire": "Prestataire Alpha",
+                "beneficiaire": "Beneficiaire Nord",
+                "nb": 10,
+                "avg": 4.0,
+            },
+            {
+                "code": "PRESTA999",
+                "prestataire": "Prestataire Beta",
+                "beneficiaire": "Beneficiaire Nord",
+                "nb": 2,
+                "avg": 5.0,
+            },
+        ]
+
+        with self.assertNumQueries(2):
+            ranking = get_prestations_ranking(prestation_stats, order="desc")
+
+        ranking_by_code = {item["code"]: item for item in ranking}
+        self.assertEqual(ranking_by_code["PRESTA001"]["effectif"], 20)
+        self.assertEqual(ranking_by_code["PRESTA001"]["region"], "Nord")
+        self.assertEqual(ranking_by_code["PRESTA999"]["effectif"], 2)
+        self.assertEqual(ranking_by_code["PRESTA999"]["region"], "Nord")
