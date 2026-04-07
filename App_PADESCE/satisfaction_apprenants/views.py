@@ -1388,8 +1388,9 @@ def _build_appel_status_summary(
         forms_without_audio_filter = form_filter & (_Q(audio_file__isnull=True) | _Q(audio_file=""))
 
         return queryset.aggregate(
+            appels_cibles=_Count("id"),
             appels_tentes=_Count("id", filter=~_Q(status="en_attente")),
-            appels_reussis=_Count("id", filter=~_Q(status__in=["en_attente", "a_rappeler"])),
+            appels_reussis=_Count("id", filter=~_Q(status__in=["en_attente", "a_rappeler", "en_pause", "pause"])),
             formulaires_remplis=_Count("id", filter=form_filter),
             formulaires_remplis_sans_audio=_Count("id", filter=forms_without_audio_filter),
             formulaires_avec_audio=_Count("id", filter=forms_with_audio_filter),
@@ -1402,6 +1403,7 @@ def _build_appel_status_summary(
             DatabaseOperationForbidden = None
         if DatabaseOperationForbidden and isinstance(exc, DatabaseOperationForbidden):
             return {
+                "appels_cibles": 0,
                 "appels_tentes": 0,
                 "appels_reussis": 0,
                 "formulaires_remplis": 0,
@@ -2878,6 +2880,7 @@ def _build_satisfaction_dashboard_data(request):
         target_class_codes=target_class_codes,
         strict_form_q=strict_form_q,
     )
+    context["appels_cibles"] = _appel_stats["appels_cibles"]
     context["appels_tentes"] = _appel_stats["appels_tentes"]
     context["appels_reussis"] = _appel_stats["appels_reussis"]
     context["formulaires_remplis_appels"] = _appel_stats["formulaires_remplis"]
