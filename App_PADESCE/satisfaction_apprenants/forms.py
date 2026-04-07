@@ -258,23 +258,4 @@ class SatisfactionBatchUpdateForm(forms.Form):
         return self._split_segments(self.cleaned_data.get("recommandations_values", ""))
 
     def clean(self):
-        cleaned_data = super().clean()
-        has_change = any(
-            cleaned_data.get(field)
-            for field in (
-                "q1_clarte_exposes",
-                "q2_interaction_formateur",
-                "q3_maitrise_contenu",
-                "q4_salle_adequate",
-                "q5_materiel_disponible",
-                "q6_organisation_temps",
-                "q7_utilite_formation",
-                "q8_adequation_besoins",
-                "q9_satisfaction_globale",
-                "commentaire_values",
-                "recommandations_values",
-            )
-        )
-        if not has_change:
-            raise forms.ValidationError("Indiquez au moins une modification a appliquer.")
-        return cleaned_data
+        return super().clean()

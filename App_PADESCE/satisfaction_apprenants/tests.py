@@ -1195,6 +1195,38 @@ class SatisfactionGeneralPageTests(TestCase):
         self.assertEqual(answers.commentaire, "RAS")
         self.assertFalse(SatisfactionApprenant.objects.filter(appel=self.eligible_appel).exists())
 
+    def test_update_form_page_applies_default_values_when_fields_are_blank(self):
+        response = self.client.post(
+            reverse("satisfaction_update_form_page"),
+            {
+                "classe_code": "CLA001",
+                "codes_text": "[APP100, APP101]",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "2 formulaire(s) mis a jour.")
+
+        answers_one = AppelAnswers.objects.get(appel=self.eligible_appel)
+        answers_two = AppelAnswers.objects.get(appel=self.no_phone_appel)
+        for answer in (answers_one, answers_two):
+            self.assertEqual(answer.q1_clarte_exposes, 3)
+            self.assertEqual(answer.q2_interaction_formateur, 3)
+            self.assertEqual(answer.q3_maitrise_contenu, 3)
+            self.assertEqual(answer.q4_salle_adequate, 3)
+            self.assertEqual(answer.q5_materiel_disponible, 3)
+            self.assertEqual(answer.q6_organisation_temps, 3)
+            self.assertEqual(answer.q7_utilite_formation, 3)
+            self.assertEqual(answer.q8_adequation_besoins, 3)
+            self.assertEqual(answer.q9_satisfaction_globale, 3)
+            self.assertEqual(answer.commentaire, "RAS")
+            self.assertEqual(answer.recommandations, "RAS")
+
+        self.eligible_appel.refresh_from_db()
+        self.no_phone_appel.refresh_from_db()
+        self.assertEqual(self.eligible_appel.status, "formulaire_rempli")
+        self.assertEqual(self.no_phone_appel.status, "formulaire_rempli")
+
 
 class SatisfactionImportExcelSyncTests(TestCase):
     def setUp(self):

@@ -3412,9 +3412,10 @@ def _expand_batch_update_values(
     target_count: int,
     *,
     label: str,
+    default_value=None,
 ) -> list:
     if not values:
-        return [None] * target_count
+        return [default_value] * target_count
     if len(values) == 1:
         return list(values) * target_count
     if len(values) == target_count:
@@ -3439,6 +3440,7 @@ def _build_batch_update_payloads(cleaned_data: dict, target_count: int) -> list[
             cleaned_data.get(field) or [],
             target_count,
             label=field_labels.get(field, field),
+            default_value=3,
         )
         for index, value in enumerate(expanded_values):
             if value is not None:
@@ -3452,6 +3454,7 @@ def _build_batch_update_payloads(cleaned_data: dict, target_count: int) -> list[
             cleaned_data.get(form_field) or [],
             target_count,
             label=field_labels[form_field],
+            default_value="RAS",
         )
         for index, value in enumerate(expanded_values):
             if value is not None:
