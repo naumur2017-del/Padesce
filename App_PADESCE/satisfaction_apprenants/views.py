@@ -25,7 +25,7 @@ from django.core.files.storage import default_storage
 from django.core.paginator import Paginator
 from django.db.models import Count
 from django.http import HttpResponse, JsonResponse, QueryDict
-from django.shortcuts import get_object_or_404, redirect, render
+from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
@@ -640,7 +640,6 @@ def _dashboard_row_from_answer(answer_or_appel) -> dict:
     )
     beneficiaire_obj = getattr(prestation, "beneficiaire", None) if prestation else None
     beneficiaire = getattr(beneficiaire_obj, "nom_structure", "") or appel.beneficiaire or "-"
-    beneficiaire_type = str(getattr(beneficiaire_obj, "type_structure", "") or "").lower()
     ville = getattr(getattr(classe, "lieu", None), "ville", "") or appel.lieu or "Non renseignée"
     fenetre = _analysis_fenetre_for_appel(appel)
 
@@ -804,7 +803,9 @@ def _analysis_fenetre_for_appel(appel: Appel) -> str:
 
 
 def _analysis_class_code_for_appel(appel: Appel) -> str:
-    return str(getattr(getattr(appel, "classe", None), "code", "") or appel.classe_label or "").strip()
+    return str(
+        getattr(getattr(appel, "classe", None), "code", "") or appel.classe_label or ""
+    ).strip()
 
 
 def _analysis_class_count(counts: dict[str, int], classe_code: str) -> int:
@@ -844,8 +845,7 @@ def _local_analysis_class_summary() -> dict[str, dict[str, int | str]]:
 
 def _local_analysis_class_counts() -> dict[str, int]:
     return {
-        key: int(item.get("eligible") or 0)
-        for key, item in _local_analysis_class_summary().items()
+        key: int(item.get("eligible") or 0) for key, item in _local_analysis_class_summary().items()
     }
 
 
@@ -1357,7 +1357,9 @@ def _source_prestation_classes_from_source(
     if not source_classes:
         return {}
 
-    callable_class_counts = _normalize_class_count_map(_source_class_apprenant_counts(source_bundle))
+    callable_class_counts = _normalize_class_count_map(
+        _source_class_apprenant_counts(source_bundle)
+    )
     prestation_classes: dict[str, dict[str, dict]] = {}
     for source_class in source_classes:
         if not _source_class_matches_filters(source_class, filters):
@@ -1422,7 +1424,9 @@ def _is_ras_text(value: str) -> bool:
 def _has_complete_answer_set(answer: AppelAnswers | None) -> bool:
     if not answer:
         return False
-    return all(getattr(answer, field, None) not in (None, "") for field in APPEL_ANSWER_QUESTION_FIELDS)
+    return all(
+        getattr(answer, field, None) not in (None, "") for field in APPEL_ANSWER_QUESTION_FIELDS
+    )
 
 
 def _has_ras_only_form(answer: AppelAnswers | None) -> bool:
@@ -2235,22 +2239,11 @@ def _build_satisfaction_dashboard_data(request):
         _dashboard_row_from_answer(answer) for answer in _satisfaction_dashboard_base_queryset()
     ]
     all_rows = [
-        row
-        for row in all_rows
-        if row["fenetre"] in {"2", "3"} and row.get("analysis_included")
+        row for row in all_rows if row["fenetre"] in {"2", "3"} and row.get("analysis_included")
     ]
 
     classe_apprenant_counts = _local_analysis_class_counts()
-    analysis_scope_filters = {key: "" for key in filters}
-    analysis_scope_filters["source"] = selected_source
-    rows, _filtered_classe_stats = _thresholded_dashboard_rows(
-        all_rows, filters, classe_apprenant_counts
-    )
-    _, classe_stats_all = _thresholded_dashboard_rows(
-        all_rows,
-        analysis_scope_filters,
-        classe_apprenant_counts,
-    )
+    rows, classe_stats_all = _thresholded_dashboard_rows(all_rows, filters, classe_apprenant_counts)
     try:
         source_bundle = build_padesce_source_index(source_key=selected_source)
     except Exception:
@@ -2263,14 +2256,9 @@ def _build_satisfaction_dashboard_data(request):
     rows = _assign_enquete_ids(rows)
     total = len(rows)
     analysis_audio_count = sum(1 for row in rows if row.get("has_audio"))
-    terminated_prestation_codes = _terminated_prestation_codes_from_source(
-        analysis_scope_filters,
-        source_bundle,
-    )
+    terminated_prestation_codes = _terminated_prestation_codes_from_source(filters, source_bundle)
     qualified_prestation_codes = _qualified_prestation_codes_from_source(
-        analysis_scope_filters,
-        classe_stats_all,
-        source_bundle,
+        filters, classe_stats_all, source_bundle
     )
 
     global_bucket = _dashboard_bucket()
@@ -2467,7 +2455,12 @@ def _build_satisfaction_dashboard_data(request):
     )
 
     analyzed_classes = [
-        {"code": item["code"], "label": f"{item['code']} - {item['intitule']}", "nb": item["nb"], "fenetre": item.get("fenetre", "")}
+        {
+            "code": item["code"],
+            "label": f"{item['code']} - {item['intitule']}",
+            "nb": item["nb"],
+            "fenetre": item.get("fenetre", ""),
+        }
         for item in classe_stats_seuil
     ]
     analyzed_prestations = [
@@ -2513,7 +2506,7 @@ def _build_satisfaction_dashboard_data(request):
         qualified_prestation_codes,
         source_bundle,
         classe_stats_all,
-        analysis_scope_filters,
+        filters,
     )
 
     # Build prestataire → classes/beneficiaires mapping for dynamic filters
@@ -2527,25 +2520,20 @@ def _build_satisfaction_dashboard_data(request):
             prestataire_to_classes.setdefault(prest, set()).add(classe)
         if prest and benef:
             prestataire_to_beneficiaires.setdefault(prest, set()).add(benef)
-    filter_map_json = json.dumps({
-        "prestataire_to_classes": {k: sorted(v) for k, v in prestataire_to_classes.items()},
-        "prestataire_to_beneficiaires": {k: sorted(v) for k, v in prestataire_to_beneficiaires.items()},
-    })
+    filter_map_json = json.dumps(
+        {
+            "prestataire_to_classes": {k: sorted(v) for k, v in prestataire_to_classes.items()},
+            "prestataire_to_beneficiaires": {
+                k: sorted(v) for k, v in prestataire_to_beneficiaires.items()
+            },
+        }
+    )
 
     filter_query_string = request.GET.copy().urlencode()
-    analyzed_prestations_count = (
-        int(missing_analysis.get("total_qualified") or 0)
-        if missing_analysis.get("available")
-        else len(analyzed_prestations)
-    )
     analyzed_prestations_total_count = (
-        int(missing_analysis.get("total_source") or 0)
-        if missing_analysis.get("available")
-        else len(analyzed_prestations)
+        len(terminated_prestation_codes) if source_bundle else len(analyzed_prestations)
     )
-    analyzed_prestations_ratio = (
-        f"{analyzed_prestations_count}/{analyzed_prestations_total_count}"
-    )
+    analyzed_prestations_ratio = f"{len(analyzed_prestations)}/{analyzed_prestations_total_count}"
     context = {
         "total": total,
         "global_avgs": global_avgs,
@@ -2573,7 +2561,7 @@ def _build_satisfaction_dashboard_data(request):
         "analyzed_beneficiaires": analyzed_beneficiaires,
         "analyzed_cohortes": analyzed_cohortes,
         "analyzed_classes_count": len(analyzed_classes),
-        "analyzed_prestations_count": analyzed_prestations_count,
+        "analyzed_prestations_count": len(analyzed_prestations),
         "analyzed_prestations_total_count": analyzed_prestations_total_count,
         "analyzed_prestations_ratio": analyzed_prestations_ratio,
         "analyzed_fenetres_count": len(analyzed_fenetres),
@@ -2599,25 +2587,69 @@ def _build_satisfaction_dashboard_data(request):
         "status": filter_options["status"],
         "filter_map_json": filter_map_json,
     }
-    from App_PADESCE.appels.models import Appel as _Appel
-    from django.db.models import Count as _Count, Q as _Q
-    _appel_stats = _Appel.objects.filter(is_active=True).aggregate(
-        # Appels = tous ceux où "Demarrer" a été pressé au moins une fois (status != en_attente)
-        appels_tentes=_Count("id", filter=~_Q(status="en_attente")),
-        # Appels réussis = tous sauf "en_attente" et "a_rappeler"
-        appels_reussis=_Count("id", filter=~_Q(status__in=["en_attente", "a_rappeler"])),
-        # Formulaires remplis = formulaire_rempli OU formulaire_avec_audio
-        formulaires_remplis=_Count("id", filter=_Q(status__in=["formulaire_rempli", "formulaire_avec_audio"])),
-        # Formulaires avec audio = formulaire rempli Q1-Q9 + audio enregistré
-        formulaires_avec_audio=_Count("id", filter=_Q(status="formulaire_avec_audio")),
-        # Audios = présence d'un fichier audio (indépendant du statut)
-        audios_enregistres=_Count("id", filter=_Q(audio_file__isnull=False) & ~_Q(audio_file="")),
-    )
-    context["appels_tentes"] = _appel_stats["appels_tentes"]
-    context["appels_reussis"] = _appel_stats["appels_reussis"]
-    context["formulaires_remplis_appels"] = _appel_stats["formulaires_remplis"]
-    context["formulaires_avec_audio_appels"] = _appel_stats["formulaires_avec_audio"]
-    context["audios_enregistres_appels"] = _appel_stats["audios_enregistres"]
+    from django.db.models import Count as _BannerCount
+    from django.db.models import Q as _BannerQ
+
+    from App_PADESCE.appels.models import Appel as _BannerAppel
+
+    banner_q_fields = [
+        "q1_clarte_exposes",
+        "q2_interaction_formateur",
+        "q3_maitrise_contenu",
+        "q4_salle_adequate",
+        "q5_materiel_disponible",
+        "q6_organisation_temps",
+        "q7_utilite_formation",
+        "q8_adequation_besoins",
+        "q9_satisfaction_globale",
+    ]
+    banner_answers_valid_q = _BannerQ()
+    for field_name in banner_q_fields:
+        banner_answers_valid_q &= _BannerQ(**{f"answers__{field_name}__isnull": False})
+
+    banner_strict_form_q = banner_answers_valid_q | _BannerQ(satisfaction_apprenant__isnull=False)
+    banner_target_class_codes = [
+        str(item.get("code") or "").strip()
+        for item in context.get("classe_stats", [])
+        if str(item.get("code") or "").strip()
+    ]
+    banner_stats = {
+        "appels_tentes": 0,
+        "appels_reussis": 0,
+        "formulaires_remplis": 0,
+        "formulaires_avec_audio": 0,
+        "audios_enregistres": 0,
+    }
+    if banner_target_class_codes:
+        banner_stats = (
+            _BannerAppel.objects.filter(is_active=True)
+            .filter(
+                _BannerQ(classe__code__in=banner_target_class_codes)
+                | _BannerQ(classe_label__in=banner_target_class_codes)
+            )
+            .aggregate(
+                appels_tentes=_BannerCount("id", filter=~_BannerQ(status="en_attente")),
+                appels_reussis=_BannerCount(
+                    "id", filter=~_BannerQ(status__in=["en_attente", "a_rappeler"])
+                ),
+                formulaires_remplis=_BannerCount("id", filter=banner_strict_form_q),
+                formulaires_avec_audio=_BannerCount(
+                    "id",
+                    filter=banner_strict_form_q
+                    & _BannerQ(audio_file__isnull=False)
+                    & ~_BannerQ(audio_file=""),
+                ),
+                audios_enregistres=_BannerCount(
+                    "id",
+                    filter=_BannerQ(audio_file__isnull=False) & ~_BannerQ(audio_file=""),
+                ),
+            )
+        )
+    context["appels_tentes"] = banner_stats["appels_tentes"] or 0
+    context["appels_reussis"] = banner_stats["appels_reussis"] or 0
+    context["formulaires_remplis_appels"] = banner_stats["formulaires_remplis"] or 0
+    context["formulaires_avec_audio_appels"] = banner_stats["formulaires_avec_audio"] or 0
+    context["audios_enregistres_appels"] = banner_stats["audios_enregistres"] or 0
     context["tab_details"] = _build_dashboard_table_details(context, rows)
     return {"rows": rows, "filters": filters, "context": context}
 
@@ -3178,13 +3210,15 @@ def satisfaction_dashboard(request):
 
 
 def _general_analysis_threshold_codes() -> set[str]:
-    rows = [_dashboard_row_from_answer(answer) for answer in _satisfaction_dashboard_base_queryset()]
     rows = [
-        row
-        for row in rows
-        if row.get("fenetre") in {"2", "3"} and row.get("analysis_included")
+        _dashboard_row_from_answer(answer) for answer in _satisfaction_dashboard_base_queryset()
     ]
-    _classe_stats, threshold_codes = _build_threshold_class_stats(rows, _local_analysis_class_counts())
+    rows = [
+        row for row in rows if row.get("fenetre") in {"2", "3"} and row.get("analysis_included")
+    ]
+    _classe_stats, threshold_codes = _build_threshold_class_stats(
+        rows, _local_analysis_class_counts()
+    )
     return {normalize_network_lookup(code) for code in threshold_codes if str(code or "").strip()}
 
 
@@ -3272,9 +3306,7 @@ def satisfaction_general_page(request):
         row["toggle_label"] = (
             "Reintegrer" if row.get("exclude_from_analysis") == "Oui" else "Masquer"
         )
-        row["toggle_action"] = (
-            "include" if row.get("exclude_from_analysis") == "Oui" else "exclude"
-        )
+        row["toggle_action"] = "include" if row.get("exclude_from_analysis") == "Oui" else "exclude"
         rows.append(row)
 
     if search:
@@ -3311,16 +3343,10 @@ def satisfaction_general_page(request):
         "analysis_threshold_label": analysis_threshold_label(),
         "stats": {
             "total": len(rows),
-            "taken_into_account": sum(
-                1 for row in rows if row.get("analysis_taken_into_account")
-            ),
+            "taken_into_account": sum(1 for row in rows if row.get("analysis_taken_into_account")),
             "without_phone": sum(1 for row in rows if not row.get("has_phone")),
-            "all_three": sum(
-                1 for row in rows if row.get("formulaire_all_three") == "Oui"
-            ),
-            "excluded": sum(
-                1 for row in rows if row.get("exclude_from_analysis") == "Oui"
-            ),
+            "all_three": sum(1 for row in rows if row.get("formulaire_all_three") == "Oui"),
+            "excluded": sum(1 for row in rows if row.get("exclude_from_analysis") == "Oui"),
         },
         "current_path": request.get_full_path(),
     }
@@ -3333,9 +3359,7 @@ def satisfaction_general_toggle_exclusion(request):
     next_url = request.POST.get("next") or reverse("satisfaction_general_page")
     requested_action = str(request.POST.get("action") or "").strip().lower()
     appel_ids = [
-        str(value).strip()
-        for value in request.POST.getlist("appel_ids")
-        if str(value).strip()
+        str(value).strip() for value in request.POST.getlist("appel_ids") if str(value).strip()
     ]
     single_appel_id = str(request.POST.get("appel_id") or "").strip()
     if single_appel_id and single_appel_id not in appel_ids:
@@ -3359,10 +3383,7 @@ def satisfaction_general_toggle_exclusion(request):
         explicit_exclusion = None
 
     if explicit_exclusion is None:
-        updated_states = [
-            toggle_appel_manual_exclusion(appel)
-            for appel in appels
-        ]
+        updated_states = [toggle_appel_manual_exclusion(appel) for appel in appels]
         final_excluded = sum(1 for state in updated_states if state)
         final_included = len(updated_states) - final_excluded
         if len(appels) == 1:
@@ -3518,27 +3539,6 @@ def satisfaction_dashboard_export_csv(request):
 _PHONE_RE_IMPORT = re.compile(r"[0-9]{7,}")
 
 
-def _safe_import_appel_code(record: dict) -> str:
-    raw_code = str(record.get("code") or "").strip()
-    max_length = Appel._meta.get_field("code").max_length or 50
-    if len(raw_code) <= max_length:
-        return raw_code
-
-    phone_digits = _normalize_phone(
-        (record.get("telephone1") or record.get("telephone2") or record.get("numero") or "").strip()
-    )
-    row_marker = str(record.get("row_number") or record.get("numero") or "").strip()
-    classe_id = str(record.get("classe_label") or record.get("classe_id") or "").strip()
-    nom = str(record.get("nom") or record.get("nom_individu") or "").strip()
-    seed = "||".join(part for part in [raw_code, phone_digits, row_marker, classe_id, nom] if part)
-    digest = hashlib.sha1(seed.encode("utf-8")).hexdigest()[:20]
-    suffix = phone_digits[-8:] if phone_digits else ""
-    safe_code = f"XL-{digest}"
-    if suffix:
-        safe_code = f"{safe_code}-{suffix}"
-    return safe_code[:max_length]
-
-
 @require_analysis_access
 def apprenants_manquants_page(request):
     """Page dédiée : liste et import des apprenants des prestations manquantes.
@@ -3651,18 +3651,14 @@ def apprenants_manquants_page(request):
                 rec.get("telephone1") or rec.get("telephone2") or rec.get("numero") or ""
             ).strip()
             has_phone = bool(_PHONE_RE_IMPORT.search(numero))
-            classe_id = (
-                rec.get("classe_label") or rec.get("classe_id") or ""
-            ).strip()
+            classe_id = (rec.get("classe_label") or rec.get("classe_id") or "").strip()
 
             row = {
                 "code": code,
                 "nom": (rec.get("nom") or rec.get("nom_individu") or "").strip(),
                 "classe_id": classe_id,
                 "telephone": numero,
-                "prestataire": (
-                    rec.get("prestataire") or p_info.get("prestataire") or ""
-                ).strip(),
+                "prestataire": (rec.get("prestataire") or p_info.get("prestataire") or "").strip(),
                 "beneficiaire": (
                     rec.get("beneficiaire") or p_info.get("beneficiaire") or ""
                 ).strip(),
@@ -3818,8 +3814,9 @@ def import_missing_apprenants(request):
         )
 
     # Pre-fetch existing Appel codes to avoid duplicates
-    existing_codes: set[str] = set(Appel.objects.filter(is_active=True).values_list("code", flat=True))
-    seen_import_codes = set(existing_codes)
+    existing_codes: set[str] = set(
+        Appel.objects.filter(is_active=True).values_list("code", flat=True)
+    )
 
     # Collect importable records: in target prestations, have phone, not already in DB
     # consol_bundle["records"] est une LISTE
@@ -3831,11 +3828,10 @@ def import_missing_apprenants(request):
         numero = (rec.get("telephone1") or rec.get("telephone2") or rec.get("numero") or "").strip()
         if not _PHONE_RE_IMPORT.search(numero):
             continue
-        code = _safe_import_appel_code(rec)
-        if not code or code in seen_import_codes:
+        code = (rec.get("code") or "").strip()
+        if not code or code in existing_codes:
             continue
-        importable.append({**rec, "_import_code": code})
-        seen_import_codes.add(code)
+        importable.append(rec)
 
     # Stable ordering for consistent pagination
     importable.sort(key=lambda r: (r.get("classe_label", ""), r.get("code", "")))
@@ -3864,7 +3860,7 @@ def import_missing_apprenants(request):
     appels_to_create: list = []
 
     for rec in batch:
-        code = rec["_import_code"].strip()
+        code = rec["code"].strip()
         classe_id = (rec.get("classe_label") or rec.get("classe_id") or "").strip()
         local_classe = local_classes_map.get(normalize_network_lookup(classe_id))
 
@@ -3950,17 +3946,15 @@ def sync_phones_from_consolidation(request):
         code = (rec.get("code") or "").strip()
         if not code:
             continue
-        numero = (
-            rec.get("telephone1") or rec.get("telephone2") or rec.get("numero") or ""
-        ).strip()
+        numero = (rec.get("telephone1") or rec.get("telephone2") or rec.get("numero") or "").strip()
         if _PHONE_RE_IMPORT.search(numero):
             consol_phones[code] = numero
 
     # Récupère tous les Appel actifs sans téléphone
     appels_sans_tel = list(
-        Appel.objects.filter(is_active=True).exclude(
-            telephone1__regex=r"[0-9]{7,}"
-        ).only("id", "code", "classe_label", "telephone1")
+        Appel.objects.filter(is_active=True)
+        .exclude(telephone1__regex=r"[0-9]{7,}")
+        .only("id", "code", "classe_label", "telephone1")
     )
 
     updated_count = 0
