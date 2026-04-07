@@ -42,7 +42,7 @@ from App_PADESCE.appels.models import (
     CALL_ANALYSIS_THRESHOLD_STATUSES,
     CALL_FORM_STATUSES,
     CALL_SUCCESS_STATUSES,
-    appel_answers_has_any_answer_q,
+    appel_answers_completed_q,
     appel_has_any_audio,
     appel_has_any_form_data,
     derive_padesce_status,
@@ -3676,7 +3676,23 @@ def _update_form_candidate_base_queryset():
     )
 
 
-def _build_update_form_rows_for_appels(appels: list[Appel]) -> list[dict]:
+def _update_form_complete_record_q() -> Q:
+    return appel_answers_completed_q() | Q(satisfaction_apprenant__isnull=False)
+
+
+def _termine_without_form_queryset():
+    return _update_form_candidate_base_queryset().filter(status="termine").exclude(
+        _update_form_complete_record_q()
+    )
+
+
+def _form_status_issue_queryset():
+    return _update_form_candidate_base_queryset().exclude(status="termine").filter(
+        _update_form_complete_record_q()
+    )
+
+
+def _build_update_form_rows_for_appels(appels) -> list[dict]:
     apprenant_codes = [str(appel.code or "").strip() for appel in appels if str(appel.code or "").strip()]
     apprenants_by_code = {
         str(apprenant.code or "").strip().casefold(): apprenant
@@ -3696,29 +3712,10 @@ def _build_update_form_rows_for_appels(appels: list[Appel]) -> list[dict]:
 
 
 def _build_update_form_candidate_lists() -> tuple[list[dict], list[dict]]:
-    termine_rows = [
-        row
-        for row in _build_update_form_rows_for_appels(
-            list(_update_form_candidate_base_queryset().filter(status="termine"))
-        )
-        if not row["has_complete_form"]
-    ]
-    form_status_rows = [
-        row
-        for row in _build_update_form_rows_for_appels(
-            list(
-                _update_form_candidate_base_queryset()
-                .exclude(status="termine")
-                .filter(
-                    Q(status__in=CALL_FORM_STATUSES)
-                    | appel_answers_has_any_answer_q()
-                    | Q(satisfaction_apprenant__isnull=False)
-                )
-            )
-        )
-        if row["has_complete_form"]
-    ]
-    return termine_rows, form_status_rows
+    return (
+        _build_update_form_rows_for_appels(list(_termine_without_form_queryset())),
+        _build_update_form_rows_for_appels(list(_form_status_issue_queryset())),
+    )
 
 
 def _cached_update_form_candidate_lists() -> tuple[list[dict], list[dict]]:
@@ -3744,6 +3741,18 @@ def _cached_update_form_candidate_lists() -> tuple[list[dict], list[dict]]:
         timeout=ANALYSIS_CACHE_TIMEOUT,
     )
     return termine_without_form_rows, form_status_issue_rows
+
+
+def _paginate_update_form_rows(
+    request,
+    queryset,
+    *,
+    page_param: str,
+    per_page: int = 50,
+):
+    paginator = Paginator(queryset, per_page)
+    page_obj = paginator.get_page(request.GET.get(page_param))
+    return page_obj, _build_update_form_rows_for_appels(list(page_obj.object_list))
 
 
 def _resolve_batch_update_apprenant(appel: Appel) -> Apprenant | None:
@@ -4106,7 +4115,20 @@ def satisfaction_update_form_page(request):
                             f"{summary['error_total']} code(s) n'ont pas pu etre traites.",
                         )
 
-    termine_without_form_rows, form_status_issue_rows = _cached_update_form_candidate_lists()
+    termine_qs = _termine_without_form_queryset()
+    form_status_qs = _form_status_issue_queryset()
+    termine_without_form_total = termine_qs.count()
+    form_status_issue_total = form_status_qs.count()
+    termine_page_obj, termine_without_form_rows = _paginate_update_form_rows(
+        request,
+        termine_qs,
+        page_param="termine_page",
+    )
+    form_status_page_obj, form_status_issue_rows = _paginate_update_form_rows(
+        request,
+        form_status_qs,
+        page_param="status_page",
+    )
 
     context = {
         "form": form,
@@ -4115,8 +4137,12 @@ def satisfaction_update_form_page(request):
         "question_fields": Q_FIELDS,
         "selected_target_values": selected_target_values,
         "termine_without_form_rows": termine_without_form_rows,
+        "termine_without_form_total": termine_without_form_total,
+        "termine_without_form_page_obj": termine_page_obj,
         "form_status_issue_rows": form_status_issue_rows,
-        "candidate_total": len(termine_without_form_rows) + len(form_status_issue_rows),
+        "form_status_issue_total": form_status_issue_total,
+        "form_status_issue_page_obj": form_status_page_obj,
+        "candidate_total": termine_without_form_total + form_status_issue_total,
         "selected_source": selected_source,
         "general_url": f"{reverse('satisfaction_general_page')}?source={selected_source}",
         "dashboard_url": f"{reverse('satisfaction_dashboard')}?source={selected_source}",

@@ -41,6 +41,8 @@
   .checkbox-cell input { width:18px; height:18px; }
   .empty { padding:14px; border:1px dashed var(--border); border-radius:14px; color:var(--muted); background:#fff; }
   .batch-actions { display:flex; gap:10px; flex-wrap:wrap; margin-top:16px; }
+  .pager { display:flex; align-items:center; justify-content:flex-end; gap:8px; flex-wrap:wrap; margin-top:12px; }
+  .pager .meta { color:var(--muted); font-size:0.84rem; }
   @media (max-width: 900px) {
     .header { align-items:stretch; }
     .actions { width:100%; }
@@ -77,11 +79,11 @@
 <section class="stats">
   <article class="card">
     <div class="label">Termine Sans Formulaire</div>
-    <div class="value">{{ termine_without_form_rows|length }}</div>
+    <div class="value">{{ termine_without_form_total }}</div>
   </article>
   <article class="card">
     <div class="label">Formulaire Present / Statut Non Termine</div>
-    <div class="value">{{ form_status_issue_rows|length }}</div>
+    <div class="value">{{ form_status_issue_total }}</div>
   </article>
   <article class="card">
     <div class="label">Cibles Totales Affichees</div>
@@ -243,6 +245,17 @@
             </tbody>
           </table>
         </div>
+        {% if termine_without_form_page_obj.paginator.num_pages > 1 %}
+          <div class="pager">
+            <div class="meta">Page {{ termine_without_form_page_obj.number }} / {{ termine_without_form_page_obj.paginator.num_pages }}</div>
+            {% if termine_without_form_page_obj.has_previous %}
+              <a class="btn btn-ghost" href="?source={{ selected_source }}&termine_page={{ termine_without_form_page_obj.previous_page_number }}&status_page={{ form_status_issue_page_obj.number }}">Precedent</a>
+            {% endif %}
+            {% if termine_without_form_page_obj.has_next %}
+              <a class="btn btn-ghost" href="?source={{ selected_source }}&termine_page={{ termine_without_form_page_obj.next_page_number }}&status_page={{ form_status_issue_page_obj.number }}">Suivant</a>
+            {% endif %}
+          </div>
+        {% endif %}
       {% else %}
         <div class="empty">Aucun apprenant actif avec statut <code>Termine</code> sans formulaire complet.</div>
       {% endif %}
@@ -304,6 +317,17 @@
             </tbody>
           </table>
         </div>
+        {% if form_status_issue_page_obj.paginator.num_pages > 1 %}
+          <div class="pager">
+            <div class="meta">Page {{ form_status_issue_page_obj.number }} / {{ form_status_issue_page_obj.paginator.num_pages }}</div>
+            {% if form_status_issue_page_obj.has_previous %}
+              <a class="btn btn-ghost" href="?source={{ selected_source }}&termine_page={{ termine_without_form_page_obj.number }}&status_page={{ form_status_issue_page_obj.previous_page_number }}">Precedent</a>
+            {% endif %}
+            {% if form_status_issue_page_obj.has_next %}
+              <a class="btn btn-ghost" href="?source={{ selected_source }}&termine_page={{ termine_without_form_page_obj.number }}&status_page={{ form_status_issue_page_obj.next_page_number }}">Suivant</a>
+            {% endif %}
+          </div>
+        {% endif %}
       {% else %}
         <div class="empty">Aucun apprenant actif avec formulaire complet et statut non termine.</div>
       {% endif %}
