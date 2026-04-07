@@ -19,6 +19,7 @@ from App_PADESCE.core.analysis_rules import appel_is_manually_excluded
 from App_PADESCE.formations.models import Beneficiaire, Classe, Formation, Inspecteur, Lieu, Prestataire, Prestation
 from App_PADESCE.satisfaction_apprenants.management.commands.import_satisfaction_excel import _sync_source_models
 from App_PADESCE.satisfaction_apprenants.models import SatisfactionApprenant
+from App_PADESCE.satisfaction_apprenants.services import get_prestations_ranking
 from App_PADESCE.satisfaction_apprenants.views import (
     _analysis_selected_source,
     _attach_network_source_to_rows,
@@ -1587,3 +1588,44 @@ class MissingLearnerImportTests(TestCase):
         self.assertEqual(second_response.status_code, 200)
         self.assertEqual(second_response.json()["imported"], 0)
         self.assertEqual(Appel.objects.count(), 1)
+
+
+class PrestationRankingServiceTests(TestCase):
+    def test_get_prestations_ranking_uses_fixed_query_count(self):
+        beneficiaire = Beneficiaire.objects.create(nom_structure="Beneficiaire Nord", region="Nord")
+        prestataire = Prestataire.objects.create(code="P001", raison_sociale="Prestataire Alpha")
+        formation = Formation.objects.create(code="F001", nom="Formation X")
+        Prestation.objects.create(
+            code="PRESTA001",
+            prestataire=prestataire,
+            formation=formation,
+            beneficiaire=beneficiaire,
+            effectif_a_former=20,
+            actif=True,
+        )
+
+        prestation_stats = [
+            {
+                "code": "PRESTA001",
+                "prestataire": "Prestataire Alpha",
+                "beneficiaire": "Beneficiaire Nord",
+                "nb": 10,
+                "avg": 4.0,
+            },
+            {
+                "code": "PRESTA999",
+                "prestataire": "Prestataire Beta",
+                "beneficiaire": "Beneficiaire Nord",
+                "nb": 2,
+                "avg": 5.0,
+            },
+        ]
+
+        with self.assertNumQueries(2):
+            ranking = get_prestations_ranking(prestation_stats, order="desc")
+
+        ranking_by_code = {item["code"]: item for item in ranking}
+        self.assertEqual(ranking_by_code["PRESTA001"]["effectif"], 20)
+        self.assertEqual(ranking_by_code["PRESTA001"]["region"], "Nord")
+        self.assertEqual(ranking_by_code["PRESTA999"]["effectif"], 2)
+        self.assertEqual(ranking_by_code["PRESTA999"]["region"], "Nord")

@@ -363,210 +363,9 @@ def _to_decimal(value):
         return None
 
 
-def _read_consolidation_sheet(file_obj, max_rows: int | None = 60):
-    wb = load_workbook(file_obj, data_only=True)
-    if "Consolidation" not in wb.sheetnames:
-        raise ValueError("Feuille 'Consolidation' introuvable dans le fichier.")
-    ws = wb["Consolidation"]
-    header = None
-    rows = []
-    for r_idx, row in enumerate(ws.iter_rows(values_only=True)):
-        cells = [_normalize_cell(c) for c in row][:MAX_CONSO_COLS]
-        if header is None:
-            header = cells
-            continue
-        if not any(cells):
-            continue
-        rows.append(cells)
-        if max_rows and len(rows) >= max_rows:
-            break
-    return header or [], rows
-
-
-def _rows_to_records(header, rows):
-    header_norm = [_normalize_header(h) for h in header]
-    
-    # Mapping index → field
-    header_map = {}
-    for idx, h in enumerate(header_norm):
-        field = CONSOLIDATION_HEADER_MAP.get(h)
-        if field:
-            header_map[idx] = field
-    
-    records = []
-    related_payload = []
-    
-    for row in rows:
-        cells = [_normalize_cell(c) for c in row]
-        if not any(cells):
-            continue
-            
-        data = {}
-        for idx, field in header_map.items():
-            if idx < len(cells):
-                data[field] = cells[idx]
-                
-        # Debug rapide (à commenter après test)
-        # if "classe_id" not in data or not data["classe_id"]:
-        #     print("Ligne sans classe_id →", data.get("nom_complet", "inconnu"))
-                
-        records.append(
-            ConsolidationRecord(
-                numero=data.get("numero", ""),
-                nom_complet=data.get("nom_complet", ""),
-                beneficiaire=data.get("beneficiaire", ""),
-                genre=data.get("genre", ""),
-                age=_to_int(data.get("age")),
-                fonction=data.get("fonction", ""),
-                qualification=data.get("qualification", ""),
-                nb_annees_experience=_to_int(data.get("nb_annees_experience")),
-                ville_residence=data.get("ville_residence", ""),
-                prestataire=data.get("prestataire", ""),
-                intitule_formation_solicitee=data.get("intitule_formation_solicitee", ""),
-                intitule_formation_dispensee=data.get("intitule_formation_dispensee", ""),
-                fenetre=data.get("fenetre", ""),
-                ville_formation=data.get("ville_formation", ""),
-                arrondissement=data.get("arrondissement", ""),
-                departement=data.get("departement", ""),
-                region=data.get("region", ""),
-                lieu_formation=data.get("lieu_formation", ""),
-                precision_lieu=data.get("precision_lieu", ""),
-                longitude=data.get("longitude", ""),
-                latitude=data.get("latitude", ""),
-                telephone1=data.get("telephone1", ""),
-                telephone2=data.get("telephone2", ""),
-                cohorte=data.get("cohorte", ""),
-                tel_formateur=data.get("tel_formateur", ""),
-                code=data.get("code", ""),
-                cout_unitaire_subvention=_to_decimal(data.get("cout_unitaire_subvention")),
-                montant_total_subvention=_to_decimal(data.get("montant_total_subvention")),
-                statut_prestation=data.get("statut_prestation", ""),
-            )
-        )
-        related_payload.append(data)
-    
-    return records, related_payload
-
-
 def _extract_unique_classe_ids(payload: list[dict]) -> list[str]:
     classes = {(item.get("classe_id") or "").strip() for item in payload}
     return sorted(code for code in classes if code)
-
-
-def _save_related_from_payload(payload: list[dict]):
-    seen_benef = {}
-    seen_prest = {}
-    seen_form = {}
-    seen_lieu = {}
-    seen_classe = {}
-    created_apprenants = 0
-
-    for item in payload:
-        ben_name = item.get("beneficiaire", "").strip()
-        ben_key = ben_name.lower()
-        prest_name = item.get("prestataire", "").strip()
-        prest_key = prest_name.lower()
-        intitule = item.get("intitule_formation_dispensee") or item.get("intitule_formation_solicitee") or ""
-        intitule_key = intitule.lower()
-        fenetre = item.get("fenetre", "") or ""
-        lieu_nom = item.get("lieu_formation", "").strip()
-        lieu_key = lieu_nom.lower()
-        classe_id = (item.get("classe_id") or "").strip()
-        cohorte_raw = item.get("cohorte", "")
-
-        region = item.get("region", "").strip()
-        departement = item.get("departement", "").strip()
-        arrondissement = item.get("arrondissement", "").strip()
-        ville = item.get("ville_formation", "").strip()
-
-        beneficiaire = seen_benef.get(ben_key) or _ensure_beneficiaire(
-            ben_name, region=region, departement=departement, arrondissement=arrondissement, ville=ville
-        )
-        if beneficiaire:
-            seen_benef[ben_key] = beneficiaire
-
-        prestataire = seen_prest.get(prest_key) or _ensure_prestataire(prest_name)
-        if prestataire:
-            seen_prest[prest_key] = prestataire
-
-        formation = seen_form.get(intitule_key) or _ensure_formation(intitule, fenetre=fenetre)
-        if formation:
-            seen_form[intitule_key] = formation
-
-        lieu = seen_lieu.get(lieu_key) or _ensure_lieu(
-            lieu_nom,
-            region=region,
-            departement=departement,
-            arrondissement=arrondissement,
-            ville=ville,
-            longitude=item.get("longitude", ""),
-            latitude=item.get("latitude", ""),
-            precision=item.get("precision_lieu", ""),
-        )
-        if lieu:
-            seen_lieu[lieu_key] = lieu
-
-        prestation = _ensure_prestation(prestataire, formation, beneficiaire, code_hint=item.get("code", ""))
-        
-        # Clé unique pour la classe : on priorise classe_id si présent
-        classe_key = classe_id.lower() if classe_id else f"{prestation.id if prestation else 'noprest'}-{fenetre}-{cohorte_raw}".lower()
-        
-        classe = seen_classe.get(classe_key)
-        if not classe:
-            classe = _ensure_classe(
-                prestation,
-                formation,
-                fenetre=fenetre,
-                cohorte=cohorte_raw,
-                classe_id=classe_id,
-            )
-            if classe:
-                seen_classe[classe_key] = classe
-
-        if classe and formation:
-            code_appr = (item.get("code") or "").strip()
-            if not code_appr:
-                code_appr = f"AP-{slugify(item.get('nom_complet','')[:12])}-{classe.code[:8]}"
-            tel1 = (item.get("telephone1") or "").strip()
-            tel2 = (item.get("telephone2") or "").strip()
-            defaults = {
-                "nom_complet": item.get("nom_complet", ""),
-                "genre": item.get("genre", ""),
-                "age": _to_int(item.get("age")),
-                "fonction": item.get("fonction", ""),
-                "qualification": item.get("qualification", ""),
-                "nb_annees_experience": _to_int(item.get("nb_annees_experience")) or 0,
-                "fenetre": fenetre,
-                "telephone1": tel1 or None,
-                "telephone2": tel2 or None,
-                "ville_residence": item.get("ville_residence", ""),
-                "region": region,
-                "departement": departement,
-                "arrondissement": arrondissement,
-                "code_ville": item.get("ville_formation", ""),
-                "appartenance_beneficiaire": True,
-            }
-            try:
-                existing = None
-                if tel1:
-                    existing = Apprenant.objects.filter(formation=formation, telephone1=tel1).first()
-                if existing:
-                    for field, val in defaults.items():
-                        setattr(existing, field, val)
-                    existing.classe = classe
-                    existing.formation = formation
-                    existing.save()
-                else:
-                    obj, created = Apprenant.objects.get_or_create(
-                        code=code_appr,
-                        defaults={**defaults, "classe": classe, "formation": formation},
-                    )
-                    if created:
-                        created_apprenants += 1
-            except Exception:
-                continue  # on saute la ligne en cas de conflit unique
-
-    return created_apprenants
 
 
 # Fonction d'analyse des headers (a conserver ou a reactiver pour debug)
@@ -662,6 +461,7 @@ def _save_related_from_payload(payload: list[dict]):
     seen_prest = {}
     seen_form = {}
     seen_lieu = {}
+    seen_prestation = {}
     seen_classe = {}
     created_apprenants = 0
 
@@ -711,7 +511,19 @@ def _save_related_from_payload(payload: list[dict]):
         if lieu:
             seen_lieu[lieu_key] = lieu
 
-        prestation = _ensure_prestation(prestataire, formation, beneficiaire, code_hint=item.get("code", ""))
+        prestation_code_hint = (item.get("code") or "").strip()
+        prestation_identity = (item.get("prestation_id") or "").strip().lower()
+        prestation_key = prestation_identity or f"{prest_key}|{intitule_key}|{ben_key}"
+        prestation = seen_prestation.get(prestation_key)
+        if prestation is None:
+            prestation = _ensure_prestation(
+                prestataire,
+                formation,
+                beneficiaire,
+                code_hint=prestation_code_hint,
+            )
+            if prestation:
+                seen_prestation[prestation_key] = prestation
         classe_key = classe_id_key or f"{prestation.id if prestation else 'noprest'}-{fenetre}-{cohorte_raw}".lower()
         classe = seen_classe.get(classe_key)
         if not classe:
@@ -1632,10 +1444,6 @@ from App_PADESCE.reporting.app_report import (
     parse_report_dates,
     send_report_by_email,
 )
-
-
-def safe_rate(num: float, den: float) -> float:
-    return round((num / den) * 100, 2) if den else 0.0
 
 
 @require_analysis_access
