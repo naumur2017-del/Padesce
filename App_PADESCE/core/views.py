@@ -21,14 +21,13 @@ from django.views.decorators.http import require_GET, require_POST
 
 from App_PADESCE.appels.models import (
     APPEL_ANSWER_QUESTION_FIELDS,
+    CALL_ANALYSIS_THRESHOLD_STATUSES,
+    CALL_SUCCESS_STATUSES,
+    CALL_TENTATIVE_STATUSES,
     Appel,
     AppelAnswers,
     AppelCGA,
     AppelFormateur,
-    CALL_ANALYSIS_THRESHOLD_STATUSES,
-    CALL_COMPLETED_STATUSES,
-    CALL_SUCCESS_STATUSES,
-    CALL_TENTATIVE_STATUSES,
     appel_answers_completed_q,
     appel_answers_modified_completion_q,
     padesce_form_tracking_cutoff,
@@ -1205,7 +1204,7 @@ def consultant_call_detail(request, pk: int):
     )
 
 
-def user_tracking_view(request):
+def _legacy_user_tracking_view(request):
     """Page dédiée au suivi des utilisateurs PADESCE (superuser uniquement)."""
     from django.http import HttpResponseForbidden
 
@@ -1237,15 +1236,6 @@ def user_tracking_view(request):
             en_cours=Count("id", filter=Q(status="en_cours")),
         )
     }
-    push_counts_by_user = _count_audit_events_by_user(
-        model_name="core.git_push_main",
-        event_name="push_main",
-    )
-    deploy_counts_by_user = _count_audit_events_by_user(
-        model_name="core.deployment_run",
-        event_name="deployment_start",
-        expected_extra={"mode": "deploy"},
-    )
     formulaires_remplis_by_user = _group_appel_ids_by_user(
         Appel.objects.filter(is_active=True, locked_by__isnull=False)
         .filter(completed_answers_filter)

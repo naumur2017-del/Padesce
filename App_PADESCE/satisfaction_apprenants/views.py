@@ -27,7 +27,7 @@ from django.core.paginator import Paginator
 from django.db import transaction
 from django.db.models import Count, Q
 from django.http import HttpResponse, JsonResponse, QueryDict
-from django.shortcuts import get_object_or_404, redirect, render
+from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
@@ -36,12 +36,12 @@ from openpyxl.utils import get_column_letter
 
 from App_PADESCE.appels.models import (
     APPEL_ANSWER_QUESTION_FIELDS,
-    Appel,
-    AppelAnswers,
-    AppelFormateur,
     CALL_ANALYSIS_THRESHOLD_STATUSES,
     CALL_FORM_STATUSES,
     CALL_SUCCESS_STATUSES,
+    Appel,
+    AppelAnswers,
+    AppelFormateur,
     appel_answers_completed_q,
     appel_has_any_audio,
     appel_has_any_form_data,
@@ -1376,8 +1376,10 @@ def _build_table_details_context(context: dict, rows: list[dict]) -> dict[str, d
 
 
 def _build_appel_status_summary() -> dict[str, int]:
+    from django.db.models import Count as _Count
+    from django.db.models import Q as _Q
+
     from App_PADESCE.appels.models import Appel as _Appel
-    from django.db.models import Count as _Count, Q as _Q
 
     try:
         return _Appel.objects.filter(is_active=True).aggregate(

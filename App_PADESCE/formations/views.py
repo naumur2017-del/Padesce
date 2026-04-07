@@ -12,22 +12,22 @@ from django.urls import reverse
 from django.views.decorators.http import require_POST
 
 from App_PADESCE.appels.models import (
+    CALL_SUCCESS_STATUSES,
     Appel,
     AppelAnswers,
     AppelFormateur,
-    CALL_SUCCESS_STATUSES,
     is_call_success_status,
 )
 from App_PADESCE.apprenants.models import Apprenant
 from App_PADESCE.core.access import require_analysis_access
 from App_PADESCE.core.analysis_rules import appel_is_analysis_eligible
+from App_PADESCE.environnement.models import EnqueteEnvironnement
 from App_PADESCE.formations.forms import ClasseCreateForm
-from App_PADESCE.formations.models import Classe, Formation, Lieu, Prestation
-from App_PADESCE.reporting.network_excel import build_padesce_source_index, normalize_network_lookup
+from App_PADESCE.formations.models import Classe, Lieu, Prestation
 from App_PADESCE.presences.models import Presence
+from App_PADESCE.reporting.network_excel import build_padesce_source_index, normalize_network_lookup
 from App_PADESCE.satisfaction_apprenants.models import SatisfactionApprenant
 from App_PADESCE.satisfaction_formateurs.models import SatisfactionFormateur
-from App_PADESCE.environnement.models import EnqueteEnvironnement
 
 APPRENANT_DETAIL_FIELDS = (
     ("Clarte des exposes", "q1_clarte_exposes"),
@@ -445,7 +445,10 @@ def _analysis_source_class_links(
 
 
 def _analysis_reference_warning() -> str:
-    return "Fiche reconstituee depuis la source d'analyse car cette reference n'est pas encore synchronisee dans PADESCE."
+    return (
+        "Fiche reconstituee depuis la source d'analyse "
+        "car cette reference n'est pas encore synchronisee dans PADESCE."
+    )
 
 
 def _analysis_source_record_for_appel(source_bundle: dict | None, appel: Appel) -> dict:
@@ -1025,7 +1028,10 @@ def class_analysis_detail(request, code: str):
             "active_tab": active_tab,
             "class_links": [],
             "class_chapeau": class_chapeau,
-            "matching_note": "Rattachement formateurs via prestataire, beneficiaire, cohorte et formation.",
+            "matching_note": (
+                "Rattachement formateurs via prestataire, "
+                "beneficiaire, cohorte et formation."
+            ),
             "prestation_detail_url": prestation_detail_url,
             "reference_warning": reference_warning,
         },

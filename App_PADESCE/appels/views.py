@@ -50,9 +50,9 @@ from App_PADESCE.core.call_metrics import (
 )
 from App_PADESCE.formations.models import Classe
 from App_PADESCE.reporting.network_excel import build_padesce_source_index, normalize_network_lookup
+from App_PADESCE.satisfaction_apprenants.models import SatisfactionApprenant
 
 logger = logging.getLogger(__name__)
-from App_PADESCE.satisfaction_apprenants.models import SatisfactionApprenant
 
 ANALYSIS_CACHE_TIMEOUT = int(str(os.getenv("PADESCE_ANALYSIS_CACHE_TIMEOUT", "300") or "300"))
 
@@ -423,7 +423,9 @@ def _build_progress_metrics(queryset):
                 f"Seuil de {threshold_label} atteint. Vous pouvez passer a autre chose."
                 if threshold_reached
                 else (
-                    f"Encore {max(threshold_target - termines, 0)} formulaire(s) pour atteindre {threshold_label}."
+                    "Encore "
+                    f"{max(threshold_target - termines, 0)} formulaire(s) pour atteindre "
+                    f"{threshold_label}."
                     if total
                     else "Aucun appel dans ce filtre."
                 )
@@ -893,7 +895,10 @@ def _build_appel_class_progress_snapshot(source_bundle: dict | None = None) -> d
                 remaining_to_target = int(progress.get("remaining_to_target") or 0)
                 quick_finish = remaining_count == 1 and reached_count > 0
                 if quick_finish and prestation_finished:
-                    reason = "Derniere classe joignable a finaliser pour cloturer cette prestation dans l'analyse."
+                    reason = (
+                        "Derniere classe joignable a finaliser pour cloturer "
+                        "cette prestation dans l'analyse."
+                    )
                     priority_label = "Prestation a finir"
                 elif remaining_to_target <= 1 and duplicate_phone_total == 0:
                     reason = "Un dernier appel joignable peut suffire, sans numero duplique."
@@ -1355,7 +1360,8 @@ def appels_index(request):
             messages.success(
                 request,
                 (
-                    f"Fichier importe. {created} nouveau(x) appel(s), {updated} appel(s) mis a jour. "
+                    f"Fichier importe. {created} nouveau(x) appel(s), "
+                    f"{updated} appel(s) mis a jour. "
                     f"Affichage remplace. {deduped} doublon(s) desactive(s)."
                 ),
             )
@@ -1409,7 +1415,9 @@ def appels_index(request):
                 updated += 1
             messages.success(
                 request,
-                f"Fichier importe. {updated} appel(s) mis a jour avec le type de formation et la formation Padesce.",
+                "Fichier importe. "
+                f"{updated} appel(s) mis a jour avec le type de formation "
+                "et la formation Padesce.",
             )
         return redirect(request.path_info)
 
@@ -1622,7 +1630,9 @@ def _handle_lock_conflict(instance, current_user, action):
         remaining_secs = max(1, int(90 - age.total_seconds()))
         return (
             False,
-            f"Appel actif. Veuillez essayer dans {remaining_secs}s ou contacter l'agent: {instance.locked_by.username or 'N/A'}",
+            "Appel actif. "
+            f"Veuillez essayer dans {remaining_secs}s ou contacter l'agent: "
+            f"{instance.locked_by.username or 'N/A'}",
         )
 
     # No lock timestamp - allow
@@ -1662,9 +1672,6 @@ def appel_action(request, pk: int):
     deja_forme_flag = _parse_bool_flag(request.POST.get("deja_forme"))
 
     now = timezone.now()
-    satisfaction_saved = False
-    satisfaction_message = ""
-
     if action == "start":
         appel.status = "en_cours"
         appel.locked_by = request.user
@@ -1922,7 +1929,8 @@ def appel_upload_audio(request, pk: int):
 def _auto_process_satisfaction_from_appel(appel: Appel, user, manual_data: dict = None) -> dict:
     """
     Enregistrer les réponses au questionnaire de satisfaction de l'apprenant.
-    Priorité: rattacher d'abord les réponses à la ligne d'appel, puis compléter la fiche de satisfaction.
+    Priorité: rattacher d'abord les réponses à la ligne d'appel,
+    puis compléter la fiche de satisfaction.
     """
     if manual_data is None:
         manual_data = {}
@@ -2077,20 +2085,6 @@ def deduplicate_all_call_tables(request):
         ),
     )
     return redirect(request.META.get("HTTP_REFERER") or "/dashboard/")
-
-
-@login_required
-@require_POST
-def appel_transcription_detail(request, pk: int):
-    appel = get_object_or_404(Appel, pk=pk)
-    try:
-        obj, generated = _ensure_appel_transcription(appel)
-        return JsonResponse(
-            {"ok": True, "generated": generated, "transcription": _transcription_to_payload(obj)}
-        )
-    except Exception as exc:
-        return JsonResponse({"ok": False, "error": str(exc)}, status=400)
-
 
 @login_required
 def appel_answers_detail(request, pk: int):

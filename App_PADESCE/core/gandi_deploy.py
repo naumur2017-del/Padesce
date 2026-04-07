@@ -915,7 +915,8 @@ def request_python_refresh(
     except Exception as exc:
         result["reload_error"] = str(exc)
         result["message"] = (
-            "Le deploiement a ete transfere, mais le rechargement Python n'a pas pu etre demande automatiquement."
+            "Le deploiement a ete transfere, "
+            "mais le rechargement Python n'a pas pu etre demande automatiquement."
         )
     return result
 
@@ -934,7 +935,8 @@ def confirm_python_refresh(
     if not refresh_request.get("required", True):
         refresh_request["reloaded"] = True
         refresh_request["message"] = (
-            "Aucun fichier Python ou template n'a change, le rechargement du serveur n'etait pas necessaire."
+            "Aucun fichier Python ou template n'a change, "
+            "le rechargement du serveur n'etait pas necessaire."
         )
         return refresh_request
 
@@ -989,14 +991,20 @@ def confirm_python_refresh(
                         "attempts": attempts,
                         "app_booted_at": str(app_booted_at or ""),
                         "process_id": payload.get("process_id"),
-                        "message": "Le serveur Python a confirme son rechargement apres le deploiement.",
+                        "message": (
+                            "Le serveur Python a confirme son rechargement "
+                            "apres le deploiement."
+                        ),
                         "uwsgi_log_tail": read_remote_text_tail(sftp, REMOTE_UWSGI_LOG_PATH),
                     }
                 )
                 return refresh_request
             if marker_seen:
                 refresh_request["marker_seen"] = True
-            last_message = "La page de controle est joignable, mais le process Python n'a pas encore annonce son nouveau demarrage."
+            last_message = (
+                "La page de controle est joignable, "
+                "mais le process Python n'a pas encore annonce son nouveau demarrage."
+            )
         time.sleep(LIVE_REFRESH_POLL_INTERVAL_SECONDS)
 
     refresh_request.update(
@@ -1538,7 +1546,8 @@ def run_deployment(*, run_id: str, mode: str = "deploy") -> dict[str, Any]:
                 refreshed_transfer_paths.append(relative)
         if refreshed_transfer_paths:
             state.log(
-                f"{len(refreshed_transfer_paths)} fichier(s) ont change localement pendant l'analyse. "
+                f"{len(refreshed_transfer_paths)} fichier(s) ont change localement "
+                "pendant l'analyse. "
                 "Le snapshot de transfert a ete mis a jour juste avant l'envoi.",
                 level="warning",
             )
@@ -1674,7 +1683,10 @@ def run_deployment(*, run_id: str, mode: str = "deploy") -> dict[str, Any]:
             live_refresh = {
                 "required": False,
                 "reloaded": True,
-                "message": "Aucun fichier Python ou template n'a change, le rechargement du serveur n'etait pas necessaire.",
+                "message": (
+                    "Aucun fichier Python ou template n'a change, "
+                    "le rechargement du serveur n'etait pas necessaire."
+                ),
                 "deployment_page_url": deployment_page_url(config.verify_url),
                 "live_status_url": live_status_check_url(config.verify_url),
                 "site_url": base_site_url(config.verify_url),
