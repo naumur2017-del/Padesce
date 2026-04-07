@@ -23,6 +23,7 @@ from django.contrib import messages
 from django.core.exceptions import ObjectDoesNotExist
 from django.core.files.storage import default_storage
 from django.core.paginator import Paginator
+from django.db import transaction
 from django.db.models import Count
 from django.http import HttpResponse, JsonResponse, QueryDict
 from django.shortcuts import get_object_or_404, redirect, render
@@ -40,6 +41,7 @@ from App_PADESCE.appels.models import (
     CALL_ANALYSIS_THRESHOLD_STATUSES,
     CALL_FORM_STATUSES,
     CALL_SUCCESS_STATUSES,
+    sync_padesce_status,
 )
 from App_PADESCE.apprenants.models import Apprenant
 from App_PADESCE.core.access import require_analysis_access
@@ -68,7 +70,10 @@ from App_PADESCE.reporting.network_excel import (
     normalize_network_lookup,
     normalize_workbook_source_key,
 )
-from App_PADESCE.satisfaction_apprenants.forms import SatisfactionApprenantForm
+from App_PADESCE.satisfaction_apprenants.forms import (
+    SatisfactionApprenantForm,
+    SatisfactionBatchUpdateForm,
+)
 from App_PADESCE.satisfaction_apprenants.models import SatisfactionApprenant
 from App_PADESCE.satisfaction_apprenants.rag import answer_dashboard_prompt
 from App_PADESCE.satisfaction_apprenants.services import get_prestations_ranking
@@ -3364,6 +3369,358 @@ def _general_analysis_search_matches(row: dict, query: str) -> bool:
         ]
     ).casefold()
     return query.casefold() in haystack
+
+
+def _normalize_batch_update_container(raw_value: str) -> str:
+    text = str(raw_value or "").strip()
+    if text.startswith("[") and text.endswith("]"):
+        return text[1:-1].strip()
+    return text
+
+
+def _parse_batch_update_targets(raw_codes: str, default_class_code: str = "") -> list[dict[str, str]]:
+    normalized_default = str(default_class_code or "").strip()
+    parsed_targets: list[dict[str, str]] = []
+    seen_codes: set[str] = set()
+    for block in re.split(r"[\r\n;]+", _normalize_batch_update_container(raw_codes)):
+        block = _normalize_batch_update_container(block)
+        if not block:
+            continue
+        for token in [item.strip() for item in re.split(r"[\s,]+", block) if item.strip()]:
+            code = token
+            requested_class_code = normalized_default
+            if "|" in token:
+                code, requested_class_code = [part.strip() for part in token.split("|", 1)]
+                requested_class_code = requested_class_code or normalized_default
+            if not code:
+                continue
+            code_key = code.casefold()
+            if code_key in seen_codes:
+                continue
+            seen_codes.add(code_key)
+            parsed_targets.append(
+                {
+                    "code": code,
+                    "requested_class_code": requested_class_code,
+                }
+            )
+    return parsed_targets
+
+
+def _expand_batch_update_values(
+    values: list,
+    target_count: int,
+    *,
+    label: str,
+) -> list:
+    if not values:
+        return [None] * target_count
+    if len(values) == 1:
+        return list(values) * target_count
+    if len(values) == target_count:
+        return list(values)
+    raise ValueError(
+        f"{label}: fournissez une seule valeur ou exactement {target_count} valeurs."
+    )
+
+
+def _build_batch_update_payloads(cleaned_data: dict, target_count: int) -> list[dict]:
+    payloads = [{} for _ in range(target_count)]
+    field_labels = {field: label for field, label in Q_FIELDS}
+    field_labels.update(
+        {
+            "commentaire_values": "Commentaire general",
+            "recommandations_values": "Recommandations",
+        }
+    )
+
+    for field in APPEL_ANSWER_QUESTION_FIELDS:
+        expanded_values = _expand_batch_update_values(
+            cleaned_data.get(field) or [],
+            target_count,
+            label=field_labels.get(field, field),
+        )
+        for index, value in enumerate(expanded_values):
+            if value is not None:
+                payloads[index][field] = value
+
+    for form_field, payload_field in (
+        ("commentaire_values", "commentaire"),
+        ("recommandations_values", "recommandations"),
+    ):
+        expanded_values = _expand_batch_update_values(
+            cleaned_data.get(form_field) or [],
+            target_count,
+            label=field_labels[form_field],
+        )
+        for index, value in enumerate(expanded_values):
+            if value is not None:
+                payloads[index][payload_field] = value
+
+    return payloads
+
+
+def _linked_one_to_one(instance, attr_name: str):
+    try:
+        return getattr(instance, attr_name)
+    except ObjectDoesNotExist:
+        return None
+
+
+def _batch_update_answer_summary(answer: AppelAnswers | None) -> str:
+    if not answer:
+        return "-"
+    return " / ".join(str(getattr(answer, field, None) or "-") for field in APPEL_ANSWER_QUESTION_FIELDS)
+
+
+def _resolve_batch_update_apprenant(appel: Appel) -> Apprenant | None:
+    apprenant = (
+        Apprenant.objects.select_related("classe", "formation")
+        .filter(code__iexact=str(appel.code or "").strip())
+        .first()
+    )
+    if apprenant:
+        return apprenant
+    from App_PADESCE.appels.views import _find_apprenant_for_appel
+
+    return _find_apprenant_for_appel(
+        Apprenant.objects.select_related("classe", "formation"),
+        appel,
+    )
+
+
+def _batch_update_known_class_codes(appel: Appel, apprenant: Apprenant | None) -> list[str]:
+    known_codes: list[str] = []
+    seen_codes: set[str] = set()
+    raw_candidates = [
+        getattr(getattr(appel, "classe", None), "code", ""),
+        getattr(appel, "classe_label", ""),
+        getattr(getattr(apprenant, "classe", None), "code", ""),
+        str((getattr(appel, "snapshot", {}) or {}).get("classe_id") or ""),
+    ]
+    for raw_value in raw_candidates:
+        code = str(raw_value or "").strip()
+        code_key = code.casefold()
+        if not code or code_key in seen_codes:
+            continue
+        seen_codes.add(code_key)
+        known_codes.append(code)
+    return known_codes
+
+
+def _resolve_batch_update_class(
+    appel: Appel,
+    apprenant: Apprenant | None,
+    requested_class_code: str,
+) -> tuple[Classe | None, str]:
+    requested_code = str(requested_class_code or "").strip()
+    known_codes = _batch_update_known_class_codes(appel, apprenant)
+    known_code_keys = {code.casefold() for code in known_codes}
+    if requested_code and known_code_keys and requested_code.casefold() not in known_code_keys:
+        raise ValueError(
+            f"Classe attendue {requested_code} differente de la classe trouvee {known_codes[0]}."
+        )
+
+    resolved_class = appel.classe or getattr(apprenant, "classe", None)
+    lookup_code = requested_code or (known_codes[0] if known_codes else "")
+    if not resolved_class and lookup_code:
+        resolved_class = Classe.objects.filter(code__iexact=lookup_code).first()
+
+    effective_code = requested_code or getattr(resolved_class, "code", "") or (
+        known_codes[0] if known_codes else ""
+    )
+    return resolved_class, effective_code
+
+
+def _sync_batch_update_appel_class(
+    appel: Appel,
+    resolved_class: Classe | None,
+    effective_class_code: str,
+) -> None:
+    update_fields: list[str] = []
+    normalized_code = str(effective_class_code or "").strip()
+    if resolved_class and appel.classe_id != resolved_class.pk:
+        appel.classe = resolved_class
+        update_fields.append("classe")
+    if normalized_code and appel.classe_label != normalized_code:
+        appel.classe_label = normalized_code
+        update_fields.append("classe_label")
+    if update_fields:
+        appel.save(update_fields=[*update_fields, "updated_at"])
+
+
+def _upsert_batch_update_satisfaction(
+    appel: Appel,
+    answers: AppelAnswers,
+    apprenant: Apprenant | None,
+    classe: Classe | None,
+    user,
+) -> SatisfactionApprenant | None:
+    if not _has_complete_answer_set(answers):
+        return None
+
+    now = timezone.localtime()
+    survey = _linked_one_to_one(appel, "satisfaction_apprenant")
+    if survey is None:
+        survey = SatisfactionApprenant(
+            appel=appel,
+            date=now.date(),
+            heure=now.time().replace(microsecond=0),
+        )
+
+    if classe is not None:
+        survey.classe = classe
+    elif survey.classe_id is None and apprenant and apprenant.classe_id:
+        survey.classe = apprenant.classe
+
+    if apprenant is not None:
+        survey.apprenant = apprenant
+
+    if getattr(user, "is_authenticated", False):
+        survey.enqueteur = user
+
+    if not survey.date:
+        survey.date = now.date()
+    if not survey.heure:
+        survey.heure = now.time().replace(microsecond=0)
+
+    for field in APPEL_ANSWER_QUESTION_FIELDS:
+        setattr(survey, field, getattr(answers, field))
+    survey.commentaire = answers.commentaire or ""
+    survey.recommandations = answers.recommandations or ""
+    survey.save()
+    return survey
+
+
+def _apply_batch_update_target(target: dict[str, str], payload: dict, user) -> dict:
+    requested_code = target["code"]
+    requested_class_code = str(target.get("requested_class_code") or "").strip()
+    result = {
+        "code": requested_code,
+        "requested_class_code": requested_class_code or "-",
+        "resolved_class_code": "-",
+        "nom": "-",
+        "before_status": "-",
+        "after_status": "-",
+        "before_answers": "-",
+        "after_answers": "-",
+        "commentaire": payload.get("commentaire", "-") or "-",
+        "recommandations": payload.get("recommandations", "-") or "-",
+        "message": "",
+        "ok": False,
+        "survey_synced": False,
+    }
+
+    appel = Appel.objects.filter(is_active=True, code__iexact=requested_code).select_related("classe").first()
+    if appel is None:
+        result["message"] = "Code apprenant introuvable."
+        return result
+
+    result["nom"] = appel.nom or "-"
+    result["before_status"] = appel.get_status_display()
+    before_answers = _linked_one_to_one(appel, "answers")
+    result["before_answers"] = _batch_update_answer_summary(before_answers)
+
+    try:
+        with transaction.atomic():
+            apprenant = _resolve_batch_update_apprenant(appel)
+            resolved_class, effective_class_code = _resolve_batch_update_class(
+                appel,
+                apprenant,
+                requested_class_code,
+            )
+            _sync_batch_update_appel_class(appel, resolved_class, effective_class_code)
+
+            from App_PADESCE.appels.views import _save_appel_answers
+
+            answers = _save_appel_answers(appel, user, payload, apply_defaults=False)
+            survey = _upsert_batch_update_satisfaction(
+                appel,
+                answers,
+                apprenant,
+                resolved_class,
+                user,
+            )
+            sync_padesce_status(appel)
+
+        result["resolved_class_code"] = effective_class_code or "-"
+        result["after_status"] = appel.get_status_display()
+        result["after_answers"] = _batch_update_answer_summary(answers)
+        result["commentaire"] = answers.commentaire or "-"
+        result["recommandations"] = answers.recommandations or "-"
+        result["survey_synced"] = survey is not None
+        result["message"] = (
+            "Formulaire mis a jour et fiche satisfaction synchronisee."
+            if survey is not None
+            else "Mise a jour enregistree. Fiche satisfaction non synchronisee."
+        )
+        result["ok"] = True
+        return result
+    except ValueError as exc:
+        result["message"] = str(exc)
+        return result
+
+
+@require_analysis_access
+def satisfaction_update_form_page(request):
+    selected_source = _analysis_selected_source(request)
+    initial = {
+        "classe_code": str(request.GET.get("classe_code", "") or "").strip(),
+        "codes_text": str(request.GET.get("codes", "") or "").strip(),
+    }
+    form = SatisfactionBatchUpdateForm(request.POST or None, initial=initial)
+    results: list[dict] = []
+    summary = {
+        "requested_total": 0,
+        "updated_total": 0,
+        "error_total": 0,
+        "synced_total": 0,
+    }
+
+    if request.method == "POST" and form.is_valid():
+        targets = _parse_batch_update_targets(
+            form.cleaned_data["codes_text"],
+            form.cleaned_data.get("classe_code", ""),
+        )
+        if not targets:
+            form.add_error("codes_text", "Ajoutez au moins un code apprenant valide.")
+        else:
+            try:
+                payloads = _build_batch_update_payloads(form.cleaned_data, len(targets))
+            except ValueError as exc:
+                form.add_error(None, str(exc))
+            else:
+                results = [
+                    _apply_batch_update_target(target, payload, request.user)
+                    for target, payload in zip(targets, payloads)
+                ]
+                summary = {
+                    "requested_total": len(results),
+                    "updated_total": sum(1 for item in results if item["ok"]),
+                    "error_total": sum(1 for item in results if not item["ok"]),
+                    "synced_total": sum(1 for item in results if item["survey_synced"]),
+                }
+                if summary["updated_total"]:
+                    messages.success(
+                        request,
+                        f"{summary['updated_total']} formulaire(s) mis a jour.",
+                    )
+                if summary["error_total"]:
+                    messages.warning(
+                        request,
+                        f"{summary['error_total']} code(s) n'ont pas pu etre traites.",
+                    )
+
+    context = {
+        "form": form,
+        "results": results,
+        "summary": summary,
+        "question_fields": Q_FIELDS,
+        "selected_source": selected_source,
+        "general_url": f"{reverse('satisfaction_general_page')}?source={selected_source}",
+        "dashboard_url": f"{reverse('satisfaction_dashboard')}?source={selected_source}",
+    }
+    return render(request, "satisfaction_apprenants/update_form.html", context)
 
 
 @require_analysis_access

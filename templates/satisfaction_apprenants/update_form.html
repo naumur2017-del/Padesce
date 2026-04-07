@@ -1,0 +1,248 @@
+{% extends "base.html" %}
+{% block title %}UPDATE FORM{% endblock %}
+{% block content %}
+<style>
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 16px; padding: 18px; box-shadow: var(--shadow); margin-bottom: 16px; }
+  .header { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap; margin-bottom:16px; }
+  .header h1 { margin:0 0 6px; color:var(--accent-strong); }
+  .header p { margin:0; color:var(--muted); max-width:760px; }
+  .actions { display:flex; gap:8px; flex-wrap:wrap; }
+  .btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; padding:10px 14px; border-radius:12px; font-weight:700; border:1px solid transparent; cursor:pointer; text-decoration:none; }
+  .btn-primary { background:var(--accent); color:#fff; }
+  .btn-ghost { background:#fff; color:var(--accent-strong); border-color:var(--border); }
+  .grid { display:grid; gap:12px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+  .field { display:flex; flex-direction:column; gap:6px; }
+  .field label { font-size:0.84rem; font-weight:700; color:var(--muted); }
+  .field input, .field textarea { width:100%; padding:10px 12px; border-radius:12px; border:1px solid var(--border); background:#fff; color:var(--text); box-sizing:border-box; font:inherit; }
+  .field small { color:var(--muted); line-height:1.45; }
+  .help-list { margin:0; padding-left:18px; color:var(--text); line-height:1.55; }
+  .error-list { margin:0 0 12px; padding-left:18px; color:#991b1b; }
+  .stats { display:grid; gap:12px; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); margin-bottom:16px; }
+  .card { border:1px solid var(--border); border-radius:14px; background:#fff; padding:14px; box-shadow:var(--shadow); }
+  .card .label { color:var(--muted); font-size:0.82rem; text-transform:uppercase; letter-spacing:.04em; }
+  .card .value { margin-top:8px; font-size:1.6rem; font-weight:800; color:var(--accent-strong); }
+  .table-wrap { overflow:auto; border-radius:14px; border:1px solid var(--border); }
+  table { width:100%; border-collapse:collapse; min-width:1180px; }
+  th, td { padding:10px; border:1px solid var(--border); text-align:left; vertical-align:top; }
+  thead { background:rgba(111,60,195,0.06); }
+  th { color:var(--accent-strong); font-size:0.78rem; text-transform:uppercase; letter-spacing:.04em; }
+  .pill { display:inline-flex; align-items:center; padding:5px 10px; border-radius:999px; font-size:0.78rem; font-weight:700; border:1px solid var(--border); }
+  .pill-ok { background:rgba(34,197,94,0.14); color:#166534; border-color:rgba(34,197,94,0.24); }
+  .pill-no { background:rgba(239,68,68,0.12); color:#991b1b; border-color:rgba(239,68,68,0.22); }
+  .muted { color:var(--muted); font-size:0.84rem; }
+  .full-width { grid-column:1 / -1; }
+  @media (max-width: 900px) {
+    .header { align-items:stretch; }
+    .actions { width:100%; }
+  }
+</style>
+
+<div class="header">
+  <div>
+    <h1>UPDATE FORM</h1>
+    <p>Edition batch des formulaires apprenants a partir du code. Les valeurs sont appliquees explicitement dans l'ordre des codes saisis. Aucune generation aleatoire n'est utilisee.</p>
+  </div>
+  <div class="actions">
+    <a class="btn btn-ghost" href="{{ dashboard_url }}">Retour dashboard</a>
+    <a class="btn btn-ghost" href="{{ general_url }}">Retour general</a>
+  </div>
+</div>
+
+<section class="panel">
+  <div class="header" style="margin-bottom:12px;">
+    <div>
+      <h1 style="font-size:1.02rem; margin-bottom:4px;">Mode d'emploi</h1>
+      <p>Une valeur unique s'applique a tous les codes. Une liste entre crochets doit suivre le meme ordre que les codes saisis.</p>
+    </div>
+  </div>
+  <ul class="help-list">
+    <li>Codes accepts: <code>[APP100, APP101]</code>, <code>APP100</code>, ou <code>APP100|CLA001</code>.</li>
+    <li>Notes: <code>4</code> pour tous, ou <code>[4,5]</code> pour appliquer une note par code dans l'ordre.</li>
+    <li>Commentaires et recommandations: texte simple ou liste ordonnee comme <code>[RAS, Besoin de suivi]</code>.</li>
+  </ul>
+</section>
+
+<section class="panel">
+  {% if form.non_field_errors %}
+    <ul class="error-list">
+      {% for error in form.non_field_errors %}
+        <li>{{ error }}</li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+  {% for field in form %}
+    {% if field.name != "codes_text" and field.name != "classe_code" and field.errors %}
+      <ul class="error-list">
+        {% for error in field.errors %}
+          <li>{{ field.label }}: {{ error }}</li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+  {% endfor %}
+  <form method="post">
+    {% csrf_token %}
+    <div class="grid">
+      <div class="field full-width">
+        <label for="{{ form.codes_text.id_for_label }}">{{ form.codes_text.label }}</label>
+        {{ form.codes_text }}
+        {% if form.codes_text.errors %}
+          <ul class="error-list">
+            {% for error in form.codes_text.errors %}
+              <li>{{ error }}</li>
+            {% endfor %}
+          </ul>
+        {% endif %}
+        <small>{{ form.codes_text.help_text }}</small>
+      </div>
+
+      <div class="field">
+        <label for="{{ form.classe_code.id_for_label }}">{{ form.classe_code.label }}</label>
+        {{ form.classe_code }}
+        {% if form.classe_code.errors %}
+          <ul class="error-list">
+            {% for error in form.classe_code.errors %}
+              <li>{{ error }}</li>
+            {% endfor %}
+          </ul>
+        {% endif %}
+        <small>{{ form.classe_code.help_text }}</small>
+      </div>
+
+      <div class="field">
+        <label for="{{ form.q1_clarte_exposes.id_for_label }}">{{ form.q1_clarte_exposes.label }}</label>
+        {{ form.q1_clarte_exposes }}
+        <small>{{ form.q1_clarte_exposes.help_text }}</small>
+      </div>
+      <div class="field">
+        <label for="{{ form.q2_interaction_formateur.id_for_label }}">{{ form.q2_interaction_formateur.label }}</label>
+        {{ form.q2_interaction_formateur }}
+        <small>{{ form.q2_interaction_formateur.help_text }}</small>
+      </div>
+      <div class="field">
+        <label for="{{ form.q3_maitrise_contenu.id_for_label }}">{{ form.q3_maitrise_contenu.label }}</label>
+        {{ form.q3_maitrise_contenu }}
+        <small>{{ form.q3_maitrise_contenu.help_text }}</small>
+      </div>
+      <div class="field">
+        <label for="{{ form.q4_salle_adequate.id_for_label }}">{{ form.q4_salle_adequate.label }}</label>
+        {{ form.q4_salle_adequate }}
+        <small>{{ form.q4_salle_adequate.help_text }}</small>
+      </div>
+      <div class="field">
+        <label for="{{ form.q5_materiel_disponible.id_for_label }}">{{ form.q5_materiel_disponible.label }}</label>
+        {{ form.q5_materiel_disponible }}
+        <small>{{ form.q5_materiel_disponible.help_text }}</small>
+      </div>
+      <div class="field">
+        <label for="{{ form.q6_organisation_temps.id_for_label }}">{{ form.q6_organisation_temps.label }}</label>
+        {{ form.q6_organisation_temps }}
+        <small>{{ form.q6_organisation_temps.help_text }}</small>
+      </div>
+      <div class="field">
+        <label for="{{ form.q7_utilite_formation.id_for_label }}">{{ form.q7_utilite_formation.label }}</label>
+        {{ form.q7_utilite_formation }}
+        <small>{{ form.q7_utilite_formation.help_text }}</small>
+      </div>
+      <div class="field">
+        <label for="{{ form.q8_adequation_besoins.id_for_label }}">{{ form.q8_adequation_besoins.label }}</label>
+        {{ form.q8_adequation_besoins }}
+        <small>{{ form.q8_adequation_besoins.help_text }}</small>
+      </div>
+      <div class="field">
+        <label for="{{ form.q9_satisfaction_globale.id_for_label }}">{{ form.q9_satisfaction_globale.label }}</label>
+        {{ form.q9_satisfaction_globale }}
+        <small>{{ form.q9_satisfaction_globale.help_text }}</small>
+      </div>
+
+      <div class="field full-width">
+        <label for="{{ form.commentaire_values.id_for_label }}">{{ form.commentaire_values.label }}</label>
+        {{ form.commentaire_values }}
+        <small>{{ form.commentaire_values.help_text }}</small>
+      </div>
+      <div class="field full-width">
+        <label for="{{ form.recommandations_values.id_for_label }}">{{ form.recommandations_values.label }}</label>
+        {{ form.recommandations_values }}
+        <small>{{ form.recommandations_values.help_text }}</small>
+      </div>
+    </div>
+
+    <div class="actions" style="margin-top:16px;">
+      <button class="btn btn-primary" type="submit">Appliquer les modifications</button>
+    </div>
+  </form>
+</section>
+
+{% if summary.requested_total %}
+  <section class="stats">
+    <article class="card">
+      <div class="label">Codes traites</div>
+      <div class="value">{{ summary.requested_total }}</div>
+    </article>
+    <article class="card">
+      <div class="label">Mises a jour</div>
+      <div class="value">{{ summary.updated_total }}</div>
+    </article>
+    <article class="card">
+      <div class="label">Synchronisees</div>
+      <div class="value">{{ summary.synced_total }}</div>
+    </article>
+    <article class="card">
+      <div class="label">Erreurs</div>
+      <div class="value">{{ summary.error_total }}</div>
+    </article>
+  </section>
+{% endif %}
+
+{% if results %}
+  <section class="panel">
+    <div class="header" style="margin-bottom:12px;">
+      <div>
+        <h1 style="font-size:1.02rem; margin-bottom:4px;">Resultats du lot</h1>
+        <p>Chaque ligne affiche le code traite, la classe controlee, le statut avant/apres et le resume de formulaire.</p>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Code</th>
+            <th>Nom</th>
+            <th>Classe demandee</th>
+            <th>Classe retenue</th>
+            <th>Statut</th>
+            <th>Avant</th>
+            <th>Apres</th>
+            <th>Commentaire</th>
+            <th>Recommandations</th>
+            <th>Message</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in results %}
+            <tr>
+              <td><strong>{{ row.code }}</strong></td>
+              <td>{{ row.nom }}</td>
+              <td>{{ row.requested_class_code }}</td>
+              <td>{{ row.resolved_class_code }}</td>
+              <td>
+                {% if row.ok %}
+                  <span class="pill pill-ok">{{ row.after_status }}</span>
+                  <div class="muted" style="margin-top:6px;">Avant: {{ row.before_status }}</div>
+                {% else %}
+                  <span class="pill pill-no">Erreur</span>
+                  <div class="muted" style="margin-top:6px;">Avant: {{ row.before_status }}</div>
+                {% endif %}
+              </td>
+              <td>{{ row.before_answers }}</td>
+              <td>{{ row.after_answers }}</td>
+              <td>{{ row.commentaire }}</td>
+              <td>{{ row.recommandations }}</td>
+              <td>{{ row.message }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+{% endif %}
+{% endblock %}

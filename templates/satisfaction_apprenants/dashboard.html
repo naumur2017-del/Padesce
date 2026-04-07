@@ -102,6 +102,7 @@
   </div>
   <div class="filter-actions">
     <button type="button" class="btn btn-ghost btn-sm" id="js-open-fast-stats">FAST STATS</button>
+    <a class="btn btn-ghost btn-sm" href="{% url 'satisfaction_update_form_page' %}?source={{ filter_source|urlencode }}">UPDATE FORM</a>
     <a class="btn btn-ghost btn-sm" href="{% url 'satisfaction_general_page' %}{% if request.GET.urlencode %}?{{ request.GET.urlencode }}{% endif %}">General</a>
     <a class="btn btn-primary btn-sm" href="{% url 'satisfaction_dashboard_daily_report_xlsx' %}?source={{ filter_source|urlencode }}">Télécharger le rapport quotidien (Excel)</a>
     <a class="btn btn-ghost btn-sm" href="{% url 'satisfaction_apprenants_index' %}">Retour enquêtes</a>
