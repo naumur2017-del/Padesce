@@ -269,9 +269,10 @@ def _find_existing_appel(
     if not record:
         return None, ""
     matched_code = str(record.get("code") or "").strip()
-    return next(
-        (candidate for candidate in candidates if candidate.code == matched_code), None
-    ), method
+    return (
+        next((candidate for candidate in candidates if candidate.code == matched_code), None),
+        method,
+    )
 
 
 def _clean_text(value) -> str:
@@ -612,7 +613,7 @@ class Command(BaseCommand):
                 else:
                     summary["source_missing"] += 1
                     unresolved_rows.append(
-                        f"Ligne {row.row_number}: {row.apprenant or '-'} | {row.classe_label or 'classe absente'}"
+                        f"Ligne {row.row_number}: {row.apprenant or '-'} | {row.classe_label or 'classe absente'}"  # noqa: E501
                     )
 
                 appel, matched_by = _find_existing_appel(row, source_record, synthetic_prefix)
@@ -722,11 +723,11 @@ class Command(BaseCommand):
                     f"{mode_label}. "
                     f"{summary['rows']} ligne(s) traitee(s), "
                     f"{summary['source_matched']} rattachee(s) au reseau, "
-                    f"{summary['created_appels']} appel(s) cree(s), {summary['updated_appels']} mis a jour, "
-                    f"{summary['created_answers']} reponse(s) creee(s), {summary['updated_answers']} mise(s) a jour, "
+                    f"{summary['created_appels']} appel(s) cree(s), {summary['updated_appels']} mis a jour, "  # noqa: E501
+                    f"{summary['created_answers']} reponse(s) creee(s), {summary['updated_answers']} mise(s) a jour, "  # noqa: E501
                     f"{summary['deleted_answers']} reponse(s) supprimee(s), "
                     f"{summary['created_surveys']} enquete(s) complete(s) creee(s), "
-                    f"{summary['updated_surveys']} mise(s) a jour, {summary['deleted_surveys']} supprimee(s), "
+                    f"{summary['updated_surveys']} mise(s) a jour, {summary['deleted_surveys']} supprimee(s), "  # noqa: E501
                     f"{summary['synthetic_codes']} code(s) synthetique(s), "
                     f"{summary['rounded_scores']} note(s) decimale(s) arrondie(s)."
                 )

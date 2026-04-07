@@ -979,7 +979,7 @@ def consolidation_view(request):
                 unique_classe_ids = _extract_unique_classe_ids(payload)
                 if save_requested:
                     try:
-                        # Always wipe before inserting, even if the insert later fails, to behave like a seed/replace.
+                        # Always wipe before inserting, even if the insert later fails, to behave like a seed/replace.  # noqa: E501
                         _reset_consolidation_tables()
                         ConsolidationRecord.objects.all().delete()
                         with transaction.atomic():
@@ -987,7 +987,7 @@ def consolidation_view(request):
                             _save_related_from_payload(payload)
                         messages.success(
                             request,
-                            f"{len(records)} lignes consolidees enregistrees (remplacement complet).",
+                            f"{len(records)} lignes consolidees enregistrees (remplacement complet).",  # noqa: E501
                         )
                     except OperationalError:
                         errors.append(
@@ -1397,7 +1397,7 @@ def reporting_home(request):
     from App_PADESCE.formations.models import Lieu
 
     carte_lieux = []
-    for l in Lieu.objects.filter(actif=True):
+    for l in Lieu.objects.filter(actif=True):  # noqa: E741
         if l.latitude and l.longitude:
             carte_lieux.append({"nom": l.nom_lieu, "lat": l.latitude, "lng": l.longitude})
 
@@ -1805,12 +1805,12 @@ def reporting_embed_table(request, code: str):
 # Section 7 – Vues Rapport Application
 # ---------------------------------------------------------------------------
 
-from django.contrib.auth import get_user_model as _get_user_model
-from django.contrib.auth.models import Group
-from django.shortcuts import redirect
-from django.urls import reverse
+from django.contrib.auth import get_user_model as _get_user_model  # noqa: E402
+from django.contrib.auth.models import Group  # noqa: E402
+from django.shortcuts import redirect  # noqa: E402
+from django.urls import reverse  # noqa: E402
 
-from App_PADESCE.reporting.app_report import (
+from App_PADESCE.reporting.app_report import (  # noqa: E402
     build_application_report,
     export_application_report_csv,
     export_application_report_excel,
@@ -1821,7 +1821,7 @@ from App_PADESCE.reporting.app_report import (
 )
 
 
-def safe_rate(num: float, den: float) -> float:
+def safe_rate(num: float, den: float) -> float:  # noqa: F811
     return round((num / den) * 100, 2) if den else 0.0
 
 

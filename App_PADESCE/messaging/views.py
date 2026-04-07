@@ -177,7 +177,7 @@ def support_center(request):
                     SupportMessage.objects.create(
                         sender=user,
                         recipient=admin_user,
-                        body=f"[ALARM] {alarm.title}\nModule: {alarm.module or '-'}\n{alarm.details}",
+                        body=f"[ALARM] {alarm.title}\nModule: {alarm.module or '-'}\n{alarm.details}",  # noqa: E501
                         kind=SupportMessage.KIND_ALARM,
                         is_read=False,
                     )
@@ -237,16 +237,18 @@ def support_alarm_poll(request):
         {
             "ok": True,
             "unseen_count": unseen_qs.count(),
-            "latest": {
-                "id": latest.id,
-                "title": latest.title,
-                "module": latest.module,
-                "reporter": latest.reporter.get_username() if latest else "",
-                "created_at": latest.created_at.isoformat() if latest else "",
-                "details": latest.details if latest else "",
-            }
-            if latest
-            else None,
+            "latest": (
+                {
+                    "id": latest.id,
+                    "title": latest.title,
+                    "module": latest.module,
+                    "reporter": latest.reporter.get_username() if latest else "",
+                    "created_at": latest.created_at.isoformat() if latest else "",
+                    "details": latest.details if latest else "",
+                }
+                if latest
+                else None
+            ),
         }
     )
 

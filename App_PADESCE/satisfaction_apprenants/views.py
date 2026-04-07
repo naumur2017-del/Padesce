@@ -644,7 +644,7 @@ def _dashboard_row_from_answer(answer_or_appel) -> dict:
     )
     beneficiaire_obj = getattr(prestation, "beneficiaire", None) if prestation else None
     beneficiaire = getattr(beneficiaire_obj, "nom_structure", "") or appel.beneficiaire or "-"
-    beneficiaire_type = str(getattr(beneficiaire_obj, "type_structure", "") or "").lower()
+    beneficiaire_type = str(getattr(beneficiaire_obj, "type_structure", "") or "").lower()  # noqa: F841
     ville = getattr(getattr(classe, "lieu", None), "ville", "") or appel.lieu or "Non renseignée"
     fenetre = _analysis_fenetre_for_appel(appel)
 

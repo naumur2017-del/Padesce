@@ -8,7 +8,7 @@ chunk1_target = """    <div class="modal-actions">
       <button type="button" class="btn btn-primary btn-sm" data-transcription-close>Fermer</button>
     </div>
   </div>
-</div>"""
+</div>"""  # noqa: E501
 chunk1_replacement = (
     chunk1_target
     + """
@@ -91,7 +91,7 @@ chunk1_replacement = (
       <button type="button" class="btn btn-danger btn-sm" id="js-sat-terminer">Terminer l'appel et Sauvegarder</button>
     </div>
   </div>
-</div>"""
+</div>"""  # noqa: E501
 )
 
 # 2. Add event listeners
@@ -154,7 +154,7 @@ chunk2_replacement = (
             });
             updateRow(row, data);
         } catch (err) { alert("Action impossible."); }
-    });"""
+    });"""  # noqa: E501
 )
 
 # 3. Update startRecording
@@ -185,7 +185,7 @@ chunk3_replacement = """    async function startRecording(row) {
           satModal.hidden = false;
       }
       
-      let stream;"""
+      let stream;"""  # noqa: E501
 
 # 4. Update uploadAudio
 chunk4_target = """    async function uploadAudio(row, blob) {

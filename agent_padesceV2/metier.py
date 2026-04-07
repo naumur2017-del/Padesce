@@ -59,9 +59,10 @@ def extraire_infos(df: pd.DataFrame, valeur: str) -> tuple[pd.DataFrame, list]:
 
     subset["taux_inscription_calcule"] = subset.apply(calcul_taux, axis=1).tolist()
 
-    return subset[colonnes_existantes + ["taux_inscription_calcule"]], subset[
-        "prestation_id"
-    ].tolist()
+    return (
+        subset[colonnes_existantes + ["taux_inscription_calcule"]],
+        subset["prestation_id"].tolist(),
+    )
 
 
 def filtrer_classes(classe_df: pd.DataFrame, liste_prestations: list) -> pd.DataFrame:

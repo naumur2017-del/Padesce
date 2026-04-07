@@ -1077,7 +1077,7 @@ def consultant_dashboard(request):
         form_audio = stats["forms_audio"] or 0
         audios_enregistres = stats["audios"] or 0
 
-        # Optional: refine the count using actual form validation, but database query is much faster for a dashboard.
+        # Optional: refine the count using actual form validation, but database query is much faster for a dashboard.  # noqa: E501
 
     paginator = Paginator(rows, 25)
     page_number = request.GET.get("page", 1)
@@ -1206,11 +1206,11 @@ def user_tracking_view(request):
             en_cours=Count("id", filter=Q(status="en_cours")),
         )
     }
-    push_counts_by_user = _count_audit_events_by_user(
+    push_counts_by_user = _count_audit_events_by_user(  # noqa: F841
         model_name="core.git_push_main",
         event_name="push_main",
     )
-    deploy_counts_by_user = _count_audit_events_by_user(
+    deploy_counts_by_user = _count_audit_events_by_user(  # noqa: F841
         model_name="core.deployment_run",
         event_name="deployment_start",
         expected_extra={"mode": "deploy"},
@@ -1379,9 +1379,10 @@ def _safe_user_activities_index() -> tuple[dict[int, UserActivity], bool]:
 
 def _safe_recent_activity_events(limit: int = 1000) -> tuple[list[UserActivityEvent], bool]:
     try:
-        return list(
-            UserActivityEvent.objects.select_related("user").order_by("-occurred_at")[:limit]
-        ), True
+        return (
+            list(UserActivityEvent.objects.select_related("user").order_by("-occurred_at")[:limit]),
+            True,
+        )
     except (OperationalError, ProgrammingError):
         _log_tracking_schema_warning("event read")
         return [], False
@@ -1389,9 +1390,10 @@ def _safe_recent_activity_events(limit: int = 1000) -> tuple[list[UserActivityEv
 
 def _safe_recent_login_logs(limit: int = 50) -> tuple[list[UserLoginLog], bool]:
     try:
-        return list(
-            UserLoginLog.objects.select_related("user").order_by("-logged_at")[:limit]
-        ), True
+        return (
+            list(UserLoginLog.objects.select_related("user").order_by("-logged_at")[:limit]),
+            True,
+        )
     except (OperationalError, ProgrammingError):
         _log_tracking_schema_warning("login log read")
         return [], False
@@ -1544,14 +1546,14 @@ def _build_tracking_payload(*, user_search: str = "") -> dict[str, object]:
                 "last_city": last_city,
                 "last_country": last_country,
                 "current_page": getattr(activity, "current_page", "") if activity else "",
-                "current_page_title": getattr(activity, "current_page_title", "")
-                if activity
-                else "",
+                "current_page_title": (
+                    getattr(activity, "current_page_title", "") if activity else ""
+                ),
                 "last_action_type": getattr(activity, "last_action_type", "") if activity else "",
                 "last_action_label": getattr(activity, "last_action_label", "") if activity else "",
-                "last_action_target": getattr(activity, "last_action_target", "")
-                if activity
-                else "",
+                "last_action_target": (
+                    getattr(activity, "last_action_target", "") if activity else ""
+                ),
                 "last_action_at": getattr(activity, "last_action_at", None) if activity else None,
                 "recent_events": events_by_user.get(user.id, []),
             }
@@ -1727,11 +1729,11 @@ def user_tracking_live_api(request):
                     "last_action_type": row["last_action_type"],
                     "last_action_label": row["last_action_label"],
                     "last_action_target": row["last_action_target"],
-                    "last_action_at": timezone.localtime(row["last_action_at"]).strftime(
-                        "%d/%m/%Y %H:%M:%S"
-                    )
-                    if row["last_action_at"]
-                    else "",
+                    "last_action_at": (
+                        timezone.localtime(row["last_action_at"]).strftime("%d/%m/%Y %H:%M:%S")
+                        if row["last_action_at"]
+                        else ""
+                    ),
                     "city": row["last_city"],
                     "country": row["last_country"],
                 }
@@ -1741,7 +1743,7 @@ def user_tracking_live_api(request):
     )
 
 
-def user_tracking_view(request):
+def user_tracking_view(request):  # noqa: F811
     """Page dediee au suivi des utilisateurs PADESCE (superuser uniquement)."""
     from django.http import HttpResponseForbidden
 

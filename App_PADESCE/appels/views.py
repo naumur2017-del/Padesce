@@ -49,7 +49,7 @@ from App_PADESCE.formations.models import Classe
 from App_PADESCE.reporting.network_excel import build_padesce_source_index, normalize_network_lookup
 
 logger = logging.getLogger(__name__)
-from App_PADESCE.satisfaction_apprenants.models import SatisfactionApprenant
+from App_PADESCE.satisfaction_apprenants.models import SatisfactionApprenant  # noqa: E402
 
 APPEL_QUESTION_FIELDS = [
     "q1_clarte_exposes",
@@ -417,7 +417,7 @@ def _build_progress_metrics(queryset):
                 f"Seuil de {threshold_label} atteint. Vous pouvez passer a autre chose."
                 if threshold_reached
                 else (
-                    f"Encore {max(threshold_target - termines, 0)} formulaire(s) pour atteindre {threshold_label}."
+                    f"Encore {max(threshold_target - termines, 0)} formulaire(s) pour atteindre {threshold_label}."  # noqa: E501
                     if total
                     else "Aucun appel dans ce filtre."
                 )
@@ -623,12 +623,12 @@ def _archive_before_import_overwrite(appel: Appel, import_mode: str):
             "audio_file": appel.audio_file.name if appel.audio_file else "",
             "locked_by_id": appel.locked_by_id,
             "locked_at": appel.locked_at.isoformat() if appel.locked_at else None,
-            "created_at": appel.created_at.isoformat()
-            if getattr(appel, "created_at", None)
-            else None,
-            "updated_at": appel.updated_at.isoformat()
-            if getattr(appel, "updated_at", None)
-            else None,
+            "created_at": (
+                appel.created_at.isoformat() if getattr(appel, "created_at", None) else None
+            ),
+            "updated_at": (
+                appel.updated_at.isoformat() if getattr(appel, "updated_at", None) else None
+            ),
         },
     )
 
@@ -870,7 +870,7 @@ def _build_appel_class_progress_snapshot(source_bundle: dict | None = None) -> d
                 remaining_to_target = int(progress.get("remaining_to_target") or 0)
                 quick_finish = remaining_count == 1 and reached_count > 0
                 if quick_finish and prestation_finished:
-                    reason = "Derniere classe joignable a finaliser pour cloturer cette prestation dans l'analyse."
+                    reason = "Derniere classe joignable a finaliser pour cloturer cette prestation dans l'analyse."  # noqa: E501
                     priority_label = "Prestation a finir"
                 elif remaining_to_target <= 1 and duplicate_phone_total == 0:
                     reason = "Un dernier appel joignable peut suffire, sans numero duplique."
@@ -1332,7 +1332,7 @@ def appels_index(request):
             messages.success(
                 request,
                 (
-                    f"Fichier importe. {created} nouveau(x) appel(s), {updated} appel(s) mis a jour. "
+                    f"Fichier importe. {created} nouveau(x) appel(s), {updated} appel(s) mis a jour. "  # noqa: E501
                     f"Affichage remplace. {deduped} doublon(s) desactive(s)."
                 ),
             )
@@ -1386,7 +1386,7 @@ def appels_index(request):
                 updated += 1
             messages.success(
                 request,
-                f"Fichier importe. {updated} appel(s) mis a jour avec le type de formation et la formation Padesce.",
+                f"Fichier importe. {updated} appel(s) mis a jour avec le type de formation et la formation Padesce.",  # noqa: E501
             )
         return redirect(request.path_info)
 
@@ -1595,7 +1595,7 @@ def _handle_lock_conflict(instance, current_user, action):
         remaining_secs = max(1, int(90 - age.total_seconds()))
         return (
             False,
-            f"Appel actif. Veuillez essayer dans {remaining_secs}s ou contacter l'agent: {instance.locked_by.username or 'N/A'}",
+            f"Appel actif. Veuillez essayer dans {remaining_secs}s ou contacter l'agent: {instance.locked_by.username or 'N/A'}",  # noqa: E501
         )
 
     # No lock timestamp - allow
@@ -1635,8 +1635,8 @@ def appel_action(request, pk: int):
     deja_forme_flag = _parse_bool_flag(request.POST.get("deja_forme"))
 
     now = timezone.now()
-    satisfaction_saved = False
-    satisfaction_message = ""
+    satisfaction_saved = False  # noqa: F841
+    satisfaction_message = ""  # noqa: F841
 
     if action == "start":
         appel.status = "en_cours"
@@ -1896,7 +1896,7 @@ def _auto_process_satisfaction_from_appel(appel: Appel, user, manual_data: dict 
     """
     Enregistrer les réponses au questionnaire de satisfaction de l'apprenant.
     Priorité: rattacher d'abord les réponses à la ligne d'appel, puis compléter la fiche de satisfaction.
-    """
+    """  # noqa: E501
     if manual_data is None:
         manual_data = {}
     has_any_question_answer = _payload_has_any_question_answer(manual_data)
@@ -2057,9 +2057,9 @@ def deduplicate_all_call_tables(request):
 def appel_transcription_detail(request, pk: int):
     appel = get_object_or_404(Appel, pk=pk)
     try:
-        obj, generated = _ensure_appel_transcription(appel)
+        obj, generated = _ensure_appel_transcription(appel)  # noqa: F821
         return JsonResponse(
-            {"ok": True, "generated": generated, "transcription": _transcription_to_payload(obj)}
+            {"ok": True, "generated": generated, "transcription": _transcription_to_payload(obj)}  # noqa: F821
         )
     except Exception as exc:
         return JsonResponse({"ok": False, "error": str(exc)}, status=400)

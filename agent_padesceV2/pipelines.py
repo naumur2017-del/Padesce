@@ -134,7 +134,7 @@ OBJECTIF : Créer un fichier Excel
 À LA FIN, tu DOIS écrire :
 result = {"fichier": chemin, "nb_lignes": len(df), "colonnes": list(df.columns), "description": "..."}
 print(json.dumps(result, ensure_ascii=False, default=str))
-"""
+"""  # noqa: E501
         )
     else:  # question
         system_prompt = (

@@ -238,7 +238,7 @@ def _build_virtual_classes(
     virtual_classes = []
     source_classes = (source_bundle or {}).get("classes", {})
 
-    # If template is empty, do we allow all? The user says "ce qui est dans le fichier de reference".
+    # If template is empty, do we allow all? The user says "ce qui est dans le fichier de reference".  # noqa: E501
     # So if template has classes, restrict to those.
 
     for classe_key, info in source_classes.items():
@@ -600,9 +600,11 @@ def _build_descente_contacts(
                     0 if location_match else 1,
                     0 if _safe_text(call.status) == "termine" else 1,
                     0 if call.q1_prerequis_apprenants is not None else 1,
-                    call.session_date.isoformat()
-                    if getattr(call, "session_date", None)
-                    else "9999-12-31",
+                    (
+                        call.session_date.isoformat()
+                        if getattr(call, "session_date", None)
+                        else "9999-12-31"
+                    ),
                     getattr(call, "numero_seance", None) or 9999,
                     _safe_text(call.reference_code),
                 ),
@@ -791,7 +793,7 @@ def _mode_payload(
                 {"key": "pct_enquetes_label", "label": "% enquêtes"},
             ],
             "rows": rows,
-            "note": "Structure alignée sur la feuille Enquête de satisfaction du fichier FAST STATS.",
+            "note": "Structure alignée sur la feuille Enquête de satisfaction du fichier FAST STATS.",  # noqa: E501
         }
 
     return {
@@ -1097,9 +1099,9 @@ def build_fast_stats_export_response(request) -> HttpResponse:
 
 def build_fast_stats_context(request, *, default_mode: str) -> dict:
     return {
-        "fast_stats_default_mode": default_mode
-        if default_mode in {"apprenant", "formateur"}
-        else "apprenant",
+        "fast_stats_default_mode": (
+            default_mode if default_mode in {"apprenant", "formateur"} else "apprenant"
+        ),
     }
 
 
