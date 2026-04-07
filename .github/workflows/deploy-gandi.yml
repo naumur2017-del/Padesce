@@ -41,6 +41,24 @@ jobs:
           DJANGO_DEBUG: "False"
           DJANGO_ALLOWED_HOSTS: call.naumur.com
           DJANGO_CSRF_TRUSTED_ORIGINS: https://call.naumur.com
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DB_ENGINE: ${{ secrets.DB_ENGINE }}
+          POSTGRES_HOST: ${{ secrets.POSTGRES_HOST }}
+          POSTGRES_PORT: ${{ secrets.POSTGRES_PORT }}
+          POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
+          POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          POSTGRES_SSLMODE: require
+          POSTGRES_CONN_MAX_AGE: "120"
+          PADESCE_CACHE_BACKEND: filebased
+          PADESCE_CACHE_LOCATION: /lamp0/tmp/padesce-cache
+          PADESCE_CACHE_TIMEOUT: "28800"
+          PADESCE_CACHE_MAX_ENTRIES: "12000"
+          PADESCE_SOURCE_CACHE_TIMEOUT: "900"
+          PADESCE_ANALYSIS_CACHE_TIMEOUT: "300"
+          WEB_CONCURRENCY: "2"
+          WEB_TIMEOUT: "180"
+          WEB_KEEP_ALIVE: "5"
           EMAIL_BACKEND: django.core.mail.backends.smtp.EmailBackend
           EMAIL_HOST: ${{ secrets.EMAIL_HOST }}
           EMAIL_PORT: ${{ secrets.EMAIL_PORT }}
@@ -72,6 +90,24 @@ jobs:
           DJANGO_DEBUG: "False"
           DJANGO_ALLOWED_HOSTS: call.naumur.com
           DJANGO_CSRF_TRUSTED_ORIGINS: https://call.naumur.com
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DB_ENGINE: ${{ secrets.DB_ENGINE }}
+          POSTGRES_HOST: ${{ secrets.POSTGRES_HOST }}
+          POSTGRES_PORT: ${{ secrets.POSTGRES_PORT }}
+          POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
+          POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          POSTGRES_SSLMODE: require
+          POSTGRES_CONN_MAX_AGE: "120"
+          PADESCE_CACHE_BACKEND: filebased
+          PADESCE_CACHE_LOCATION: /lamp0/tmp/padesce-cache
+          PADESCE_CACHE_TIMEOUT: "28800"
+          PADESCE_CACHE_MAX_ENTRIES: "12000"
+          PADESCE_SOURCE_CACHE_TIMEOUT: "900"
+          PADESCE_ANALYSIS_CACHE_TIMEOUT: "300"
+          WEB_CONCURRENCY: "2"
+          WEB_TIMEOUT: "180"
+          WEB_KEEP_ALIVE: "5"
           EMAIL_BACKEND: django.core.mail.backends.smtp.EmailBackend
           EMAIL_HOST: ${{ secrets.EMAIL_HOST }}
           EMAIL_PORT: ${{ secrets.EMAIL_PORT }}
@@ -103,6 +139,24 @@ jobs:
           DJANGO_DEBUG: "False"
           DJANGO_ALLOWED_HOSTS: call.naumur.com
           DJANGO_CSRF_TRUSTED_ORIGINS: https://call.naumur.com
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DB_ENGINE: ${{ secrets.DB_ENGINE }}
+          POSTGRES_HOST: ${{ secrets.POSTGRES_HOST }}
+          POSTGRES_PORT: ${{ secrets.POSTGRES_PORT }}
+          POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
+          POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          POSTGRES_SSLMODE: require
+          POSTGRES_CONN_MAX_AGE: "120"
+          PADESCE_CACHE_BACKEND: filebased
+          PADESCE_CACHE_LOCATION: /lamp0/tmp/padesce-cache
+          PADESCE_CACHE_TIMEOUT: "28800"
+          PADESCE_CACHE_MAX_ENTRIES: "12000"
+          PADESCE_SOURCE_CACHE_TIMEOUT: "900"
+          PADESCE_ANALYSIS_CACHE_TIMEOUT: "300"
+          WEB_CONCURRENCY: "2"
+          WEB_TIMEOUT: "180"
+          WEB_KEEP_ALIVE: "5"
           EMAIL_BACKEND: django.core.mail.backends.smtp.EmailBackend
           EMAIL_HOST: ${{ secrets.EMAIL_HOST }}
           EMAIL_PORT: ${{ secrets.EMAIL_PORT }}

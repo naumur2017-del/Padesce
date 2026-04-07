@@ -262,6 +262,46 @@
     </article>
   </section>
 
+  <section class="deploy-grid">
+    <article class="deploy-card">
+      <span class="label">Base active</span>
+      <div class="value">{{ runtime.db_vendor }}</div>
+      <p class="muted">{{ runtime.db_engine }}</p>
+    </article>
+    <article class="deploy-card">
+      <span class="label">Base cible</span>
+      <div class="value">{{ runtime.db_name }}</div>
+      <p class="muted">Host: {{ runtime.db_host }}</p>
+    </article>
+    <article class="deploy-card">
+      <span class="label">DATABASE_URL</span>
+      <div class="value">{% if runtime.database_url_present %}Presente{% else %}Absente{% endif %}</div>
+    </article>
+    <article class="deploy-card">
+      <span class="label">Cache actif</span>
+      <div class="value">{{ runtime.cache_alias }}</div>
+      <p class="muted">{{ runtime.cache_backend }}</p>
+    </article>
+    <article class="deploy-card">
+      <span class="label">Cache location</span>
+      <div class="value">{{ runtime.cache_location }}</div>
+    </article>
+    <article class="deploy-card">
+      <span class="label">Workers / Timeout</span>
+      <div class="value">{{ runtime.web_concurrency }} worker(s)</div>
+      <p class="muted">Timeout {{ runtime.web_timeout }}s</p>
+    </article>
+    <article class="deploy-card">
+      <span class="label">Cache source</span>
+      <div class="value">{{ runtime.source_cache_timeout }}s</div>
+    </article>
+    <article class="deploy-card">
+      <span class="label">Cache analyses</span>
+      <div class="value">{{ runtime.analysis_cache_timeout }}s</div>
+      <p class="muted">{{ runtime.session_engine }}</p>
+    </article>
+  </section>
+
   <section class="deploy-card">
     <span class="label">Configuration serveur</span>
     <p class="muted" style="margin-bottom:12px;">

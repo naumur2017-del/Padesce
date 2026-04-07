@@ -20,6 +20,7 @@ from types import SimpleNamespace
 import openpyxl
 import requests
 from django.contrib import messages
+from django.core.cache import cache
 from django.core.exceptions import ObjectDoesNotExist
 from django.core.files.storage import default_storage
 from django.core.paginator import Paginator
@@ -59,6 +60,7 @@ from App_PADESCE.core.analysis_rules import (
     set_appel_manual_exclusion,
     toggle_appel_manual_exclusion,
 )
+from App_PADESCE.core.cache_versions import get_analysis_cache_version
 from App_PADESCE.core.call_metrics import (
     count_callable_source_records_by_class,
     has_usable_phone,
@@ -148,6 +150,17 @@ DEFAULT_TRANSCRIBE_MODEL = "google/gemini-2.5-flash"
 SUPPORTED_AUDIO_FORMATS = {"wav", "mp3", "m4a", "ogg", "webm", "flac"}
 
 logger = logging.getLogger(__name__)
+ANALYSIS_CACHE_TIMEOUT = int(str(os.getenv("PADESCE_ANALYSIS_CACHE_TIMEOUT", "300") or "300"))
+
+
+def _analysis_cache_key(prefix: str, *parts) -> str:
+    rendered_parts = [str(part or "").strip() for part in parts]
+    digest = hashlib.sha1("||".join(rendered_parts).encode("utf-8")).hexdigest()
+    return f"satisfaction:{prefix}:{digest}"
+
+
+def _analysis_queryset_marker(model) -> str:
+    return get_analysis_cache_version(f"model:{model._meta.label_lower}")
 
 
 def _normalize_phone(value: str) -> str:
@@ -2417,6 +2430,18 @@ def _build_satisfaction_dashboard_data(request):
         source_bundle = build_padesce_source_index(source_key=selected_source)
     except Exception:
         source_bundle = None
+    cache_key = _analysis_cache_key(
+        "dashboard-data",
+        selected_source,
+        request.GET.urlencode(),
+        ((source_bundle or {}).get("source") or {}).get("modified_at", "no-source"),
+        _analysis_queryset_marker(Appel),
+        _analysis_queryset_marker(AppelAnswers),
+        _analysis_queryset_marker(SatisfactionApprenant),
+    )
+    cached_payload = cache.get(cache_key)
+    if cached_payload is not None:
+        return cached_payload
     threshold_class_codes = _status_threshold_class_codes(source_bundle)
 
     all_rows = [
@@ -2806,7 +2831,9 @@ def _build_satisfaction_dashboard_data(request):
     context["formulaires_avec_audio_appels"] = _appel_stats["formulaires_avec_audio"]
     context["audios_enregistres_appels"] = _appel_stats["audios_enregistres"]
     context["tab_details"] = _build_table_details_context(context, rows)
-    return {"rows": rows, "filters": filters, "context": context}
+    payload = {"rows": rows, "filters": filters, "context": context}
+    cache.set(cache_key, payload, timeout=ANALYSIS_CACHE_TIMEOUT)
+    return payload
 
 
 @require_analysis_access
@@ -3385,6 +3412,89 @@ def _general_analysis_search_matches(row: dict, query: str) -> bool:
         ]
     ).casefold()
     return query.casefold() in haystack
+
+
+def _build_general_analysis_rows(
+    selected_source: str,
+    source_bundle: dict | None = None,
+) -> list[dict]:
+    source_records = (source_bundle or {}).get("records", {})
+    threshold_codes = _general_analysis_threshold_codes(source_bundle)
+    appels = list(
+        Appel.objects.filter(is_active=True)
+        .select_related(
+            "classe",
+            "classe__lieu",
+            "classe__prestation",
+            "classe__prestation__prestataire",
+            "classe__prestation__beneficiaire",
+            "locked_by",
+            "answers",
+            "answers__modified_by",
+            "satisfaction_apprenant",
+            "satisfaction_apprenant__inspecteur",
+            "satisfaction_apprenant__apprenant",
+            "satisfaction_apprenant__enqueteur",
+        )
+        .order_by("-updated_at", "nom", "code")
+    )
+
+    rows: list[dict] = []
+    for appel in appels:
+        row = _build_daily_report_row(appel, source_records)
+        class_key = normalize_network_lookup(row.get("classe") or "")
+        threshold_reached = bool(class_key and class_key in threshold_codes)
+        analysis_included = row.get("analysis_included") == "Oui"
+        analysis_taken_into_account = analysis_included and threshold_reached
+        if analysis_taken_into_account:
+            analysis_take_reason = "Pris en compte dans les analyses"
+        elif row.get("analysis_included") != "Oui":
+            analysis_take_reason = (
+                row.get("analysis_exclusion_reason") or "Aucune reponse analysee"
+            )
+        elif not threshold_reached:
+            analysis_take_reason = f"Seuil {analysis_threshold_label()} non atteint"
+        else:
+            analysis_take_reason = "Non retenu"
+
+        row["has_phone"] = bool(appel_has_analysis_phone(appel))
+        row["analysis_threshold_reached"] = threshold_reached
+        row["analysis_taken_into_account"] = analysis_taken_into_account
+        row["analysis_take_reason"] = analysis_take_reason
+        row["q_values"] = [row.get(field) for field, _label in Q_FIELDS]
+        row["responses_summary"] = " | ".join(
+            [
+                f"Q{index}:{row.get(field) if row.get(field) not in (None, '') else '-'}"
+                for index, (field, _label) in enumerate(Q_FIELDS, start=1)
+            ]
+        )
+        row["toggle_label"] = "Reintegrer" if row.get("exclude_from_analysis") == "Oui" else "Masquer"
+        row["toggle_action"] = "include" if row.get("exclude_from_analysis") == "Oui" else "exclude"
+        rows.append(row)
+
+    return rows
+
+
+def _cached_general_analysis_rows(
+    selected_source: str,
+    source_bundle: dict | None = None,
+) -> list[dict]:
+    source_marker = str(((source_bundle or {}).get("source") or {}).get("modified_at") or "no-source")
+    cache_key = _analysis_cache_key(
+        "general-analysis-rows",
+        selected_source,
+        source_marker,
+        get_analysis_cache_version("analysis-general"),
+        _analysis_queryset_marker(Appel),
+        _analysis_queryset_marker(AppelAnswers),
+        _analysis_queryset_marker(SatisfactionApprenant),
+    )
+    cached_rows = cache.get(cache_key)
+    if cached_rows is not None:
+        return cached_rows
+    rows = _build_general_analysis_rows(selected_source, source_bundle=source_bundle)
+    cache.set(cache_key, rows, timeout=ANALYSIS_CACHE_TIMEOUT)
+    return rows
 
 
 def _normalize_batch_update_container(raw_value: str) -> str:
@@ -3979,62 +4089,7 @@ def satisfaction_general_page(request):
         source_bundle = build_padesce_source_index(source_key=selected_source)
     except Exception:
         source_bundle = None
-    source_records = (source_bundle or {}).get("records", {})
-    threshold_codes = _general_analysis_threshold_codes(source_bundle)
-
-    appels = list(
-        Appel.objects.filter(is_active=True)
-        .select_related(
-            "classe",
-            "classe__lieu",
-            "classe__prestation",
-            "classe__prestation__prestataire",
-            "classe__prestation__beneficiaire",
-            "locked_by",
-            "answers",
-            "answers__modified_by",
-            "satisfaction_apprenant",
-            "satisfaction_apprenant__inspecteur",
-            "satisfaction_apprenant__apprenant",
-            "satisfaction_apprenant__enqueteur",
-        )
-        .order_by("-updated_at", "nom", "code")
-    )
-
-    rows: list[dict] = []
-    for appel in appels:
-        row = _build_daily_report_row(appel, source_records)
-        class_key = normalize_network_lookup(row.get("classe") or "")
-        threshold_reached = bool(class_key and class_key in threshold_codes)
-        analysis_included = row.get("analysis_included") == "Oui"
-        analysis_taken_into_account = analysis_included and threshold_reached
-        if analysis_taken_into_account:
-            analysis_take_reason = "Pris en compte dans les analyses"
-        elif row.get("analysis_included") != "Oui":
-            analysis_take_reason = row.get("analysis_exclusion_reason") or "Aucune reponse analysee"
-        elif not threshold_reached:
-            analysis_take_reason = f"Seuil {analysis_threshold_label()} non atteint"
-        else:
-            analysis_take_reason = "Non retenu"
-
-        row["has_phone"] = bool(appel_has_analysis_phone(appel))
-        row["analysis_threshold_reached"] = threshold_reached
-        row["analysis_taken_into_account"] = analysis_taken_into_account
-        row["analysis_take_reason"] = analysis_take_reason
-        row["q_values"] = [row.get(field) for field, _label in Q_FIELDS]
-        row["responses_summary"] = " | ".join(
-            [
-                f"Q{index}:{row.get(field) if row.get(field) not in (None, '') else '-'}"
-                for index, (field, _label) in enumerate(Q_FIELDS, start=1)
-            ]
-        )
-        row["toggle_label"] = (
-            "Reintegrer" if row.get("exclude_from_analysis") == "Oui" else "Masquer"
-        )
-        row["toggle_action"] = (
-            "include" if row.get("exclude_from_analysis") == "Oui" else "exclude"
-        )
-        rows.append(row)
+    rows = list(_cached_general_analysis_rows(selected_source, source_bundle=source_bundle))
 
     if search:
         rows = [row for row in rows if _general_analysis_search_matches(row, search)]

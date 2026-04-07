@@ -177,7 +177,7 @@ def _database_settings_from_env() -> dict:
     if database_url:
         parsed = urlparse(database_url)
         if parsed.scheme in {"postgres", "postgresql"}:
-            return {
+            config = {
                 "ENGINE": "django.db.backends.postgresql",
                 "NAME": unquote(parsed.path.lstrip("/"))
                 or str(os.getenv("POSTGRES_DB", "") or "postgres"),
@@ -186,10 +186,14 @@ def _database_settings_from_env() -> dict:
                 "HOST": parsed.hostname or os.getenv("POSTGRES_HOST", "") or "localhost",
                 "PORT": str(parsed.port or os.getenv("POSTGRES_PORT", "") or "5432"),
             }
+            sslmode = str(os.getenv("POSTGRES_SSLMODE", "") or "").strip()
+            if sslmode:
+                config["OPTIONS"] = {"sslmode": sslmode}
+            return config
 
     engine = str(os.getenv("DB_ENGINE", "") or "").strip().lower()
     if engine in {"postgres", "postgresql", "pgsql"}:
-        return {
+        config = {
             "ENGINE": "django.db.backends.postgresql",
             "NAME": str(os.getenv("POSTGRES_DB", "") or "postgres"),
             "USER": str(os.getenv("POSTGRES_USER", "") or ""),
@@ -197,14 +201,26 @@ def _database_settings_from_env() -> dict:
             "HOST": str(os.getenv("POSTGRES_HOST", "") or "localhost"),
             "PORT": str(os.getenv("POSTGRES_PORT", "") or "5432"),
         }
+        sslmode = str(os.getenv("POSTGRES_SSLMODE", "") or "").strip()
+        if sslmode:
+            config["OPTIONS"] = {"sslmode": sslmode}
+        return config
 
     return {
         "ENGINE": "django.db.backends.sqlite3",
         "NAME": BASE_DIR / "db.sqlite3",
+        "OPTIONS": {
+            "timeout": int(str(os.getenv("SQLITE_TIMEOUT_SECONDS", "20") or "20")),
+        },
     }
 
 
 DATABASES = {"default": _database_settings_from_env()}
+if DATABASES["default"]["ENGINE"] == "django.db.backends.postgresql":
+    DATABASES["default"]["CONN_MAX_AGE"] = int(
+        str(os.getenv("POSTGRES_CONN_MAX_AGE", "60") or "60")
+    )
+    DATABASES["default"]["CONN_HEALTH_CHECKS"] = True
 
 # Token secret pour le déclenchement automatique des backups (GitHub Actions)
 BACKUP_TRIGGER_TOKEN = os.getenv("BACKUP_TRIGGER_TOKEN", "")
@@ -281,20 +297,48 @@ LOGIN_REDIRECT_URL = "home"
 LOGOUT_REDIRECT_URL = "login"
 CSRF_FAILURE_VIEW = "App_PADESCE.core.error_views.csrf_failure"
 
-# ---------------------------------------------------------------------------
-# Cache — In-process memory cache (fast, no external service needed).
-# For multi-server deployments replace with Redis or Memcached.
-# ---------------------------------------------------------------------------
-CACHES = {
-    "default": {
-        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
-        "LOCATION": "padesce-session-cache",
-        "TIMEOUT": 28800,  # 8 heures en secondes
-        "OPTIONS": {
-            "MAX_ENTRIES": 5000,  # nombre max d'entrées en mémoire
-        },
+def _cache_settings_from_env() -> dict:
+    backend_key = str(os.getenv("PADESCE_CACHE_BACKEND", "locmem") or "").strip().lower()
+    timeout = int(str(os.getenv("PADESCE_CACHE_TIMEOUT", "28800") or "28800"))
+    max_entries = int(str(os.getenv("PADESCE_CACHE_MAX_ENTRIES", "5000") or "5000"))
+
+    if backend_key in {"file", "filebased", "file_based"}:
+        location = str(
+            os.getenv("PADESCE_CACHE_LOCATION", "") or (BASE_DIR / "data" / "django_cache")
+        ).strip()
+        location_path = Path(location)
+        location_path.mkdir(parents=True, exist_ok=True)
+        return {
+            "default": {
+                "BACKEND": "django.core.cache.backends.filebased.FileBasedCache",
+                "LOCATION": str(location_path),
+                "TIMEOUT": timeout,
+                "OPTIONS": {
+                    "MAX_ENTRIES": max_entries,
+                },
+            }
+        }
+
+    if backend_key in {"dummy", "none"}:
+        return {
+            "default": {
+                "BACKEND": "django.core.cache.backends.dummy.DummyCache",
+            }
+        }
+
+    return {
+        "default": {
+            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+            "LOCATION": "padesce-session-cache",
+            "TIMEOUT": timeout,
+            "OPTIONS": {
+                "MAX_ENTRIES": max_entries,
+            },
+        }
     }
-}
+
+
+CACHES = _cache_settings_from_env()
 
 # ---------------------------------------------------------------------------
 # Sessions — cached_db : lecture ultra-rapide depuis le cache,

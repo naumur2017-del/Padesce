@@ -1,6 +1,7 @@
 import datetime
 import io
 import logging
+import os
 import threading
 import zipfile
 import unicodedata
@@ -51,11 +52,14 @@ from App_PADESCE.core.call_metrics import (
     summarize_source_class_phone_coverage,
 )
 from App_PADESCE.core.analysis_rules import analysis_threshold_label, analysis_threshold_target
+from App_PADESCE.core.cache_versions import get_analysis_cache_version
 from App_PADESCE.formations.models import Classe
 from App_PADESCE.reporting.network_excel import build_padesce_source_index, normalize_network_lookup
 
 logger = logging.getLogger(__name__)
 from App_PADESCE.satisfaction_apprenants.models import SatisfactionApprenant
+
+ANALYSIS_CACHE_TIMEOUT = int(str(os.getenv("PADESCE_ANALYSIS_CACHE_TIMEOUT", "300") or "300"))
 
 
 APPEL_QUESTION_FIELDS = [
@@ -650,6 +654,21 @@ def _safe_build_padesce_source_index() -> dict | None:
     except Exception as exc:
         logger.warning("Impossible de charger la source PADESCE pour les optimisations d'appels: %s", exc)
         return None
+
+
+def _cached_appel_class_progress_snapshot(source_bundle: dict | None = None) -> dict:
+    source_marker = str(((source_bundle or {}).get("source") or {}).get("modified_at") or "no-source")
+    cache_key = (
+        "appels:class-progress-snapshot:"
+        f"{source_marker}:"
+        f"{get_analysis_cache_version('appels-progress')}"
+    )
+    cached_snapshot = cache.get(cache_key)
+    if cached_snapshot is not None:
+        return cached_snapshot
+    snapshot = _build_appel_class_progress_snapshot(source_bundle)
+    cache.set(cache_key, snapshot, timeout=ANALYSIS_CACHE_TIMEOUT)
+    return snapshot
 
 
 def _callable_phone_summary_from_appel_rows(appel_rows: list[dict]) -> dict[str, dict[str, int]]:
@@ -1345,7 +1364,7 @@ def appels_index(request):
             )
         return redirect(request.path_info)
 
-    optimization_snapshot = _build_appel_class_progress_snapshot(_safe_build_padesce_source_index())
+    optimization_snapshot = _cached_appel_class_progress_snapshot(_safe_build_padesce_source_index())
     appels_qs, filters = _build_filtered_appels_queryset(
         request,
         hidden_class_labels=optimization_snapshot["hidden_class_labels"],
@@ -1424,7 +1443,7 @@ def appels_index(request):
 
 @login_required
 def appels_export_filtered_csv(request):
-    optimization_snapshot = _build_appel_class_progress_snapshot(_safe_build_padesce_source_index())
+    optimization_snapshot = _cached_appel_class_progress_snapshot(_safe_build_padesce_source_index())
     appels_qs, _ = _build_filtered_appels_queryset(
         request,
         hidden_class_labels=optimization_snapshot["hidden_class_labels"],
