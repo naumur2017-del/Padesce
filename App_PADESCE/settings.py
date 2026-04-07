@@ -172,36 +172,46 @@ if HAS_CHANNELS:
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
 
+def _postgres_sslmode_for_host(host: str) -> str:
+    sslmode = str(os.getenv("POSTGRES_SSLMODE", "") or "").strip().lower()
+    normalized_host = str(host or "").strip().lower()
+    if sslmode == "require" and normalized_host in {"localhost", "127.0.0.1", "::1"}:
+        return "prefer"
+    return sslmode
+
+
 def _database_settings_from_env() -> dict:
     database_url = str(os.getenv("DATABASE_URL", "") or "").strip()
     if database_url:
         parsed = urlparse(database_url)
         if parsed.scheme in {"postgres", "postgresql"}:
+            host = parsed.hostname or os.getenv("POSTGRES_HOST", "") or "localhost"
             config = {
                 "ENGINE": "django.db.backends.postgresql",
                 "NAME": unquote(parsed.path.lstrip("/"))
                 or str(os.getenv("POSTGRES_DB", "") or "postgres"),
                 "USER": unquote(parsed.username or os.getenv("POSTGRES_USER", "") or ""),
                 "PASSWORD": unquote(parsed.password or os.getenv("POSTGRES_PASSWORD", "") or ""),
-                "HOST": parsed.hostname or os.getenv("POSTGRES_HOST", "") or "localhost",
+                "HOST": host,
                 "PORT": str(parsed.port or os.getenv("POSTGRES_PORT", "") or "5432"),
             }
-            sslmode = str(os.getenv("POSTGRES_SSLMODE", "") or "").strip()
+            sslmode = _postgres_sslmode_for_host(host)
             if sslmode:
                 config["OPTIONS"] = {"sslmode": sslmode}
             return config
 
     engine = str(os.getenv("DB_ENGINE", "") or "").strip().lower()
     if engine in {"postgres", "postgresql", "pgsql"}:
+        host = str(os.getenv("POSTGRES_HOST", "") or "localhost")
         config = {
             "ENGINE": "django.db.backends.postgresql",
             "NAME": str(os.getenv("POSTGRES_DB", "") or "postgres"),
             "USER": str(os.getenv("POSTGRES_USER", "") or ""),
             "PASSWORD": str(os.getenv("POSTGRES_PASSWORD", "") or ""),
-            "HOST": str(os.getenv("POSTGRES_HOST", "") or "localhost"),
+            "HOST": host,
             "PORT": str(os.getenv("POSTGRES_PORT", "") or "5432"),
         }
-        sslmode = str(os.getenv("POSTGRES_SSLMODE", "") or "").strip()
+        sslmode = _postgres_sslmode_for_host(host)
         if sslmode:
             config["OPTIONS"] = {"sslmode": sslmode}
         return config

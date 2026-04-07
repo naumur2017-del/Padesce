@@ -48,7 +48,7 @@ jobs:
           POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
           POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
           POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
-          POSTGRES_SSLMODE: require
+          POSTGRES_SSLMODE: prefer
           POSTGRES_CONN_MAX_AGE: "120"
           PADESCE_CACHE_BACKEND: filebased
           PADESCE_CACHE_LOCATION: /lamp0/tmp/padesce-cache
@@ -97,7 +97,7 @@ jobs:
           POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
           POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
           POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
-          POSTGRES_SSLMODE: require
+          POSTGRES_SSLMODE: prefer
           POSTGRES_CONN_MAX_AGE: "120"
           PADESCE_CACHE_BACKEND: filebased
           PADESCE_CACHE_LOCATION: /lamp0/tmp/padesce-cache
@@ -146,7 +146,7 @@ jobs:
           POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
           POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
           POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
-          POSTGRES_SSLMODE: require
+          POSTGRES_SSLMODE: prefer
           POSTGRES_CONN_MAX_AGE: "120"
           PADESCE_CACHE_BACKEND: filebased
           PADESCE_CACHE_LOCATION: /lamp0/tmp/padesce-cache
