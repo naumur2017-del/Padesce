@@ -110,9 +110,9 @@ def _ensure_utf8_postgres_database(base_dir: Path, config: dict) -> None:
                         continue
                     try:
                         cursor.execute(
-                            sql.SQL("CREATE DATABASE {} WITH ENCODING 'UTF8' TEMPLATE template0").format(
-                                sql.Identifier(candidate)
-                            )
+                            sql.SQL(
+                                "CREATE DATABASE {} WITH ENCODING 'UTF8' TEMPLATE template0"
+                            ).format(sql.Identifier(candidate))
                         )
                     except Exception as exc:  # pragma: no cover - remote-runtime fallback
                         last_error = exc
@@ -153,7 +153,10 @@ def maybe_run_postgres_migration(base_dir: Path) -> None:
 
     if done_file.exists():
         try:
-            if not sqlite_source.exists() or done_file.stat().st_mtime >= sqlite_source.stat().st_mtime:
+            if (
+                not sqlite_source.exists()
+                or done_file.stat().st_mtime >= sqlite_source.stat().st_mtime
+            ):
                 return
         except OSError:
             return
@@ -236,7 +239,9 @@ def _acquire_bootstrap_lock(lock_path: Path) -> bool:
             return True
 
 
-def _wait_for_bootstrap_lock(lock_path: Path, timeout_seconds: int = AUTO_MIGRATE_WAIT_SECONDS) -> None:
+def _wait_for_bootstrap_lock(
+    lock_path: Path, timeout_seconds: int = AUTO_MIGRATE_WAIT_SECONDS
+) -> None:
     deadline = time.monotonic() + max(0, timeout_seconds)
     while lock_path.exists() and time.monotonic() < deadline:
         time.sleep(1)
@@ -272,7 +277,10 @@ def maybe_run_django_migrations(base_dir: Path) -> bool:
     try:
         if not _has_pending_django_migrations():
             done_path.write_text(
-                json.dumps({"pid": os.getpid(), "status": "up_to_date", "checked_at": time.time()}, indent=2),
+                json.dumps(
+                    {"pid": os.getpid(), "status": "up_to_date", "checked_at": time.time()},
+                    indent=2,
+                ),
                 encoding="utf-8",
             )
             error_path.unlink(missing_ok=True)
@@ -282,7 +290,9 @@ def maybe_run_django_migrations(base_dir: Path) -> bool:
 
         call_command("migrate", interactive=False, verbosity=0)
         done_path.write_text(
-            json.dumps({"pid": os.getpid(), "status": "migrated", "completed_at": time.time()}, indent=2),
+            json.dumps(
+                {"pid": os.getpid(), "status": "migrated", "completed_at": time.time()}, indent=2
+            ),
             encoding="utf-8",
         )
         error_path.unlink(missing_ok=True)

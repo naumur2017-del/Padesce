@@ -7,15 +7,16 @@ Migrates existing Appel statuses to the new status vocabulary:
 Also migrates AppelFormateur and AppelCGA with same mapping (form presence
 checked via score fields for formateur, N/A for CGA → always appel_reussi).
 """
+
 from django.core.management.base import BaseCommand
 from django.db import transaction
 
 from App_PADESCE.appels.models import (
+    APPEL_ANSWER_QUESTION_FIELDS,
     Appel,
     AppelAnswers,
     AppelCGA,
     AppelFormateur,
-    APPEL_ANSWER_QUESTION_FIELDS,
 )
 
 
@@ -84,17 +85,23 @@ class Command(BaseCommand):
         dry_run = options["dry_run"]
         self.stdout.write("=== Migration des statuts d'appels ===")
         if dry_run:
-            self.stdout.write(self.style.WARNING("Mode dry-run: aucune modification ne sera sauvegardée."))
+            self.stdout.write(
+                self.style.WARNING("Mode dry-run: aucune modification ne sera sauvegardée.")
+            )
 
         # ── Appel (apprenants) ──────────────────────────────────────────────
         self.stdout.write("\n--- Appels apprenants ---")
         appels = list(
             Appel.objects.filter(
                 status__in=["en_cours", "pause", "a_rappeler", "termine"]
-            )
-            .select_related("answers", "satisfaction_apprenant")
+            ).select_related("answers", "satisfaction_apprenant")
         )
-        appel_counts = {"appel_tente": 0, "appel_reussi": 0, "formulaire_rempli": 0, "formulaire_avec_audio": 0}
+        appel_counts = {
+            "appel_tente": 0,
+            "appel_reussi": 0,
+            "formulaire_rempli": 0,
+            "formulaire_avec_audio": 0,
+        }
         appels_to_update = []
         for appel in appels:
             old_status = appel.status
@@ -124,11 +131,14 @@ class Command(BaseCommand):
         # ── AppelFormateur ──────────────────────────────────────────────────
         self.stdout.write("\n--- Appels formateurs ---")
         formateurs = list(
-            AppelFormateur.objects.filter(
-                status__in=["en_cours", "pause", "a_rappeler", "termine"]
-            )
+            AppelFormateur.objects.filter(status__in=["en_cours", "pause", "a_rappeler", "termine"])
         )
-        form_counts = {"appel_tente": 0, "appel_reussi": 0, "formulaire_rempli": 0, "formulaire_avec_audio": 0}
+        form_counts = {
+            "appel_tente": 0,
+            "appel_reussi": 0,
+            "formulaire_rempli": 0,
+            "formulaire_avec_audio": 0,
+        }
         formateurs_to_update = []
         for row in formateurs:
             old_status = row.status
@@ -158,9 +168,7 @@ class Command(BaseCommand):
         # ── AppelCGA ────────────────────────────────────────────────────────
         self.stdout.write("\n--- Appels CGA ---")
         cgas = list(
-            AppelCGA.objects.filter(
-                status__in=["en_cours", "pause", "a_rappeler", "termine"]
-            )
+            AppelCGA.objects.filter(status__in=["en_cours", "pause", "a_rappeler", "termine"])
         )
         cga_counts = {"appel_tente": 0, "appel_reussi": 0}
         cgas_to_update = []

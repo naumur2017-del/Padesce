@@ -1,8 +1,6 @@
-import os
-
 PATH = r"F:\NAUMUR\NAUMUR - TRAVAUX EN COURS\Utlisateurs\EYOUM ATOCK\CALL APP\App_PADESCE-main\App_PADESCE-main\templates\appels\index.html"
 
-with open(PATH, 'r', encoding='utf-8') as f:
+with open(PATH, "r", encoding="utf-8") as f:
     content = f.read()
 
 # We need to find the updateRow function or the logic that handles the response from stop recording/termination
@@ -42,17 +40,16 @@ JS_UPDATE_LOGIC = """
 if "if (data.ok && action === 'terminer')" in content:
     content = content.replace(
         "if (data.ok && action === 'terminer') {",
-        "if (data.ok && action === 'terminer') {\\n" + JS_UPDATE_LOGIC
+        "if (data.ok && action === 'terminer') {\\n" + JS_UPDATE_LOGIC,
     )
 
 # Also for upload_audio response
 if "if (data.audio_saved)" in content:
     content = content.replace(
-        "if (data.audio_saved) {",
-        "if (data.audio_saved) {\\n" + JS_UPDATE_LOGIC
+        "if (data.audio_saved) {", "if (data.audio_saved) {\\n" + JS_UPDATE_LOGIC
     )
 
-with open(PATH, 'w', encoding='utf-8') as f:
+with open(PATH, "w", encoding="utf-8") as f:
     f.write(content)
 
 print("Patch real-time UI complete.")

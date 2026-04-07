@@ -29,7 +29,9 @@ class RuntimeBootstrapTests(SimpleTestCase):
     @patch.dict("os.environ", {"NAUMUR_AUTO_MIGRATE_ON_BOOT": "1"}, clear=False)
     @patch("App_PADESCE.core.runtime_bootstrap._has_pending_django_migrations", return_value=False)
     @patch("django.core.management.call_command")
-    def test_maybe_run_django_migrations_skips_when_up_to_date(self, mock_call_command, _mock_pending):
+    def test_maybe_run_django_migrations_skips_when_up_to_date(
+        self, mock_call_command, _mock_pending
+    ):
         with tempfile.TemporaryDirectory() as tmpdir:
             base_dir = Path(tmpdir)
 
@@ -38,14 +40,18 @@ class RuntimeBootstrapTests(SimpleTestCase):
             self.assertFalse(migrated)
             mock_call_command.assert_not_called()
             done_payload = json.loads(
-                (self._marker_dir(base_dir) / runtime_bootstrap.AUTO_MIGRATE_DONE_FILENAME).read_text(encoding="utf-8")
+                (
+                    self._marker_dir(base_dir) / runtime_bootstrap.AUTO_MIGRATE_DONE_FILENAME
+                ).read_text(encoding="utf-8")
             )
             self.assertEqual(done_payload["status"], "up_to_date")
 
     @patch.dict("os.environ", {"NAUMUR_AUTO_MIGRATE_ON_BOOT": "1"}, clear=False)
     @patch("App_PADESCE.core.runtime_bootstrap._has_pending_django_migrations", return_value=True)
     @patch("django.core.management.call_command")
-    def test_maybe_run_django_migrations_applies_pending_migrations(self, mock_call_command, _mock_pending):
+    def test_maybe_run_django_migrations_applies_pending_migrations(
+        self, mock_call_command, _mock_pending
+    ):
         with tempfile.TemporaryDirectory() as tmpdir:
             base_dir = Path(tmpdir)
 
@@ -54,14 +60,18 @@ class RuntimeBootstrapTests(SimpleTestCase):
             self.assertTrue(migrated)
             mock_call_command.assert_called_once_with("migrate", interactive=False, verbosity=0)
             done_payload = json.loads(
-                (self._marker_dir(base_dir) / runtime_bootstrap.AUTO_MIGRATE_DONE_FILENAME).read_text(encoding="utf-8")
+                (
+                    self._marker_dir(base_dir) / runtime_bootstrap.AUTO_MIGRATE_DONE_FILENAME
+                ).read_text(encoding="utf-8")
             )
             self.assertEqual(done_payload["status"], "migrated")
 
     @patch.dict("os.environ", {"NAUMUR_AUTO_MIGRATE_ON_BOOT": "1"}, clear=False)
     @patch("App_PADESCE.core.runtime_bootstrap._has_pending_django_migrations", return_value=True)
     @patch("django.core.management.call_command", side_effect=RuntimeError("boom"))
-    def test_maybe_run_django_migrations_records_errors_without_raising(self, _mock_call_command, _mock_pending):
+    def test_maybe_run_django_migrations_records_errors_without_raising(
+        self, _mock_call_command, _mock_pending
+    ):
         with tempfile.TemporaryDirectory() as tmpdir:
             base_dir = Path(tmpdir)
 

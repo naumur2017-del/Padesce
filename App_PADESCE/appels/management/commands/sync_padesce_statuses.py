@@ -34,7 +34,9 @@ class Command(BaseCommand):
             new_status = derive_padesce_status(appel)
             if new_status == previous_status:
                 continue
-            transitions[(previous_status, new_status)] = transitions.get((previous_status, new_status), 0) + 1
+            transitions[(previous_status, new_status)] = (
+                transitions.get((previous_status, new_status), 0) + 1
+            )
             appel.status = new_status
             to_update.append(appel)
 
@@ -55,4 +57,6 @@ class Command(BaseCommand):
         with transaction.atomic():
             Appel.objects.bulk_update(to_update, ["status", "updated_at"])
 
-        self.stdout.write(self.style.SUCCESS(f"{len(to_update)} ligne(s) PADESCE ont ete mises a jour."))
+        self.stdout.write(
+            self.style.SUCCESS(f"{len(to_update)} ligne(s) PADESCE ont ete mises a jour.")
+        )

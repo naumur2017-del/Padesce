@@ -16,22 +16,30 @@ from docx import Document
 from App_PADESCE.appels.models import Appel, AppelAnswers
 from App_PADESCE.apprenants.models import Apprenant
 from App_PADESCE.core.analysis_rules import appel_is_manually_excluded
-from App_PADESCE.formations.models import Beneficiaire, Classe, Formation, Inspecteur, Lieu, Prestataire, Prestation
-from App_PADESCE.satisfaction_apprenants.management.commands.import_satisfaction_excel import _sync_source_models
-from App_PADESCE.satisfaction_apprenants.models import SatisfactionApprenant
-from App_PADESCE.satisfaction_apprenants.services import get_prestations_ranking
+from App_PADESCE.formations.models import (
+    Beneficiaire,
+    Classe,
+    Formation,
+    Inspecteur,
+    Lieu,
+    Prestataire,
+    Prestation,
+)
+from App_PADESCE.satisfaction_apprenants.management.commands.import_satisfaction_excel import (
+    _sync_source_models,
+)
 from App_PADESCE.satisfaction_apprenants.views import (
     _analysis_selected_source,
+    _assign_enquete_ids,
     _attach_network_source_to_rows,
-    _build_satisfaction_dashboard_data,
-    _build_missing_prestations_analysis,
     _build_dashboard_filter_options,
+    _build_missing_prestations_analysis,
+    _build_satisfaction_dashboard_data,
     _build_threshold_class_stats,
     _call_report_status,
     _dashboard_chapeau_title,
     _dashboard_export_filename,
     _dashboard_export_filename_from_rows,
-    _assign_enquete_ids,
     _merge_class_apprenant_counts,
     _qualified_prestation_codes_from_source,
     _safe_import_appel_code,
@@ -88,7 +96,9 @@ class SatisfactionDashboardSourceTests(SimpleTestCase):
         )
 
     @patch("App_PADESCE.satisfaction_apprenants.views.build_padesce_source_index")
-    def test_attach_network_source_to_rows_adds_apprenant_id_and_coherence(self, mock_build_source_index):
+    def test_attach_network_source_to_rows_adds_apprenant_id_and_coherence(
+        self, mock_build_source_index
+    ):
         mock_build_source_index.return_value = {
             "source": {
                 "name": "fichier consolide.xlsm",
@@ -412,9 +422,21 @@ class SatisfactionDashboardSourceTests(SimpleTestCase):
             ],
             {
                 "classes": {
-                    "cla001": {"classe_id": "CLA001", "prestation_id": "PRESTA001", "statut_prestation": "TERMINÉ"},
-                    "cla002": {"classe_id": "CLA002", "prestation_id": "PRESTA001", "statut_prestation": "EN COURS"},
-                    "cla003": {"classe_id": "CLA003", "prestation_id": "PRESTA002", "statut_prestation": "ARRETÉ"},
+                    "cla001": {
+                        "classe_id": "CLA001",
+                        "prestation_id": "PRESTA001",
+                        "statut_prestation": "TERMINÉ",
+                    },
+                    "cla002": {
+                        "classe_id": "CLA002",
+                        "prestation_id": "PRESTA001",
+                        "statut_prestation": "EN COURS",
+                    },
+                    "cla003": {
+                        "classe_id": "CLA003",
+                        "prestation_id": "PRESTA002",
+                        "statut_prestation": "ARRETÉ",
+                    },
                 },
                 "records": {
                     "a1": {"classe_id": "CLA001", "telephone1": "690000001"},
@@ -476,9 +498,21 @@ class SatisfactionDashboardSourceTests(SimpleTestCase):
             },
             {
                 "classes": {
-                    "cla001": {"classe_id": "CLA001", "prestation_id": "PRESTA001", "statut_prestation": "TERMINÉ"},
-                    "cla002": {"classe_id": "CLA002", "prestation_id": "PRESTA001", "statut_prestation": "EN COURS"},
-                    "cla003": {"classe_id": "CLA003", "prestation_id": "PRESTA002", "statut_prestation": "ARRETÉ"},
+                    "cla001": {
+                        "classe_id": "CLA001",
+                        "prestation_id": "PRESTA001",
+                        "statut_prestation": "TERMINÉ",
+                    },
+                    "cla002": {
+                        "classe_id": "CLA002",
+                        "prestation_id": "PRESTA001",
+                        "statut_prestation": "EN COURS",
+                    },
+                    "cla003": {
+                        "classe_id": "CLA003",
+                        "prestation_id": "PRESTA002",
+                        "statut_prestation": "ARRETÉ",
+                    },
                 }
             },
         )
@@ -607,7 +641,9 @@ class SatisfactionDashboardRagTests(SimpleTestCase):
 
 
 class SatisfactionDashboardRegressionTests(SimpleTestCase):
-    @patch("App_PADESCE.satisfaction_apprenants.views._build_dashboard_table_details", return_value={})
+    @patch(
+        "App_PADESCE.satisfaction_apprenants.views._build_dashboard_table_details", return_value={}
+    )
     @patch(
         "App_PADESCE.satisfaction_apprenants.views._build_missing_prestations_analysis",
         return_value={"available": False, "total_missing": 0, "total_source": 0},
@@ -630,12 +666,17 @@ class SatisfactionDashboardRegressionTests(SimpleTestCase):
             "cohorte": [],
         },
     )
-    @patch("App_PADESCE.satisfaction_apprenants.views._assign_enquete_ids", side_effect=lambda rows: rows)
+    @patch(
+        "App_PADESCE.satisfaction_apprenants.views._assign_enquete_ids",
+        side_effect=lambda rows: rows,
+    )
     @patch(
         "App_PADESCE.satisfaction_apprenants.views._attach_network_source_to_rows",
         side_effect=lambda rows, **kwargs: (rows, {"available": False}),
     )
-    @patch("App_PADESCE.satisfaction_apprenants.views.build_padesce_source_index", return_value=None)
+    @patch(
+        "App_PADESCE.satisfaction_apprenants.views.build_padesce_source_index", return_value=None
+    )
     @patch("App_PADESCE.satisfaction_apprenants.views.get_workbook_source_options", return_value=[])
     @patch(
         "App_PADESCE.satisfaction_apprenants.views._qualified_prestation_codes_from_source",
@@ -651,7 +692,10 @@ class SatisfactionDashboardRegressionTests(SimpleTestCase):
     )
     @patch("App_PADESCE.satisfaction_apprenants.views._thresholded_dashboard_rows")
     @patch("App_PADESCE.satisfaction_apprenants.views._dashboard_row_from_answer")
-    @patch("App_PADESCE.satisfaction_apprenants.views._satisfaction_dashboard_base_queryset", return_value=[object()])
+    @patch(
+        "App_PADESCE.satisfaction_apprenants.views._satisfaction_dashboard_base_queryset",
+        return_value=[object()],
+    )
     @patch("App_PADESCE.satisfaction_apprenants.views._local_analysis_class_counts")
     def test_build_satisfaction_dashboard_data_sets_prestation_effectif_from_associated_classes(
         self,
@@ -719,12 +763,22 @@ class SatisfactionDashboardRegressionTests(SimpleTestCase):
         self.assertEqual(dashboard["context"]["prestation_stats"][0]["effectif"], 2)
         self.assertEqual(dashboard["context"]["prestation_stats_all"][0]["effectif"], 2)
 
-    @patch("App_PADESCE.satisfaction_apprenants.views._build_table_details_context", return_value={})
+    @patch(
+        "App_PADESCE.satisfaction_apprenants.views._build_table_details_context", return_value={}
+    )
     @patch(
         "App_PADESCE.satisfaction_apprenants.views._build_missing_prestations_analysis",
-        return_value={"available": True, "total_source": 75, "total_qualified": 47, "total_missing": 28},
+        return_value={
+            "available": True,
+            "total_source": 75,
+            "total_qualified": 47,
+            "total_missing": 28,
+        },
     )
-    @patch("App_PADESCE.satisfaction_apprenants.views._build_dashboard_active_filters_summary", return_value=[])
+    @patch(
+        "App_PADESCE.satisfaction_apprenants.views._build_dashboard_active_filters_summary",
+        return_value=[],
+    )
     @patch("App_PADESCE.satisfaction_apprenants.views._build_class_filter_options", return_value=[])
     @patch(
         "App_PADESCE.satisfaction_apprenants.views._build_dashboard_filter_options",
@@ -740,12 +794,17 @@ class SatisfactionDashboardRegressionTests(SimpleTestCase):
             "status": [],
         },
     )
-    @patch("App_PADESCE.satisfaction_apprenants.views._assign_enquete_ids", side_effect=lambda rows: rows)
+    @patch(
+        "App_PADESCE.satisfaction_apprenants.views._assign_enquete_ids",
+        side_effect=lambda rows: rows,
+    )
     @patch(
         "App_PADESCE.satisfaction_apprenants.views._attach_network_source_to_rows",
         side_effect=lambda rows, **kwargs: (rows, {"available": False}),
     )
-    @patch("App_PADESCE.satisfaction_apprenants.views.build_padesce_source_index", return_value=None)
+    @patch(
+        "App_PADESCE.satisfaction_apprenants.views.build_padesce_source_index", return_value=None
+    )
     @patch("App_PADESCE.satisfaction_apprenants.views.get_workbook_source_options", return_value=[])
     @patch(
         "App_PADESCE.satisfaction_apprenants.views._qualified_prestation_codes_from_source",
@@ -761,8 +820,14 @@ class SatisfactionDashboardRegressionTests(SimpleTestCase):
     )
     @patch("App_PADESCE.satisfaction_apprenants.views._thresholded_dashboard_rows")
     @patch("App_PADESCE.satisfaction_apprenants.views._dashboard_row_from_answer")
-    @patch("App_PADESCE.satisfaction_apprenants.views._satisfaction_dashboard_base_queryset", return_value=[object()])
-    @patch("App_PADESCE.satisfaction_apprenants.views._local_analysis_class_counts", return_value={"cla001": 2})
+    @patch(
+        "App_PADESCE.satisfaction_apprenants.views._satisfaction_dashboard_base_queryset",
+        return_value=[object()],
+    )
+    @patch(
+        "App_PADESCE.satisfaction_apprenants.views._local_analysis_class_counts",
+        return_value={"cla001": 2},
+    )
     def test_build_satisfaction_dashboard_data_uses_missing_analysis_totals_for_prestation_count(
         self,
         _mock_class_counts,
@@ -1152,8 +1217,14 @@ class SatisfactionGeneralPageTests(TestCase):
         self.assertNotContains(filtered_response, "NET001")
 
     @patch("App_PADESCE.satisfaction_apprenants.views.get_workbook_source_options", return_value=[])
-    @patch("App_PADESCE.satisfaction_apprenants.views.build_padesce_source_index", return_value={"records": {}})
-    @patch("App_PADESCE.satisfaction_apprenants.views._general_analysis_threshold_codes", return_value=set())
+    @patch(
+        "App_PADESCE.satisfaction_apprenants.views.build_padesce_source_index",
+        return_value={"records": {}},
+    )
+    @patch(
+        "App_PADESCE.satisfaction_apprenants.views._general_analysis_threshold_codes",
+        return_value=set(),
+    )
     def test_general_toggle_exclusion_updates_appel_flag(
         self,
         _mock_threshold_codes,
@@ -1174,8 +1245,14 @@ class SatisfactionGeneralPageTests(TestCase):
         self.assertTrue(appel_is_manually_excluded(self.eligible_appel))
 
     @patch("App_PADESCE.satisfaction_apprenants.views.get_workbook_source_options", return_value=[])
-    @patch("App_PADESCE.satisfaction_apprenants.views.build_padesce_source_index", return_value={"records": {}})
-    @patch("App_PADESCE.satisfaction_apprenants.views._general_analysis_threshold_codes", return_value=set())
+    @patch(
+        "App_PADESCE.satisfaction_apprenants.views.build_padesce_source_index",
+        return_value={"records": {}},
+    )
+    @patch(
+        "App_PADESCE.satisfaction_apprenants.views._general_analysis_threshold_codes",
+        return_value=set(),
+    )
     def test_general_bulk_exclusion_updates_selected_appels(
         self,
         _mock_threshold_codes,
@@ -1456,7 +1533,9 @@ class SatisfactionImportExcelSyncTests(TestCase):
 
     @patch("App_PADESCE.satisfaction_apprenants.views.answer_dashboard_prompt")
     @patch("App_PADESCE.satisfaction_apprenants.views._build_satisfaction_dashboard_data")
-    def test_satisfaction_dashboard_rag_returns_json_payload(self, mock_build_dashboard_data, mock_answer_dashboard_prompt):
+    def test_satisfaction_dashboard_rag_returns_json_payload(
+        self, mock_build_dashboard_data, mock_answer_dashboard_prompt
+    ):
         mock_build_dashboard_data.return_value = {
             "rows": [{"apprenant_code": "AB0E"}],
             "context": {"source_summary": {"available": True}},
@@ -1544,7 +1623,10 @@ class MissingLearnerImportTests(TestCase):
             password="testpass123",
         )
 
-    @patch("App_PADESCE.satisfaction_apprenants.views.build_padesce_source_index", return_value={"classes": {}})
+    @patch(
+        "App_PADESCE.satisfaction_apprenants.views.build_padesce_source_index",
+        return_value={"classes": {}},
+    )
     @patch("App_PADESCE.satisfaction_apprenants.views.build_consolidation_call_candidates")
     def test_import_missing_apprenants_shortens_oversized_codes_and_skips_reimports(
         self,

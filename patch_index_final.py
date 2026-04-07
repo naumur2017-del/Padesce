@@ -1,9 +1,8 @@
-import os
 import re
 
 file_path = r"F:\NAUMUR\NAUMUR - TRAVAUX EN COURS\Utlisateurs\EYOUM ATOCK\CALL APP\App_PADESCE-main\App_PADESCE-main\templates\appels\index.html"
 
-with open(file_path, 'r', encoding='utf-8') as f:
+with open(file_path, "r", encoding="utf-8") as f:
     content = f.read()
 
 # 1. Add style for the new features
@@ -18,8 +17,11 @@ style_add = """
   .btn-danger { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
   .btn-danger:hover { background: #fecaca; }
 """
-content = content.replace("  .bulk-progress-bar { height:100%; width:0%; background: linear-gradient(90deg, #18b0ac, #f6c453); transition: width .2s ease; }", 
-                          "  .bulk-progress-bar { height:100%; width:0%; background: linear-gradient(90deg, #18b0ac, #f6c453); transition: width .2s ease; }" + style_add)
+content = content.replace(
+    "  .bulk-progress-bar { height:100%; width:0%; background: linear-gradient(90deg, #18b0ac, #f6c453); transition: width .2s ease; }",
+    "  .bulk-progress-bar { height:100%; width:0%; background: linear-gradient(90deg, #18b0ac, #f6c453); transition: width .2s ease; }"
+    + style_add,
+)
 
 # 2. Add classe summary badges after <h1>
 classe_summary_html = """
@@ -36,7 +38,7 @@ classe_summary_html = """
   {% endfor %}
 </div>
 """
-content = re.sub(r'(<h1 class="h4 mb-2">Appels</h1>)', r'\1' + classe_summary_html, content)
+content = re.sub(r'(<h1 class="h4 mb-2">Appels</h1>)', r"\1" + classe_summary_html, content)
 
 # 3. Add Detail/Edit Modal
 detail_modal_html = """
@@ -97,10 +99,14 @@ detail_modal_html = """
   </div>
 </div>
 """
-content = content.replace('<div id="js-termination-modal"', detail_modal_html + '<div id="js-termination-modal"')
+content = content.replace(
+    '<div id="js-termination-modal"', detail_modal_html + '<div id="js-termination-modal"'
+)
 
 # 4. Update row clickability
-content = content.replace('<tr data-id="{{ a.id }}"', '<tr class="clickable-row" data-id="{{ a.id }}"')
+content = content.replace(
+    '<tr data-id="{{ a.id }}"', '<tr class="clickable-row" data-id="{{ a.id }}"'
+)
 
 # 5. Update Satisfaction Modal (Phone, Stop record, flags)
 sat_modal_update = """
@@ -113,7 +119,10 @@ sat_modal_update = """
     
     <div style="margin: 10px 0; border: 1px solid var(--border); padding: 10px; border-radius: 8px;">
 """
-content = content.replace('<div class="modal-detail">\n      <span class="modal-label">Nom :</span>\n      <span id="js-sat-modal-nom">-</span>\n    </div>', sat_modal_update)
+content = content.replace(
+    '<div class="modal-detail">\n      <span class="modal-label">Nom :</span>\n      <span id="js-sat-modal-nom">-</span>\n    </div>',
+    sat_modal_update,
+)
 
 # Add flags to sat modal
 sat_flags_html = """
@@ -135,11 +144,15 @@ sat_flags_html = """
        <input type="text" id="js-sat-vrai-nom" class="input" style="width:100%; padding:6px;" placeholder="Entrez le vrai nom...">
     </div>
 """
-content = content.replace('<div id="js-sat-questions">', sat_flags_html + '<div id="js-sat-questions">')
+content = content.replace(
+    '<div id="js-sat-questions">', sat_flags_html + '<div id="js-sat-questions">'
+)
 
 # Add "Stop record" button
-content = content.replace('<button type="button" class="btn btn-ghost btn-sm" id="js-sat-hide">Masquer (garder l\'appel en cours)</button>',
-                          '<button type="button" class="btn btn-ghost btn-sm" id="js-sat-stop-record">Arrêter l\'enregistrement</button>\n      <button type="button" class="btn btn-ghost btn-sm" id="js-sat-hide">Masquer</button>')
+content = content.replace(
+    '<button type="button" class="btn btn-ghost btn-sm" id="js-sat-hide">Masquer (garder l\'appel en cours)</button>',
+    '<button type="button" class="btn btn-ghost btn-sm" id="js-sat-stop-record">Arrêter l\'enregistrement</button>\n      <button type="button" class="btn btn-ghost btn-sm" id="js-sat-hide">Masquer</button>',
+)
 
 # 6. Update JS logic
 js_add = """
@@ -259,7 +272,7 @@ js_add = """
 """
 
 # Inject JS before end of script
-content = content.replace('})();', js_add + '\n  })();')
+content = content.replace("})();", js_add + "\n  })();")
 
 # Update satisfyterminer to include flags
 sat_terminer_js = """
@@ -285,7 +298,12 @@ sat_terminer_js = """
 
         satModal.hidden = true;
 """
-content = re.sub(r'const\s+shouldRappeler\s+=\s+satModalRappel\?\.checked;.*?satModal\.hidden\s+=\s+true;', sat_terminer_js, content, flags=re.DOTALL)
+content = re.sub(
+    r"const\s+shouldRappeler\s+=\s+satModalRappel\?\.checked;.*?satModal\.hidden\s+=\s+true;",
+    sat_terminer_js,
+    content,
+    flags=re.DOTALL,
+)
 
 # Update startRecording to pre-fill from detail endpoint if status is a_rappeler
 start_rec_update = """
@@ -323,13 +341,18 @@ start_rec_update = """
           // ... rest of startRecording ...
 """
 # This is complex to regex replace, I'll do a simpler replacement for the pre-fill logic
-content = content.replace('document.querySelectorAll("#js-sat-questions input[type=radio][value=\'3\']").forEach(r => r.checked = true);', 
-                          '// Default values\n          document.querySelectorAll("#js-sat-questions input[type=radio][value=\'3\']").forEach(r => r.checked = true);\n          if (row.dataset.status === "a_rappeler") {\n             try {\n               const res = await fetch(`/appels/${id}/answers/`);\n               const data = await res.json();\n               if (data.ok && data.answers) {\n                 for(let i=1; i<=9; i++) {\n                   const v = data.answers[`q${i}`];\n                   if(v) { const r = document.querySelector(`#js-sat-questions input[name="q${i}"][value="${v}"]`); if(r) r.checked = true; }\n                 }\n                 document.getElementById("js-sat-commentaire").value = data.answers.commentaire || "";\n                 document.getElementById("js-sat-recommandations").value = data.answers.recommandations || "";\n               }\n             } catch(e){}\n          }')
+content = content.replace(
+    "document.querySelectorAll(\"#js-sat-questions input[type=radio][value='3']\").forEach(r => r.checked = true);",
+    '// Default values\n          document.querySelectorAll("#js-sat-questions input[type=radio][value=\'3\']").forEach(r => r.checked = true);\n          if (row.dataset.status === "a_rappeler") {\n             try {\n               const res = await fetch(`/appels/${id}/answers/`);\n               const data = await res.json();\n               if (data.ok && data.answers) {\n                 for(let i=1; i<=9; i++) {\n                   const v = data.answers[`q${i}`];\n                   if(v) { const r = document.querySelector(`#js-sat-questions input[name="q${i}"][value="${v}"]`); if(r) r.checked = true; }\n                 }\n                 document.getElementById("js-sat-commentaire").value = data.answers.commentaire || "";\n                 document.getElementById("js-sat-recommandations").value = data.answers.recommandations || "";\n               }\n             } catch(e){}\n          }',
+)
 
 # Add Phone visibility
-content = content.replace('satModal.dataset.rowId = id;', 'satModal.dataset.rowId = id;\n          document.getElementById("js-sat-modal-phone").textContent = row.dataset.phone || "-";')
+content = content.replace(
+    "satModal.dataset.rowId = id;",
+    'satModal.dataset.rowId = id;\n          document.getElementById("js-sat-modal-phone").textContent = row.dataset.phone || "-";',
+)
 
-with open(file_path, 'w', encoding='utf-8') as f:
+with open(file_path, "w", encoding="utf-8") as f:
     f.write(content)
 
 print("Patch complete.")

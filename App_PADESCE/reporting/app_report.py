@@ -21,11 +21,11 @@ from django.http import QueryDict
 from django.utils import timezone
 
 from App_PADESCE.appels.models import (
-    Appel,
-    AppelFormateur,
     CALL_ANALYSIS_THRESHOLD_STATUSES,
     CALL_COMPLETED_STATUSES,
     CALL_TENTATIVE_STATUSES,
+    Appel,
+    AppelFormateur,
 )
 from App_PADESCE.core.analysis_rules import analysis_threshold_target
 from App_PADESCE.core.models import UserActivity
@@ -526,8 +526,8 @@ def build_report_email_html(report: dict) -> str:
           <td style="vertical-align:top;">
             <div style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#4c1d95;font-weight:700;">Rapport journalier</div>
             <h1 style="margin:8px 0 6px;font-size:24px;line-height:1.25;color:#1f1630;">Synthese d'activite</h1>
-            <p style="margin:0;font-size:14px;color:#555555;">Periode du {report['start_date'].strftime('%d/%m/%Y')} au {report['end_date'].strftime('%d/%m/%Y')}</p>
-            <p style="margin:4px 0 0;font-size:13px;color:#666666;">Genere le {timezone.localtime(report['generated_at']).strftime('%d/%m/%Y a %H:%M')}</p>
+            <p style="margin:0;font-size:14px;color:#555555;">Periode du {report["start_date"].strftime("%d/%m/%Y")} au {report["end_date"].strftime("%d/%m/%Y")}</p>
+            <p style="margin:4px 0 0;font-size:13px;color:#666666;">Genere le {timezone.localtime(report["generated_at"]).strftime("%d/%m/%Y a %H:%M")}</p>
           </td>
         </tr>
       </table>
@@ -539,11 +539,11 @@ def build_report_email_html(report: dict) -> str:
         <table role="presentation" style="width:100%;border-collapse:collapse;">
           <tr>
             <td style="padding:8px 0;border-bottom:1px solid #ececf2;">Utilisateurs ayant appele</td>
-            <td style="padding:8px 0;border-bottom:1px solid #ececf2;text-align:right;font-weight:700;">{report['users']['called_today']}</td>
+            <td style="padding:8px 0;border-bottom:1px solid #ececf2;text-align:right;font-weight:700;">{report["users"]["called_today"]}</td>
           </tr>
           <tr>
             <td style="padding:8px 0;border-bottom:1px solid #ececf2;">Appels termines</td>
-            <td style="padding:8px 0;border-bottom:1px solid #ececf2;text-align:right;font-weight:700;">{report['calls']['completed']}</td>
+            <td style="padding:8px 0;border-bottom:1px solid #ececf2;text-align:right;font-weight:700;">{report["calls"]["completed"]}</td>
           </tr>
           <tr>
             <td style="padding:8px 0;border-bottom:1px solid #ececf2;">Heure la plus performante</td>
@@ -559,21 +559,21 @@ def build_report_email_html(report: dict) -> str:
       <div style="border:1px solid #dfe1ea;padding:16px 18px;margin-bottom:18px;">
         <div style="font-size:16px;font-weight:700;color:#4c1d95;margin-bottom:10px;">2. Analyse satisfaction – Apprenants</div>
         <table role="presentation" style="width:100%;border-collapse:collapse;">
-          <tr><td style="padding:8px 0;border-bottom:1px solid #ececf2;">Classes analysees</td><td style="padding:8px 0;border-bottom:1px solid #ececf2;text-align:right;font-weight:700;">{report['analysis']['classes_count']}</td></tr>
-          <tr><td style="padding:8px 0;border-bottom:1px solid #ececf2;">Prestations analysees</td><td style="padding:8px 0;border-bottom:1px solid #ececf2;text-align:right;font-weight:700;">{report['analysis']['prestations_count']}</td></tr>
-          <tr><td style="padding:8px 0;border-bottom:1px solid #ececf2;">Prestataires analyses</td><td style="padding:8px 0;border-bottom:1px solid #ececf2;text-align:right;font-weight:700;">{report['analysis']['prestataires_count']}</td></tr>
-          <tr><td style="padding:8px 0;">Beneficiaires analyses</td><td style="padding:8px 0;text-align:right;font-weight:700;">{report['analysis']['beneficiaires_count']}</td></tr>
+          <tr><td style="padding:8px 0;border-bottom:1px solid #ececf2;">Classes analysees</td><td style="padding:8px 0;border-bottom:1px solid #ececf2;text-align:right;font-weight:700;">{report["analysis"]["classes_count"]}</td></tr>
+          <tr><td style="padding:8px 0;border-bottom:1px solid #ececf2;">Prestations analysees</td><td style="padding:8px 0;border-bottom:1px solid #ececf2;text-align:right;font-weight:700;">{report["analysis"]["prestations_count"]}</td></tr>
+          <tr><td style="padding:8px 0;border-bottom:1px solid #ececf2;">Prestataires analyses</td><td style="padding:8px 0;border-bottom:1px solid #ececf2;text-align:right;font-weight:700;">{report["analysis"]["prestataires_count"]}</td></tr>
+          <tr><td style="padding:8px 0;">Beneficiaires analyses</td><td style="padding:8px 0;text-align:right;font-weight:700;">{report["analysis"]["beneficiaires_count"]}</td></tr>
         </table>
       </div>
 
       <div style="border:1px solid #dfe1ea;padding:16px 18px;margin-bottom:18px;">
         <div style="font-size:16px;font-weight:700;color:#4c1d95;margin-bottom:10px;">3. Analyse satisfaction – Formateurs</div>
         <table role="presentation" style="width:100%;border-collapse:collapse;">
-          <tr><td style="padding:8px 0;border-bottom:1px solid #ececf2;">Appels formateurs termines (periode)</td><td style="padding:8px 0;border-bottom:1px solid #ececf2;text-align:right;font-weight:700;">{report['formateurs_summary']['total_termines']}</td></tr>
-          <tr><td style="padding:8px 0;border-bottom:1px solid #ececf2;">Avec scores Q1-Q3</td><td style="padding:8px 0;border-bottom:1px solid #ececf2;text-align:right;font-weight:700;">{report['formateurs_summary']['with_scores']}</td></tr>
-          <tr><td style="padding:8px 0;border-bottom:1px solid #ececf2;">Moy. Q1 – Prerequis apprenants</td><td style="padding:8px 0;border-bottom:1px solid #ececf2;text-align:right;font-weight:700;">{report['formateurs_summary']['avg_q1']}/5</td></tr>
-          <tr><td style="padding:8px 0;border-bottom:1px solid #ececf2;">Moy. Q2 – Interaction apprenants</td><td style="padding:8px 0;border-bottom:1px solid #ececf2;text-align:right;font-weight:700;">{report['formateurs_summary']['avg_q2']}/5</td></tr>
-          <tr><td style="padding:8px 0;">Moy. Q3 – Competences acquises</td><td style="padding:8px 0;text-align:right;font-weight:700;">{report['formateurs_summary']['avg_q3']}/5</td></tr>
+          <tr><td style="padding:8px 0;border-bottom:1px solid #ececf2;">Appels formateurs termines (periode)</td><td style="padding:8px 0;border-bottom:1px solid #ececf2;text-align:right;font-weight:700;">{report["formateurs_summary"]["total_termines"]}</td></tr>
+          <tr><td style="padding:8px 0;border-bottom:1px solid #ececf2;">Avec scores Q1-Q3</td><td style="padding:8px 0;border-bottom:1px solid #ececf2;text-align:right;font-weight:700;">{report["formateurs_summary"]["with_scores"]}</td></tr>
+          <tr><td style="padding:8px 0;border-bottom:1px solid #ececf2;">Moy. Q1 – Prerequis apprenants</td><td style="padding:8px 0;border-bottom:1px solid #ececf2;text-align:right;font-weight:700;">{report["formateurs_summary"]["avg_q1"]}/5</td></tr>
+          <tr><td style="padding:8px 0;border-bottom:1px solid #ececf2;">Moy. Q2 – Interaction apprenants</td><td style="padding:8px 0;border-bottom:1px solid #ececf2;text-align:right;font-weight:700;">{report["formateurs_summary"]["avg_q2"]}/5</td></tr>
+          <tr><td style="padding:8px 0;">Moy. Q3 – Competences acquises</td><td style="padding:8px 0;text-align:right;font-weight:700;">{report["formateurs_summary"]["avg_q3"]}/5</td></tr>
         </table>
       </div>
 
@@ -919,7 +919,9 @@ def _build_analysis_summary(padesce_qs) -> dict:
     except Exception:
         pass
 
-    terminated_rows = list(padesce_qs.filter(status__in=CALL_COMPLETED_STATUSES).select_related("classe__prestation"))
+    terminated_rows = list(
+        padesce_qs.filter(status__in=CALL_COMPLETED_STATUSES).select_related("classe__prestation")
+    )
     classes = sorted(
         {
             (row.classe_label or "").strip()
@@ -1168,7 +1170,9 @@ def _hourly_completed_counts(queryset) -> dict[int, int]:
     """Compte les appels termines par heure (compatible SQLite et PostgreSQL)."""
     counts: dict[int, int] = {}
     tz = timezone.get_current_timezone()
-    for updated_at in queryset.filter(status__in=CALL_COMPLETED_STATUSES).values_list("updated_at", flat=True):
+    for updated_at in queryset.filter(status__in=CALL_COMPLETED_STATUSES).values_list(
+        "updated_at", flat=True
+    ):
         if updated_at is None:
             continue
         local_dt = (

@@ -52,7 +52,9 @@ def audit_presence_delete(sender, instance: Presence, **kwargs):
 
 
 @receiver(post_save, sender=SatisfactionApprenant)
-def audit_satisfaction_apprenant_save(sender, instance: SatisfactionApprenant, created: bool, **kwargs):
+def audit_satisfaction_apprenant_save(
+    sender, instance: SatisfactionApprenant, created: bool, **kwargs
+):
     _log_audit(instance, "created" if created else "updated")
     _touch_analysis_runtime_cache(instance)
 
@@ -84,7 +86,9 @@ def audit_appel_answers_delete(sender, instance: AppelAnswers, **kwargs):
 
 
 @receiver(post_save, sender=SatisfactionFormateur)
-def audit_satisfaction_formateur_save(sender, instance: SatisfactionFormateur, created: bool, **kwargs):
+def audit_satisfaction_formateur_save(
+    sender, instance: SatisfactionFormateur, created: bool, **kwargs
+):
     _log_audit(instance, "created" if created else "updated")
 
 

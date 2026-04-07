@@ -1,12 +1,12 @@
 from typing import Any, Dict, List
 
 from django.db.models import Avg, Count, Q, Sum
-from django.http import JsonResponse, Http404
+from django.http import Http404, JsonResponse
 
-from App_PADESCE.core.access import require_analysis_access
 from App_PADESCE.apprenants.models import Apprenant
+from App_PADESCE.core.access import require_analysis_access
 from App_PADESCE.environnement.models import EnqueteEnvironnement
-from App_PADESCE.formations.models import Formation, Prestation
+from App_PADESCE.formations.models import Formation
 from App_PADESCE.presences.models import Presence
 from App_PADESCE.satisfaction_apprenants.models import SatisfactionApprenant
 from App_PADESCE.satisfaction_formateurs.models import SatisfactionFormateur
@@ -23,7 +23,12 @@ def _presence_rates(field: str) -> List[Dict[str, Any]]:
         .order_by("-total")
     )
     return [
-        {"label": r[field], "pr": r["pr"], "total": r["total"], "taux": safe_rate(r["pr"], r["total"])}
+        {
+            "label": r[field],
+            "pr": r["pr"],
+            "total": r["total"],
+            "taux": safe_rate(r["pr"], r["total"]),
+        }
         for r in qs
     ]
 
@@ -39,8 +44,15 @@ def get_chart_data(code: str) -> Dict[str, Any]:
     total_pres = Presence.objects.count()
     total_pr = Presence.objects.filter(presence="PR").count()
     taux_presence_global = safe_rate(total_pr, total_pres)
-    sat_appr_moy = SatisfactionApprenant.objects.aggregate(m=Avg("q9_satisfaction_globale")).get("m") or 0
-    sat_form_moy = SatisfactionFormateur.objects.aggregate(m=Avg("q9_satisfaction_globale_prestataire")).get("m") or 0
+    sat_appr_moy = (
+        SatisfactionApprenant.objects.aggregate(m=Avg("q9_satisfaction_globale")).get("m") or 0
+    )
+    sat_form_moy = (
+        SatisfactionFormateur.objects.aggregate(m=Avg("q9_satisfaction_globale_prestataire")).get(
+            "m"
+        )
+        or 0
+    )
     env_fields = [
         "tables",
         "chaises",
@@ -82,33 +94,59 @@ def get_chart_data(code: str) -> Dict[str, Any]:
 
     # Satisfaction apprenants
     sat_appr_map = {
-        "RES04-02": _sat_avg(SatisfactionApprenant, "q9_satisfaction_globale", "classe__prestation__prestataire__raison_sociale"),
-        "RES04-03": _sat_avg(SatisfactionApprenant, "q9_satisfaction_globale", "classe__prestation__code"),
-        "RES04-04": _sat_avg(SatisfactionApprenant, "q9_satisfaction_globale", "classe__prestation__beneficiaire__nom_structure"),
-        "RES04-05": _sat_avg(SatisfactionApprenant, "q9_satisfaction_globale", "classe__formation__nom"),
-        "RES04-06": _sat_avg(SatisfactionApprenant, "q9_satisfaction_globale", "classe__formation__nom_harmonise"),
+        "RES04-02": _sat_avg(
+            SatisfactionApprenant,
+            "q9_satisfaction_globale",
+            "classe__prestation__prestataire__raison_sociale",
+        ),
+        "RES04-03": _sat_avg(
+            SatisfactionApprenant, "q9_satisfaction_globale", "classe__prestation__code"
+        ),
+        "RES04-04": _sat_avg(
+            SatisfactionApprenant,
+            "q9_satisfaction_globale",
+            "classe__prestation__beneficiaire__nom_structure",
+        ),
+        "RES04-05": _sat_avg(
+            SatisfactionApprenant, "q9_satisfaction_globale", "classe__formation__nom"
+        ),
+        "RES04-06": _sat_avg(
+            SatisfactionApprenant, "q9_satisfaction_globale", "classe__formation__nom_harmonise"
+        ),
     }
     if code in sat_appr_map:
         return {"type": "bar", "series": sat_appr_map[code]}
 
     # Satisfaction formateurs
     sat_form_map = {
-        "RES05-01": _sat_avg(SatisfactionFormateur, "q9_satisfaction_globale_prestataire", "classe__code"),
+        "RES05-01": _sat_avg(
+            SatisfactionFormateur, "q9_satisfaction_globale_prestataire", "classe__code"
+        ),
     }
     if code in sat_form_map:
         return {"type": "bar", "series": sat_form_map[code]}
 
     # Répartition apprenants
     repart_map = {
-        "PER01-01": Apprenant.objects.values("region").annotate(total=Count("id")).order_by("-total"),
-        "PER01-02": Apprenant.objects.values("formation__nom").annotate(total=Count("id")).order_by("-total"),
-        "PER01-03": Apprenant.objects.values("classe__prestation__beneficiaire__nom_structure").annotate(total=Count("id")).order_by("-total"),
-        "PER01-04": Apprenant.objects.values("classe__prestation__prestataire__raison_sociale").annotate(total=Count("id")).order_by("-total"),
+        "PER01-01": Apprenant.objects.values("region")
+        .annotate(total=Count("id"))
+        .order_by("-total"),
+        "PER01-02": Apprenant.objects.values("formation__nom")
+        .annotate(total=Count("id"))
+        .order_by("-total"),
+        "PER01-03": Apprenant.objects.values("classe__prestation__beneficiaire__nom_structure")
+        .annotate(total=Count("id"))
+        .order_by("-total"),
+        "PER01-04": Apprenant.objects.values("classe__prestation__prestataire__raison_sociale")
+        .annotate(total=Count("id"))
+        .order_by("-total"),
     }
     if code in repart_map:
         return {
             "type": "bar",
-            "series": [{"label": r[next(iter(r.keys()))], "total": r["total"]} for r in repart_map[code]],
+            "series": [
+                {"label": r[next(iter(r.keys()))], "total": r["total"]} for r in repart_map[code]
+            ],
         }
 
     # Carte des lieux
@@ -127,7 +165,9 @@ def get_chart_data(code: str) -> Dict[str, Any]:
     if code == "RES03-02":
         qs = (
             EnqueteEnvironnement.objects.values("classe__lieu__nom_lieu", "classe__lieu__region")
-            .annotate(total=Count("id"), tables=Sum("tables"), chaises=Sum("chaises"), ecran=Sum("ecran"))
+            .annotate(
+                total=Count("id"), tables=Sum("tables"), chaises=Sum("chaises"), ecran=Sum("ecran")
+            )
             .order_by("-total")
         )
         return {"type": "table", "rows": list(qs)}

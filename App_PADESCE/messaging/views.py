@@ -10,9 +10,14 @@ from django.shortcuts import redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
-from App_PADESCE.messaging.forms import CampagneMessageForm, ContactForm, SupportAlarmForm, SupportMessageForm
-from App_PADESCE.messaging.models import CampagneMessage, Contact, SupportAlarm, SupportMessage
 from App_PADESCE.formations.models import Prestataire
+from App_PADESCE.messaging.forms import (
+    CampagneMessageForm,
+    ContactForm,
+    SupportAlarmForm,
+    SupportMessageForm,
+)
+from App_PADESCE.messaging.models import CampagneMessage, Contact, SupportAlarm, SupportMessage
 
 
 def contacts_view(request):
@@ -172,7 +177,7 @@ def support_center(request):
                     SupportMessage.objects.create(
                         sender=user,
                         recipient=admin_user,
-                        body=f"[ALARM] {alarm.title}\nModule: {alarm.module or '-'}\n{alarm.details}",
+                        body=f"[ALARM] {alarm.title}\nModule: {alarm.module or '-'}\n{alarm.details}",  # noqa: E501
                         kind=SupportMessage.KIND_ALARM,
                         is_read=False,
                     )
@@ -189,19 +194,21 @@ def support_center(request):
             .select_related("sender", "recipient")
             .order_by("created_at")
         )
-        SupportMessage.objects.filter(
-            sender=selected_user, recipient=user, is_read=False
-        ).update(is_read=True)
+        SupportMessage.objects.filter(sender=selected_user, recipient=user, is_read=False).update(
+            is_read=True
+        )
 
     unread_inbox_count = SupportMessage.objects.filter(recipient=user, is_read=False).count()
     if user.is_superuser:
         alarms_qs = SupportAlarm.objects.all().select_related("reporter", "seen_by", "resolved_by")
     elif is_agent:
-        alarms_qs = SupportAlarm.objects.filter(
-            Q(reporter=user) | Q(is_seen=False)
-        ).select_related("reporter", "seen_by", "resolved_by")
+        alarms_qs = SupportAlarm.objects.filter(Q(reporter=user) | Q(is_seen=False)).select_related(
+            "reporter", "seen_by", "resolved_by"
+        )
     else:
-        alarms_qs = SupportAlarm.objects.filter(reporter=user).select_related("reporter", "seen_by", "resolved_by")
+        alarms_qs = SupportAlarm.objects.filter(reporter=user).select_related(
+            "reporter", "seen_by", "resolved_by"
+        )
 
     context = {
         "message_form": message_form,
@@ -220,22 +227,28 @@ def support_center(request):
 def support_alarm_poll(request):
     if not request.user.is_superuser:
         return JsonResponse({"ok": False, "error": "forbidden"}, status=403)
-    unseen_qs = SupportAlarm.objects.filter(is_seen=False).select_related("reporter").order_by("-created_at")
+    unseen_qs = (
+        SupportAlarm.objects.filter(is_seen=False)
+        .select_related("reporter")
+        .order_by("-created_at")
+    )
     latest = unseen_qs.first()
     return JsonResponse(
         {
             "ok": True,
             "unseen_count": unseen_qs.count(),
-            "latest": {
-                "id": latest.id,
-                "title": latest.title,
-                "module": latest.module,
-                "reporter": latest.reporter.get_username() if latest else "",
-                "created_at": latest.created_at.isoformat() if latest else "",
-                "details": latest.details if latest else "",
-            }
-            if latest
-            else None,
+            "latest": (
+                {
+                    "id": latest.id,
+                    "title": latest.title,
+                    "module": latest.module,
+                    "reporter": latest.reporter.get_username() if latest else "",
+                    "created_at": latest.created_at.isoformat() if latest else "",
+                    "details": latest.details if latest else "",
+                }
+                if latest
+                else None
+            ),
         }
     )
 

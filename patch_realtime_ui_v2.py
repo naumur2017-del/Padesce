@@ -1,8 +1,6 @@
-import os
-
 PATH = r"F:\NAUMUR\NAUMUR - TRAVAUX EN COURS\Utlisateurs\EYOUM ATOCK\CALL APP\App_PADESCE-main\App_PADESCE-main\templates\appels\index.html"
 
-with open(PATH, 'r', encoding='utf-8') as f:
+with open(PATH, "r", encoding="utf-8") as f:
     content = f.read()
 
 # The old real-time logic (if any) was looking for .class-summary-card
@@ -80,7 +78,7 @@ NEW_RT_LOGIC = """    // Update class badges globally in the filter dropdown
 # Use a safer string replacement or regex if the old logic was escaped
 content = content.replace(OLD_RT_LOGIC, NEW_RT_LOGIC)
 
-with open(PATH, 'w', encoding='utf-8') as f:
+with open(PATH, "w", encoding="utf-8") as f:
     f.write(content)
 
 print("Patch real-time UI v2 complete.")

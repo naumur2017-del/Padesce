@@ -173,12 +173,16 @@ def build_checks(run: dict[str, Any]) -> list[dict[str, Any]]:
         {
             "label": "Configuration du deploiement",
             "status": "ok" if (run.get("config", {}) or {}).get("ready") else "error",
-            "detail": "Les acces serveur necessaires etaient disponibles." if (run.get("config", {}) or {}).get("ready") else "Une information serveur manquait au lancement.",
+            "detail": "Les acces serveur necessaires etaient disponibles."
+            if (run.get("config", {}) or {}).get("ready")
+            else "Une information serveur manquait au lancement.",
         },
         {
             "label": "Resultat final",
             "status": "ok" if run.get("status") == "completed" else "error",
-            "detail": "Le pipeline s'est termine sans erreur bloquante." if run.get("status") == "completed" else (run.get("error") or "Le pipeline s'est arrete avant la fin."),
+            "detail": "Le pipeline s'est termine sans erreur bloquante."
+            if run.get("status") == "completed"
+            else (run.get("error") or "Le pipeline s'est arrete avant la fin."),
         },
         {
             "label": "Changements prepares",
@@ -197,7 +201,9 @@ def build_checks(run: dict[str, Any]) -> list[dict[str, Any]]:
         {
             "label": "Manifeste distant relu",
             "status": "ok" if verification.get("remote_manifest") else "warning",
-            "detail": "La reference distante a bien ete relue apres transfert." if verification.get("remote_manifest") else "La reference distante n'a pas pu etre relue apres transfert.",
+            "detail": "La reference distante a bien ete relue apres transfert."
+            if verification.get("remote_manifest")
+            else "La reference distante n'a pas pu etre relue apres transfert.",
         },
     ]
 
@@ -232,7 +238,9 @@ def build_checks(run: dict[str, Any]) -> list[dict[str, Any]]:
         {
             "label": "Erreurs de controle",
             "status": "ok" if not errors else "error",
-            "detail": "Aucune erreur de controle." if not errors else " ; ".join(str(item) for item in errors),
+            "detail": "Aucune erreur de controle."
+            if not errors
+            else " ; ".join(str(item) for item in errors),
         }
     )
     return checks
@@ -244,7 +252,11 @@ def build_plain_language(run: dict[str, Any], links: dict[str, str]) -> dict[str
     live_refresh = verification.get("live_refresh", {}) or {}
     http_check = verification.get("http_check", {}) or {}
 
-    headline = "Le deploiement est termine." if run.get("status") == "completed" else "Le deploiement a rencontre un probleme."
+    headline = (
+        "Le deploiement est termine."
+        if run.get("status") == "completed"
+        else "Le deploiement a rencontre un probleme."
+    )
     change_sentence = (
         f"Le site devait recevoir {summary.get('additions', 0)} nouveaute(s), "
         f"{summary.get('modifications', 0)} mise(s) a jour et "
@@ -252,9 +264,13 @@ def build_plain_language(run: dict[str, Any], links: dict[str, str]) -> dict[str
     )
 
     if live_refresh.get("required") is False:
-        refresh_sentence = "Le serveur Python n'avait pas besoin d'etre recharge pour cette operation."
+        refresh_sentence = (
+            "Le serveur Python n'avait pas besoin d'etre recharge pour cette operation."
+        )
     elif live_refresh.get("reloaded"):
-        refresh_sentence = "Le serveur Python a confirme qu'il avait bien recharge la nouvelle version."
+        refresh_sentence = (
+            "Le serveur Python a confirme qu'il avait bien recharge la nouvelle version."
+        )
     else:
         refresh_sentence = (
             "Le serveur Python n'a pas encore confirme son rechargement automatique. "
@@ -262,9 +278,13 @@ def build_plain_language(run: dict[str, Any], links: dict[str, str]) -> dict[str
         )
 
     if http_check.get("status_code"):
-        website_sentence = f"Le site public a repondu avec le code HTTP {http_check.get('status_code')}."
+        website_sentence = (
+            f"Le site public a repondu avec le code HTTP {http_check.get('status_code')}."
+        )
     else:
-        website_sentence = str(http_check.get("message", "La verification du site public n'a pas abouti."))
+        website_sentence = str(
+            http_check.get("message", "La verification du site public n'a pas abouti.")
+        )
 
     untracked_count = int(summary.get("remote_untracked", 0) or 0)
     untracked_sentence = (
@@ -340,7 +360,9 @@ def render_report_markdown(report: dict[str, Any]) -> str:
     lines.append("## Controles")
     lines.append("")
     for item in report.get("checks", []):
-        lines.append(f"- {item.get('label')}: {_status_label(item.get('status', ''))} | {item.get('detail', '')}")
+        lines.append(
+            f"- {item.get('label')}: {_status_label(item.get('status', ''))} | {item.get('detail', '')}"
+        )
     lines.append("")
     lines.append("## Ce qui change sur le site")
     lines.append("")
@@ -378,13 +400,22 @@ def render_report_markdown(report: dict[str, Any]) -> str:
     lines.append("## Journal")
     lines.append("")
     for entry in report.get("logs", []):
-        lines.append(f"- [{entry.get('at', '-')}] {entry.get('level', 'info')}: {entry.get('message', '')}")
+        lines.append(
+            f"- [{entry.get('at', '-')}] {entry.get('level', 'info')}: {entry.get('message', '')}"
+        )
     lines.append("")
     return "\n".join(lines)
 
 
 def _workbook_available() -> bool:
-    return Workbook is not None and Alignment is not None and Border is not None and Font is not None and PatternFill is not None and Side is not None
+    return (
+        Workbook is not None
+        and Alignment is not None
+        and Border is not None
+        and Font is not None
+        and PatternFill is not None
+        and Side is not None
+    )
 
 
 def _cell_fill(color: str):
@@ -490,7 +521,9 @@ def _build_run_workbook(report: dict[str, Any]) -> Workbook | None:
     )
     row += 1
     row = _style_section(resume_sheet, row, "Explication simple")
-    headline_cell = resume_sheet.cell(row=row, column=1, value=report.get("plain_language", {}).get("headline", ""))
+    headline_cell = resume_sheet.cell(
+        row=row, column=1, value=report.get("plain_language", {}).get("headline", "")
+    )
     headline_cell.font = Font(bold=True, color=PURPLE_DARK, size=12)
     resume_sheet.merge_cells(start_row=row, start_column=1, end_row=row, end_column=6)
     row += 1
@@ -514,17 +547,21 @@ def _build_run_workbook(report: dict[str, Any]) -> Workbook | None:
     row = _write_label_value(resume_sheet, row, "Nouveautes", summary.get("additions", 0))
     row = _write_label_value(resume_sheet, row, "Mises a jour", summary.get("modifications", 0))
     row = _write_label_value(resume_sheet, row, "Suppressions suivies", summary.get("deletions", 0))
-    row = _write_label_value(resume_sheet, row, "Elements non encore suivis", summary.get("remote_untracked", 0))
+    row = _write_label_value(
+        resume_sheet, row, "Elements non encore suivis", summary.get("remote_untracked", 0)
+    )
     total_row = row
     row = _write_label_value(resume_sheet, row, "Total des changements suivis", "")
-    resume_sheet.cell(row=total_row, column=2, value=f"=SUM(B{total_row-4}:B{total_row-2})")
+    resume_sheet.cell(row=total_row, column=2, value=f"=SUM(B{total_row - 4}:B{total_row - 2})")
     row += 1
     row = _style_section(resume_sheet, row, "Ce qui a ete controle")
     row = _write_table_header(resume_sheet, row, ["Controle", "Resultat", "Explication"])
     for item in report.get("checks", []):
         fill_color, text_color = _status_style(item.get("status", ""))
         resume_sheet.cell(row=row, column=1, value=item.get("label", "")).border = _thin_border()
-        status_cell = resume_sheet.cell(row=row, column=2, value=_status_label(item.get("status", "")))
+        status_cell = resume_sheet.cell(
+            row=row, column=2, value=_status_label(item.get("status", ""))
+        )
         status_cell.fill = _cell_fill(fill_color)
         status_cell.font = Font(color=text_color, bold=True)
         status_cell.border = _thin_border()
@@ -540,7 +577,9 @@ def _build_run_workbook(report: dict[str, Any]) -> Workbook | None:
     for item in report.get("checks", []):
         fill_color, text_color = _status_style(item.get("status", ""))
         controles_sheet.cell(row=row, column=1, value=item.get("label", "")).border = _thin_border()
-        status_cell = controles_sheet.cell(row=row, column=2, value=_status_label(item.get("status", "")))
+        status_cell = controles_sheet.cell(
+            row=row, column=2, value=_status_label(item.get("status", ""))
+        )
         status_cell.fill = _cell_fill(fill_color)
         status_cell.font = Font(color=text_color, bold=True)
         status_cell.border = _thin_border()
@@ -579,7 +618,9 @@ def _build_run_workbook(report: dict[str, Any]) -> Workbook | None:
     for step in report.get("steps", []):
         fill_color, text_color = _status_style(step.get("status", ""))
         steps_sheet.cell(row=row, column=1, value=step.get("label", "")).border = _thin_border()
-        status_cell = steps_sheet.cell(row=row, column=2, value=_status_label(step.get("status", "")))
+        status_cell = steps_sheet.cell(
+            row=row, column=2, value=_status_label(step.get("status", ""))
+        )
         status_cell.fill = _cell_fill(fill_color)
         status_cell.font = Font(color=text_color, bold=True)
         status_cell.border = _thin_border()
@@ -600,7 +641,11 @@ def _build_run_workbook(report: dict[str, Any]) -> Workbook | None:
         logs_sheet.cell(row=row, column=1, value=entry.get("at", "")).border = _thin_border()
         level_cell = logs_sheet.cell(row=row, column=2, value=entry.get("level", "info"))
         fill_color, text_color = _status_style(
-            "error" if entry.get("level") == "error" else "warning" if entry.get("level") == "warning" else "info"
+            "error"
+            if entry.get("level") == "error"
+            else "warning"
+            if entry.get("level") == "warning"
+            else "info"
         )
         level_cell.fill = _cell_fill(fill_color)
         level_cell.font = Font(color=text_color, bold=True)
@@ -627,12 +672,25 @@ def _build_history_workbook(history: list[dict[str, Any]]) -> Workbook | None:
     row = _write_table_header(
         sheet,
         row,
-        ["Run", "Operation", "Resultat", "Debut", "Fin", "Ajouts", "Modifications", "Suppressions", "Serveur recharge", "Page de suivi"],
+        [
+            "Run",
+            "Operation",
+            "Resultat",
+            "Debut",
+            "Fin",
+            "Ajouts",
+            "Modifications",
+            "Suppressions",
+            "Serveur recharge",
+            "Page de suivi",
+        ],
     )
     for entry in history:
         summary = entry.get("summary", {}) or {}
         live_refresh = entry.get("live_refresh", {}) or {}
-        fill_color, text_color = _status_style("ok" if entry.get("status") == "completed" else "error")
+        fill_color, text_color = _status_style(
+            "ok" if entry.get("status") == "completed" else "error"
+        )
         values = [
             entry.get("id", ""),
             _mode_label(entry.get("mode", "")),
@@ -642,7 +700,11 @@ def _build_history_workbook(history: list[dict[str, Any]]) -> Workbook | None:
             summary.get("additions", 0),
             summary.get("modifications", 0),
             summary.get("deletions", 0),
-            "Oui" if live_refresh.get("reloaded") else "Non" if live_refresh.get("required", True) else "Non requis",
+            "Oui"
+            if live_refresh.get("reloaded")
+            else "Non"
+            if live_refresh.get("required", True)
+            else "Non requis",
             entry.get("deployment_page_url", ""),
         ]
         for column, value in enumerate(values, start=1):
@@ -730,7 +792,9 @@ def render_email_body(report: dict[str, Any]) -> str:
     body.append("")
     body.append("Controles:")
     for item in report.get("checks", []):
-        body.append(f"- {item.get('label')}: {_status_label(item.get('status', ''))} - {item.get('detail', '')}")
+        body.append(
+            f"- {item.get('label')}: {_status_label(item.get('status', ''))} - {item.get('detail', '')}"
+        )
     body.append("")
     if links.get("deployment_page_url"):
         body.append(f"Page de suivi: {links['deployment_page_url']}")
@@ -747,31 +811,31 @@ def render_email_html(report: dict[str, Any]) -> str:
     checks_html = "".join(
         (
             f"<tr>"
-            f"<td style=\"padding:10px 12px;border-bottom:1px solid #ede9fe;color:#1f2937;font-weight:600;\">{escape(str(item.get('label', '')))}</td>"
-            f"<td style=\"padding:10px 12px;border-bottom:1px solid #ede9fe;color:#5b21b6;font-weight:700;\">{escape(_status_label(item.get('status', '')))}</td>"
-            f"<td style=\"padding:10px 12px;border-bottom:1px solid #ede9fe;color:#4b5563;\">{escape(str(item.get('detail', '')))}</td>"
+            f'<td style="padding:10px 12px;border-bottom:1px solid #ede9fe;color:#1f2937;font-weight:600;">{escape(str(item.get("label", "")))}</td>'
+            f'<td style="padding:10px 12px;border-bottom:1px solid #ede9fe;color:#5b21b6;font-weight:700;">{escape(_status_label(item.get("status", "")))}</td>'
+            f'<td style="padding:10px 12px;border-bottom:1px solid #ede9fe;color:#4b5563;">{escape(str(item.get("detail", "")))}</td>'
             f"</tr>"
         )
         for item in report.get("checks", [])
     )
     sentences_html = "".join(
-        f"<li style=\"margin:0 0 8px;color:#374151;\">{escape(str(sentence))}</li>"
+        f'<li style="margin:0 0 8px;color:#374151;">{escape(str(sentence))}</li>'
         for sentence in plain.get("sentences", [])
     )
     logs_html = "".join(
-        f"<li style=\"margin:0 0 6px;color:#4b5563;\">[{escape(str(entry.get('at', '-')))}] {escape(str(entry.get('message', '')))}</li>"
+        f'<li style="margin:0 0 6px;color:#4b5563;">[{escape(str(entry.get("at", "-")))}] {escape(str(entry.get("message", "")))}</li>'
         for entry in (report.get("logs", []) or [])[-8:]
     )
     buttons: list[str] = []
     if links.get("deployment_page_url"):
         buttons.append(
-            f"<a href=\"{escape(links['deployment_page_url'])}\" "
-            "style=\"display:inline-block;padding:10px 16px;border-radius:999px;background:#6d28d9;color:#ffffff;text-decoration:none;font-weight:700;\">Ouvrir la page de suivi</a>"
+            f'<a href="{escape(links["deployment_page_url"])}" '
+            'style="display:inline-block;padding:10px 16px;border-radius:999px;background:#6d28d9;color:#ffffff;text-decoration:none;font-weight:700;">Ouvrir la page de suivi</a>'
         )
     if links.get("site_url"):
         buttons.append(
-            f"<a href=\"{escape(links['site_url'])}\" "
-            "style=\"display:inline-block;padding:10px 16px;border-radius:999px;background:#ede9fe;color:#5b21b6;text-decoration:none;font-weight:700;\">Voir le site public</a>"
+            f'<a href="{escape(links["site_url"])}" '
+            'style="display:inline-block;padding:10px 16px;border-radius:999px;background:#ede9fe;color:#5b21b6;text-decoration:none;font-weight:700;">Voir le site public</a>'
         )
     buttons_html = "&nbsp;".join(buttons)
     return f"""
@@ -782,27 +846,27 @@ def render_email_html(report: dict[str, Any]) -> str:
       <div style="padding:28px;background:linear-gradient(135deg,#4c1d95 0%,#7c3aed 100%);color:#ffffff;">
         <div style="font-size:13px;letter-spacing:0.08em;text-transform:uppercase;opacity:0.88;">PADESCE</div>
         <h1 style="margin:8px 0 8px;font-size:28px;line-height:1.2;">Rapport de deploiement</h1>
-        <p style="margin:0;font-size:16px;line-height:1.5;">{escape(str(plain.get('headline', '')))}</p>
+        <p style="margin:0;font-size:16px;line-height:1.5;">{escape(str(plain.get("headline", "")))}</p>
       </div>
       <div style="padding:24px;">
         <div style="display:flex;flex-wrap:wrap;gap:12px;margin-bottom:20px;">
           <div style="flex:1 1 180px;padding:16px;border-radius:18px;background:#faf5ff;border:1px solid #ede9fe;">
             <div style="font-size:12px;text-transform:uppercase;letter-spacing:0.08em;color:#7c3aed;">Operation</div>
-            <div style="margin-top:6px;font-size:20px;font-weight:700;color:#4c1d95;">{escape(str(report.get('mode_label', '-')))}</div>
+            <div style="margin-top:6px;font-size:20px;font-weight:700;color:#4c1d95;">{escape(str(report.get("mode_label", "-")))}</div>
           </div>
           <div style="flex:1 1 180px;padding:16px;border-radius:18px;background:#faf5ff;border:1px solid #ede9fe;">
             <div style="font-size:12px;text-transform:uppercase;letter-spacing:0.08em;color:#7c3aed;">Resultat</div>
-            <div style="margin-top:6px;font-size:20px;font-weight:700;color:#4c1d95;">{escape(str(report.get('status_label', '-')))}</div>
+            <div style="margin-top:6px;font-size:20px;font-weight:700;color:#4c1d95;">{escape(str(report.get("status_label", "-")))}</div>
           </div>
           <div style="flex:1 1 180px;padding:16px;border-radius:18px;background:#faf5ff;border:1px solid #ede9fe;">
             <div style="font-size:12px;text-transform:uppercase;letter-spacing:0.08em;color:#7c3aed;">Reference</div>
-            <div style="margin-top:6px;font-size:20px;font-weight:700;color:#4c1d95;">{escape(str(report.get('id', '-')))}</div>
+            <div style="margin-top:6px;font-size:20px;font-weight:700;color:#4c1d95;">{escape(str(report.get("id", "-")))}</div>
           </div>
         </div>
         <div style="padding:20px;border-radius:20px;background:#fdfbff;border:1px solid #ede9fe;margin-bottom:20px;">
           <h2 style="margin:0 0 12px;color:#5b21b6;font-size:18px;">Explication simple</h2>
           <ul style="margin:0 0 12px 18px;padding:0;">{sentences_html}</ul>
-          <p style="margin:0;color:#4b5563;"><strong>Suite recommandee:</strong> {escape(str(plain.get('next_action', '-')))}</p>
+          <p style="margin:0;color:#4b5563;"><strong>Suite recommandee:</strong> {escape(str(plain.get("next_action", "-")))}</p>
         </div>
         <div style="margin-bottom:20px;">{buttons_html}</div>
         <div style="padding:20px;border-radius:20px;background:#ffffff;border:1px solid #ede9fe;margin-bottom:20px;">
@@ -830,7 +894,9 @@ def render_email_html(report: dict[str, Any]) -> str:
 """.strip()
 
 
-def send_report_email(report: dict[str, Any], report_paths: dict[str, str], history_files: dict[str, str]) -> dict[str, Any]:
+def send_report_email(
+    report: dict[str, Any], report_paths: dict[str, str], history_files: dict[str, str]
+) -> dict[str, Any]:
     recipients = deployment_recipients()
     if not recipients:
         return {"sent": False, "error": "Aucun destinataire configure."}
@@ -840,7 +906,9 @@ def send_report_email(report: dict[str, Any], report_paths: dict[str, str], hist
         f"{report.get('mode_label', report.get('mode', ''))} - {report.get('id', '')}"
     )
     connection = get_connection(
-        backend=getattr(settings, "DEPLOYMENT_EMAIL_BACKEND", "django.core.mail.backends.smtp.EmailBackend"),
+        backend=getattr(
+            settings, "DEPLOYMENT_EMAIL_BACKEND", "django.core.mail.backends.smtp.EmailBackend"
+        ),
         host=getattr(settings, "EMAIL_HOST", ""),
         port=getattr(settings, "EMAIL_PORT", 0),
         username=getattr(settings, "EMAIL_HOST_USER", ""),
@@ -851,7 +919,8 @@ def send_report_email(report: dict[str, Any], report_paths: dict[str, str], hist
     message = EmailMultiAlternatives(
         subject=subject,
         body=render_email_body(report),
-        from_email=getattr(settings, "DEFAULT_FROM_EMAIL", "") or getattr(settings, "EMAIL_HOST_USER", ""),
+        from_email=getattr(settings, "DEFAULT_FROM_EMAIL", "")
+        or getattr(settings, "EMAIL_HOST_USER", ""),
         to=recipients,
         connection=connection,
     )

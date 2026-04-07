@@ -1,5 +1,5 @@
-from pathlib import Path
 import unicodedata
+from pathlib import Path
 
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction

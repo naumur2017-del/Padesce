@@ -8,9 +8,9 @@ from django.http import HttpResponse
 from django.shortcuts import redirect, render
 
 from App_PADESCE.apprenants.models import Apprenant
+from App_PADESCE.formations.models import Classe
 from App_PADESCE.presences.forms import PresenceForm
 from App_PADESCE.presences.models import Presence
-from App_PADESCE.formations.models import Classe
 
 
 def presence_list(request):
@@ -32,7 +32,11 @@ def presence_list(request):
                 presence.enqueteur = request.user
             presence.save()
             messages.success(request, "Presence enregistree.")
-            return redirect(request.path_info + f"?classe={filter_classe}" if filter_classe else request.path_info)
+            return redirect(
+                request.path_info + f"?classe={filter_classe}"
+                if filter_classe
+                else request.path_info
+            )
     else:
         form = PresenceForm(initial={"date": date_cls.today()})
 
@@ -75,13 +79,20 @@ def appels(request):
             pr=Count("presences", filter=Q(presences__presence="PR"), distinct=True),
         )
     )
-    apprenants_qs = apprenants_qs.annotate(
-        taux_presence=Case(
-            When(total__gt=0, then=ExpressionWrapper(100.0 * F("pr") / F("total"), output_field=FloatField())),
-            default=Value(0.0),
-            output_field=FloatField(),
+    apprenants_qs = (
+        apprenants_qs.annotate(
+            taux_presence=Case(
+                When(
+                    total__gt=0,
+                    then=ExpressionWrapper(100.0 * F("pr") / F("total"), output_field=FloatField()),
+                ),
+                default=Value(0.0),
+                output_field=FloatField(),
+            )
         )
-    ).filter(taux_presence__lte=seuil).order_by("classe__prestation__code", "classe__code", "nom_complet")
+        .filter(taux_presence__lte=seuil)
+        .order_by("classe__prestation__code", "classe__code", "nom_complet")
+    )
 
     context = {
         "apprenants": apprenants_qs,
@@ -92,7 +103,9 @@ def appels(request):
 
 def presence_export_csv(request):
     filter_classe = request.GET.get("classe")
-    presences_qs = Presence.objects.select_related("classe", "apprenant", "inspecteur", "enqueteur").order_by("-date")
+    presences_qs = Presence.objects.select_related(
+        "classe", "apprenant", "inspecteur", "enqueteur"
+    ).order_by("-date")
     if filter_classe:
         presences_qs = presences_qs.filter(classe_id=filter_classe)
 

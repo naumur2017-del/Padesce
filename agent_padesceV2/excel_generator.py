@@ -5,18 +5,15 @@ import math
 import re
 
 from openpyxl import Workbook
-from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 
-from .config import (
-    PURPLE, GREEN_DARK, GREEN_MED, TEAL, YELLOW_HDR, 
-    GRAY_LIGHT, WHITE, BLACK
-)
-
+from .config import BLACK, GRAY_LIGHT, GREEN_DARK, GREEN_MED, PURPLE, TEAL, WHITE, YELLOW_HDR
 
 # ═══════════════════════════════════════════════════════════════
 #  FONCTIONS UTILITAIRES EXCEL
 # ═══════════════════════════════════════════════════════════════
+
 
 def _font(bold=False, color=BLACK, size=10, name="Arial"):
     return Font(bold=bold, color=color, size=size, name=name)
@@ -88,6 +85,7 @@ def _pct_str(val):
 #  GÉNÉRATION DU RAPPORT
 # ═══════════════════════════════════════════════════════════════
 
+
 def generer_rapport_excel(prestations_data: list, output_path: str) -> dict:
     """
     Génère un rapport Excel formaté avec les prestations et leurs classes.
@@ -102,13 +100,13 @@ def generer_rapport_excel(prestations_data: list, output_path: str) -> dict:
     for idx, data in enumerate(prestations_data):
         infos_df = data["infos"]
         classes = data["classes"]
-        
+
         if infos_df.empty:
             continue
-            
+
         infos = infos_df.iloc[0]
 
-        presta_id = str(_safe(infos.get("prestation_id", f"Prestation_{idx+1}")))
+        presta_id = str(_safe(infos.get("prestation_id", f"Prestation_{idx + 1}")))
         sheet_name = re.sub(r"[\\/*?:\[\]]", "_", presta_id)[:31]
         ws = wb.create_sheet(title=sheet_name)
 
@@ -125,7 +123,9 @@ def generer_rapport_excel(prestations_data: list, output_path: str) -> dict:
         _set_cell(ws, row, 1, "Statut", bold=True, fg=WHITE, bg=PURPLE, h_align="center")
         _set_cell(ws, row, 2, "Prestation ID", bold=True, fg=WHITE, bg=PURPLE, h_align="center")
         _set_cell(ws, row, 3, "Prestaire", bold=True, fg=WHITE, bg=TEAL, h_align="center")
-        _merge(ws, row, 4, row, 5, "Bénéficiaire", bold=True, fg=BLACK, bg=YELLOW_HDR, h_align="center")
+        _merge(
+            ws, row, 4, row, 5, "Bénéficiaire", bold=True, fg=BLACK, bg=YELLOW_HDR, h_align="center"
+        )
         row += 1
 
         statut = _safe(infos.get("statut", ""))
@@ -140,9 +140,9 @@ def generer_rapport_excel(prestations_data: list, output_path: str) -> dict:
 
         # Images placeholder
         ws.row_dimensions[row].height = 60
-        ws.row_dimensions[row+1].height = 60
-        _merge(ws, row, 1, row+1, 2, "Image", h_align="center", fg=BLACK)
-        _merge(ws, row, 3, row+1, 5, "Image", h_align="center", fg=BLACK)
+        ws.row_dimensions[row + 1].height = 60
+        _merge(ws, row, 1, row + 1, 2, "Image", h_align="center", fg=BLACK)
+        _merge(ws, row, 3, row + 1, 5, "Image", h_align="center", fg=BLACK)
         row += 2
 
         # Thème
@@ -172,7 +172,9 @@ def generer_rapport_excel(prestations_data: list, output_path: str) -> dict:
         # En-tête classes
         _merge(ws, row, 1, row, 2, "CLASSES", bold=True, fg=WHITE, bg=GREEN_DARK)
         _set_cell(ws, row, 3, "Suivi", bold=True, fg=WHITE, bg=GREEN_MED, h_align="center")
-        _set_cell(ws, row, 4, "Nbre d'inscrits", bold=True, fg=WHITE, bg=GREEN_MED, h_align="center")
+        _set_cell(
+            ws, row, 4, "Nbre d'inscrits", bold=True, fg=WHITE, bg=GREEN_MED, h_align="center"
+        )
         _set_cell(ws, row, 5, "Ville", bold=True, fg=WHITE, bg=GREEN_MED, h_align="center")
         row += 1
 
@@ -199,8 +201,11 @@ def generer_rapport_excel(prestations_data: list, output_path: str) -> dict:
         row += 1
 
         taux_insc = _pct_str(_safe(infos.get("taux_inscription_calcule", "")))
-        taux_assiste = _pct_str(_safe(infos.get(
-            "apprenants_suivis_ayant_assisté_au_moins_une_fois_à_la_formation_t", "")))
+        taux_assiste = _pct_str(
+            _safe(
+                infos.get("apprenants_suivis_ayant_assisté_au_moins_une_fois_à_la_formation_t", "")
+            )
+        )
         taux_presence = _pct_str(_safe(infos.get("taux__de_présence_moyen__nan", "")))
         taux_formes = _pct_str(_safe(infos.get("taux__de_personnes_formées_nan", "")))
         sat_form = _pct_str(_safe(infos.get("taux_de_satisfaction_formateurs_nan", "")))
@@ -231,10 +236,10 @@ def generer_rapport_excel(prestations_data: list, output_path: str) -> dict:
         row += 1
 
         for inc_label, inc_ref in [
-            ("Mélange de cohorte", "PAD236"), 
+            ("Mélange de cohorte", "PAD236"),
             ("Mélange de cohorte", "PAD237"),
-            ("Mélange de cohorte", "PAD238"), 
-            ("Mélange de cohorte", "PAD239")
+            ("Mélange de cohorte", "PAD238"),
+            ("Mélange de cohorte", "PAD239"),
         ]:
             _set_cell(ws, row, 1, inc_label, fg=BLACK)
             _set_cell(ws, row, 2, inc_ref, fg=BLACK, h_align="center")
@@ -242,14 +247,25 @@ def generer_rapport_excel(prestations_data: list, output_path: str) -> dict:
             row += 1
 
         # Commentaires
-        _merge(ws, row, 1, row, 5, "Commentaires généraux", bold=True, fg=BLACK, bg=GRAY_LIGHT, h_align="center")
+        _merge(
+            ws,
+            row,
+            1,
+            row,
+            5,
+            "Commentaires généraux",
+            bold=True,
+            fg=BLACK,
+            bg=GRAY_LIGHT,
+            h_align="center",
+        )
         row += 1
         ws.row_dimensions[row].height = 60
         _merge(ws, row, 1, row, 5, "", fg=BLACK)
 
     wb.save(output_path)
     print(f"Classeur sauvegardé : {output_path}")
-    
+
     return {
         "statut": "succes",
         "fichier": output_path,

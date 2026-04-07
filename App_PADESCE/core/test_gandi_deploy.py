@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from types import SimpleNamespace
 import os
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
@@ -155,23 +155,32 @@ class DeploymentViewsTests(TestCase):
     def test_superadmin_can_start_preview_pipeline(self, active_mock, start_mock) -> None:
         self.client.force_login(self.superuser)
 
-        response = self.client.post(reverse("deployment_start"), {"mode": "preview"}, HTTP_ACCEPT="application/json")
+        response = self.client.post(
+            reverse("deployment_start"), {"mode": "preview"}, HTTP_ACCEPT="application/json"
+        )
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["run_id"], "run-123")
         start_mock.assert_called_once_with("preview")
 
-    @patch("App_PADESCE.core.deployment_views.get_active_run", return_value={"id": "running-1", "status": "running"})
+    @patch(
+        "App_PADESCE.core.deployment_views.get_active_run",
+        return_value={"id": "running-1", "status": "running"},
+    )
     def test_start_returns_conflict_when_run_is_already_active(self, active_mock) -> None:
         self.client.force_login(self.superuser)
 
-        response = self.client.post(reverse("deployment_start"), {"mode": "deploy"}, HTTP_ACCEPT="application/json")
+        response = self.client.post(
+            reverse("deployment_start"), {"mode": "deploy"}, HTTP_ACCEPT="application/json"
+        )
 
         self.assertEqual(response.status_code, 409)
         self.assertEqual(response.json()["run_id"], "running-1")
 
     @patch("App_PADESCE.core.deployment_views.save_runtime_config")
-    @patch("App_PADESCE.core.deployment_views.deployment_config_summary", return_value={"ready": True})
+    @patch(
+        "App_PADESCE.core.deployment_views.deployment_config_summary", return_value={"ready": True}
+    )
     def test_superadmin_can_save_runtime_config(self, summary_mock, save_mock) -> None:
         self.client.force_login(self.superuser)
 
@@ -189,12 +198,17 @@ class DeploymentViewsTests(TestCase):
         self.assertTrue(response.json()["ok"])
         save_mock.assert_called_once()
 
-    @patch("App_PADESCE.core.deployment_views.load_report", return_value={"id": "archived-run", "status": "completed"})
+    @patch(
+        "App_PADESCE.core.deployment_views.load_report",
+        return_value={"id": "archived-run", "status": "completed"},
+    )
     @patch("App_PADESCE.core.deployment_views.load_run_state", return_value=None)
     def test_status_falls_back_to_archived_report(self, run_mock, report_mock) -> None:
         self.client.force_login(self.superuser)
 
-        response = self.client.get(reverse("deployment_status", args=["archived-run"]), HTTP_ACCEPT="application/json")
+        response = self.client.get(
+            reverse("deployment_status", args=["archived-run"]), HTTP_ACCEPT="application/json"
+        )
 
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.json()["ok"])
@@ -215,10 +229,14 @@ class DeploymentViewsTests(TestCase):
     )
     @patch("App_PADESCE.core.deployment_views.load_report", return_value=None)
     @patch("App_PADESCE.core.deployment_views.load_run_state", return_value=None)
-    def test_status_falls_back_to_history_summary_when_report_file_is_missing(self, run_mock, report_mock, history_mock) -> None:
+    def test_status_falls_back_to_history_summary_when_report_file_is_missing(
+        self, run_mock, report_mock, history_mock
+    ) -> None:
         self.client.force_login(self.superuser)
 
-        response = self.client.get(reverse("deployment_status", args=["history-only-run"]), HTTP_ACCEPT="application/json")
+        response = self.client.get(
+            reverse("deployment_status", args=["history-only-run"]), HTTP_ACCEPT="application/json"
+        )
 
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.json()["ok"])
@@ -228,10 +246,14 @@ class DeploymentViewsTests(TestCase):
     @patch("App_PADESCE.core.deployment_views.load_history_entry", return_value=None)
     @patch("App_PADESCE.core.deployment_views.load_report", return_value=None)
     @patch("App_PADESCE.core.deployment_views.load_run_state", return_value=None)
-    def test_status_returns_placeholder_archive_instead_of_404_when_everything_is_missing(self, run_mock, report_mock, history_mock) -> None:
+    def test_status_returns_placeholder_archive_instead_of_404_when_everything_is_missing(
+        self, run_mock, report_mock, history_mock
+    ) -> None:
         self.client.force_login(self.superuser)
 
-        response = self.client.get(reverse("deployment_status", args=["missing-run"]), HTTP_ACCEPT="application/json")
+        response = self.client.get(
+            reverse("deployment_status", args=["missing-run"]), HTTP_ACCEPT="application/json"
+        )
 
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.json()["ok"])
@@ -243,7 +265,9 @@ class DeploymentViewsTests(TestCase):
             root = Path(temp_dir)
             (root / LIVE_MARKER_FILENAME).write_text('{"run_id": "run-live"}', encoding="utf-8")
             with override_settings(BASE_DIR=temp_dir):
-                response = self.client.get(reverse("deployment_live_status"), HTTP_ACCEPT="application/json")
+                response = self.client.get(
+                    reverse("deployment_live_status"), HTTP_ACCEPT="application/json"
+                )
 
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.json()["ok"])

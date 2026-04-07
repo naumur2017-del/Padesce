@@ -1,14 +1,15 @@
-import os
-
 PATH = r"F:\NAUMUR\NAUMUR - TRAVAUX EN COURS\Utlisateurs\EYOUM ATOCK\CALL APP\App_PADESCE-main\App_PADESCE-main\templates\appels\index.html"
 
-with open(PATH, 'r', encoding='utf-8') as f:
+with open(PATH, "r", encoding="utf-8") as f:
     content = f.read()
 
 # 1. Remove the old class summary section
 import re
+
 # The section starts with <div class="class-summary-container"> and ends with </div> plus some spacing
-content = re.sub(r'<div class="class-summary-container">.*?</div>\s*</div>', '', content, flags=re.DOTALL)
+content = re.sub(
+    r'<div class="class-summary-container">.*?</div>\s*</div>', "", content, flags=re.DOTALL
+)
 
 # 2. Update the class select to use enriched classes
 # Old:
@@ -66,7 +67,7 @@ JS_LOGIC = """
 if "updateFilterBadge" not in content:
     content = content.replace("</script>", JS_LOGIC + "\n</script>")
 
-with open(PATH, 'w', encoding='utf-8') as f:
+with open(PATH, "w", encoding="utf-8") as f:
     f.write(content)
 
 print("Patch refine threshold complete.")

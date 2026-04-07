@@ -58,5 +58,7 @@ class SupportAlarmForm(forms.ModelForm):
         widgets = {
             "module": forms.TextInput(attrs={"placeholder": "Ex: PADESCE, CGA, Dashboard"}),
             "title": forms.TextInput(attrs={"placeholder": "Titre de l'alerte"}),
-            "details": forms.Textarea(attrs={"rows": 3, "placeholder": "Detaillez le souci rencontre"}),
+            "details": forms.Textarea(
+                attrs={"rows": 3, "placeholder": "Detaillez le souci rencontre"}
+            ),
         }

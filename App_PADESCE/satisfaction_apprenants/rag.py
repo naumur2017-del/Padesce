@@ -9,7 +9,6 @@ from pathlib import Path
 import requests
 from django.conf import settings
 
-
 GROQ_CHAT_COMPLETIONS_URL = "https://api.groq.com/openai/v1/chat/completions"
 DEFAULT_GROQ_RAG_MODEL = "openai/gpt-oss-20b"
 
@@ -123,7 +122,8 @@ def _build_apprenant_documents(rows: list[dict]) -> list[dict]:
             "inspecteur_code": row.get("inspecteur_code") or row.get("source_inspecteur_id") or "",
             "cohorte": row.get("cohorte", ""),
             "source_fenetre": row.get("source_fenetre", ""),
-            "statut_prestation": row.get("source_statut_prestation", "") or row.get("statut_prestation", ""),
+            "statut_prestation": row.get("source_statut_prestation", "")
+            or row.get("statut_prestation", ""),
             "source_enquete_id": row.get("source_enquete_id", ""),
             "commentaire": row.get("commentaire", ""),
             "recommandations": row.get("recommandations", ""),
@@ -308,13 +308,19 @@ def build_active_tab_documents(active_tab: str, context: dict, rows: list[dict])
     return _build_summary_documents(active_tab, context)
 
 
-def retrieve_documents(prompt: str, active_tab: str, context: dict, rows: list[dict], limit: int = 16) -> list[dict]:
+def retrieve_documents(
+    prompt: str, active_tab: str, context: dict, rows: list[dict], limit: int = 16
+) -> list[dict]:
     documents = build_active_tab_documents(active_tab, context, rows)
     if not documents:
         return []
 
     explicit_filters = _extract_explicit_filters(prompt)
-    filtered_documents = [doc for doc in documents if _row_matches_explicit_filters(doc, explicit_filters)] if explicit_filters else documents
+    filtered_documents = (
+        [doc for doc in documents if _row_matches_explicit_filters(doc, explicit_filters)]
+        if explicit_filters
+        else documents
+    )
     if not filtered_documents:
         filtered_documents = documents
 
@@ -370,10 +376,14 @@ def _compact_document(doc: dict) -> dict:
     }
 
 
-def _call_groq_rag(prompt: str, active_tab: str, retrieved_documents: list[dict]) -> tuple[dict, str]:
+def _call_groq_rag(
+    prompt: str, active_tab: str, retrieved_documents: list[dict]
+) -> tuple[dict, str]:
     api_key = groq_api_key()
     if not api_key:
-        raise RuntimeError("Clé Groq manquante. Définissez GROQ_API_KEY dans l'environnement ou dans le fichier .env.")
+        raise RuntimeError(
+            "Clé Groq manquante. Définissez GROQ_API_KEY dans l'environnement ou dans le fichier .env."
+        )
 
     model = groq_rag_model()
     compact_documents = [
@@ -436,10 +446,14 @@ def _call_groq_rag(prompt: str, active_tab: str, retrieved_documents: list[dict]
     return data, model
 
 
-def _call_groq_rag(prompt: str, active_tab: str, retrieved_documents: list[dict]) -> tuple[dict, str]:
+def _call_groq_rag(
+    prompt: str, active_tab: str, retrieved_documents: list[dict]
+) -> tuple[dict, str]:
     api_key = groq_api_key()
     if not api_key:
-        raise RuntimeError("Cle Groq manquante. Definissez GROQ_API_KEY dans l'environnement ou dans le fichier .env.")
+        raise RuntimeError(
+            "Cle Groq manquante. Definissez GROQ_API_KEY dans l'environnement ou dans le fichier .env."
+        )
 
     model = groq_rag_model()
     compact_documents = [_compact_document(doc) for doc in retrieved_documents]
@@ -538,7 +552,8 @@ def answer_dashboard_prompt(prompt: str, active_tab: str, context: dict, rows: l
     ]
 
     return {
-        "answer_markdown": str(groq_result.get("answer") or "").strip() or "Aucune réponse générée.",
+        "answer_markdown": str(groq_result.get("answer") or "").strip()
+        or "Aucune réponse générée.",
         "matched_rows": matched_rows,
         "retrieved_count": len(retrieved_documents),
         "insufficient_context": bool(groq_result.get("insufficient_context")),

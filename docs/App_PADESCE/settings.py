@@ -30,6 +30,7 @@ def load_env_file(env_path: Path) -> None:
         value = value.strip()
         os.environ.setdefault(key, value)
 
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -47,68 +48,70 @@ SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "dev-secret-key-change-me")
 DEBUG = os.getenv("DJANGO_DEBUG", "True").lower() in ("1", "true", "yes")
 
 ALLOWED_HOSTS_ENV = os.getenv("DJANGO_ALLOWED_HOSTS", "")
-ALLOWED_HOSTS=["*","https://app-padesce.onrender.com","app-padesce.onrender.com"]
+ALLOWED_HOSTS = ["*", "https://app-padesce.onrender.com", "app-padesce.onrender.com"]
 CSRF_TRUSTED_ORIGINS_ENV = os.getenv("DJANGO_CSRF_TRUSTED_ORIGINS", "")
-CSRF_TRUSTED_ORIGINS: list[str] = [o.strip() for o in CSRF_TRUSTED_ORIGINS_ENV.split(",") if o.strip()]
+CSRF_TRUSTED_ORIGINS: list[str] = [
+    o.strip() for o in CSRF_TRUSTED_ORIGINS_ENV.split(",") if o.strip()
+]
 
 
 # Application definition
 
 INSTALLED_APPS = [
-    'django.contrib.admin',
-    'django.contrib.auth',
-    'django.contrib.contenttypes',
-    'django.contrib.sessions',
-    'django.contrib.messages',
-    'django.contrib.staticfiles',
-    'channels',
+    "django.contrib.admin",
+    "django.contrib.auth",
+    "django.contrib.contenttypes",
+    "django.contrib.sessions",
+    "django.contrib.messages",
+    "django.contrib.staticfiles",
+    "channels",
     # Applications métiers
-    'App_PADESCE.core',
-    'App_PADESCE.formations',
-    'App_PADESCE.apprenants',
-    'App_PADESCE.presences',
-    'App_PADESCE.satisfaction_apprenants',
-    'App_PADESCE.satisfaction_formateurs',
-    'App_PADESCE.environnement',
-    'App_PADESCE.messaging',
-    'App_PADESCE.reporting',
-    'App_PADESCE.beneficiaires',
-    'App_PADESCE.appels',
+    "App_PADESCE.core",
+    "App_PADESCE.formations",
+    "App_PADESCE.apprenants",
+    "App_PADESCE.presences",
+    "App_PADESCE.satisfaction_apprenants",
+    "App_PADESCE.satisfaction_formateurs",
+    "App_PADESCE.environnement",
+    "App_PADESCE.messaging",
+    "App_PADESCE.reporting",
+    "App_PADESCE.beneficiaires",
+    "App_PADESCE.appels",
 ]
 
 MIDDLEWARE = [
-    'django.middleware.security.SecurityMiddleware',
-    'django.middleware.http.ConditionalGetMiddleware',
-    'django.contrib.sessions.middleware.SessionMiddleware',
-    'django.middleware.common.CommonMiddleware',
-    'django.middleware.csrf.CsrfViewMiddleware',
-    'django.contrib.auth.middleware.AuthenticationMiddleware',
-    'App_PADESCE.core.middleware.LoginRequiredMiddleware',
-    'App_PADESCE.core.middleware.UserActivityMiddleware',
-    'App_PADESCE.core.middleware.CurrentUserMiddleware',
-    'django.contrib.messages.middleware.MessageMiddleware',
-    'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    "django.middleware.security.SecurityMiddleware",
+    "django.middleware.http.ConditionalGetMiddleware",
+    "django.contrib.sessions.middleware.SessionMiddleware",
+    "django.middleware.common.CommonMiddleware",
+    "django.middleware.csrf.CsrfViewMiddleware",
+    "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "App_PADESCE.core.middleware.LoginRequiredMiddleware",
+    "App_PADESCE.core.middleware.UserActivityMiddleware",
+    "App_PADESCE.core.middleware.CurrentUserMiddleware",
+    "django.contrib.messages.middleware.MessageMiddleware",
+    "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
-ROOT_URLCONF = 'App_PADESCE.urls'
+ROOT_URLCONF = "App_PADESCE.urls"
 
 TEMPLATES = [
     {
-        'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [BASE_DIR / 'templates'],
-        'APP_DIRS': True,
-        'OPTIONS': {
-            'context_processors': [
-                'django.template.context_processors.request',
-                'django.contrib.auth.context_processors.auth',
-                'django.contrib.messages.context_processors.messages',
+        "BACKEND": "django.template.backends.django.DjangoTemplates",
+        "DIRS": [BASE_DIR / "templates"],
+        "APP_DIRS": True,
+        "OPTIONS": {
+            "context_processors": [
+                "django.template.context_processors.request",
+                "django.contrib.auth.context_processors.auth",
+                "django.contrib.messages.context_processors.messages",
             ],
         },
     },
 ]
 
-WSGI_APPLICATION = 'App_PADESCE.wsgi.application'
-ASGI_APPLICATION = 'App_PADESCE.asgi.application'
+WSGI_APPLICATION = "App_PADESCE.wsgi.application"
+ASGI_APPLICATION = "App_PADESCE.asgi.application"
 
 CHANNEL_LAYERS = {
     "default": {
@@ -121,9 +124,9 @@ CHANNEL_LAYERS = {
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+    "default": {
+        "ENGINE": "django.db.backends.sqlite3",
+        "NAME": BASE_DIR / "db.sqlite3",
     }
 }
 
@@ -133,16 +136,16 @@ DATABASES = {
 
 AUTH_PASSWORD_VALIDATORS = [
     {
-        'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
+        "NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator",
     },
     {
-        'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
+        "NAME": "django.contrib.auth.password_validation.MinimumLengthValidator",
     },
     {
-        'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
+        "NAME": "django.contrib.auth.password_validation.CommonPasswordValidator",
     },
     {
-        'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
+        "NAME": "django.contrib.auth.password_validation.NumericPasswordValidator",
     },
 ]
 
@@ -150,9 +153,9 @@ AUTH_PASSWORD_VALIDATORS = [
 # Internationalization
 # https://docs.djangoproject.com/en/6.0/topics/i18n/
 
-LANGUAGE_CODE = 'fr'
+LANGUAGE_CODE = "fr"
 
-TIME_ZONE = 'Africa/Douala'
+TIME_ZONE = "Africa/Douala"
 
 USE_I18N = True
 
@@ -162,14 +165,14 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
-STATIC_URL = 'static/'
-STATICFILES_DIRS = [BASE_DIR / 'static']
-STATIC_ROOT = BASE_DIR / 'staticfiles'
+STATIC_URL = "static/"
+STATICFILES_DIRS = [BASE_DIR / "static"]
+STATIC_ROOT = BASE_DIR / "staticfiles"
 
-MEDIA_URL = '/media/'
-MEDIA_ROOT = BASE_DIR / 'media'
+MEDIA_URL = "/media/"
+MEDIA_ROOT = BASE_DIR / "media"
 
-DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 LOGIN_URL = "/"
 LOGIN_REDIRECT_URL = "/dashboard/"
 LOGOUT_REDIRECT_URL = "/"
@@ -196,10 +199,10 @@ CACHES = {
 # ---------------------------------------------------------------------------
 SESSION_ENGINE = "django.contrib.sessions.backends.cached_db"
 SESSION_CACHE_ALIAS = "default"
-SESSION_COOKIE_AGE = 28800          # 8 heures (en secondes)
+SESSION_COOKIE_AGE = 28800  # 8 heures (en secondes)
 SESSION_SAVE_EVERY_REQUEST = False  # ne sauvegarder que si modifiée
 SESSION_EXPIRE_AT_BROWSER_CLOSE = False  # session survit à la fermeture du navigateur
-SESSION_COOKIE_HTTPONLY = True      # non accessible via JavaScript
+SESSION_COOKIE_HTTPONLY = True  # non accessible via JavaScript
 
 # Security headers (activated when DEBUG=False)
 if not DEBUG:
@@ -244,7 +247,11 @@ LOGGING = {
     },
     "loggers": {
         "django": {"handlers": ["console", "app_file"], "level": "INFO"},
-        "django.server": {"handlers": ["access_file", "console"], "level": "INFO", "propagate": False},
+        "django.server": {
+            "handlers": ["access_file", "console"],
+            "level": "INFO",
+            "propagate": False,
+        },
         "App_PADESCE": {"handlers": ["console", "app_file"], "level": "INFO"},
     },
 }

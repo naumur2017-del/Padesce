@@ -1,5 +1,5 @@
 import json
-from datetime import date, time, datetime
+from datetime import date, datetime
 
 from django.core.management import CommandError
 from django.core.management.base import BaseCommand
@@ -17,7 +17,9 @@ class Command(BaseCommand):
         parser.add_argument("json_path", help="Path to the JSON file")
         parser.add_argument("--classe", help="Default classe code if the payload omits one")
         parser.add_argument("--apprenant", help="Default apprenant code if the payload omits one")
-        parser.add_argument("--date", help="Date for all entries (YYYY-MM-DD)", default=date.today().isoformat())
+        parser.add_argument(
+            "--date", help="Date for all entries (YYYY-MM-DD)", default=date.today().isoformat()
+        )
         parser.add_argument("--heure", help="Time for all entries (HH:MM)", default="12:00")
         parser.add_argument("--q-score", type=int, help="Default score for Q1..Q9 (1-5)", default=3)
 
@@ -53,11 +55,11 @@ class Command(BaseCommand):
             if apprenant_code:
                 apprenant = Apprenant.objects.filter(code__iexact=apprenant_code).first()
             if not apprenant:
-                self.stderr.write(f"Apprenant '{apprenant_code or 'unnamed'}' missing; record will rely on classe only.")
+                self.stderr.write(
+                    f"Apprenant '{apprenant_code or 'unnamed'}' missing; record will rely on classe only."
+                )
 
-            comment = " | ".join(
-                filter(None, [entry.get("reason_summary"), entry.get("facts")])
-            )
+            comment = " | ".join(filter(None, [entry.get("reason_summary"), entry.get("facts")]))
             obj = SatisfactionApprenant(
                 classe=classe,
                 apprenant=apprenant,

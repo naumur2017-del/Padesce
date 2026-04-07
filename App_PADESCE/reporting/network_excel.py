@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import math
 import json
+import math
 import os
 import re
 import shutil
@@ -278,7 +278,9 @@ def _sheet_get(row: tuple | list | None, header_lookup: dict[str, int], *headers
     return ""
 
 
-def _sheet_get_first(row: tuple | list | None, raw_header: tuple | list | None, *headers: str) -> str:
+def _sheet_get_first(
+    row: tuple | list | None, raw_header: tuple | list | None, *headers: str
+) -> str:
     cells = list(row or [])
     normalized_targets = {_normalize_lookup(header) for header in headers if header}
     for index, header_value in enumerate(list(raw_header or [])):
@@ -933,8 +935,14 @@ def _build_consolidation_call_candidates_cached(cache_key: tuple[str, int, str, 
                     "1er No tél 0 Tel No\nApprenant",
                     "1er No tel 0 Tel No Apprenant",
                     "1er No tel 0 Tel No\nApprenant",
-                    "Téléphone", "Telephone", "Tel", "Tél",
-                    "N° Tél", "N° Tel", "N°Tél", "N°Tel",
+                    "Téléphone",
+                    "Telephone",
+                    "Tel",
+                    "Tél",
+                    "N° Tél",
+                    "N° Tel",
+                    "N°Tél",
+                    "N°Tel",
                 ),
                 "telephone2": _sheet_get(
                     row,
@@ -947,7 +955,10 @@ def _build_consolidation_call_candidates_cached(cache_key: tuple[str, int, str, 
                     "2e No tél 0 Tel No\nApprenant (si disponible)",
                     "2e No tel 0 Tel No Apprenant (si disponible)",
                     "2e No tel 0 Tel No\nApprenant (si disponible)",
-                    "Téléphone 2", "Telephone 2", "Tel 2", "Tél 2",
+                    "Téléphone 2",
+                    "Telephone 2",
+                    "Tel 2",
+                    "Tél 2",
                 ),
                 "cohorte": _sheet_get(row, header_lookup, "cohorte", "Cohorte"),
                 "statut_prestation": _sheet_get(

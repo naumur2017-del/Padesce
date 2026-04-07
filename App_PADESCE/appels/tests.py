@@ -122,7 +122,9 @@ class ConsolidationImportTests(TestCase):
 
     @patch("App_PADESCE.appels.consolidation_views.messages.success")
     @patch("App_PADESCE.appels.consolidation_views.build_consolidation_call_candidates")
-    def test_consolidation_pending_appels_batch_action_uses_current_filter(self, mock_build_candidates, mock_messages_success):
+    def test_consolidation_pending_appels_batch_action_uses_current_filter(
+        self, mock_build_candidates, mock_messages_success
+    ):
         mock_build_candidates.return_value = {
             "source": {"name": "fichier consolide.xlsm", "modified_label": "24/03/2026 a 12:00"},
             "sheet_name": "Consolidation",
@@ -194,8 +196,12 @@ class AppelsIndexFilterTests(TestCase):
         self.client.force_login(self.user)
 
     def test_appels_index_filters_formulaire_and_modified_by(self):
-        first = Appel.objects.create(code="APP001", nom="Alpha One", locked_by=self.user, status="formulaire_rempli")
-        second = Appel.objects.create(code="APP002", nom="Beta Two", locked_by=self.user, status="en_cours")
+        first = Appel.objects.create(
+            code="APP001", nom="Alpha One", locked_by=self.user, status="formulaire_rempli"
+        )
+        second = Appel.objects.create(
+            code="APP002", nom="Beta Two", locked_by=self.user, status="en_cours"
+        )
         AppelAnswers.objects.create(
             appel=first,
             q1_clarte_exposes=4,
@@ -228,7 +234,9 @@ class AppelsIndexFilterTests(TestCase):
         self.assertNotContains(response, "APP002")
 
     def test_appels_index_treats_single_answer_as_filled_form(self):
-        appel = Appel.objects.create(code="APP003", nom="Gamma Three", locked_by=self.user, status="appel_tente")
+        appel = Appel.objects.create(
+            code="APP003", nom="Gamma Three", locked_by=self.user, status="appel_tente"
+        )
         AppelAnswers.objects.create(
             appel=appel,
             q1_clarte_exposes=5,
@@ -243,10 +251,18 @@ class AppelsIndexFilterTests(TestCase):
         self.assertContains(response, "APP003")
 
     def test_appels_index_completed_filter_includes_all_finalized_statuses(self):
-        Appel.objects.create(code="APP005", nom="Echo Five", locked_by=self.user, status="appel_reussi")
-        Appel.objects.create(code="APP006", nom="Foxtrot Six", locked_by=self.user, status="formulaire_rempli")
-        Appel.objects.create(code="APP007", nom="Golf Seven", locked_by=self.user, status="formulaire_avec_audio")
-        Appel.objects.create(code="APP008", nom="Hotel Eight", locked_by=self.user, status="a_rappeler")
+        Appel.objects.create(
+            code="APP005", nom="Echo Five", locked_by=self.user, status="appel_reussi"
+        )
+        Appel.objects.create(
+            code="APP006", nom="Foxtrot Six", locked_by=self.user, status="formulaire_rempli"
+        )
+        Appel.objects.create(
+            code="APP007", nom="Golf Seven", locked_by=self.user, status="formulaire_avec_audio"
+        )
+        Appel.objects.create(
+            code="APP008", nom="Hotel Eight", locked_by=self.user, status="a_rappeler"
+        )
 
         response = self.client.get(reverse("appels_index"), {"status": "completed"})
 
@@ -257,7 +273,9 @@ class AppelsIndexFilterTests(TestCase):
         self.assertNotContains(response, "APP008")
 
     def test_appel_answers_detail_syncs_status_after_single_answer(self):
-        appel = Appel.objects.create(code="APP004", nom="Delta Four", locked_by=self.user, status="appel_tente")
+        appel = Appel.objects.create(
+            code="APP004", nom="Delta Four", locked_by=self.user, status="appel_tente"
+        )
 
         response = self.client.post(
             reverse("appel_answers_detail", args=[appel.pk]),
@@ -290,12 +308,22 @@ class AppelsIndexFilterTests(TestCase):
         self.assertNotContains(response, "missing-audio.webm")
 
     @patch("App_PADESCE.appels.views.build_padesce_source_index")
-    def test_appels_index_hides_reached_classes_and_ignores_learners_without_phone(self, mock_build_source_index):
+    def test_appels_index_hides_reached_classes_and_ignores_learners_without_phone(
+        self, mock_build_source_index
+    ):
         mock_build_source_index.return_value = {
             "source": {"label": "Fichier consolide", "modified_label": "27/03/2026 a 12:20"},
             "classes": {
-                "cla001": {"classe_id": "CLA001", "prestation_id": "PRESTA001", "statut_prestation": "TERMINE"},
-                "cla002": {"classe_id": "CLA002", "prestation_id": "PRESTA001", "statut_prestation": "TERMINE"},
+                "cla001": {
+                    "classe_id": "CLA001",
+                    "prestation_id": "PRESTA001",
+                    "statut_prestation": "TERMINE",
+                },
+                "cla002": {
+                    "classe_id": "CLA002",
+                    "prestation_id": "PRESTA001",
+                    "statut_prestation": "TERMINE",
+                },
             },
             "prestations": {
                 "presta001": {"prestation_id": "PRESTA001", "statut_prestation": "TERMINE"},
@@ -308,10 +336,34 @@ class AppelsIndexFilterTests(TestCase):
             },
         }
 
-        Appel.objects.create(code="CLA001-A", nom="Alpha", classe_label="CLA001", telephone1="690000001", status="formulaire_rempli")
-        Appel.objects.create(code="CLA001-B", nom="Bravo", classe_label="CLA001", telephone1="690000002", status="en_attente")
-        Appel.objects.create(code="CLA001-C", nom="Charlie", classe_label="CLA001", telephone1="", status="en_attente")
-        Appel.objects.create(code="CLA002-A", nom="Delta", classe_label="CLA002", telephone1="690000010", status="en_attente")
+        Appel.objects.create(
+            code="CLA001-A",
+            nom="Alpha",
+            classe_label="CLA001",
+            telephone1="690000001",
+            status="formulaire_rempli",
+        )
+        Appel.objects.create(
+            code="CLA001-B",
+            nom="Bravo",
+            classe_label="CLA001",
+            telephone1="690000002",
+            status="en_attente",
+        )
+        Appel.objects.create(
+            code="CLA001-C",
+            nom="Charlie",
+            classe_label="CLA001",
+            telephone1="",
+            status="en_attente",
+        )
+        Appel.objects.create(
+            code="CLA002-A",
+            nom="Delta",
+            classe_label="CLA002",
+            telephone1="690000010",
+            status="en_attente",
+        )
 
         response = self.client.get(reverse("appels_index"))
 
@@ -323,10 +375,7 @@ class AppelsIndexFilterTests(TestCase):
             [item["value"] for item in response.context["filters"]["classes_enriched"]],
             ["CLA002"],
         )
-        classe_progress = {
-            item["classe"]: item
-            for item in response.context["classe_progress"]
-        }
+        classe_progress = {item["classe"]: item for item in response.context["classe_progress"]}
         self.assertEqual(classe_progress["CLA001"]["total"], 2)
         self.assertTrue(classe_progress["CLA001"]["reached"])
 
@@ -335,7 +384,11 @@ class AppelsIndexFilterTests(TestCase):
         mock_build_source_index.return_value = {
             "source": {"label": "Fichier consolide", "modified_label": "27/03/2026 a 12:20"},
             "classes": {
-                "cla100": {"classe_id": "CLA100", "prestation_id": "PRESTA100", "statut_prestation": "TERMINE"},
+                "cla100": {
+                    "classe_id": "CLA100",
+                    "prestation_id": "PRESTA100",
+                    "statut_prestation": "TERMINE",
+                },
             },
             "prestations": {
                 "presta100": {"prestation_id": "PRESTA100", "statut_prestation": "TERMINE"},
@@ -355,9 +408,27 @@ class AppelsIndexFilterTests(TestCase):
             telephone1="690100001",
             status="appel_reussi",
         )
-        Appel.objects.create(code="CLA100-B", nom="Bravo", classe_label="CLA100", telephone1="690100002", status="en_attente")
-        Appel.objects.create(code="CLA100-C", nom="Charlie", classe_label="CLA100", telephone1="690100003", status="en_attente")
-        Appel.objects.create(code="CLA100-D", nom="Delta", classe_label="CLA100", telephone1="690100004", status="en_attente")
+        Appel.objects.create(
+            code="CLA100-B",
+            nom="Bravo",
+            classe_label="CLA100",
+            telephone1="690100002",
+            status="en_attente",
+        )
+        Appel.objects.create(
+            code="CLA100-C",
+            nom="Charlie",
+            classe_label="CLA100",
+            telephone1="690100003",
+            status="en_attente",
+        )
+        Appel.objects.create(
+            code="CLA100-D",
+            nom="Delta",
+            classe_label="CLA100",
+            telephone1="690100004",
+            status="en_attente",
+        )
 
         response = self.client.get(reverse("appels_index"))
 
@@ -377,11 +448,17 @@ class AppelsIndexFilterTests(TestCase):
         self.assertEqual(list(response.context["appels"]), [])
 
     @patch("App_PADESCE.appels.views.build_padesce_source_index")
-    def test_appels_index_counts_termine_status_for_25_percent_threshold(self, mock_build_source_index):
+    def test_appels_index_counts_termine_status_for_25_percent_threshold(
+        self, mock_build_source_index
+    ):
         mock_build_source_index.return_value = {
             "source": {"label": "Fichier consolide", "modified_label": "27/03/2026 a 12:20"},
             "classes": {
-                "cla200": {"classe_id": "CLA200", "prestation_id": "PRESTA200", "statut_prestation": "TERMINE"},
+                "cla200": {
+                    "classe_id": "CLA200",
+                    "prestation_id": "PRESTA200",
+                    "statut_prestation": "TERMINE",
+                },
             },
             "prestations": {
                 "presta200": {"prestation_id": "PRESTA200", "statut_prestation": "TERMINE"},
@@ -401,9 +478,27 @@ class AppelsIndexFilterTests(TestCase):
             telephone1="690200001",
             status="termine",
         )
-        Appel.objects.create(code="CLA200-B", nom="Bravo", classe_label="CLA200", telephone1="690200002", status="en_attente")
-        Appel.objects.create(code="CLA200-C", nom="Charlie", classe_label="CLA200", telephone1="690200003", status="en_attente")
-        Appel.objects.create(code="CLA200-D", nom="Delta", classe_label="CLA200", telephone1="690200004", status="en_attente")
+        Appel.objects.create(
+            code="CLA200-B",
+            nom="Bravo",
+            classe_label="CLA200",
+            telephone1="690200002",
+            status="en_attente",
+        )
+        Appel.objects.create(
+            code="CLA200-C",
+            nom="Charlie",
+            classe_label="CLA200",
+            telephone1="690200003",
+            status="en_attente",
+        )
+        Appel.objects.create(
+            code="CLA200-D",
+            nom="Delta",
+            classe_label="CLA200",
+            telephone1="690200004",
+            status="en_attente",
+        )
 
         response = self.client.get(reverse("appels_index"))
 
@@ -415,17 +510,28 @@ class AppelsIndexFilterTests(TestCase):
         self.assertTrue(classe_progress["CLA200"]["reached"])
 
     @patch("App_PADESCE.appels.views.build_padesce_source_index")
-    def test_appels_index_maps_completed_rows_without_class_label_from_source_code(self, mock_build_source_index):
+    def test_appels_index_maps_completed_rows_without_class_label_from_source_code(
+        self, mock_build_source_index
+    ):
         mock_build_source_index.return_value = {
             "source": {"label": "Fichier consolide", "modified_label": "27/03/2026 a 12:20"},
             "classes": {
-                "cla210": {"classe_id": "CLA210", "prestation_id": "PRESTA210", "statut_prestation": "TERMINE"},
+                "cla210": {
+                    "classe_id": "CLA210",
+                    "prestation_id": "PRESTA210",
+                    "statut_prestation": "TERMINE",
+                },
             },
             "prestations": {
                 "presta210": {"prestation_id": "PRESTA210", "statut_prestation": "TERMINE"},
             },
             "records": {
-                "app210a": {"code": "APP210A", "classe_id": "CLA210", "telephone1": "690210001", "telephone2": ""},
+                "app210a": {
+                    "code": "APP210A",
+                    "classe_id": "CLA210",
+                    "telephone1": "690210001",
+                    "telephone2": "",
+                },
             },
         }
 
@@ -447,7 +553,9 @@ class AppelsIndexFilterTests(TestCase):
         self.assertTrue(classe_progress["CLA210"]["reached"])
 
     @patch("App_PADESCE.appels.views.build_padesce_source_index")
-    def test_appels_index_exposes_goal_summary_for_70_of_75_prestations(self, mock_build_source_index):
+    def test_appels_index_exposes_goal_summary_for_70_of_75_prestations(
+        self, mock_build_source_index
+    ):
         classes = {}
         prestations = {}
         records = {}
@@ -555,12 +663,48 @@ class AppelsIndexFilterTests(TestCase):
             },
         }
 
-        Appel.objects.create(code="CLA010-A", nom="A", classe_label="CLA010", telephone1="690100001", status="formulaire_rempli")
-        Appel.objects.create(code="CLA010-B", nom="B", classe_label="CLA010", telephone1="690100002", status="en_attente")
-        Appel.objects.create(code="CLA011-A", nom="C", classe_label="CLA011", telephone1="690110001", status="formulaire_rempli")
-        Appel.objects.create(code="CLA011-B", nom="D", classe_label="CLA011", telephone1="690110002", status="en_attente")
-        Appel.objects.create(code="CLA012-A", nom="E", classe_label="CLA012", telephone1="690120001", status="en_attente")
-        Appel.objects.create(code="CLA020-A", nom="F", classe_label="CLA020", telephone1="690200001", status="en_attente")
+        Appel.objects.create(
+            code="CLA010-A",
+            nom="A",
+            classe_label="CLA010",
+            telephone1="690100001",
+            status="formulaire_rempli",
+        )
+        Appel.objects.create(
+            code="CLA010-B",
+            nom="B",
+            classe_label="CLA010",
+            telephone1="690100002",
+            status="en_attente",
+        )
+        Appel.objects.create(
+            code="CLA011-A",
+            nom="C",
+            classe_label="CLA011",
+            telephone1="690110001",
+            status="formulaire_rempli",
+        )
+        Appel.objects.create(
+            code="CLA011-B",
+            nom="D",
+            classe_label="CLA011",
+            telephone1="690110002",
+            status="en_attente",
+        )
+        Appel.objects.create(
+            code="CLA012-A",
+            nom="E",
+            classe_label="CLA012",
+            telephone1="690120001",
+            status="en_attente",
+        )
+        Appel.objects.create(
+            code="CLA020-A",
+            nom="F",
+            classe_label="CLA020",
+            telephone1="690200001",
+            status="en_attente",
+        )
 
         response = self.client.get(reverse("appels_index"))
 

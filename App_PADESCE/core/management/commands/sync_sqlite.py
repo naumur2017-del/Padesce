@@ -9,13 +9,33 @@ class Command(BaseCommand):
     help = "Fusionne une ou plusieurs bases SQLite source vers une base SQLite cible."
 
     def add_arguments(self, parser) -> None:
-        parser.add_argument("--source", action="append", dest="sources", required=True, help="Base SQLite source. Repetable.")
+        parser.add_argument(
+            "--source",
+            action="append",
+            dest="sources",
+            required=True,
+            help="Base SQLite source. Repetable.",
+        )
         parser.add_argument("--target", required=True, help="Base SQLite cible a mettre a jour.")
-        parser.add_argument("--table", action="append", dest="tables", help="Limiter la synchronisation a une table. Repetable.")
-        parser.add_argument("--exclude-table", action="append", dest="exclude_tables", help="Exclure une table. Repetable.")
-        parser.add_argument("--conflict-strategy", choices=["newer", "source", "target"], default="newer")
+        parser.add_argument(
+            "--table",
+            action="append",
+            dest="tables",
+            help="Limiter la synchronisation a une table. Repetable.",
+        )
+        parser.add_argument(
+            "--exclude-table",
+            action="append",
+            dest="exclude_tables",
+            help="Exclure une table. Repetable.",
+        )
+        parser.add_argument(
+            "--conflict-strategy", choices=["newer", "source", "target"], default="newer"
+        )
         parser.add_argument("--dry-run", action="store_true", help="Apercu sans ecriture.")
-        parser.add_argument("--no-backup", action="store_true", help="Desactive la sauvegarde avant ecriture.")
+        parser.add_argument(
+            "--no-backup", action="store_true", help="Desactive la sauvegarde avant ecriture."
+        )
         parser.add_argument("--backup-dir", help="Dossier de sauvegarde.")
         parser.add_argument("--timeout", type=int, default=60, help="Timeout SQLite en secondes.")
 
@@ -48,7 +68,11 @@ class Command(BaseCommand):
             self.stdout.write(self.style.HTTP_INFO(f"Source: {source_result.source_path}"))
             for table_result in source_result.tables:
                 if table_result.skipped:
-                    self.stdout.write(self.style.WARNING(f"  - {table_result.table_name}: ignoree ({table_result.reason})"))
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"  - {table_result.table_name}: ignoree ({table_result.reason})"
+                        )
+                    )
                     continue
                 self.stdout.write(
                     f"  - {table_result.table_name}: "
