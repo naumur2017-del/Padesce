@@ -177,21 +177,33 @@ def _sync_one_source(
         result.missing_in_target.extend(sorted((selected_tables & source_tables) - target_tables))
         result.missing_in_source.extend(sorted((selected_tables & target_tables) - source_tables))
         if result.missing_in_target:
-            result.warnings.append("Tables absentes de la cible: " + ", ".join(result.missing_in_target))
+            result.warnings.append(
+                "Tables absentes de la cible: " + ", ".join(result.missing_in_target)
+            )
         if result.missing_in_source:
-            result.warnings.append("Tables absentes de la source: " + ", ".join(result.missing_in_source))
+            result.warnings.append(
+                "Tables absentes de la source: " + ", ".join(result.missing_in_source)
+            )
         if not dry_run:
             _execute(target_conn, "PRAGMA foreign_keys = OFF")
             _execute(target_conn, "BEGIN IMMEDIATE")
         try:
-            for table_name in _order_tables_by_dependencies(target_conn, common_tables, schema="main"):
+            for table_name in _order_tables_by_dependencies(
+                target_conn, common_tables, schema="main"
+            ):
                 plan = _build_table_plan(target_conn, table_name, schema="main")
                 source_columns = _get_table_columns(target_conn, table_name, schema=alias)
                 plan.columns = [column for column in plan.columns if column in source_columns]
                 plan.pk_columns = [column for column in plan.pk_columns if column in source_columns]
-                plan.timestamp_columns = [column for column in plan.timestamp_columns if column in source_columns]
+                plan.timestamp_columns = [
+                    column for column in plan.timestamp_columns if column in source_columns
+                ]
                 if not plan.pk_columns:
-                    result.tables.append(TableSyncResult(table_name=table_name, skipped=True, reason="Pas de cle primaire."))
+                    result.tables.append(
+                        TableSyncResult(
+                            table_name=table_name, skipped=True, reason="Pas de cle primaire."
+                        )
+                    )
                     continue
                 result.tables.append(
                     _sync_table(
@@ -225,14 +237,14 @@ def _sync_table(
     dry_run: bool,
 ) -> TableSyncResult:
     q_table = _quote_identifier(plan.table_name)
-    src_rows = _fetch_count(target_conn, f'SELECT COUNT(*) FROM {alias}.{q_table}')
+    src_rows = _fetch_count(target_conn, f"SELECT COUNT(*) FROM {alias}.{q_table}")
     src_alias, dst_alias = "src", "dst"
     join_sql = _build_join_condition(src_alias, dst_alias, plan.pk_columns)
     insert_count = _fetch_count(
         target_conn,
-        f'SELECT COUNT(*) FROM {alias}.{q_table} {src_alias} '
-        f'LEFT JOIN main.{q_table} {dst_alias} ON {join_sql} '
-        f'WHERE {dst_alias}.{_quote_identifier(plan.pk_columns[0])} IS NULL',
+        f"SELECT COUNT(*) FROM {alias}.{q_table} {src_alias} "
+        f"LEFT JOIN main.{q_table} {dst_alias} ON {join_sql} "
+        f"WHERE {dst_alias}.{_quote_identifier(plan.pk_columns[0])} IS NULL",
     )
     if not plan.non_pk_columns:
         identical = max(src_rows - insert_count, 0)
@@ -241,15 +253,20 @@ def _sync_table(
             pk_cols = ", ".join(_quote_identifier(column) for column in plan.pk_columns)
             _execute(
                 target_conn,
-                f'INSERT INTO main.{q_table} ({cols}) SELECT {cols} FROM {alias}.{q_table} WHERE 1=1 '
-                f'ON CONFLICT ({pk_cols}) DO NOTHING'
+                f"INSERT INTO main.{q_table} ({cols}) SELECT {cols} FROM {alias}.{q_table} WHERE 1=1 "
+                f"ON CONFLICT ({pk_cols}) DO NOTHING",
             )
-        return TableSyncResult(table_name=plan.table_name, source_rows=src_rows, inserted=insert_count, identical=identical)
+        return TableSyncResult(
+            table_name=plan.table_name,
+            source_rows=src_rows,
+            inserted=insert_count,
+            identical=identical,
+        )
     diff_sql = _build_difference_condition(src_alias, dst_alias, plan.non_pk_columns)
     conflict_count = _fetch_count(
         target_conn,
-        f'SELECT COUNT(*) FROM {alias}.{q_table} {src_alias} '
-        f'JOIN main.{q_table} {dst_alias} ON {join_sql} WHERE {diff_sql}',
+        f"SELECT COUNT(*) FROM {alias}.{q_table} {src_alias} "
+        f"JOIN main.{q_table} {dst_alias} ON {join_sql} WHERE {diff_sql}",
     )
     update_ok_sql = _build_update_eligibility_condition(
         strategy=conflict_strategy,
@@ -259,12 +276,15 @@ def _sync_table(
     )
     update_count = _fetch_count(
         target_conn,
-        f'SELECT COUNT(*) FROM {alias}.{q_table} {src_alias} '
-        f'JOIN main.{q_table} {dst_alias} ON {join_sql} '
-        f'WHERE {diff_sql} AND ({update_ok_sql})',
+        f"SELECT COUNT(*) FROM {alias}.{q_table} {src_alias} "
+        f"JOIN main.{q_table} {dst_alias} ON {join_sql} "
+        f"WHERE {diff_sql} AND ({update_ok_sql})",
     )
     if not dry_run:
-        _execute(target_conn, _build_upsert_sql(alias=alias, plan=plan, conflict_strategy=conflict_strategy))
+        _execute(
+            target_conn,
+            _build_upsert_sql(alias=alias, plan=plan, conflict_strategy=conflict_strategy),
+        )
     return TableSyncResult(
         table_name=plan.table_name,
         source_rows=src_rows,
@@ -280,7 +300,7 @@ def _build_upsert_sql(*, alias: str, plan: TablePlan, conflict_strategy: str) ->
     cols = ", ".join(_quote_identifier(column) for column in plan.columns)
     pk_cols = ", ".join(_quote_identifier(column) for column in plan.pk_columns)
     updates = ", ".join(
-        f'{_quote_identifier(column)} = excluded.{_quote_identifier(column)}'
+        f"{_quote_identifier(column)} = excluded.{_quote_identifier(column)}"
         for column in plan.non_pk_columns
     )
     diff_sql = _build_difference_condition("excluded", q_table, plan.non_pk_columns)
@@ -291,9 +311,9 @@ def _build_upsert_sql(*, alias: str, plan: TablePlan, conflict_strategy: str) ->
         timestamp_columns=plan.timestamp_columns,
     )
     return (
-        f'INSERT INTO main.{q_table} ({cols}) SELECT {cols} FROM {alias}.{q_table} WHERE 1=1 '
-        f'ON CONFLICT ({pk_cols}) DO UPDATE SET {updates} '
-        f'WHERE {diff_sql} AND ({update_ok_sql})'
+        f"INSERT INTO main.{q_table} ({cols}) SELECT {cols} FROM {alias}.{q_table} WHERE 1=1 "
+        f"ON CONFLICT ({pk_cols}) DO UPDATE SET {updates} "
+        f"WHERE {diff_sql} AND ({update_ok_sql})"
     )
 
 
@@ -302,7 +322,9 @@ def _build_table_plan(conn: sqlite3.Connection, table_name: str, *, schema: str)
     columns = [row["name"] for row in info]
     pk_columns = [row["name"] for row in sorted(info, key=lambda item: item["pk"]) if row["pk"]]
     timestamps = [column for column in TIMESTAMP_CANDIDATE_COLUMNS if column in columns]
-    return TablePlan(table_name=table_name, columns=columns, pk_columns=pk_columns, timestamp_columns=timestamps)
+    return TablePlan(
+        table_name=table_name, columns=columns, pk_columns=pk_columns, timestamp_columns=timestamps
+    )
 
 
 def _get_table_names(conn: sqlite3.Connection, *, schema: str) -> set[str]:
@@ -321,12 +343,16 @@ def _get_table_info(conn: sqlite3.Connection, table_name: str, *, schema: str) -
     return list(_fetch_rows(conn, f"PRAGMA {schema}.table_info({_quote_literal(table_name)})"))
 
 
-def _order_tables_by_dependencies(conn: sqlite3.Connection, table_names: Iterable[str], *, schema: str) -> list[str]:
+def _order_tables_by_dependencies(
+    conn: sqlite3.Connection, table_names: Iterable[str], *, schema: str
+) -> list[str]:
     table_set = set(table_names)
     deps = {table_name: set() for table_name in table_set}
     for table_name in table_set:
         rows = _fetch_rows(conn, f"PRAGMA {schema}.foreign_key_list({_quote_literal(table_name)})")
-        deps[table_name] = {row["table"] for row in rows if row["table"] in table_set and row["table"] != table_name}
+        deps[table_name] = {
+            row["table"] for row in rows if row["table"] in table_set and row["table"] != table_name
+        }
     ordered: list[str] = []
     seen: set[str] = set()
 
@@ -350,7 +376,9 @@ def _build_join_condition(source_prefix: str, target_prefix: str, pk_columns: Se
     )
 
 
-def _build_difference_condition(source_prefix: str, target_prefix: str, columns: Sequence[str]) -> str:
+def _build_difference_condition(
+    source_prefix: str, target_prefix: str, columns: Sequence[str]
+) -> str:
     if not columns:
         return "0"
     same_values = " AND ".join(
@@ -391,8 +419,13 @@ def _build_timestamp_expression(prefix: str, columns: Sequence[str]) -> str:
 def _create_sqlite_backup(target_path: Path, backup_dir: str | Path | None) -> Path:
     directory = _normalize_path(backup_dir) if backup_dir else target_path.parent / "backups"
     directory.mkdir(parents=True, exist_ok=True)
-    backup_path = directory / f"{target_path.stem}_backup_{datetime.now():%Y%m%d_%H%M%S}{target_path.suffix}"
-    with closing(sqlite3.connect(target_path)) as source_conn, closing(sqlite3.connect(backup_path)) as backup_conn:
+    backup_path = (
+        directory / f"{target_path.stem}_backup_{datetime.now():%Y%m%d_%H%M%S}{target_path.suffix}"
+    )
+    with (
+        closing(sqlite3.connect(target_path)) as source_conn,
+        closing(sqlite3.connect(backup_path)) as backup_conn,
+    ):
         source_conn.backup(backup_conn)
     return backup_path
 
@@ -439,7 +472,9 @@ def _fetch_count(conn: sqlite3.Connection, sql: str) -> int:
     return int(row[0])
 
 
-def _fetch_rows(conn: sqlite3.Connection, sql: str, params: Sequence[object] = ()) -> list[sqlite3.Row]:
+def _fetch_rows(
+    conn: sqlite3.Connection, sql: str, params: Sequence[object] = ()
+) -> list[sqlite3.Row]:
     cursor = conn.cursor()
     try:
         cursor.execute(sql, params)

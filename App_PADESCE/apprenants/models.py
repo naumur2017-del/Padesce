@@ -41,7 +41,9 @@ class Apprenant(TimeStampedModel):
         ordering = ["nom_complet"]
         constraints = [
             models.UniqueConstraint(fields=["classe", "nom_complet"], name="unique_nom_par_classe"),
-            models.UniqueConstraint(fields=["formation", "telephone1"], name="unique_tel1_par_formation"),
+            models.UniqueConstraint(
+                fields=["formation", "telephone1"], name="unique_tel1_par_formation"
+            ),
         ]
         indexes = [models.Index(fields=["classe", "formation"])]
 

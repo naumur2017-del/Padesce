@@ -6,7 +6,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-
 LIVE_MARKER_FILENAME = ".naumur-deploy-live.json"
 APP_BOOTED_AT = datetime.now(timezone.utc).isoformat()
 

@@ -121,7 +121,9 @@ class ConsolidationImportTests(TestCase):
 
     @patch("App_PADESCE.appels.consolidation_views.messages.success")
     @patch("App_PADESCE.appels.consolidation_views.build_consolidation_call_candidates")
-    def test_consolidation_pending_appels_batch_action_uses_current_filter(self, mock_build_candidates, mock_messages_success):
+    def test_consolidation_pending_appels_batch_action_uses_current_filter(
+        self, mock_build_candidates, mock_messages_success
+    ):
         mock_build_candidates.return_value = {
             "source": {"name": "fichier consolide.xlsm", "modified_label": "24/03/2026 a 12:00"},
             "sheet_name": "Consolidation",
@@ -193,8 +195,12 @@ class AppelsIndexFilterTests(TestCase):
         self.client.force_login(self.user)
 
     def test_appels_index_filters_formulaire_and_modified_by(self):
-        first = Appel.objects.create(code="APP001", nom="Alpha One", locked_by=self.user, status="termine")
-        second = Appel.objects.create(code="APP002", nom="Beta Two", locked_by=self.user, status="en_cours")
+        first = Appel.objects.create(
+            code="APP001", nom="Alpha One", locked_by=self.user, status="termine"
+        )
+        second = Appel.objects.create(
+            code="APP002", nom="Beta Two", locked_by=self.user, status="en_cours"
+        )
         AppelAnswers.objects.create(
             appel=first,
             q1_clarte_exposes=4,

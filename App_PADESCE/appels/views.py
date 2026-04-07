@@ -423,9 +423,7 @@ def _build_progress_metrics(queryset):
                 f"Seuil de {threshold_label} atteint. Vous pouvez passer a autre chose."
                 if threshold_reached
                 else (
-                    "Encore "
-                    f"{max(threshold_target - termines, 0)} formulaire(s) pour atteindre "
-                    f"{threshold_label}."
+                    f"Encore {max(threshold_target - termines, 0)} formulaire(s) pour atteindre {threshold_label}."  # noqa: E501
                     if total
                     else "Aucun appel dans ce filtre."
                 )
@@ -895,10 +893,7 @@ def _build_appel_class_progress_snapshot(source_bundle: dict | None = None) -> d
                 remaining_to_target = int(progress.get("remaining_to_target") or 0)
                 quick_finish = remaining_count == 1 and reached_count > 0
                 if quick_finish and prestation_finished:
-                    reason = (
-                        "Derniere classe joignable a finaliser pour cloturer "
-                        "cette prestation dans l'analyse."
-                    )
+                    reason = "Derniere classe joignable a finaliser pour cloturer cette prestation dans l'analyse."  # noqa: E501
                     priority_label = "Prestation a finir"
                 elif remaining_to_target <= 1 and duplicate_phone_total == 0:
                     reason = "Un dernier appel joignable peut suffire, sans numero duplique."
@@ -1360,8 +1355,7 @@ def appels_index(request):
             messages.success(
                 request,
                 (
-                    f"Fichier importe. {created} nouveau(x) appel(s), "
-                    f"{updated} appel(s) mis a jour. "
+                    f"Fichier importe. {created} nouveau(x) appel(s), {updated} appel(s) mis a jour. "  # noqa: E501
                     f"Affichage remplace. {deduped} doublon(s) desactive(s)."
                 ),
             )
@@ -1415,9 +1409,7 @@ def appels_index(request):
                 updated += 1
             messages.success(
                 request,
-                "Fichier importe. "
-                f"{updated} appel(s) mis a jour avec le type de formation "
-                "et la formation Padesce.",
+                f"Fichier importe. {updated} appel(s) mis a jour avec le type de formation et la formation Padesce.",  # noqa: E501
             )
         return redirect(request.path_info)
 
@@ -1630,9 +1622,7 @@ def _handle_lock_conflict(instance, current_user, action):
         remaining_secs = max(1, int(90 - age.total_seconds()))
         return (
             False,
-            "Appel actif. "
-            f"Veuillez essayer dans {remaining_secs}s ou contacter l'agent: "
-            f"{instance.locked_by.username or 'N/A'}",
+            f"Appel actif. Veuillez essayer dans {remaining_secs}s ou contacter l'agent: {instance.locked_by.username or 'N/A'}",  # noqa: E501
         )
 
     # No lock timestamp - allow
@@ -1672,6 +1662,9 @@ def appel_action(request, pk: int):
     deja_forme_flag = _parse_bool_flag(request.POST.get("deja_forme"))
 
     now = timezone.now()
+    satisfaction_saved = False  # noqa: F841
+    satisfaction_message = ""  # noqa: F841
+
     if action == "start":
         appel.status = "en_cours"
         appel.locked_by = request.user
@@ -1929,9 +1922,8 @@ def appel_upload_audio(request, pk: int):
 def _auto_process_satisfaction_from_appel(appel: Appel, user, manual_data: dict = None) -> dict:
     """
     Enregistrer les réponses au questionnaire de satisfaction de l'apprenant.
-    Priorité: rattacher d'abord les réponses à la ligne d'appel,
-    puis compléter la fiche de satisfaction.
-    """
+    Priorité: rattacher d'abord les réponses à la ligne d'appel, puis compléter la fiche de satisfaction.
+    """  # noqa: E501
     if manual_data is None:
         manual_data = {}
     has_any_question_answer = _payload_has_any_question_answer(manual_data)
@@ -2085,6 +2077,7 @@ def deduplicate_all_call_tables(request):
         ),
     )
     return redirect(request.META.get("HTTP_REFERER") or "/dashboard/")
+
 
 @login_required
 def appel_answers_detail(request, pk: int):

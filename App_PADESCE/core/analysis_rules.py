@@ -34,9 +34,7 @@ def appel_has_analysis_phone(appel) -> bool:
 
 
 def _manual_exclusions_path() -> Path:
-    configured_path = str(
-        getattr(settings, "ANALYSIS_MANUAL_EXCLUSIONS_FILE", "") or ""
-    ).strip()
+    configured_path = str(getattr(settings, "ANALYSIS_MANUAL_EXCLUSIONS_FILE", "") or "").strip()
     path = Path(configured_path or "logs/analysis/manual_exclusions.json")
     if not path.is_absolute():
         path = Path(settings.BASE_DIR) / path

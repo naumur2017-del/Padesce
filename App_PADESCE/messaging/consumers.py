@@ -1,8 +1,6 @@
-from asgiref.sync import async_to_sync
 from channels.db import database_sync_to_async
 from channels.generic.websocket import AsyncJsonWebsocketConsumer
 from django.contrib.auth import get_user_model
-from django.db.models import Q
 from django.utils import timezone
 
 from App_PADESCE.messaging.models import SupportAlarm, SupportMessage
@@ -56,13 +54,19 @@ class SupportConsumer(AsyncJsonWebsocketConsumer):
             await self.send_json({"type": "error", "error": "Destinataire non autorise."})
             return
 
-        message = await self._create_message(self.user.id, recipient.id, body, SupportMessage.KIND_CHAT)
+        message = await self._create_message(
+            self.user.id, recipient.id, body, SupportMessage.KIND_CHAT
+        )
         payload = {
             "type": "chat_message",
             "message": message,
         }
-        await self.channel_layer.group_send(f"support_user_{self.user.id}", {"type": "support.event", "payload": payload})
-        await self.channel_layer.group_send(f"support_user_{recipient.id}", {"type": "support.event", "payload": payload})
+        await self.channel_layer.group_send(
+            f"support_user_{self.user.id}", {"type": "support.event", "payload": payload}
+        )
+        await self.channel_layer.group_send(
+            f"support_user_{recipient.id}", {"type": "support.event", "payload": payload}
+        )
 
     async def _handle_send_alarm(self, content):
         module = str(content.get("module") or "").strip()

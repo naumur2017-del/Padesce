@@ -1,12 +1,10 @@
-from datetime import timedelta
 from types import SimpleNamespace
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
 from django.db import OperationalError
-from django.test import override_settings
-from django.test import SimpleTestCase, TestCase
+from django.test import SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
@@ -15,8 +13,8 @@ from App_PADESCE.core.analysis_rules import (
     appel_analysis_exclusion_reason,
     appel_is_analysis_eligible,
 )
-from App_PADESCE.core.views import _consultant_analysis_snapshot
 from App_PADESCE.core.models import UserActivity, UserActivityEvent
+from App_PADESCE.core.views import _consultant_analysis_snapshot
 
 
 class DashboardVisibilityTests(TestCase):

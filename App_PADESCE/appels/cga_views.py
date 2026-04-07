@@ -16,19 +16,16 @@ from django.utils import timezone
 from django.utils.text import slugify
 from django.views.decorators.http import require_POST
 
-from App_PADESCE.appels.models import AppelCGA, CALL_COMPLETED_STATUSES
+from App_PADESCE.appels.models import CALL_COMPLETED_STATUSES, AppelCGA
 from App_PADESCE.appels.views import (
     _bind_audio_state,
-    _check_other_active_calls,
-    _cleanup_stale_locks,
-    _handle_lock_conflict,
     _build_progress_metrics,
     _cga_duplicate_key,
+    _cleanup_stale_locks,
     _deactivate_duplicate_rows,
     _has_audio_file,
     _safe_audio_url,
 )
-
 
 IMPORT_BATCH_SIZE = 2000
 PAGE_SIZE_DEFAULT = 100
@@ -160,11 +157,31 @@ def _build_filtered_cga_queryset(request):
         "q": search,
         "date_from": date_from_str,
         "date_to": date_to_str,
-        "regimes": sorted({v.strip() for v in qs.exclude(regime="").values_list("regime", flat=True) if v}),
+        "regimes": sorted(
+            {v.strip() for v in qs.exclude(regime="").values_list("regime", flat=True) if v}
+        ),
         "cris": sorted({v.strip() for v in qs.exclude(cri="").values_list("cri", flat=True) if v}),
-        "centres": sorted({v.strip() for v in qs.exclude(centre_de_rattachement="").values_list("centre_de_rattachement", flat=True) if v}),
-        "villes": sorted({v.strip() for v in qs.exclude(ville="").values_list("ville", flat=True) if v}),
-        "agents": sorted({u.strip() for u in qs.exclude(locked_by__isnull=True).values_list("locked_by__username", flat=True) if u}),
+        "centres": sorted(
+            {
+                v.strip()
+                for v in qs.exclude(centre_de_rattachement="").values_list(
+                    "centre_de_rattachement", flat=True
+                )
+                if v
+            }
+        ),
+        "villes": sorted(
+            {v.strip() for v in qs.exclude(ville="").values_list("ville", flat=True) if v}
+        ),
+        "agents": sorted(
+            {
+                u.strip()
+                for u in qs.exclude(locked_by__isnull=True).values_list(
+                    "locked_by__username", flat=True
+                )
+                if u
+            }
+        ),
     }
     return qs, filters
 
@@ -172,7 +189,9 @@ def _build_filtered_cga_queryset(request):
 def _flush_cga_batch(batch, *, ignore_conflicts=False):
     if not batch:
         return 0
-    AppelCGA.objects.bulk_create(batch, batch_size=IMPORT_BATCH_SIZE, ignore_conflicts=ignore_conflicts)
+    AppelCGA.objects.bulk_create(
+        batch, batch_size=IMPORT_BATCH_SIZE, ignore_conflicts=ignore_conflicts
+    )
     n = len(batch)
     batch.clear()
     return n
@@ -183,46 +202,56 @@ def cga_export_xlsx(request):
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "Sheet1"
-    ws.append([
-        "N°",
-        "RAISON_SOCIALE",
-        "SIGLE",
-        "NIU",
-        "ACTIVITE_PRINCIPALE",
-        "REGIME",
-        "CRI",
-        "CENTRE_DE_RATTACHEMENT",
-        "VILLE",
-        "TELEPHONE",
-        "STATUT",
-        "RAPPEL_AT",
-        "LOCKED_BY",
-        "LOCKED_AT",
-        "AUDIO_FILE",
-        "CREATED_AT",
-        "UPDATED_AT",
-    ])
-    for row in AppelCGA.objects.select_related("locked_by").order_by("raison_sociale").iterator(chunk_size=2000):
-        ws.append([
-            row.numero,
-            row.raison_sociale,
-            row.sigle,
-            row.niu,
-            row.activite_principale,
-            row.regime,
-            row.cri,
-            row.centre_de_rattachement,
-            row.ville,
-            row.telephone,
-            row.status,
-            row.rappel_at.isoformat() if row.rappel_at else "",
-            row.locked_by.username if row.locked_by else "",
-            row.locked_at.isoformat() if row.locked_at else "",
-            _safe_audio_url(row),
-            row.created_at.isoformat() if getattr(row, "created_at", None) else "",
-            row.updated_at.isoformat() if getattr(row, "updated_at", None) else "",
-        ])
-    response = HttpResponse(content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    ws.append(
+        [
+            "N°",
+            "RAISON_SOCIALE",
+            "SIGLE",
+            "NIU",
+            "ACTIVITE_PRINCIPALE",
+            "REGIME",
+            "CRI",
+            "CENTRE_DE_RATTACHEMENT",
+            "VILLE",
+            "TELEPHONE",
+            "STATUT",
+            "RAPPEL_AT",
+            "LOCKED_BY",
+            "LOCKED_AT",
+            "AUDIO_FILE",
+            "CREATED_AT",
+            "UPDATED_AT",
+        ]
+    )
+    for row in (
+        AppelCGA.objects.select_related("locked_by")
+        .order_by("raison_sociale")
+        .iterator(chunk_size=2000)
+    ):
+        ws.append(
+            [
+                row.numero,
+                row.raison_sociale,
+                row.sigle,
+                row.niu,
+                row.activite_principale,
+                row.regime,
+                row.cri,
+                row.centre_de_rattachement,
+                row.ville,
+                row.telephone,
+                row.status,
+                row.rappel_at.isoformat() if row.rappel_at else "",
+                row.locked_by.username if row.locked_by else "",
+                row.locked_at.isoformat() if row.locked_at else "",
+                _safe_audio_url(row),
+                row.created_at.isoformat() if getattr(row, "created_at", None) else "",
+                row.updated_at.isoformat() if getattr(row, "updated_at", None) else "",
+            ]
+        )
+    response = HttpResponse(
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
     response["Content-Disposition"] = 'attachment; filename="cga-export.xlsx"'
     wb.save(response)
     return response
@@ -236,43 +265,47 @@ def cga_export_filtered_csv(request):
     response["Content-Disposition"] = 'attachment; filename="cga-filtres.csv"'
     response.write("\ufeff")
     writer = csv.writer(response)
-    writer.writerow([
-        "Numero",
-        "Raison sociale",
-        "Sigle",
-        "NIU",
-        "Activite principale",
-        "Regime",
-        "CRI",
-        "Centre de rattachement",
-        "Ville",
-        "Telephone",
-        "Statut",
-        "Agent",
-        "Rappel at",
-        "Audio URL",
-        "Created at",
-        "Updated at",
-    ])
+    writer.writerow(
+        [
+            "Numero",
+            "Raison sociale",
+            "Sigle",
+            "NIU",
+            "Activite principale",
+            "Regime",
+            "CRI",
+            "Centre de rattachement",
+            "Ville",
+            "Telephone",
+            "Statut",
+            "Agent",
+            "Rappel at",
+            "Audio URL",
+            "Created at",
+            "Updated at",
+        ]
+    )
     for row in rows.iterator(chunk_size=2000):
-        writer.writerow([
-            row.numero or "",
-            row.raison_sociale,
-            row.sigle,
-            row.niu,
-            row.activite_principale,
-            row.regime,
-            row.cri,
-            row.centre_de_rattachement,
-            row.ville,
-            row.telephone,
-            row.get_status_display(),
-            row.locked_by.username if row.locked_by else "",
-            row.rappel_at.isoformat() if row.rappel_at else "",
-            _safe_audio_url(row),
-            row.created_at.isoformat() if getattr(row, "created_at", None) else "",
-            row.updated_at.isoformat() if getattr(row, "updated_at", None) else "",
-        ])
+        writer.writerow(
+            [
+                row.numero or "",
+                row.raison_sociale,
+                row.sigle,
+                row.niu,
+                row.activite_principale,
+                row.regime,
+                row.cri,
+                row.centre_de_rattachement,
+                row.ville,
+                row.telephone,
+                row.get_status_display(),
+                row.locked_by.username if row.locked_by else "",
+                row.rappel_at.isoformat() if row.rappel_at else "",
+                _safe_audio_url(row),
+                row.created_at.isoformat() if getattr(row, "created_at", None) else "",
+                row.updated_at.isoformat() if getattr(row, "updated_at", None) else "",
+            ]
+        )
     return response
 
 
@@ -301,7 +334,9 @@ def cga_index(request):
                     if len(batch) >= IMPORT_BATCH_SIZE:
                         created += _flush_cga_batch(batch)
                 created += _flush_cga_batch(batch)
-                deduped = _deactivate_duplicate_rows(AppelCGA.objects.filter(is_active=True), _cga_duplicate_key)
+                deduped = _deactivate_duplicate_rows(
+                    AppelCGA.objects.filter(is_active=True), _cga_duplicate_key
+                )
                 messages.success(
                     request,
                     f"Import CGA termine. {created} ligne(s) chargee(s), {skipped} doublon(s) ignores, {deduped} doublon(s) desactive(s).",
@@ -327,7 +362,9 @@ def cga_index(request):
                     else:
                         AppelCGA.objects.create(**item, is_active=True)
                         created += 1
-                deduped = _deactivate_duplicate_rows(AppelCGA.objects.filter(is_active=True), _cga_duplicate_key)
+                deduped = _deactivate_duplicate_rows(
+                    AppelCGA.objects.filter(is_active=True), _cga_duplicate_key
+                )
                 messages.success(
                     request,
                     f"Import CGA termine. {created} nouvelle(s) ligne(s), {updated} mise(s) a jour, {skipped} doublon(s) dans le fichier, {deduped} doublon(s) desactive(s).",
@@ -376,7 +413,7 @@ def cga_index(request):
 def cga_action(request, pk: int):
     # Clean up stale locks that may be blocking access
     _cleanup_stale_locks()
-    
+
     row = get_object_or_404(AppelCGA, pk=pk)
     action = request.POST.get("action")
     rappel_at = request.POST.get("rappel_at")
@@ -443,9 +480,13 @@ def download_cga_audios(request):
     except ValueError:
         return JsonResponse({"ok": False, "error": "Identifiants invalides."}, status=400)
 
-    rows = list(AppelCGA.objects.filter(pk__in=ids, audio_file__isnull=False).order_by("raison_sociale"))
+    rows = list(
+        AppelCGA.objects.filter(pk__in=ids, audio_file__isnull=False).order_by("raison_sociale")
+    )
     if not rows:
-        return JsonResponse({"ok": False, "error": "Aucun audio disponible pour la selection."}, status=404)
+        return JsonResponse(
+            {"ok": False, "error": "Aucun audio disponible pour la selection."}, status=404
+        )
 
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_DEFLATED) as archive:
@@ -476,7 +517,9 @@ def cga_transcription_detail(request, pk: int):
     row = get_object_or_404(AppelCGA, pk=pk)
     try:
         obj, generated = _ensure_cga_transcription(row)
-        return JsonResponse({"ok": True, "generated": generated, "transcription": _transcription_to_payload(obj)})
+        return JsonResponse(
+            {"ok": True, "generated": generated, "transcription": _transcription_to_payload(obj)}
+        )
     except Exception as exc:
         return JsonResponse({"ok": False, "error": str(exc)}, status=400)
 
@@ -489,7 +532,9 @@ def cga_transcription_download(request, pk: int):
     except Exception as exc:
         return HttpResponse(str(exc), status=400, content_type="text/plain; charset=utf-8")
     response = HttpResponse(obj.transcription_text or "", content_type="text/plain; charset=utf-8")
-    response["Content-Disposition"] = f'attachment; filename="transcription-cga-{slugify(row.niu) or row.pk}.txt"'
+    response["Content-Disposition"] = (
+        f'attachment; filename="transcription-cga-{slugify(row.niu) or row.pk}.txt"'
+    )
     return response
 
 
@@ -508,7 +553,9 @@ def start_filtered_cga_transcription(request):
 
 @login_required
 def filtered_cga_transcription_status(request):
-    return JsonResponse({"ok": True, "status": _transcription_status_response(CGA_FILTERED_TRANSCRIPTION_TASK_KEY)})
+    return JsonResponse(
+        {"ok": True, "status": _transcription_status_response(CGA_FILTERED_TRANSCRIPTION_TASK_KEY)}
+    )
 
 
 @login_required

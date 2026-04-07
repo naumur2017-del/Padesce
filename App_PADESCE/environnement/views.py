@@ -13,7 +13,9 @@ from App_PADESCE.formations.models import Classe
 
 def environnement(request):
     filter_classe = request.GET.get("classe")
-    classes = Classe.objects.select_related("prestation", "formation", "lieu").all().order_by("code")
+    classes = (
+        Classe.objects.select_related("prestation", "formation", "lieu").all().order_by("code")
+    )
     selected_classe = None
     if filter_classe:
         try:
@@ -21,7 +23,9 @@ def environnement(request):
         except (Classe.DoesNotExist, TypeError, ValueError):
             selected_classe = None
 
-    qs = EnqueteEnvironnement.objects.select_related("classe", "inspecteur", "enqueteur").order_by("-date", "-created_at")
+    qs = EnqueteEnvironnement.objects.select_related("classe", "inspecteur", "enqueteur").order_by(
+        "-date", "-created_at"
+    )
     if selected_classe:
         qs = qs.filter(classe=selected_classe)
     elif filter_classe:
@@ -61,7 +65,9 @@ def environnement(request):
 
 def environnement_export_csv(request):
     filter_classe = request.GET.get("classe")
-    qs = EnqueteEnvironnement.objects.select_related("classe", "inspecteur", "enqueteur").order_by("-date")
+    qs = EnqueteEnvironnement.objects.select_related("classe", "inspecteur", "enqueteur").order_by(
+        "-date"
+    )
     if filter_classe:
         qs = qs.filter(classe_id=filter_classe)
 

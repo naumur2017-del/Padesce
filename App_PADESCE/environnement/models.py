@@ -6,10 +6,16 @@ from App_PADESCE.formations.models import Classe, Inspecteur
 
 
 class EnqueteEnvironnement(TimeStampedModel):
-    classe = models.ForeignKey(Classe, on_delete=models.CASCADE, related_name="enquetes_environnement")
+    classe = models.ForeignKey(
+        Classe, on_delete=models.CASCADE, related_name="enquetes_environnement"
+    )
     inspecteur = models.ForeignKey(Inspecteur, on_delete=models.SET_NULL, null=True, blank=True)
     enqueteur = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="environnement_saisies"
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="environnement_saisies",
     )
     date = models.DateField()
     heure_enregistrement = models.TimeField(null=True, blank=True)

@@ -75,6 +75,16 @@ jobs:
             BASE_SHA="$(git rev-list --max-parents=0 HEAD)"
           fi
 
+          # Vérifier si le BASE_SHA existe localement (peut manquer après un "force push" ou un squash)
+          if ! git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; then
+            echo "Base SHA ${BASE_SHA} introuvable (probablement un force push). Utilisation de HEAD~1 comme alternative."
+            BASE_SHA="HEAD~1"
+            # Si HEAD~1 n'existe pas non plus (ex. repo avec 1 seul commit)
+            if ! git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; then
+              BASE_SHA="$(git hash-object -t tree /dev/null)"
+            fi
+          fi
+
           python_files="$(git diff --name-only "${BASE_SHA}" "${HEAD_SHA}" -- '*.py')"
 
           {

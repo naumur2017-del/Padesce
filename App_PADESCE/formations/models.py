@@ -80,7 +80,9 @@ class Beneficiaire(TimeStampedModel):
 
 class Prestation(TimeStampedModel):
     code = models.CharField(max_length=50, unique=True)
-    prestataire = models.ForeignKey(Prestataire, on_delete=models.CASCADE, related_name="prestations")
+    prestataire = models.ForeignKey(
+        Prestataire, on_delete=models.CASCADE, related_name="prestations"
+    )
     formation = models.ForeignKey(Formation, on_delete=models.CASCADE, related_name="prestations")
     beneficiaire = models.ForeignKey(
         Beneficiaire, on_delete=models.SET_NULL, related_name="prestations", null=True, blank=True
@@ -145,10 +147,14 @@ class Classe(TimeStampedModel):
 
     code = models.CharField(max_length=20, unique=True)
     prestation = models.ForeignKey(Prestation, on_delete=models.CASCADE, related_name="classes")
-    lieu = models.ForeignKey(Lieu, on_delete=models.SET_NULL, related_name="classes", null=True, blank=True)
+    lieu = models.ForeignKey(
+        Lieu, on_delete=models.SET_NULL, related_name="classes", null=True, blank=True
+    )
     formation = models.ForeignKey(Formation, on_delete=models.CASCADE, related_name="classes")
     intitule_formation = models.CharField(max_length=255)
-    formateur = models.ForeignKey(Formateur, on_delete=models.SET_NULL, related_name="classes", null=True, blank=True)
+    formateur = models.ForeignKey(
+        Formateur, on_delete=models.SET_NULL, related_name="classes", null=True, blank=True
+    )
     fenetre = models.CharField(max_length=50, blank=True)
     cohorte = models.PositiveIntegerField(default=1)
     statut = models.CharField(max_length=20, choices=STATUT_CHOICES, default="non_demarre")

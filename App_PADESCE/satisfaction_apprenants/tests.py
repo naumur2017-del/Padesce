@@ -28,19 +28,18 @@ from App_PADESCE.formations.models import (
 from App_PADESCE.satisfaction_apprenants.management.commands.import_satisfaction_excel import (
     _sync_source_models,
 )
-from App_PADESCE.satisfaction_apprenants.models import SatisfactionApprenant
 from App_PADESCE.satisfaction_apprenants.views import (
     _analysis_selected_source,
+    _assign_enquete_ids,
     _attach_network_source_to_rows,
-    _build_satisfaction_dashboard_data,
-    _build_missing_prestations_analysis,
     _build_dashboard_filter_options,
+    _build_missing_prestations_analysis,
+    _build_satisfaction_dashboard_data,
     _build_threshold_class_stats,
     _call_report_status,
     _dashboard_chapeau_title,
     _dashboard_export_filename,
     _dashboard_export_filename_from_rows,
-    _assign_enquete_ids,
     _merge_class_apprenant_counts,
     _qualified_prestation_codes_from_source,
     _safe_import_appel_code,
@@ -1351,9 +1350,7 @@ class SatisfactionGeneralPageTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(
-            response, "Classe attendue CLA999 differente de la classe trouvee CLA001."
-        )
+        self.assertContains(response, "Classe attendue CLA999 differente de la classe trouvee CLA001.")
 
         self.eligible_appel.refresh_from_db()
         answers = AppelAnswers.objects.get(appel=self.eligible_appel)
@@ -1673,3 +1670,44 @@ class MissingLearnerImportTests(TestCase):
         self.assertEqual(second_response.status_code, 200)
         self.assertEqual(second_response.json()["imported"], 0)
         self.assertEqual(Appel.objects.count(), 1)
+
+
+class PrestationRankingServiceTests(TestCase):
+    def test_get_prestations_ranking_uses_fixed_query_count(self):
+        beneficiaire = Beneficiaire.objects.create(nom_structure="Beneficiaire Nord", region="Nord")
+        prestataire = Prestataire.objects.create(code="P001", raison_sociale="Prestataire Alpha")
+        formation = Formation.objects.create(code="F001", nom="Formation X")
+        Prestation.objects.create(
+            code="PRESTA001",
+            prestataire=prestataire,
+            formation=formation,
+            beneficiaire=beneficiaire,
+            effectif_a_former=20,
+            actif=True,
+        )
+
+        prestation_stats = [
+            {
+                "code": "PRESTA001",
+                "prestataire": "Prestataire Alpha",
+                "beneficiaire": "Beneficiaire Nord",
+                "nb": 10,
+                "avg": 4.0,
+            },
+            {
+                "code": "PRESTA999",
+                "prestataire": "Prestataire Beta",
+                "beneficiaire": "Beneficiaire Nord",
+                "nb": 2,
+                "avg": 5.0,
+            },
+        ]
+
+        with self.assertNumQueries(2):
+            ranking = get_prestations_ranking(prestation_stats, order="desc")
+
+        ranking_by_code = {item["code"]: item for item in ranking}
+        self.assertEqual(ranking_by_code["PRESTA001"]["effectif"], 20)
+        self.assertEqual(ranking_by_code["PRESTA001"]["region"], "Nord")
+        self.assertEqual(ranking_by_code["PRESTA999"]["effectif"], 2)
+        self.assertEqual(ranking_by_code["PRESTA999"]["region"], "Nord")

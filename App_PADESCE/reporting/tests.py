@@ -4,14 +4,16 @@ from datetime import date
 from pathlib import Path
 from unittest.mock import patch
 
-from django.contrib.auth.models import Group
 from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Group
 from django.test import SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 from openpyxl import Workbook
 
 from App_PADESCE.appels.models import Appel
+from App_PADESCE.formations.models import Prestation
 from App_PADESCE.reporting import app_report, network_excel
+from App_PADESCE.reporting import views as reporting_views
 
 
 class NetworkWorkbookResolutionTests(SimpleTestCase):
@@ -144,7 +146,19 @@ class NetworkExcelApiTests(TestCase):
             ]
         )
         apprenants_sheet.append(
-            ["APP001", "IND001", "BEN001", "Nom 1", "CAPEF", "CLA001", "C001", "1", "Actif", "1", "F"]
+            [
+                "APP001",
+                "IND001",
+                "BEN001",
+                "Nom 1",
+                "CAPEF",
+                "CLA001",
+                "C001",
+                "1",
+                "Actif",
+                "1",
+                "F",
+            ]
         )
 
         classes_sheet = workbook.create_sheet("Classes")
@@ -162,7 +176,17 @@ class NetworkExcelApiTests(TestCase):
             ]
         )
         classes_sheet.append(
-            ["CLA001", "PRESTA001", "Prestataire Alpha", "CAPEF", "1", "Site A", "Garoua", "Formation X", "Nord"]
+            [
+                "CLA001",
+                "PRESTA001",
+                "Prestataire Alpha",
+                "CAPEF",
+                "1",
+                "Site A",
+                "Garoua",
+                "Formation X",
+                "Nord",
+            ]
         )
 
         prestations_sheet = workbook.create_sheet("Prestations")
@@ -205,7 +229,19 @@ class NetworkExcelApiTests(TestCase):
             ]
         )
         cutoff_apprenants_sheet.append(
-            ["APPCUT001", "INDCUT001", "BENCUT001", "Nom CutOff", "CAPEF", "CLACUT001", "CUT001", "1", "Actif", "1", "F"]
+            [
+                "APPCUT001",
+                "INDCUT001",
+                "BENCUT001",
+                "Nom CutOff",
+                "CAPEF",
+                "CLACUT001",
+                "CUT001",
+                "1",
+                "Actif",
+                "1",
+                "F",
+            ]
         )
 
         cutoff_classes_sheet = cutoff_workbook.create_sheet("Classes")
@@ -223,7 +259,17 @@ class NetworkExcelApiTests(TestCase):
             ]
         )
         cutoff_classes_sheet.append(
-            ["CLACUT001", "PRESTACUT001", "Prestataire CutOff", "CAPEF", "1", "Site CutOff", "Maroua", "Formation CutOff", "Extreme-Nord"]
+            [
+                "CLACUT001",
+                "PRESTACUT001",
+                "Prestataire CutOff",
+                "CAPEF",
+                "1",
+                "Site CutOff",
+                "Maroua",
+                "Formation CutOff",
+                "Extreme-Nord",
+            ]
         )
 
         cutoff_prestations_sheet = cutoff_workbook.create_sheet("Prestations")
@@ -381,7 +427,9 @@ class ReportEmailDeliveryTests(SimpleTestCase):
     @patch("App_PADESCE.reporting.app_report._get_report_logo_path", return_value=None)
     @patch("App_PADESCE.reporting.app_report.EmailMessage")
     @patch("App_PADESCE.reporting.app_report.get_connection")
-    @patch("App_PADESCE.reporting.app_report.build_report_email_html", return_value="<p>rapport</p>")
+    @patch(
+        "App_PADESCE.reporting.app_report.build_report_email_html", return_value="<p>rapport</p>"
+    )
     def test_send_report_by_email_forces_smtp_when_console_backend_is_active(
         self,
         _mock_html,
@@ -437,7 +485,9 @@ class ReportEmailDeliveryTests(SimpleTestCase):
     )
     @patch("App_PADESCE.reporting.app_report._get_report_logo_path", return_value=None)
     @patch("App_PADESCE.reporting.app_report.EmailMessage")
-    @patch("App_PADESCE.reporting.app_report.build_report_email_html", return_value="<p>rapport</p>")
+    @patch(
+        "App_PADESCE.reporting.app_report.build_report_email_html", return_value="<p>rapport</p>"
+    )
     def test_send_report_by_email_returns_error_when_smtp_send_fails(
         self,
         _mock_html,
@@ -498,3 +548,71 @@ class ReportAnomalyRowsTests(TestCase):
             next(row for row in duplicate_rows if row["call_id"] == duplicate.id)["apprenant_id"],
             "",
         )
+
+
+class ConsolidationImportCachingTests(TestCase):
+    def test_save_related_from_payload_reuses_prestation_lookup_for_duplicate_rows(self):
+        payload = [
+            {
+                "beneficiaire": "Beneficiaire Nord",
+                "prestataire": "Prestataire Alpha",
+                "intitule_formation_dispensee": "Formation X",
+                "fenetre": "2",
+                "lieu_formation": "Site A",
+                "classe_id": "CLA001",
+                "cohorte": "1",
+                "region": "Nord",
+                "departement": "Departement A",
+                "arrondissement": "Arrondissement A",
+                "ville_formation": "Garoua",
+                "longitude": "",
+                "latitude": "",
+                "precision_lieu": "",
+                "nom_complet": "Apprenant 1",
+                "code": "APP001",
+                "telephone1": "690000001",
+                "telephone2": "",
+                "age": "24",
+                "fonction": "Commercant",
+                "qualification": "Niveau 1",
+                "nb_annees_experience": "2",
+                "ville_residence": "Garoua",
+                "genre": "F",
+            },
+            {
+                "beneficiaire": "Beneficiaire Nord",
+                "prestataire": "Prestataire Alpha",
+                "intitule_formation_dispensee": "Formation X",
+                "fenetre": "2",
+                "lieu_formation": "Site A",
+                "classe_id": "CLA001",
+                "cohorte": "1",
+                "region": "Nord",
+                "departement": "Departement A",
+                "arrondissement": "Arrondissement A",
+                "ville_formation": "Garoua",
+                "longitude": "",
+                "latitude": "",
+                "precision_lieu": "",
+                "nom_complet": "Apprenant 2",
+                "code": "APP002",
+                "telephone1": "690000002",
+                "telephone2": "",
+                "age": "29",
+                "fonction": "Agriculteur",
+                "qualification": "Niveau 2",
+                "nb_annees_experience": "4",
+                "ville_residence": "Garoua",
+                "genre": "M",
+            },
+        ]
+
+        with patch(
+            "App_PADESCE.reporting.views._ensure_prestation",
+            wraps=reporting_views._ensure_prestation,
+        ) as mock_ensure_prestation:
+            created_count = reporting_views._save_related_from_payload(payload)
+
+        self.assertEqual(created_count, 2)
+        self.assertEqual(mock_ensure_prestation.call_count, 1)
+        self.assertEqual(Prestation.objects.count(), 1)

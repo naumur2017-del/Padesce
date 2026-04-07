@@ -6,9 +6,9 @@ import pandas as pd
 from .config import (
     get_dataframes,
     get_schema_cache,
+    safe_series,
     set_modalities_cache,
     set_schema_cache,
-    safe_series,
 )
 
 
@@ -16,7 +16,7 @@ def build_modalities_cache() -> None:
     """Construit le cache des modalités pour la correction orthographique."""
     cache = {}
     dataframes = get_dataframes()
-    
+
     for bdd_name in ["classe", "decompte"]:
         df = dataframes.get(bdd_name)
         if df is None:
@@ -28,7 +28,7 @@ def build_modalities_cache() -> None:
                 if len(uniques) <= 500:
                     key = f"{bdd_name}.{col}"
                     cache[key] = list(uniques)
-    
+
     set_modalities_cache(cache)
 
 
@@ -36,23 +36,25 @@ def build_schema_cache() -> None:
     """Construit un schéma détaillé pour le LLM avec colonnes et valeurs possibles."""
     parts = []
     dataframes = get_dataframes()
-    
+
     for bdd_name in ["decompte", "classe"]:
         df = dataframes.get(bdd_name)
         if df is None:
             continue
-        
-        parts.append(f"\n{'='*60}")
+
+        parts.append(f"\n{'=' * 60}")
         parts.append(f"DataFrame '{bdd_name}' : {df.shape[0]} lignes, {df.shape[1]} colonnes")
-        parts.append('='*60)
-        
+        parts.append("=" * 60)
+
         for col in df.columns:
             s = safe_series(df, col)
             dtype_str = str(s.dtype)
             non_null = s.notna().sum()
-            
+
             if pd.api.types.is_numeric_dtype(s):
-                parts.append(f"  • {col} [NUMÉRIQUE {dtype_str}] : {non_null} valeurs, min={s.min()}, max={s.max()}")
+                parts.append(
+                    f"  • {col} [NUMÉRIQUE {dtype_str}] : {non_null} valeurs, min={s.min()}, max={s.max()}"
+                )
             else:
                 uniques = s.dropna().astype(str).unique()
                 n_unique = len(uniques)
@@ -62,7 +64,7 @@ def build_schema_cache() -> None:
                 else:
                     sample = ", ".join(f'"{v}"' for v in list(uniques)[:8])
                     parts.append(f"  • {col} [TEXTE] : {n_unique} valeurs uniques → {sample} ...")
-    
+
     set_schema_cache("\n".join(parts))
 
 

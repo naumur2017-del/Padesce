@@ -43,11 +43,18 @@ class SqliteSyncTests(SimpleTestCase):
             source = base / "source.sqlite3"
             self._create_people_db(
                 target,
-                [(1, "Alice cible", "2026-03-19 10:00:00"), (2, "Bob cible", "2026-03-19 12:00:00")],
+                [
+                    (1, "Alice cible", "2026-03-19 10:00:00"),
+                    (2, "Bob cible", "2026-03-19 12:00:00"),
+                ],
             )
             self._create_people_db(
                 source,
-                [(1, "Alice source", "2026-03-19 11:00:00"), (2, "Bob source", "2026-03-19 11:30:00"), (3, "Charly source", "2026-03-19 11:45:00")],
+                [
+                    (1, "Alice source", "2026-03-19 11:00:00"),
+                    (2, "Bob source", "2026-03-19 11:30:00"),
+                    (3, "Charly source", "2026-03-19 11:45:00"),
+                ],
             )
 
             result = sync_sqlite_databases(
@@ -61,10 +68,16 @@ class SqliteSyncTests(SimpleTestCase):
             self.assertEqual(result.updated, 1)
             self.assertEqual(result.skipped_conflicts, 1)
             with closing(sqlite3.connect(target)) as conn:
-                rows = conn.execute("SELECT id, name, updated_at FROM people ORDER BY id").fetchall()
+                rows = conn.execute(
+                    "SELECT id, name, updated_at FROM people ORDER BY id"
+                ).fetchall()
             self.assertEqual(
                 rows,
-                [(1, "Alice source", "2026-03-19 11:00:00"), (2, "Bob cible", "2026-03-19 12:00:00"), (3, "Charly source", "2026-03-19 11:45:00")],
+                [
+                    (1, "Alice source", "2026-03-19 11:00:00"),
+                    (2, "Bob cible", "2026-03-19 12:00:00"),
+                    (3, "Charly source", "2026-03-19 11:45:00"),
+                ],
             )
 
     def test_source_strategy_updates_without_timestamp(self) -> None:
@@ -91,7 +104,9 @@ class SqliteSyncTests(SimpleTestCase):
 
     def _create_people_db(self, path: Path, rows: list[tuple[int, str, str]]) -> None:
         with closing(sqlite3.connect(path)) as conn:
-            conn.execute("CREATE TABLE people (id INTEGER PRIMARY KEY, name TEXT NOT NULL, updated_at TEXT)")
+            conn.execute(
+                "CREATE TABLE people (id INTEGER PRIMARY KEY, name TEXT NOT NULL, updated_at TEXT)"
+            )
             conn.executemany("INSERT INTO people (id, name, updated_at) VALUES (?, ?, ?)", rows)
             conn.commit()
 

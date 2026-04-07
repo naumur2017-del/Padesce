@@ -28,8 +28,12 @@ class ConsolidationRecord(models.Model):
     cohorte = models.CharField(max_length=50, blank=True)
     tel_formateur = models.CharField(max_length=255, blank=True)
     code = models.CharField(max_length=255, blank=True)
-    cout_unitaire_subvention = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
-    montant_total_subvention = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    cout_unitaire_subvention = models.DecimalField(
+        max_digits=14, decimal_places=2, null=True, blank=True
+    )
+    montant_total_subvention = models.DecimalField(
+        max_digits=14, decimal_places=2, null=True, blank=True
+    )
     statut_prestation = models.CharField(max_length=50, blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)

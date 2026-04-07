@@ -16,8 +16,8 @@ from App_PADESCE.core.fast_stats import (
 from App_PADESCE.formations.models import (
     Beneficiaire,
     Classe,
-    Formation,
     Formateur,
+    Formation,
     Lieu,
     Prestataire,
     Prestation,
@@ -51,8 +51,12 @@ class FastStatsTests(TestCase):
             is_superuser=True,
             is_staff=True,
         )
-        self.prestataire = Prestataire.objects.create(code="PST001", raison_sociale="Prestataire Alpha")
-        self.beneficiaire = Beneficiaire.objects.create(nom_structure="Beneficiaire Beta", ville="Garoua")
+        self.prestataire = Prestataire.objects.create(
+            code="PST001", raison_sociale="Prestataire Alpha"
+        )
+        self.beneficiaire = Beneficiaire.objects.create(
+            nom_structure="Beneficiaire Beta", ville="Garoua"
+        )
         self.formation = Formation.objects.create(
             code="FOR001",
             nom="Transformation digitale",
@@ -230,7 +234,9 @@ class FastStatsTests(TestCase):
         self.assertEqual(payload["filters"]["prestataire"], "Prestataire Alpha")
         self.assertTrue(payload["terminated_only"])
         self.assertEqual(self._mode(payload, "apprenant")["rows"][0]["classe_id"], "CLA011")
-        self.assertEqual(self._mode(payload, "formateur")["rows"][0]["class_link_url"], self.TEAMS_CHANNEL_URL)
+        self.assertEqual(
+            self._mode(payload, "formateur")["rows"][0]["class_link_url"], self.TEAMS_CHANNEL_URL
+        )
 
     def test_build_fast_stats_api_payload_matches_bundle_shape(self):
         payload = build_fast_stats_api_payload(request_like_with_query("prestation=PRESTA001"))
@@ -275,7 +281,9 @@ class FastStatsTests(TestCase):
     def test_fast_stats_falls_back_to_internal_analysis_link_without_teams_channel(self):
         self.mock_build_padesce_source_index.return_value = {"records": {}, "classes": {}}
 
-        payload = build_fast_stats_api_payload(request_like_with_query("prestataire=Prestataire+Alpha"))
+        payload = build_fast_stats_api_payload(
+            request_like_with_query("prestataire=Prestataire+Alpha")
+        )
 
         row = self._mode(payload, "formateur")["rows"][0]
         self.assertEqual(row["class_link_url"], "https://testserver/classe/CLA011/")

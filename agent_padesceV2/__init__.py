@@ -4,29 +4,35 @@ Agent PADESCE - Analyse des données de formation avec LangGraph.
 
 Usage en notebook:
     from agent_padesce import *
-    
+
     # Configuration de la mémoire (optionnel)
     configure_memory(enabled=True, max_conversations=5)
-    
+
     # Chargement des données
     dfs = load_data("Decompte et facturation.xlsm")
     register_dataframes(dfs)
-    
+
     # Visualisation du graphe
     visualize_graph()
-    
+
     # Utilisation de l'agent
     result = run_agent("Combien de prestataires ?")
     print(result["reponse"])
 """
 
 # Configuration
+# Agent
+from .agent import (
+    get_generated_file,
+    list_generated_files,
+    run_agent,
+)
 from .config import (
     EXPORTS_DIR,
-    reset_memory,
     configure_memory,
-    get_memory_config,
     get_df,
+    get_memory_config,
+    reset_memory,
 )
 
 # Chargement des données
@@ -35,15 +41,15 @@ from .data_loader import (
     register_dataframes,
 )
 
-# Schéma
-from .schema import (
-    get_schema,
+# Génération Excel
+from .excel_generator import (
+    generer_rapport_excel,
 )
 
-# Orthographe
-from .orthographe import (
-    corriger_orthographe,
-    trouver_entite,
+# Graphe
+from .graph import (
+    AgentState,
+    build_graph,
 )
 
 # Fonctions métier
@@ -52,35 +58,28 @@ from .metier import (
     filtrer_classes,
 )
 
-# Génération Excel
-from .excel_generator import (
-    generer_rapport_excel,
+# Orthographe
+from .orthographe import (
+    corriger_orthographe,
+    trouver_entite,
 )
 
 # Pipelines
 from .pipelines import (
-    pipeline_fiche,
-    pipeline_code,
-    generer_code,
     executer_code,
+    generer_code,
+    pipeline_code,
+    pipeline_fiche,
 )
 
-# Graphe
-from .graph import (
-    build_graph,
-    AgentState,
+# Schéma
+from .schema import (
+    get_schema,
 )
 
 # Visualisation
 from .visualize import (
     visualize_graph,
-)
-
-# Agent
-from .agent import (
-    run_agent,
-    get_generated_file,
-    list_generated_files,
 )
 
 __all__ = [

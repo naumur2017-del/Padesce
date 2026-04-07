@@ -244,12 +244,9 @@ def _build_success_report(appel: Appel, answer: AppelAnswers | None, transcripti
     reco = _clean_text(getattr(answer, "recommandations", ""))
     parts = [
         f"Appel PADESCE reussi pour {appel.nom} ({appel.code}).",
-        "Classe "
-        f"{appel.classe_label or '-'} / prestataire {appel.prestataire or '-'} / "
-        f"beneficiaire {appel.beneficiaire or '-'}.",
+        f"Classe {appel.classe_label or '-'} / prestataire {appel.prestataire or '-'} / beneficiaire {appel.beneficiaire or '-'}.",  # noqa: E501
         f"Contacts: {appel.telephone1 or '-'} / {appel.telephone2 or '-'}.",
-        "Formulaire complet enregistre avec une note moyenne de "
-        f"{avg if avg is not None else '-'} / 5.",
+        f"Formulaire complet enregistre avec une note moyenne de {avg if avg is not None else '-'} / 5.",  # noqa: E501
         f"Commentaire: {comment or '-'}.",
         f"Recommandations: {reco or '-'}.",
     ]
@@ -266,9 +263,7 @@ def _build_failure_report(appel: Appel, answer: AppelAnswers | None, transcripti
     parts = [
         f"Appel PADESCE classe en echec pour {appel.nom} ({appel.code}).",
         f"Motifs: {reasons}.",
-        "Classe "
-        f"{appel.classe_label or '-'} / prestataire {appel.prestataire or '-'} / "
-        f"beneficiaire {appel.beneficiaire or '-'}.",
+        f"Classe {appel.classe_label or '-'} / prestataire {appel.prestataire or '-'} / beneficiaire {appel.beneficiaire or '-'}.",  # noqa: E501
         f"Contacts: {appel.telephone1 or '-'} / {appel.telephone2 or '-'}.",
     ]
     if vrai_nom:
@@ -358,9 +353,7 @@ def _build_dashboard(
     _sheet_title(
         ws,
         "Rapport PADESCE - Recap appels",
-        "Genere le "
-        f"{timezone.localtime().strftime('%Y-%m-%d %H:%M')} "
-        "a partir de toute l'historique des appels.",
+        f"Genere le {timezone.localtime().strftime('%Y-%m-%d %H:%M')} a partir de toute l'historique des appels.",  # noqa: E501
     )
 
     ws["A4"] = "Indicateur"
@@ -440,12 +433,10 @@ def _build_dashboard(
 
     ws["A19"] = "Regle de classement"
     ws["A20"] = (
-        "Reussi = appel termine + formulaire complet exploitable "
-        "+ sans deja forme / faux nom / numero double / RAS."
+        "Reussi = appel termine + formulaire complet exploitable + sans deja forme / faux nom / numero double / RAS."  # noqa: E501
     )
     ws["A21"] = (
-        "Echoue = tous les autres cas, "
-        "avec le ou les motifs detailles dans la feuille Appels echoues."
+        "Echoue = tous les autres cas, avec le ou les motifs detailles dans la feuille Appels echoues."  # noqa: E501
     )
     ws["A19"].font = Font(bold=True)
     ws["A20"].alignment = Alignment(wrap_text=True)

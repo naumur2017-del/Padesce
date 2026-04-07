@@ -1,6 +1,15 @@
 from django.contrib import admin
 
-from .models import Beneficiaire, Classe, Formateur, Formation, Inspecteur, Lieu, Prestation, Prestataire
+from .models import (
+    Beneficiaire,
+    Classe,
+    Formateur,
+    Formation,
+    Inspecteur,
+    Lieu,
+    Prestataire,
+    Prestation,
+)
 
 
 @admin.register(Formateur)
@@ -33,7 +42,14 @@ class BeneficiaireAdmin(admin.ModelAdmin):
 
 @admin.register(Prestation)
 class PrestationAdmin(admin.ModelAdmin):
-    list_display = ("code", "prestataire", "formation", "beneficiaire", "effectif_a_former", "actif")
+    list_display = (
+        "code",
+        "prestataire",
+        "formation",
+        "beneficiaire",
+        "effectif_a_former",
+        "actif",
+    )
     search_fields = ("code",)
     list_filter = ("prestataire", "formation", "beneficiaire", "actif")
 
@@ -54,6 +70,16 @@ class InspecteurAdmin(admin.ModelAdmin):
 
 @admin.register(Classe)
 class ClasseAdmin(admin.ModelAdmin):
-    list_display = ("code", "formation", "prestation", "lieu", "formateur", "fenetre", "cohorte", "statut", "actif")
+    list_display = (
+        "code",
+        "formation",
+        "prestation",
+        "lieu",
+        "formateur",
+        "fenetre",
+        "cohorte",
+        "statut",
+        "actif",
+    )
     search_fields = ("code", "intitule_formation")
     list_filter = ("formation", "prestation", "fenetre", "statut", "actif")

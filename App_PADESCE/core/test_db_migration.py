@@ -7,7 +7,15 @@ from django.utils import timezone
 from App_PADESCE.apprenants.models import Apprenant
 from App_PADESCE.core.db_migration import copy_database_contents
 from App_PADESCE.core.models import AuditLog, UserActivity
-from App_PADESCE.formations.models import Beneficiaire, Classe, Formateur, Formation, Lieu, Prestataire, Prestation
+from App_PADESCE.formations.models import (
+    Beneficiaire,
+    Classe,
+    Formateur,
+    Formation,
+    Lieu,
+    Prestataire,
+    Prestation,
+)
 
 
 class DatabaseCopyTests(TransactionTestCase):
@@ -27,8 +35,13 @@ class DatabaseCopyTests(TransactionTestCase):
         self.assertTrue(result.inserted > 0)
         self.assertFalse(result.count_mismatches)
 
-        self.assertEqual(User.objects.using(target_alias).count(), User.objects.using(source_alias).count())
-        self.assertEqual(Apprenant.objects.using(target_alias).count(), Apprenant.objects.using(source_alias).count())
+        self.assertEqual(
+            User.objects.using(target_alias).count(), User.objects.using(source_alias).count()
+        )
+        self.assertEqual(
+            Apprenant.objects.using(target_alias).count(),
+            Apprenant.objects.using(source_alias).count(),
+        )
         self.assertEqual(
             AuditLog.objects.using(target_alias).count(),
             AuditLog.objects.using(source_alias).count(),
@@ -41,7 +54,9 @@ class DatabaseCopyTests(TransactionTestCase):
         self.assertTrue(apprenant.appartenance_beneficiaire)
         self.assertEqual(apprenant.classe.code, "CLA001")
 
-        audit = AuditLog.objects.using(target_alias).get(object_pk=str(source_objects["apprenant"].pk))
+        audit = AuditLog.objects.using(target_alias).get(
+            object_pk=str(source_objects["apprenant"].pk)
+        )
         self.assertEqual(audit.extra, {"source": "sqlite", "copie": True})
 
         new_formation = Formation.objects.db_manager(target_alias).create(

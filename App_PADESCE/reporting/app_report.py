@@ -21,11 +21,11 @@ from django.http import QueryDict
 from django.utils import timezone
 
 from App_PADESCE.appels.models import (
-    Appel,
-    AppelFormateur,
     CALL_ANALYSIS_THRESHOLD_STATUSES,
     CALL_COMPLETED_STATUSES,
     CALL_TENTATIVE_STATUSES,
+    Appel,
+    AppelFormateur,
 )
 from App_PADESCE.core.analysis_rules import analysis_threshold_target
 from App_PADESCE.core.models import UserActivity
