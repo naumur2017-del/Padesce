@@ -12,7 +12,7 @@ from django.contrib.auth import get_user_model
 from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
 from django.db import OperationalError, ProgrammingError
 from django.db.models import Count, Q
-from django.http import JsonResponse, QueryDict
+from django.http import Http404, JsonResponse, QueryDict
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
 from django.utils import timezone
@@ -1104,12 +1104,30 @@ def consultant_dashboard(request):
 @xframe_options_sameorigin
 @require_consultant_access
 def consultant_call_detail(request, pk: int):
-    appel = get_object_or_404(
-        Appel.objects.select_related("classe", "locked_by", "answers"),
-        pk=pk,
-        is_active=True,
-        status__in=CALL_COMPLETED_STATUSES,
+    detail_qs = Appel.objects.select_related(
+        "classe",
+        "locked_by",
+        "answers",
+        "answers__modified_by",
+        "satisfaction_apprenant",
+        "satisfaction_apprenant__enqueteur",
     )
+    appel = get_object_or_404(detail_qs, pk=pk)
+    if not getattr(appel, "is_active", False):
+        replacement = (
+            detail_qs.filter(code=appel.code, is_active=True)
+            .exclude(pk=appel.pk)
+            .order_by("-updated_at", "-pk")
+            .first()
+            if str(getattr(appel, "code", "") or "").strip()
+            else None
+        )
+        if replacement:
+            appel = replacement
+
+    if str(getattr(appel, "status", "") or "").strip() == "en_attente":
+        raise Http404("No Appel matches the given query.")
+
     try:
         answers = appel.answers
     except AppelAnswers.DoesNotExist:
