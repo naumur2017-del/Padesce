@@ -25,7 +25,7 @@ from django.core.exceptions import ObjectDoesNotExist
 from django.core.files.storage import default_storage
 from django.core.paginator import Paginator
 from django.db import transaction
-from django.db.models import Count
+from django.db.models import Count, Q
 from django.http import HttpResponse, JsonResponse, QueryDict
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -42,6 +42,7 @@ from App_PADESCE.appels.models import (
     CALL_ANALYSIS_THRESHOLD_STATUSES,
     CALL_FORM_STATUSES,
     CALL_SUCCESS_STATUSES,
+    appel_answers_has_any_answer_q,
     appel_has_any_audio,
     appel_has_any_form_data,
     derive_padesce_status,
@@ -3667,12 +3668,15 @@ def _build_update_form_candidate_row(
     }
 
 
-def _build_update_form_candidate_lists() -> tuple[list[dict], list[dict]]:
-    appels = list(
+def _update_form_candidate_base_queryset():
+    return (
         Appel.objects.filter(is_active=True)
         .select_related("classe", "classe__prestation", "answers", "satisfaction_apprenant")
         .order_by("classe_label", "code")
     )
+
+
+def _build_update_form_rows_for_appels(appels: list[Appel]) -> list[dict]:
     apprenant_codes = [str(appel.code or "").strip() for appel in appels if str(appel.code or "").strip()]
     apprenants_by_code = {
         str(apprenant.code or "").strip().casefold(): apprenant
@@ -3680,21 +3684,65 @@ def _build_update_form_candidate_lists() -> tuple[list[dict], list[dict]]:
             code__in=apprenant_codes
         )
     }
-    termine_without_form_rows: list[dict] = []
-    form_status_issue_rows: list[dict] = []
-
+    rows: list[dict] = []
     for appel in appels:
         answer = _linked_one_to_one(appel, "answers")
         survey = _linked_one_to_one(appel, "satisfaction_apprenant")
         apprenant = apprenants_by_code.get(str(appel.code or "").strip().casefold())
         if apprenant is None:
             apprenant = _resolve_batch_update_apprenant(appel)
-        row = _build_update_form_candidate_row(appel, apprenant, answer, survey)
-        if str(appel.status or "").strip() == "termine" and not row["has_complete_form"]:
-            termine_without_form_rows.append(row)
-        elif row["has_complete_form"] and str(appel.status or "").strip() != "termine":
-            form_status_issue_rows.append(row)
+        rows.append(_build_update_form_candidate_row(appel, apprenant, answer, survey))
+    return rows
 
+
+def _build_update_form_candidate_lists() -> tuple[list[dict], list[dict]]:
+    termine_rows = [
+        row
+        for row in _build_update_form_rows_for_appels(
+            list(_update_form_candidate_base_queryset().filter(status="termine"))
+        )
+        if not row["has_complete_form"]
+    ]
+    form_status_rows = [
+        row
+        for row in _build_update_form_rows_for_appels(
+            list(
+                _update_form_candidate_base_queryset()
+                .exclude(status="termine")
+                .filter(
+                    Q(status__in=CALL_FORM_STATUSES)
+                    | appel_answers_has_any_answer_q()
+                    | Q(satisfaction_apprenant__isnull=False)
+                )
+            )
+        )
+        if row["has_complete_form"]
+    ]
+    return termine_rows, form_status_rows
+
+
+def _cached_update_form_candidate_lists() -> tuple[list[dict], list[dict]]:
+    cache_key = _analysis_cache_key(
+        "update-form-candidates",
+        _analysis_queryset_marker(Appel),
+        _analysis_queryset_marker(AppelAnswers),
+        _analysis_queryset_marker(SatisfactionApprenant),
+    )
+    cached_payload = cache.get(cache_key)
+    if cached_payload is not None:
+        return (
+            list(cached_payload.get("termine_without_form_rows", [])),
+            list(cached_payload.get("form_status_issue_rows", [])),
+        )
+    termine_without_form_rows, form_status_issue_rows = _build_update_form_candidate_lists()
+    cache.set(
+        cache_key,
+        {
+            "termine_without_form_rows": termine_without_form_rows,
+            "form_status_issue_rows": form_status_issue_rows,
+        },
+        timeout=ANALYSIS_CACHE_TIMEOUT,
+    )
     return termine_without_form_rows, form_status_issue_rows
 
 
@@ -4058,7 +4106,7 @@ def satisfaction_update_form_page(request):
                             f"{summary['error_total']} code(s) n'ont pas pu etre traites.",
                         )
 
-    termine_without_form_rows, form_status_issue_rows = _build_update_form_candidate_lists()
+    termine_without_form_rows, form_status_issue_rows = _cached_update_form_candidate_lists()
 
     context = {
         "form": form,
