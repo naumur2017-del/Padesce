@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 from collections import defaultdict
 from datetime import date, timedelta
@@ -9,12 +10,14 @@ from urllib.parse import urlencode
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
+from django.db import OperationalError, ProgrammingError
 from django.db.models import Count, Q
-from django.http import QueryDict
+from django.http import JsonResponse, QueryDict
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.clickjacking import xframe_options_sameorigin
+from django.views.decorators.http import require_GET, require_POST
 
 from App_PADESCE.appels.models import (
     APPEL_ANSWER_QUESTION_FIELDS,
@@ -22,6 +25,10 @@ from App_PADESCE.appels.models import (
     AppelAnswers,
     AppelCGA,
     AppelFormateur,
+    CALL_ANALYSIS_THRESHOLD_STATUSES,
+    CALL_COMPLETED_STATUSES,
+    CALL_SUCCESS_STATUSES,
+    CALL_TENTATIVE_STATUSES,
     appel_answers_completed_q,
     appel_answers_modified_completion_q,
     padesce_form_tracking_cutoff,
@@ -42,12 +49,19 @@ from App_PADESCE.core.fast_stats import (
     build_fast_stats_api_response,
     build_fast_stats_export_response,
 )
-from App_PADESCE.core.models import UserActivity
+from App_PADESCE.core.models import (
+    AuditLog,
+    UserActivity,
+    UserActivityEvent,
+    UserLoginLog,
+)
 from App_PADESCE.environnement.models import EnqueteEnvironnement
 from App_PADESCE.formations.models import Classe
 from App_PADESCE.presences.models import Presence
 from App_PADESCE.satisfaction_apprenants.models import SatisfactionApprenant
 from App_PADESCE.satisfaction_formateurs.models import SatisfactionFormateur
+
+logger = logging.getLogger(__name__)
 
 
 def _normalize_dashboard_fenetre(value: str) -> str:
@@ -69,6 +83,29 @@ def _group_appel_ids_by_user(queryset, user_field: str) -> dict[int, set[int]]:
     return grouped
 
 
+def _count_audit_events_by_user(
+    *,
+    model_name: str,
+    event_name: str | None = None,
+    expected_extra: dict[str, str] | None = None,
+) -> dict[int, int]:
+    counts: dict[int, int] = defaultdict(int)
+    for entry in AuditLog.objects.filter(actor__isnull=False, model_name=model_name).only("actor_id", "extra"):
+        extra = entry.extra if isinstance(entry.extra, dict) else {}
+        if event_name and str(extra.get("event", "") or "").strip() != event_name:
+            continue
+        if expected_extra:
+            matches = True
+            for key, value in expected_extra.items():
+                if str(extra.get(key, "") or "").strip() != str(value):
+                    matches = False
+                    break
+            if not matches:
+                continue
+        counts[entry.actor_id] += 1
+    return counts
+
+
 def _source_class_apprenant_counts(source_bundle: dict | None) -> dict[str, int]:
     from App_PADESCE.core.call_metrics import count_callable_source_records_by_class
 
@@ -88,7 +125,7 @@ def _consultant_qualified_prestation_codes(source_bundle: dict | None) -> set[st
     terminated_by_class = {
         normalize_network_lookup(code): count
         for code, count in (
-            Appel.objects.filter(is_active=True, status="termine")
+            Appel.objects.filter(is_active=True, status__in=CALL_ANALYSIS_THRESHOLD_STATUSES)
             .exclude(classe_label="")
             .values("classe_label")
             .annotate(total=Count("id"))
@@ -466,7 +503,7 @@ def home(request):
     progress_pct = round((elapsed_days / total_days) * 100, 1)
     countdown_days = max(0, (end_date - today).days)
 
-    appels_termine_qs = Appel.objects.filter(is_active=True, status="termine")
+    appels_termine_qs = Appel.objects.filter(is_active=True, status__in=CALL_COMPLETED_STATUSES)
     prestataire_appels = (
         appels_termine_qs.values("prestataire")
         .annotate(total=Count("id"))
@@ -548,137 +585,14 @@ def home(request):
         ],
     }
     if can_view_padesce_dashboard or can_view_cga_dashboard:
-        User = get_user_model()
         since_24h = timezone.now() - timedelta(hours=24)
-        cutoff = timezone.now() - timedelta(minutes=10)
-        user_search = (request.GET.get("user_search") or "").strip()
-
-        if is_superuser:
-            activities = {a.user_id: a for a in UserActivity.objects.select_related("user")}
-            appels_index_url = reverse("appels_index")
-            completed_answers_filter = appel_answers_completed_q("answers__")
-            modified_answers_filter = appel_answers_modified_completion_q("answers__")
-            form_tracking_cutoff = padesce_form_tracking_cutoff()
-            tracked_audio_filter = Q(audio_file__isnull=False) & ~Q(audio_file="")
-            call_stats = {
-                row["locked_by_id"]: row
-                for row in Appel.objects.filter(is_active=True, locked_by__isnull=False)
-                .values("locked_by_id")
-                .annotate(
-                    total_appels=Count("id"),
-                    a_rappeler=Count("id", filter=Q(status="a_rappeler")),
-                    en_cours=Count("id", filter=Q(status="en_cours")),
-                )
-            }
-            formulaires_remplis_by_user = _group_appel_ids_by_user(
-                Appel.objects.filter(is_active=True, locked_by__isnull=False)
-                .filter(completed_answers_filter)
-                .distinct(),
-                "locked_by_id",
-            )
-            formulaires_modifies_by_user = _group_appel_ids_by_user(
-                Appel.objects.filter(is_active=True).filter(modified_answers_filter).distinct(),
-                "answers__modified_by_id",
-            )
-            legacy_termines_by_user = _group_appel_ids_by_user(
-                Appel.objects.filter(
-                    is_active=True,
-                    status="termine",
-                    updated_at__lt=form_tracking_cutoff,
-                    locked_by__isnull=False,
-                ),
-                "locked_by_id",
-            )
-            audio_termines_by_user = _group_appel_ids_by_user(
-                Appel.objects.filter(
-                    is_active=True,
-                    status="termine",
-                    updated_at__gte=form_tracking_cutoff,
-                    locked_by__isnull=False,
-                )
-                .filter(tracked_audio_filter)
-                .distinct(),
-                "locked_by_id",
-            )
-            current_calls_by_user = {}
-            for appel in Appel.objects.filter(
-                is_active=True, status="en_cours", locked_by__isnull=False
-            ).order_by("locked_by__username", "nom"):
-                query_params = urlencode(
-                    {"agent": appel.locked_by.username, "status": "en_cours", "q": appel.code}
-                )
-                current_calls_by_user.setdefault(appel.locked_by_id, []).append(
-                    {
-                        "code": appel.code,
-                        "nom": appel.nom,
-                        "url": f"{appels_index_url}?{query_params}",
-                    }
-                )
-
-            def build_appels_url(**params):
-                query = {key: value for key, value in params.items() if value not in (None, "", [])}
-                if not query:
-                    return appels_index_url
-                return f"{appels_index_url}?{urlencode(query, doseq=True)}"
-
-            user_rows = []
-            for user in User.objects.all().order_by("username"):
-                username = user.get_username()
-                if user_search and user_search.lower() not in username.lower():
-                    continue
-                activity = activities.get(user.id)
-                last_seen = activity.last_seen if activity else user.last_login
-                is_online = bool(last_seen and last_seen >= cutoff)
-                stats_row = call_stats.get(user.id, {})
-                formulaires_remplis_ids = formulaires_remplis_by_user.get(user.id, set())
-                formulaires_modifies_ids = formulaires_modifies_by_user.get(user.id, set())
-                termines_ids = set(legacy_termines_by_user.get(user.id, set()))
-                termines_ids.update(formulaires_remplis_ids)
-                termines_ids.update(formulaires_modifies_ids)
-                termines_ids.update(audio_termines_by_user.get(user.id, set()))
-                user_rows.append(
-                    {
-                        "username": username,
-                        "is_online": is_online,
-                        "last_seen": last_seen,
-                        "last_login": user.last_login,
-                        "total_appels": int(stats_row.get("total_appels") or 0),
-                        "a_rappeler": int(stats_row.get("a_rappeler") or 0),
-                        "formulaires_remplis": len(formulaires_remplis_ids),
-                        "formulaires_modifies": len(formulaires_modifies_ids),
-                        "termines": len(termines_ids),
-                        "en_cours": int(stats_row.get("en_cours") or 0),
-                        "current_calls": current_calls_by_user.get(user.id, []),
-                        "total_url": build_appels_url(agent=username),
-                        "rappel_url": build_appels_url(agent=username, status="a_rappeler"),
-                        "formulaires_url": build_appels_url(agent=username, formulaire="rempli"),
-                        "modifies_url": build_appels_url(
-                            modified_by=username, formulaire="modifie"
-                        ),
-                        "termines_url": build_appels_url(
-                            tracking_termine=1, tracking_user=username
-                        ),
-                        "en_cours_url": build_appels_url(agent=username, status="en_cours"),
-                    }
-                )
-            user_rows.sort(
-                key=lambda row: (
-                    -row["termines"],
-                    -row["formulaires_remplis"],
-                    -row["formulaires_modifies"],
-                    row["username"].lower(),
-                )
-            )
-            context["user_activity_rows"] = user_rows
-            context["user_search"] = user_search
-
         if can_view_padesce_dashboard:
             padesce_called_qs = Appel.objects.filter(is_active=True).exclude(status="en_attente")
             padesce_all_qs = Appel.objects.filter(is_active=True)
 
             # --- KPIs 24h ---
             padesce_24h_qs = Appel.objects.filter(
-                is_active=True, status="termine", updated_at__gte=since_24h
+                is_active=True, status__in=CALL_COMPLETED_STATUSES, updated_at__gte=since_24h
             )
             context["kpi_24h_total_termines"] = padesce_24h_qs.count()
 
@@ -729,7 +643,7 @@ def home(request):
                 .values("prestataire")
                 .annotate(
                     total_appeles=Count("id", filter=~Q(status="en_attente")),
-                    total_termines=Count("id", filter=Q(status="termine")),
+                    total_termines=Count("id", filter=Q(status__in=CALL_COMPLETED_STATUSES)),
                 )
                 .order_by("-total_termines", "-total_appeles", "prestataire")
             )
@@ -744,7 +658,7 @@ def home(request):
                 .annotate(
                     total_apprenants=Count("id"),
                     total_appeles=Count("id", filter=~Q(status="en_attente")),
-                    total_termines=Count("id", filter=Q(status="termine")),
+                    total_termines=Count("id", filter=Q(status__in=CALL_COMPLETED_STATUSES)),
                 )
                 .order_by("prestataire", "beneficiaire")
             )
@@ -789,7 +703,7 @@ def home(request):
                 .values("locked_by__username")
                 .annotate(
                     total_appeles=Count("id"),
-                    total_termines=Count("id", filter=Q(status="termine")),
+                    total_termines=Count("id", filter=Q(status__in=CALL_COMPLETED_STATUSES)),
                     recent_24h=Count("id", filter=Q(updated_at__gte=since_24h)),
                 )
                 .order_by("-total_termines", "-total_appeles", "locked_by__username")
@@ -800,7 +714,7 @@ def home(request):
                 padesce_called_qs.values("classe_label", "prestataire", "beneficiaire")
                 .annotate(
                     total_appeles=Count("id"),
-                    total_termines=Count("id", filter=Q(status="termine")),
+                    total_termines=Count("id", filter=Q(status__in=CALL_COMPLETED_STATUSES)),
                 )
                 .order_by(
                     "-total_termines",
@@ -826,7 +740,7 @@ def home(request):
                 .values("locked_by__username", "classe_label", "prestataire", "beneficiaire")
                 .annotate(
                     total_appeles=Count("id"),
-                    total_termines=Count("id", filter=Q(status="termine")),
+                    total_termines=Count("id", filter=Q(status__in=CALL_COMPLETED_STATUSES)),
                 )
                 .order_by(
                     "-total_termines", "-total_appeles", "locked_by__username", "classe_label"
@@ -852,7 +766,7 @@ def home(request):
                 formateurs_all_qs.values("prestataire")
                 .annotate(
                     total_appels=Count("id", filter=~Q(status="en_attente")),
-                    total_termines=Count("id", filter=Q(status="termine")),
+                    total_termines=Count("id", filter=Q(status__in=CALL_COMPLETED_STATUSES)),
                 )
                 .order_by("-total_termines", "-total_appels", "prestataire")
             )
@@ -866,7 +780,7 @@ def home(request):
                 formateurs_all_qs.values("cohorte")
                 .annotate(
                     total=Count("id"),
-                    total_termines=Count("id", filter=Q(status="termine")),
+                    total_termines=Count("id", filter=Q(status__in=CALL_COMPLETED_STATUSES)),
                 )
                 .order_by("-total", "cohorte")
             )
@@ -894,7 +808,7 @@ def home(request):
                 .values("locked_by__username")
                 .annotate(
                     total_appels=Count("id"),
-                    total_termines=Count("id", filter=Q(status="termine")),
+                    total_termines=Count("id", filter=Q(status__in=CALL_COMPLETED_STATUSES)),
                 )
                 .order_by("-total_termines", "-total_appels", "locked_by__username")
             )
@@ -907,7 +821,7 @@ def home(request):
                 cga_called_qs.values("regime")
                 .annotate(
                     total_appeles=Count("id"),
-                    total_termines=Count("id", filter=Q(status="termine")),
+                    total_termines=Count("id", filter=Q(status__in=CALL_COMPLETED_STATUSES)),
                 )
                 .order_by("-total_termines", "-total_appeles", "regime")
             )
@@ -919,7 +833,7 @@ def home(request):
                 cga_called_qs.values("cri")
                 .annotate(
                     total_appeles=Count("id"),
-                    total_termines=Count("id", filter=Q(status="termine")),
+                    total_termines=Count("id", filter=Q(status__in=CALL_COMPLETED_STATUSES)),
                 )
                 .order_by("-total_termines", "-total_appeles", "cri")
             )
@@ -931,7 +845,7 @@ def home(request):
                 cga_called_qs.values("centre_de_rattachement")
                 .annotate(
                     total_appeles=Count("id"),
-                    total_termines=Count("id", filter=Q(status="termine")),
+                    total_termines=Count("id", filter=Q(status__in=CALL_COMPLETED_STATUSES)),
                 )
                 .order_by("-total_termines", "-total_appeles", "centre_de_rattachement")
             )
@@ -946,7 +860,7 @@ def home(request):
                 .values("locked_by__username")
                 .annotate(
                     total_appeles=Count("id"),
-                    total_termines=Count("id", filter=Q(status="termine")),
+                    total_termines=Count("id", filter=Q(status__in=CALL_COMPLETED_STATUSES)),
                 )
                 .order_by("-total_termines", "-total_appeles", "locked_by__username")
             )
@@ -1130,7 +1044,7 @@ def consultant_dashboard(request):
         )
         stats = base_qs.aggregate(
             tentes=Count("id", filter=~Q(status="en_attente")),
-            reussis=Count("id", filter=~Q(status__in=["en_attente", "a_rappeler"])),
+            reussis=Count("id", filter=Q(status__in=CALL_SUCCESS_STATUSES)),
             forms=Count("id", filter=strict_form_q),
             forms_audio=Count("id", filter=strict_form_q & (Q(audio_file__isnull=False) & ~Q(audio_file=""))),
             audios=Count("id", filter=Q(audio_file__isnull=False) & ~Q(audio_file=""))
@@ -1194,7 +1108,7 @@ def consultant_call_detail(request, pk: int):
         Appel.objects.select_related("classe", "locked_by", "answers"),
         pk=pk,
         is_active=True,
-        status="termine",
+        status__in=CALL_COMPLETED_STATUSES,
     )
     try:
         answers = appel.answers
@@ -1232,3 +1146,568 @@ def consultant_call_detail(request, pk: int):
             "filled_questions_count": sum(1 for _label, value in question_rows if value),
         },
     )
+
+
+def user_tracking_view(request):
+    """Page dédiée au suivi des utilisateurs PADESCE (superuser uniquement)."""
+    from django.http import HttpResponseForbidden
+
+    if not (request.user.is_authenticated and request.user.is_superuser):
+        return HttpResponseForbidden("Accès réservé aux administrateurs.")
+
+    User = get_user_model()
+    cutoff = timezone.now() - timedelta(minutes=10)
+    user_search = (request.GET.get("user_search") or "").strip()
+
+    activities = {a.user_id: a for a in UserActivity.objects.select_related("user")}
+    appels_index_url = reverse("appels_index")
+    completed_answers_filter = appel_answers_completed_q("answers__")
+    modified_answers_filter = appel_answers_modified_completion_q("answers__")
+    form_tracking_cutoff = padesce_form_tracking_cutoff()
+    tracked_audio_filter = Q(audio_file__isnull=False) & ~Q(audio_file="")
+
+    call_stats = {
+        row["locked_by_id"]: row
+        for row in Appel.objects.filter(is_active=True, locked_by__isnull=False)
+        .values("locked_by_id")
+        .annotate(
+            total_appels=Count("id"),
+            a_rappeler=Count("id", filter=Q(status="a_rappeler")),
+            appels_tentes=Count("id", filter=Q(status="appel_tente")),
+            appels_reussis=Count("id", filter=Q(status="appel_reussi")),
+            formulaires_remplis_status=Count("id", filter=Q(status="formulaire_rempli")),
+            formulaires_avec_audio=Count("id", filter=Q(status="formulaire_avec_audio")),
+            en_cours=Count("id", filter=Q(status="en_cours")),
+        )
+    }
+    push_counts_by_user = _count_audit_events_by_user(
+        model_name="core.git_push_main",
+        event_name="push_main",
+    )
+    deploy_counts_by_user = _count_audit_events_by_user(
+        model_name="core.deployment_run",
+        event_name="deployment_start",
+        expected_extra={"mode": "deploy"},
+    )
+    formulaires_remplis_by_user = _group_appel_ids_by_user(
+        Appel.objects.filter(is_active=True, locked_by__isnull=False)
+        .filter(completed_answers_filter)
+        .distinct(),
+        "locked_by_id",
+    )
+    formulaires_modifies_by_user = _group_appel_ids_by_user(
+        Appel.objects.filter(is_active=True).filter(modified_answers_filter).distinct(),
+        "answers__modified_by_id",
+    )
+    legacy_termines_by_user = _group_appel_ids_by_user(
+        Appel.objects.filter(
+            is_active=True,
+            status="termine",
+            updated_at__lt=form_tracking_cutoff,
+            locked_by__isnull=False,
+        ),
+        "locked_by_id",
+    )
+    audio_termines_by_user = _group_appel_ids_by_user(
+        Appel.objects.filter(
+            is_active=True,
+            status="termine",
+            updated_at__gte=form_tracking_cutoff,
+            locked_by__isnull=False,
+        )
+        .filter(tracked_audio_filter)
+        .distinct(),
+        "locked_by_id",
+    )
+    current_calls_by_user = {}
+    for appel in Appel.objects.filter(
+        is_active=True, status__in=CALL_TENTATIVE_STATUSES, locked_by__isnull=False
+    ).order_by("locked_by__username", "nom"):
+        query_params = urlencode(
+            {"agent": appel.locked_by.username, "status": appel.status, "q": appel.code}
+        )
+        current_calls_by_user.setdefault(appel.locked_by_id, []).append(
+            {
+                "code": appel.code,
+                "nom": appel.nom,
+                "url": f"{appels_index_url}?{query_params}",
+            }
+        )
+
+    def build_appels_url(**params):
+        query = {key: value for key, value in params.items() if value not in (None, "", [])}
+        if not query:
+            return appels_index_url
+        return f"{appels_index_url}?{urlencode(query, doseq=True)}"
+
+    user_rows = []
+    for user in User.objects.all().order_by("username"):
+        username = user.get_username()
+        if user_search and user_search.lower() not in username.lower():
+            continue
+        activity = activities.get(user.id)
+        last_seen = activity.last_seen if activity else user.last_login
+        is_online = bool(last_seen and last_seen >= cutoff)
+        stats_row = call_stats.get(user.id, {})
+        formulaires_remplis_ids = formulaires_remplis_by_user.get(user.id, set())
+        formulaires_modifies_ids = formulaires_modifies_by_user.get(user.id, set())
+        termines_ids = set(legacy_termines_by_user.get(user.id, set()))
+        termines_ids.update(formulaires_remplis_ids)
+        termines_ids.update(formulaires_modifies_ids)
+        termines_ids.update(audio_termines_by_user.get(user.id, set()))
+
+        last_ip = getattr(activity, "last_ip", None) if activity else None
+        last_lat = getattr(activity, "last_latitude", None) if activity else None
+        last_lon = getattr(activity, "last_longitude", None) if activity else None
+        last_city = getattr(activity, "last_city", "") if activity else ""
+        last_country = getattr(activity, "last_country", "") if activity else ""
+
+        user_rows.append(
+            {
+                "username": username,
+                "is_online": is_online,
+                "last_seen": last_seen,
+                "last_login": user.last_login,
+                "total_appels": int(stats_row.get("total_appels") or 0),
+                "a_rappeler": int(stats_row.get("a_rappeler") or 0),
+                "formulaires_remplis": len(formulaires_remplis_ids),
+                "formulaires_modifies": len(formulaires_modifies_ids),
+                "termines": len(termines_ids),
+                "en_cours": int(stats_row.get("en_cours") or 0),
+                "current_calls": current_calls_by_user.get(user.id, []),
+                "total_url": build_appels_url(agent=username),
+                "rappel_url": build_appels_url(agent=username, status="a_rappeler"),
+                "formulaires_url": build_appels_url(agent=username, formulaire="rempli"),
+                "modifies_url": build_appels_url(modified_by=username, formulaire="modifie"),
+                "termines_url": build_appels_url(tracking_termine=1, tracking_user=username),
+                "en_cours_url": build_appels_url(agent=username, status="en_cours"),
+                "last_ip": last_ip,
+                "last_latitude": round(last_lat, 4) if last_lat is not None else None,
+                "last_longitude": round(last_lon, 4) if last_lon is not None else None,
+                "last_city": last_city,
+                "last_country": last_country,
+            }
+        )
+
+    user_rows.sort(
+        key=lambda row: (
+            -row["termines"],
+            -row["formulaires_remplis"],
+            -row["formulaires_modifies"],
+            row["username"].lower(),
+        )
+    )
+
+    recent_login_logs = list(
+        UserLoginLog.objects.select_related("user").order_by("-logged_at")[:50]
+    )
+    total_users = User.objects.count()
+    online_count = sum(1 for r in user_rows if r["is_online"])
+
+    return render(
+        request,
+        "core/user_tracking.html",
+        {
+            "user_activity_rows": user_rows,
+            "user_search": user_search,
+            "total_users": total_users,
+            "online_count": online_count,
+            "recent_login_logs": recent_login_logs,
+        },
+    )
+
+
+def _clean_activity_text(value: str, max_length: int = 255) -> str:
+    return str(value or "").strip()[:max_length]
+
+
+def _serialize_activity_event(event: UserActivityEvent) -> dict[str, str]:
+    return {
+        "event_type": event.event_type,
+        "event_label": event.get_event_type_display(),
+        "page_path": event.page_path,
+        "page_title": event.page_title,
+        "target_label": event.target_label,
+        "target_path": event.target_path,
+        "occurred_at": timezone.localtime(event.occurred_at).strftime("%d/%m/%Y %H:%M:%S"),
+    }
+
+
+def _log_tracking_schema_warning(scope: str) -> None:
+    logger.warning(
+        "User tracking %s skipped because the database schema is not up to date.",
+        scope,
+        exc_info=True,
+    )
+
+
+def _safe_user_activities_index() -> tuple[dict[int, UserActivity], bool]:
+    try:
+        return {activity.user_id: activity for activity in UserActivity.objects.select_related("user")}, True
+    except (OperationalError, ProgrammingError):
+        _log_tracking_schema_warning("activity read")
+        return {}, False
+
+
+def _safe_recent_activity_events(limit: int = 1000) -> tuple[list[UserActivityEvent], bool]:
+    try:
+        return list(UserActivityEvent.objects.select_related("user").order_by("-occurred_at")[:limit]), True
+    except (OperationalError, ProgrammingError):
+        _log_tracking_schema_warning("event read")
+        return [], False
+
+
+def _safe_recent_login_logs(limit: int = 50) -> tuple[list[UserLoginLog], bool]:
+    try:
+        return list(UserLoginLog.objects.select_related("user").order_by("-logged_at")[:limit]), True
+    except (OperationalError, ProgrammingError):
+        _log_tracking_schema_warning("login log read")
+        return [], False
+
+
+def _build_tracking_payload(*, user_search: str = "") -> dict[str, object]:
+    User = get_user_model()
+    cutoff = timezone.now() - timedelta(minutes=10)
+    activities, activities_ready = _safe_user_activities_index()
+    appels_index_url = reverse("appels_index")
+    completed_answers_filter = appel_answers_completed_q("answers__")
+    modified_answers_filter = appel_answers_modified_completion_q("answers__")
+    form_tracking_cutoff = padesce_form_tracking_cutoff()
+    tracked_audio_filter = Q(audio_file__isnull=False) & ~Q(audio_file="")
+
+    call_stats = {
+        row["locked_by_id"]: row
+        for row in Appel.objects.filter(is_active=True, locked_by__isnull=False)
+        .values("locked_by_id")
+        .annotate(
+            total_appels=Count("id"),
+            a_rappeler=Count("id", filter=Q(status="a_rappeler")),
+            appels_tentes=Count("id", filter=Q(status="appel_tente")),
+            appels_reussis=Count("id", filter=Q(status="appel_reussi")),
+            formulaires_remplis_status=Count("id", filter=Q(status="formulaire_rempli")),
+            formulaires_avec_audio=Count("id", filter=Q(status="formulaire_avec_audio")),
+            en_cours=Count("id", filter=Q(status="en_cours")),
+        )
+    }
+    push_counts_by_user = _count_audit_events_by_user(
+        model_name="core.git_push_main",
+        event_name="push_main",
+    )
+    deploy_counts_by_user = _count_audit_events_by_user(
+        model_name="core.deployment_run",
+        event_name="deployment_start",
+        expected_extra={"mode": "deploy"},
+    )
+    formulaires_remplis_by_user = _group_appel_ids_by_user(
+        Appel.objects.filter(is_active=True, locked_by__isnull=False)
+        .filter(completed_answers_filter)
+        .distinct(),
+        "locked_by_id",
+    )
+    formulaires_modifies_by_user = _group_appel_ids_by_user(
+        Appel.objects.filter(is_active=True).filter(modified_answers_filter).distinct(),
+        "answers__modified_by_id",
+    )
+    legacy_termines_by_user = _group_appel_ids_by_user(
+        Appel.objects.filter(
+            is_active=True,
+            status="termine",
+            updated_at__lt=form_tracking_cutoff,
+            locked_by__isnull=False,
+        ),
+        "locked_by_id",
+    )
+    audio_termines_by_user = _group_appel_ids_by_user(
+        Appel.objects.filter(
+            is_active=True,
+            status="termine",
+            updated_at__gte=form_tracking_cutoff,
+            locked_by__isnull=False,
+        )
+        .filter(tracked_audio_filter)
+        .distinct(),
+        "locked_by_id",
+    )
+    current_calls_by_user = {}
+    for appel in Appel.objects.filter(
+        is_active=True, status__in=CALL_TENTATIVE_STATUSES, locked_by__isnull=False
+    ).order_by("locked_by__username", "nom"):
+        query_params = urlencode(
+            {"agent": appel.locked_by.username, "status": appel.status, "q": appel.code}
+        )
+        current_calls_by_user.setdefault(appel.locked_by_id, []).append(
+            {
+                "code": appel.code,
+                "nom": appel.nom,
+                "url": f"{appels_index_url}?{query_params}",
+            }
+        )
+
+    recent_events, events_ready = _safe_recent_activity_events()
+    events_by_user: dict[int, list[dict[str, str]]] = defaultdict(list)
+    for event in recent_events:
+        if len(events_by_user[event.user_id]) >= 50:
+            continue
+        events_by_user[event.user_id].append(_serialize_activity_event(event))
+
+    def build_appels_url(**params):
+        query = {key: value for key, value in params.items() if value not in (None, "", [])}
+        if not query:
+            return appels_index_url
+        return f"{appels_index_url}?{urlencode(query, doseq=True)}"
+
+    user_rows = []
+    for user in User.objects.all().order_by("username"):
+        username = user.get_username()
+        if user_search and user_search.lower() not in username.lower():
+            continue
+        activity = activities.get(user.id)
+        last_seen = activity.last_seen if activity else user.last_login
+        is_online = bool(last_seen and last_seen >= cutoff)
+        stats_row = call_stats.get(user.id, {})
+        formulaires_remplis_ids = formulaires_remplis_by_user.get(user.id, set())
+        formulaires_modifies_ids = formulaires_modifies_by_user.get(user.id, set())
+        formulaires_remplis_total = max(
+            len(formulaires_remplis_ids),
+            int(stats_row.get("formulaires_remplis_status") or 0),
+        )
+        termines_ids = set(legacy_termines_by_user.get(user.id, set()))
+        termines_ids.update(formulaires_remplis_ids)
+        termines_ids.update(formulaires_modifies_ids)
+        termines_ids.update(audio_termines_by_user.get(user.id, set()))
+        last_ip = getattr(activity, "last_ip", None) if activity else None
+        last_lat = getattr(activity, "last_latitude", None) if activity else None
+        last_lon = getattr(activity, "last_longitude", None) if activity else None
+        last_city = getattr(activity, "last_city", "") if activity else ""
+        last_country = getattr(activity, "last_country", "") if activity else ""
+
+        user_rows.append(
+            {
+                "user_id": user.id,
+                "username": username,
+                "is_online": is_online,
+                "last_seen": last_seen,
+                "last_login": user.last_login,
+                "total_appels": int(stats_row.get("total_appels") or 0),
+                "a_rappeler": int(stats_row.get("a_rappeler") or 0),
+                "appels_tentes": int(stats_row.get("appels_tentes") or 0),
+                "appels_reussis": int(stats_row.get("appels_reussis") or 0),
+                "formulaires_remplis": formulaires_remplis_total,
+                "formulaires_modifies": len(formulaires_modifies_ids),
+                "formulaires_avec_audio": int(stats_row.get("formulaires_avec_audio") or 0),
+                "termines": len(termines_ids),
+                "en_cours": int(stats_row.get("en_cours") or 0),
+                "push_sur_main": int(push_counts_by_user.get(user.id, 0) or 0),
+                "deploiements": int(deploy_counts_by_user.get(user.id, 0) or 0),
+                "current_calls": current_calls_by_user.get(user.id, []),
+                "total_url": build_appels_url(agent=username),
+                "rappel_url": build_appels_url(agent=username, status="a_rappeler"),
+                "formulaires_url": build_appels_url(agent=username, formulaire="rempli"),
+                "modifies_url": build_appels_url(modified_by=username, formulaire="modifie"),
+                "termines_url": build_appels_url(tracking_termine=1, tracking_user=username),
+                "en_cours_url": build_appels_url(agent=username, status="en_cours"),
+                "last_ip": last_ip,
+                "last_latitude": round(last_lat, 4) if last_lat is not None else None,
+                "last_longitude": round(last_lon, 4) if last_lon is not None else None,
+                "last_city": last_city,
+                "last_country": last_country,
+                "current_page": getattr(activity, "current_page", "") if activity else "",
+                "current_page_title": getattr(activity, "current_page_title", "") if activity else "",
+                "last_action_type": getattr(activity, "last_action_type", "") if activity else "",
+                "last_action_label": getattr(activity, "last_action_label", "") if activity else "",
+                "last_action_target": getattr(activity, "last_action_target", "") if activity else "",
+                "last_action_at": getattr(activity, "last_action_at", None) if activity else None,
+                "recent_events": events_by_user.get(user.id, []),
+            }
+        )
+
+    user_rows.sort(
+        key=lambda row: (
+            0 if row["is_online"] else 1,
+            -(row["appels_reussis"] + row["formulaires_remplis"] + row["formulaires_avec_audio"]),
+            -row["termines"],
+            -row["formulaires_remplis"],
+            -row["formulaires_modifies"],
+            -row["appels_tentes"],
+            row["username"].lower(),
+        )
+    )
+
+    recent_login_logs, login_logs_ready = _safe_recent_login_logs()
+    online_rows = [row for row in user_rows if row["is_online"]]
+    globe_points = [
+        {
+            "username": row["username"],
+            "online": row["is_online"],
+            "latitude": row["last_latitude"],
+            "longitude": row["last_longitude"],
+            "city": row["last_city"],
+            "country": row["last_country"],
+            "current_page_title": row["current_page_title"] or row["current_page"],
+            "last_action_label": row["last_action_label"],
+            "last_action_type": row["last_action_type"],
+        }
+        for row in user_rows
+        if row["last_latitude"] is not None and row["last_longitude"] is not None
+    ]
+    tracking_schema_ready = activities_ready and events_ready and login_logs_ready
+
+    return {
+        "user_activity_rows": user_rows,
+        "activity_histories": {str(user_id): events for user_id, events in events_by_user.items()},
+        "user_search": user_search,
+        "total_users": User.objects.count(),
+        "online_count": len(online_rows),
+        "recent_login_logs": recent_login_logs,
+        "globe_points": globe_points,
+        "online_rows": online_rows,
+        "tracking_schema_ready": tracking_schema_ready,
+    }
+
+
+@require_POST
+def activity_track_api(request):
+    if not (request.user.is_authenticated and not request.user.is_anonymous):
+        return JsonResponse({"ok": False, "error": "authentication_required"}, status=401)
+
+    try:
+        payload = json.loads(request.body.decode("utf-8"))
+    except Exception:
+        payload = {}
+
+    event_type = _clean_activity_text(payload.get("event_type"), 30)
+    allowed_types = {
+        UserActivityEvent.EVENT_PAGE_VIEW,
+        UserActivityEvent.EVENT_BUTTON_CLICK,
+        UserActivityEvent.EVENT_LINK_CLICK,
+    }
+    if event_type not in allowed_types:
+        return JsonResponse({"ok": False, "error": "invalid_event_type"}, status=400)
+
+    page_path = _clean_activity_text(payload.get("page_path"))
+    page_title = _clean_activity_text(payload.get("page_title"))
+    target_label = _clean_activity_text(payload.get("target_label"))
+    target_path = _clean_activity_text(payload.get("target_path"))
+    browser_latitude = payload.get("browser_latitude")
+    browser_longitude = payload.get("browser_longitude")
+    browser_city = _clean_activity_text(payload.get("browser_city"))
+    browser_country = _clean_activity_text(payload.get("browser_country"))
+    now = timezone.now()
+
+    try:
+        browser_latitude = float(browser_latitude) if browser_latitude not in (None, "") else None
+    except (TypeError, ValueError):
+        browser_latitude = None
+    try:
+        browser_longitude = float(browser_longitude) if browser_longitude not in (None, "") else None
+    except (TypeError, ValueError):
+        browser_longitude = None
+
+    try:
+        activity, _created = UserActivity.objects.get_or_create(
+            user=request.user,
+            defaults={"last_seen": now},
+        )
+        activity.last_seen = now
+        activity.current_page = page_path
+        activity.current_page_title = page_title
+        activity.last_action_type = event_type
+        activity.last_action_label = target_label
+        activity.last_action_target = target_path
+        activity.last_action_at = now
+        if browser_latitude is not None and browser_longitude is not None:
+            activity.last_latitude = browser_latitude
+            activity.last_longitude = browser_longitude
+        if browser_city:
+            activity.last_city = browser_city
+        if browser_country:
+            activity.last_country = browser_country
+        activity.save(
+            update_fields=[
+                "last_seen",
+                "current_page",
+                "current_page_title",
+                "last_action_type",
+                "last_action_label",
+                "last_action_target",
+                "last_action_at",
+                "last_latitude",
+                "last_longitude",
+                "last_city",
+                "last_country",
+            ]
+        )
+
+        should_create_event = True
+        if event_type == UserActivityEvent.EVENT_PAGE_VIEW:
+            latest_page_event = (
+                UserActivityEvent.objects.filter(
+                    user=request.user,
+                    event_type=UserActivityEvent.EVENT_PAGE_VIEW,
+                    page_path=page_path,
+                )
+                .order_by("-occurred_at")
+                .first()
+            )
+            if latest_page_event and (now - latest_page_event.occurred_at).total_seconds() < 20:
+                should_create_event = False
+
+        if should_create_event:
+            UserActivityEvent.objects.create(
+                user=request.user,
+                event_type=event_type,
+                page_path=page_path,
+                page_title=page_title,
+                target_label=target_label,
+                target_path=target_path,
+            )
+    except (OperationalError, ProgrammingError):
+        _log_tracking_schema_warning("write")
+        return JsonResponse({"ok": True, "tracking_disabled": True})
+
+    return JsonResponse({"ok": True, "tracking_disabled": False})
+
+
+@require_GET
+def user_tracking_live_api(request):
+    if not (request.user.is_authenticated and request.user.is_superuser):
+        return JsonResponse({"ok": False, "error": "forbidden"}, status=403)
+
+    payload = _build_tracking_payload(user_search=(request.GET.get("user_search") or "").strip())
+    return JsonResponse(
+        {
+            "ok": True,
+            "online_count": payload["online_count"],
+            "total_users": payload["total_users"],
+            "tracking_schema_ready": payload["tracking_schema_ready"],
+            "globe_points": payload["globe_points"],
+            "online_rows": [
+                {
+                    "username": row["username"],
+                    "current_page": row["current_page"],
+                    "current_page_title": row["current_page_title"],
+                    "last_action_type": row["last_action_type"],
+                    "last_action_label": row["last_action_label"],
+                    "last_action_target": row["last_action_target"],
+                    "last_action_at": timezone.localtime(row["last_action_at"]).strftime("%d/%m/%Y %H:%M:%S")
+                    if row["last_action_at"]
+                    else "",
+                    "city": row["last_city"],
+                    "country": row["last_country"],
+                }
+                for row in payload["online_rows"]
+            ],
+        }
+    )
+
+
+def user_tracking_view(request):
+    """Page dediee au suivi des utilisateurs PADESCE (superuser uniquement)."""
+    from django.http import HttpResponseForbidden
+
+    if not (request.user.is_authenticated and request.user.is_superuser):
+        return HttpResponseForbidden("Acces reserve aux administrateurs.")
+
+    payload = _build_tracking_payload(user_search=(request.GET.get("user_search") or "").strip())
+    return render(request, "core/user_tracking.html", payload)
+

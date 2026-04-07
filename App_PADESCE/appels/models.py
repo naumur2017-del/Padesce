@@ -22,8 +22,18 @@ APPEL_ANSWER_QUESTION_FIELDS = (
     "q8_adequation_besoins",
     "q9_satisfaction_globale",
 )
+APPEL_SUCCESS_TEXT_FIELDS = ("commentaire", "recommandations")
 
 PADESCE_FORM_TRACKING_CUTOFF = datetime.datetime(2026, 3, 9, 0, 0, 0)
+CALL_ACTIVE_STATUSES = ("en_cours", "pause")
+CALL_TENTATIVE_STATUSES = ("appel_tente",) + CALL_ACTIVE_STATUSES
+CALL_FORM_STATUSES = ("formulaire_rempli", "formulaire_avec_audio")
+CALL_SUCCESS_STATUSES = ("appel_reussi",) + CALL_FORM_STATUSES + ("termine",)
+CALL_COMPLETED_STATUSES = CALL_SUCCESS_STATUSES
+CALL_STARTABLE_STATUSES = ("en_attente", "appel_tente", "appel_reussi", "a_rappeler")
+# Les classes atteignent le seuil d'analyse quand un formulaire est sauve
+# ou quand une ancienne ligne deja finalisee est au statut "termine".
+CALL_ANALYSIS_THRESHOLD_STATUSES = CALL_FORM_STATUSES + ("termine",)
 
 
 def appel_answers_completed_q(prefix: str = "answers__") -> Q:
@@ -31,6 +41,14 @@ def appel_answers_completed_q(prefix: str = "answers__") -> Q:
     query = Q()
     for field in APPEL_ANSWER_QUESTION_FIELDS:
         query &= Q(**{f"{lookup_prefix}{field}__isnull": False})
+    return query
+
+
+def appel_answers_has_any_answer_q(prefix: str = "answers__") -> Q:
+    lookup_prefix = prefix or ""
+    query = Q()
+    for field in APPEL_ANSWER_QUESTION_FIELDS:
+        query |= Q(**{f"{lookup_prefix}{field}__isnull": False})
     return query
 
 
@@ -42,8 +60,40 @@ def appel_answers_modified_completion_q(prefix: str = "answers__") -> Q:
     return query
 
 
+def appel_answers_modified_any_answer_q(prefix: str = "answers__") -> Q:
+    lookup_prefix = prefix or ""
+    query = appel_answers_has_any_answer_q(prefix)
+    query &= Q(**{f"{lookup_prefix}modified_by__isnull": False})
+    query &= Q(**{f"{lookup_prefix}modified_at__gt": F(f"{lookup_prefix}created_at")})
+    return query
+
+
 def padesce_form_tracking_cutoff():
     return timezone.make_aware(PADESCE_FORM_TRACKING_CUTOFF, timezone.get_current_timezone())
+
+
+def normalize_call_status(value: str) -> str:
+    return str(value or "").strip()
+
+
+def is_call_active_status(status: str) -> bool:
+    return normalize_call_status(status) in CALL_ACTIVE_STATUSES
+
+
+def is_call_attempted_status(status: str) -> bool:
+    return normalize_call_status(status) not in {"", "en_attente"}
+
+
+def is_call_success_status(status: str) -> bool:
+    return normalize_call_status(status) in CALL_SUCCESS_STATUSES
+
+
+def is_call_form_status(status: str) -> bool:
+    return normalize_call_status(status) in CALL_FORM_STATUSES
+
+
+def is_call_startable_status(status: str) -> bool:
+    return normalize_call_status(status) in CALL_STARTABLE_STATUSES
 
 
 def _short_slug(value: str, default: str, max_len: int = 36) -> str:
@@ -61,6 +111,131 @@ def appel_audio_upload(instance: "Appel", filename: str) -> str:
     code_slug = _short_slug(instance.code, "code", max_len=12)
     ext = filename.split(".")[-1] if "." in filename else "mp3"
     return f"padesce/{now:%Y}/{now:%m}/{now:%d}/{prestataire_slug}-{beneficiaire_slug}/{code_slug}-{nom_slug}-{cohorte_slug}-{ts}.{ext}"
+
+
+def answers_have_any_answer(answers) -> bool:
+    return bool(answers and any(getattr(answers, field, None) is not None for field in APPEL_ANSWER_QUESTION_FIELDS))
+
+
+def satisfaction_has_any_answer(satisfaction) -> bool:
+    return bool(
+        satisfaction and any(getattr(satisfaction, field, None) is not None for field in APPEL_ANSWER_QUESTION_FIELDS)
+    )
+
+
+def _has_meaningful_text_signal(value) -> bool:
+    normalized = str(value or "").strip()
+    return bool(normalized and normalized.upper() != "RAS")
+
+
+def answers_have_success_signal(answers) -> bool:
+    return bool(
+        answers and any(_has_meaningful_text_signal(getattr(answers, field_name, "")) for field_name in APPEL_SUCCESS_TEXT_FIELDS)
+    )
+
+
+def satisfaction_has_success_signal(satisfaction) -> bool:
+    return bool(
+        satisfaction
+        and any(_has_meaningful_text_signal(getattr(satisfaction, field_name, "")) for field_name in APPEL_SUCCESS_TEXT_FIELDS)
+    )
+
+
+def appel_has_any_form_data(appel: "Appel") -> bool:
+    try:
+        answers = appel.answers
+    except Exception:
+        answers = None
+    if answers_have_any_answer(answers):
+        return True
+    try:
+        satisfaction = appel.satisfaction_apprenant
+    except Exception:
+        satisfaction = None
+    return satisfaction_has_any_answer(satisfaction)
+
+
+def appel_has_success_signal(appel: "Appel") -> bool:
+    if any(
+        bool(getattr(appel, field_name, None))
+        for field_name in (
+            "deja_forme",
+            "flag_pas_forme",
+            "flag_faux_nom",
+            "flag_deja_appele",
+            "flag_numero_double",
+        )
+    ):
+        return True
+    if _has_meaningful_text_signal(getattr(appel, "flag_vrai_nom", "")):
+        return True
+    try:
+        answers = appel.answers
+    except Exception:
+        answers = None
+    if answers_have_success_signal(answers):
+        return True
+    try:
+        satisfaction = appel.satisfaction_apprenant
+    except Exception:
+        satisfaction = None
+    return satisfaction_has_success_signal(satisfaction)
+
+
+def _file_field_has_name(file_field) -> bool:
+    return bool(getattr(file_field, "name", "") or "")
+
+
+def appel_has_any_audio(appel: "Appel") -> bool:
+    if _file_field_has_name(getattr(appel, "audio_file", None)):
+        return True
+    try:
+        satisfaction = appel.satisfaction_apprenant
+    except Exception:
+        satisfaction = None
+    return _file_field_has_name(getattr(satisfaction, "audio_appel", None))
+
+
+def infer_padesce_status(current_status: str, *, has_form: bool, has_audio: bool, has_success_signal: bool = False) -> str:
+    normalized_status = normalize_call_status(current_status)
+    if normalized_status in CALL_ACTIVE_STATUSES:
+        return normalized_status
+    if normalized_status == "a_rappeler":
+        return "a_rappeler"
+    if has_form and has_audio:
+        return "formulaire_avec_audio"
+    if has_form:
+        return "formulaire_rempli"
+    if has_audio or has_success_signal:
+        return "appel_reussi"
+    if normalized_status == "en_attente":
+        return "en_attente"
+    if normalized_status in CALL_TENTATIVE_STATUSES:
+        return "appel_tente"
+    if normalized_status in CALL_SUCCESS_STATUSES:
+        return "appel_reussi"
+    if normalized_status:
+        return "appel_tente"
+    return "en_attente"
+
+
+def derive_padesce_status(appel: "Appel") -> str:
+    return infer_padesce_status(
+        getattr(appel, "status", ""),
+        has_form=appel_has_any_form_data(appel),
+        has_audio=appel_has_any_audio(appel),
+        has_success_signal=appel_has_success_signal(appel),
+    )
+
+
+def sync_padesce_status(appel: "Appel", *, save: bool = True) -> str:
+    new_status = derive_padesce_status(appel)
+    if save and new_status != appel.status:
+        appel.status = new_status
+        appel.save(update_fields=["status", "updated_at"])
+    else:
+        appel.status = new_status
+    return new_status
 
 
 class Appel(TimeStampedModel):
@@ -148,6 +323,50 @@ def appel_formateur_audio_upload(instance: "AppelFormateur", filename: str) -> s
         f"formateurs/{now:%Y}/{now:%m}/{now:%d}/"
         f"{prestataire_slug}-{beneficiaire_slug}/{ref_slug}-{phone_slug}-{ts}.{ext}"
     )
+
+
+FORMATEUR_SCORE_FIELDS = (
+    "q1_prerequis_apprenants",
+    "q2_interaction_apprenants",
+    "q3_competences_acquises",
+)
+
+FORMATEUR_TEXT_FIELDS = (
+    "q4_gestion_administrative",
+    "q5_gestion_financiere",
+    "q6_communication",
+    "commentaires",
+    "recommandations",
+)
+
+
+def formateur_has_any_form_data(row: "AppelFormateur") -> bool:
+    return any(
+        getattr(row, field_name, None) not in (None, "")
+        for field_name in (*FORMATEUR_SCORE_FIELDS, *FORMATEUR_TEXT_FIELDS)
+    ) or bool(getattr(row, "satisfaction_completed_at", None))
+
+
+def formateur_has_any_audio(row: "AppelFormateur") -> bool:
+    return _file_field_has_name(getattr(row, "audio_file", None))
+
+
+def derive_formateur_status(row: "AppelFormateur") -> str:
+    return infer_padesce_status(
+        getattr(row, "status", ""),
+        has_form=formateur_has_any_form_data(row),
+        has_audio=formateur_has_any_audio(row),
+    )
+
+
+def sync_formateur_status(row: "AppelFormateur", *, save: bool = True) -> str:
+    new_status = derive_formateur_status(row)
+    if save and new_status != row.status:
+        row.status = new_status
+        row.save(update_fields=["status", "updated_at"])
+    else:
+        row.status = new_status
+    return new_status
 
 
 class AppelCGA(TimeStampedModel):

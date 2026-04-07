@@ -1,3 +1,4 @@
+import os
 import tempfile
 from datetime import date
 from pathlib import Path
@@ -11,6 +12,82 @@ from openpyxl import Workbook
 
 from App_PADESCE.appels.models import Appel
 from App_PADESCE.reporting import app_report, network_excel
+
+
+class NetworkWorkbookResolutionTests(SimpleTestCase):
+    def setUp(self):
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.root = Path(self.temp_dir.name)
+        self.bundle_dir = self.root / "bundle"
+        self.cache_dir = self.root / "cache"
+        self.legacy_bundle_dir = self.root / "docs" / "data" / "network_excel_cache"
+        self.missing_main_dir = self.root / "missing-main"
+        self.missing_cutoff_dir = self.root / "missing-cutoff"
+
+        patches = [
+            patch.object(network_excel, "NETWORK_WORKBOOK_DIRECTORY", self.missing_main_dir),
+            patch.object(
+                network_excel,
+                "NETWORK_WORKBOOK_CUTOFF_DIRECTORY",
+                self.missing_cutoff_dir,
+            ),
+            patch.object(network_excel, "CACHE_DIRECTORY", self.cache_dir),
+            patch.object(
+                network_excel,
+                "LOCAL_WORKBOOK_COPY",
+                self.cache_dir / "network-fichier-consolide.xlsm",
+            ),
+            patch.object(
+                network_excel,
+                "LOCAL_CUTOFF_WORKBOOK_COPY",
+                self.cache_dir / "network-fichier-consolide-cutoff.xlsm",
+            ),
+            patch.object(network_excel, "BUNDLED_DIRECTORY", self.bundle_dir),
+            patch.object(
+                network_excel,
+                "BUNDLED_WORKBOOK_COPY",
+                self.bundle_dir / "network-fichier-consolide.xlsm",
+            ),
+            patch.object(
+                network_excel,
+                "BUNDLED_CUTOFF_WORKBOOK_COPY",
+                self.bundle_dir / "network-fichier-consolide-cutoff.xlsm",
+            ),
+            patch.object(network_excel, "LEGACY_BUNDLED_DIRECTORY", self.legacy_bundle_dir),
+            patch.object(
+                network_excel,
+                "LEGACY_BUNDLED_WORKBOOK_COPY",
+                self.legacy_bundle_dir / "network-fichier-consolide.xlsm",
+            ),
+            patch.object(
+                network_excel,
+                "LEGACY_BUNDLED_CUTOFF_WORKBOOK_COPY",
+                self.legacy_bundle_dir / "network-fichier-consolide-cutoff.xlsm",
+            ),
+        ]
+        for active_patch in patches:
+            active_patch.start()
+            self.addCleanup(active_patch.stop)
+
+        self.addCleanup(self.temp_dir.cleanup)
+
+    def test_resolve_network_workbook_uses_bundled_cutoff_copy(self):
+        bundled_cutoff = network_excel.BUNDLED_CUTOFF_WORKBOOK_COPY
+        bundled_cutoff.parent.mkdir(parents=True, exist_ok=True)
+        bundled_cutoff.write_bytes(b"cutoff workbook")
+
+        resolved = network_excel._resolve_network_workbook(source_key="cutoff")
+
+        self.assertEqual(resolved, bundled_cutoff)
+
+    def test_resolve_network_workbook_prefers_environment_override(self):
+        override_path = self.root / "custom-cutoff.xlsm"
+        override_path.write_bytes(b"custom cutoff workbook")
+
+        with patch.dict(os.environ, {"PADESCE_CUTOFF_WORKBOOK_PATH": str(override_path)}):
+            resolved = network_excel._resolve_network_workbook(source_key="cutoff")
+
+        self.assertEqual(resolved, override_path)
 
 
 class NetworkExcelApiTests(TestCase):

@@ -141,7 +141,7 @@
 <div class="panel">
   <div class="stats-grid">
     <div class="stat">Total filtre<strong>{{ stats.total|default:0 }}</strong></div>
-    <div class="stat">Appels termines<strong>{{ stats.completion_label|default:"0 / 0" }}</strong></div>
+    <div class="stat">Appels finalises<strong>{{ stats.completion_label|default:"0 / 0" }}</strong></div>
     <div class="stat">A rappeler<strong>{{ stats.rappels|default:0 }}</strong></div>
     <div class="stat">Audios disponibles<strong>{{ stats.audios|default:0 }}</strong></div>
     <div class="stat {% if stats.threshold_reached %}ok{% endif %}">
@@ -158,9 +158,14 @@
     <select name="status" class="input">
       <option value="">Statut</option>
       <option value="en_attente" {% if filters.status == "en_attente" %}selected{% endif %}>En attente</option>
+      <option value="appel_tente" {% if filters.status == "appel_tente" %}selected{% endif %}>Appel tente</option>
       <option value="en_cours" {% if filters.status == "en_cours" %}selected{% endif %}>En cours</option>
       <option value="pause" {% if filters.status == "pause" %}selected{% endif %}>Pause</option>
       <option value="a_rappeler" {% if filters.status == "a_rappeler" %}selected{% endif %}>A rappeler</option>
+      <option value="appel_reussi" {% if filters.status == "appel_reussi" %}selected{% endif %}>Appel reussi</option>
+      <option value="formulaire_rempli" {% if filters.status == "formulaire_rempli" %}selected{% endif %}>Formulaire rempli</option>
+      <option value="formulaire_avec_audio" {% if filters.status == "formulaire_avec_audio" %}selected{% endif %}>Formulaire avec audio</option>
+      <option value="completed" {% if filters.status == "completed" %}selected{% endif %}>Finalisés</option>
       <option value="termine" {% if filters.status == "termine" %}selected{% endif %}>Termine</option>
     </select>
     <select name="prestataire" class="input">
@@ -257,12 +262,12 @@
             <td>{% if a.session_date %}{{ a.session_date|date:"Y-m-d" }}{% else %}{{ a.date_label|default:"-" }}{% endif %}</td>
             <td>{{ a.heure_debut|default:"-" }}{% if a.heure_fin %} - {{ a.heure_fin }}{% endif %}</td>
             <td>
-              <span class="badge {% if a.status == 'en_cours' %}run{% elif a.status == 'pause' %}pause{% elif a.status == 'termine' %}done{% else %}wait{% endif %}" data-badge>{{ a.get_status_display }}</span>
+              <span class="badge {% if a.status == 'en_cours' %}run{% elif a.status == 'pause' %}pause{% elif a.status == 'termine' or a.status == 'appel_reussi' or a.status == 'formulaire_rempli' or a.status == 'formulaire_avec_audio' %}done{% else %}wait{% endif %}" data-badge>{{ a.get_status_display }}</span>
               {% if a.locked_by %}<div class="subtitle">Par {{ a.locked_by.username }}</div>{% endif %}
             </td>
             <td>
               <div class="actions js-actions">
-                <button type="button" class="btn-small primary js-start" {% if a.status != "en_attente" and a.status != "a_rappeler" %}hidden{% endif %}><i class="fa-solid fa-phone"></i><span>Demarrer</span></button>
+                <button type="button" class="btn-small primary js-start" {% if a.status != "en_attente" and a.status != "a_rappeler" and a.status != "appel_tente" and a.status != "appel_reussi" %}hidden{% endif %}><i class="fa-solid fa-phone"></i><span>Demarrer</span></button>
                 <button type="button" class="btn-icon js-pause" title="Mettre l'appel en pause" aria-label="Mettre l'appel en pause" {% if a.status != "en_cours" and a.status != "pause" %}hidden{% endif %} {% if a.status != "en_cours" %}disabled{% endif %}><i class="fa-solid fa-pause"></i></button>
                 <button type="button" class="btn-icon js-resume" title="Reprendre l'appel" aria-label="Reprendre l'appel" {% if a.status != "en_cours" and a.status != "pause" %}hidden{% endif %} {% if a.status != "pause" %}disabled{% endif %}><i class="fa-solid fa-play"></i></button>
                 <button type="button" class="btn-small danger js-terminer" {% if a.status != "en_cours" and a.status != "pause" %}hidden{% endif %}><i class="fa-solid fa-circle-stop"></i><span>Terminer</span></button>
@@ -424,17 +429,43 @@
     const offlineUserKey = "{{ request.user.pk|default:'anon' }}";
     const offlineDbName = "padesce-offline-cache";
     const offlineStoreName = "jobs";
+    const completedStatuses = new Set(["termine", "appel_reussi", "formulaire_rempli", "formulaire_avec_audio"]);
+    const startableStatuses = new Set(["en_attente", "appel_tente", "appel_reussi", "a_rappeler"]);
 
     function buildStatusLabel(status) {
-      const labels = { en_attente: "En attente", en_cours: "En cours", pause: "Pause", a_rappeler: "A rappeler", termine: "Termine" };
+      const labels = {
+        en_attente: "En attente",
+        appel_tente: "Appel Tente",
+        en_cours: "En cours",
+        pause: "Pause",
+        a_rappeler: "A rappeler",
+        appel_reussi: "Appel Reussi",
+        formulaire_rempli: "Formulaire Rempli",
+        formulaire_avec_audio: "Formulaire avec Audio",
+        termine: "Termine",
+      };
       return labels[status] || status || "";
     }
 
-    function optimisticStatusFromAction(action) {
+    function isCompletedStatus(status) {
+      return completedStatuses.has(status);
+    }
+
+    function surveyHasAnyFormData(survey) {
+      return Object.values(survey || {}).some((value) => String(value ?? "").trim() !== "");
+    }
+
+    function optimisticStatusFromAction(action, extra = {}, row = null) {
       if (action === "start" || action === "resume") return "en_cours";
       if (action === "pause") return "pause";
       if (action === "rappeler") return "a_rappeler";
-      if (action === "terminer") return "termine";
+      if (action === "terminer" || action === "update_form") {
+        const hasForm = surveyHasAnyFormData(extra?.survey);
+        const hasAudio = row ? hasAudioSource(row.querySelector(".js-audio")) : false;
+        if (hasForm && hasAudio) return "formulaire_avec_audio";
+        if (hasForm) return "formulaire_rempli";
+        if (action === "terminer") return "appel_reussi";
+      }
       return "";
     }
 
@@ -509,6 +540,9 @@
         if (!res.ok) throw new Error("sync audio failed");
         const payload = await res.json();
         const row = document.querySelector(`tr[data-id="${job.rowId}"]`);
+        if (row && payload?.status) {
+          updateRow(row, payload);
+        }
         if (row && payload?.audio_url) {
           const audio = row.querySelector(".js-audio");
           if (audio) audio.src = payload.audio_url;
@@ -717,7 +751,7 @@
         return data;
       } catch (err) {
         await queueOfflineJob({ kind: "action", rowId: row.dataset.id, url, action, extra });
-        const status = optimisticStatusFromAction(action) || row.dataset.status || "";
+        const status = optimisticStatusFromAction(action, extra, row) || row.dataset.status || "";
         return { ok: true, queued: true, status, status_label: buildStatusLabel(status) };
       }
     }
@@ -821,28 +855,29 @@
     }
 
     function updateRow(row, data) {
-      row.dataset.status = data.status || row.dataset.status;
+      const status = data.status || row.dataset.status;
+      row.dataset.status = status;
       const badge = row.querySelector("[data-badge]");
       if (badge && data.status_label) badge.textContent = data.status_label;
-      badge?.classList.toggle("run", data.status === "en_cours");
-      badge?.classList.toggle("pause", data.status === "pause");
-      badge?.classList.toggle("done", data.status === "termine");
-      badge?.classList.toggle("wait", !["en_cours", "pause", "termine"].includes(data.status));
+      badge?.classList.toggle("run", status === "en_cours");
+      badge?.classList.toggle("pause", status === "pause");
+      badge?.classList.toggle("done", isCompletedStatus(status));
+      badge?.classList.toggle("wait", !["en_cours", "pause"].includes(status) && !isCompletedStatus(status));
       const start = row.querySelector(".js-start");
       const pause = row.querySelector(".js-pause");
       const resume = row.querySelector(".js-resume");
       const terminer = row.querySelector(".js-terminer");
-      const canStart = ["en_attente", "a_rappeler"].includes(data.status);
+      const canStart = startableStatuses.has(status);
       if (start) start.hidden = !canStart;
       if (pause) {
-        pause.hidden = !["en_cours", "pause"].includes(data.status);
-        pause.disabled = data.status !== "en_cours";
+        pause.hidden = !["en_cours", "pause"].includes(status);
+        pause.disabled = status !== "en_cours";
       }
       if (resume) {
-        resume.hidden = !["en_cours", "pause"].includes(data.status);
-        resume.disabled = data.status !== "pause";
+        resume.hidden = !["en_cours", "pause"].includes(status);
+        resume.disabled = status !== "pause";
       }
-      if (terminer) terminer.hidden = !["en_cours", "pause"].includes(data.status);
+      if (terminer) terminer.hidden = !["en_cours", "pause"].includes(status);
       syncAudioControls(row);
     }
 
@@ -873,6 +908,9 @@
           filename: `formateur-${id}.${ext}`,
           blob,
         });
+      }
+      if (payload?.status) {
+        updateRow(row, payload);
       }
       if (payload?.audio_url) {
         const audio = row.querySelector(".js-audio");

@@ -208,9 +208,10 @@
       <option value="appel_reussi" {% if filters.status == "appel_reussi" %}selected{% endif %}>Appel Réussi</option>
       <option value="formulaire_rempli" {% if filters.status == "formulaire_rempli" %}selected{% endif %}>Formulaire Rempli</option>
       <option value="formulaire_avec_audio" {% if filters.status == "formulaire_avec_audio" %}selected{% endif %}>Formulaire avec Audio</option>
+      <option value="a_rappeler" {% if filters.status == "a_rappeler" %}selected{% endif %}>A rappeler</option>
+      <option value="completed" {% if filters.status == "completed" %}selected{% endif %}>Finalisés</option>
       <option value="en_cours" {% if filters.status == "en_cours" %}selected{% endif %}>En cours (ancien)</option>
       <option value="pause" {% if filters.status == "pause" %}selected{% endif %}>Pause (ancien)</option>
-      <option value="a_rappeler" {% if filters.status == "a_rappeler" %}selected{% endif %}>A rappeler (ancien)</option>
       <option value="termine" {% if filters.status == "termine" %}selected{% endif %}>Terminé (ancien)</option>
     </select>
     <select name="prestataire" class="input">
@@ -277,7 +278,7 @@
     <div class="ops-tile">
       <div class="ops-kicker">Classes masquees</div>
       <strong>{{ hidden_class_summary.hidden_class_count }}</strong>
-      <div class="subtitle" style="margin:6px 0 0;">Objectif d'appels deja atteint (≥50%), retirees de la table et du filtre.</div>
+      <div class="subtitle" style="margin:6px 0 0;">Seuil {{ analysis_threshold_label }} atteint sur les joignables avec formulaire sauvegarde, retirees de la table et du filtre.</div>
     </div>
     <div class="ops-tile">
       <div class="ops-kicker">Lignes allégées</div>
@@ -291,8 +292,41 @@
     </div>
     <div class="ops-tile" style="border-color: rgba(15,139,141,0.3); background: linear-gradient(180deg, rgba(15,139,141,0.1), rgba(255,255,255,0.97));">
       <div class="ops-kicker" style="color: #0f5f61;">Prestations analysées ✅</div>
-      <strong style="color: #0f5f61;">{{ hidden_class_summary.analysis_prestations_count }}</strong>
+      <strong style="color: #0f5f61;">
+        {{ analysis_goal_summary.analysis_prestations_count|default:0 }} / {{ analysis_goal_summary.total_prestations_count|default:0 }}
+      </strong>
       <div class="subtitle" style="margin:6px 0 0;">Prestations dont toutes les classes ont atteint le seuil {{ analysis_threshold_label }}.</div>
+    </div>
+    <div class="ops-tile" style="border-color: rgba(15,139,141,0.3); background: linear-gradient(180deg, rgba(15,139,141,0.1), rgba(255,255,255,0.97));">
+      <div class="ops-kicker" style="color: #0f5f61;">Objectif minimum</div>
+      <strong style="color: #0f5f61;">
+        {{ analysis_goal_summary.minimum_target|default:0 }} / {{ analysis_goal_summary.total_prestations_count|default:0 }}
+      </strong>
+      <div class="subtitle" style="margin:6px 0 0;">
+        {% if analysis_goal_summary.remaining_to_minimum_target|default:0 > 0 %}
+          Encore {{ analysis_goal_summary.remaining_to_minimum_target }} prestation{% if analysis_goal_summary.remaining_to_minimum_target > 1 %}s{% endif %} a cloturer pour atteindre le minimum.
+        {% else %}
+          Objectif minimum atteint. Continuez seulement pour securiser davantage l'analyse.
+        {% endif %}
+      </div>
+    </div>
+    <div class="ops-tile">
+      <div class="ops-kicker">Prestations encore joignables</div>
+      <strong>{{ analysis_goal_summary.actionable_prestations_count|default:0 }}</strong>
+      <div class="subtitle" style="margin:6px 0 0;">
+        Projection maximale actuelle: {{ analysis_goal_summary.max_reachable_prestations_count|default:0 }} / {{ analysis_goal_summary.total_prestations_count|default:0 }} si toutes les classes restantes avancent.
+      </div>
+    </div>
+    <div class="ops-tile">
+      <div class="ops-kicker">Prestations bloquees</div>
+      <strong>{{ analysis_goal_summary.blocked_prestations_count|default:0 }}</strong>
+      <div class="subtitle" style="margin:6px 0 0;">
+        {% if analysis_goal_summary.minimum_target_gap|default:0 > 0 %}
+          Le vivier joignable actuel ne couvre pas encore l'objectif: il manque au moins {{ analysis_goal_summary.minimum_target_gap }} prestation{% if analysis_goal_summary.minimum_target_gap > 1 %}s{% endif %}.
+        {% else %}
+          Le vivier joignable actuel peut encore couvrir l'objectif minimum.
+        {% endif %}
+      </div>
     </div>
     <div class="ops-tile">
       <div class="ops-kicker">Classes sans numero</div>
@@ -320,7 +354,13 @@
         <div class="ops-kicker">Recommandations PADESCE</div>
         <h3 style="margin:4px 0 0;">Classes a appeler pour finir plus vite les prestations</h3>
       </div>
-      <div class="subtitle" style="margin:0; max-width:360px;">Priorite aux classes qui cloturent une prestation, puis a celles avec peu d'apprenants joignables et sans numeros dupliques.</div>
+      <div class="subtitle" style="margin:0; max-width:380px;">
+        {% if analysis_goal_summary.remaining_to_minimum_target|default:0 > 0 %}
+          Encore {{ analysis_goal_summary.remaining_to_minimum_target }} prestation{% if analysis_goal_summary.remaining_to_minimum_target > 1 %}s{% endif %} a cloturer pour viser le minimum. Priorite aux classes qui ferment une prestation.
+        {% else %}
+          Objectif minimum atteint. Priorite ensuite aux classes les plus rapides pour consolider davantage les prestations.
+        {% endif %}
+      </div>
     </div>
     {% if recommended_classes %}
       <div class="recommend-grid">
@@ -387,7 +427,7 @@
           <td>{{ a.telephone1|default:a.telephone2|default:"-" }}</td>
           <td>{{ a.taux_presence_display|default:a.taux_presence }}%</td>
           <td>
-            <span class="badge {% if a.status == 'en_cours' %}run{% elif a.status == 'pause' %}pause{% elif a.status == 'termine' %}done{% else %}wait{% endif %}" data-badge>{{ a.get_status_display }}</span>
+            <span class="badge {% if a.status == 'en_cours' %}run{% elif a.status == 'pause' %}pause{% elif a.status == 'termine' or a.status == 'appel_reussi' or a.status == 'formulaire_rempli' or a.status == 'formulaire_avec_audio' %}done{% else %}wait{% endif %}" data-badge>{{ a.get_status_display }}</span>
             {% if a.locked_by %}<div class="subtitle">Par {{ a.locked_by.username }}</div>{% endif %}
           </td>
           <td>
@@ -395,7 +435,7 @@
               <button
                 type="button"
                 class="btn-small primary js-start"
-                {% if a.status != "en_attente" and a.status != "a_rappeler" and a.status != "appel_tente" %}hidden{% endif %}
+                {% if a.status != "en_attente" and a.status != "a_rappeler" and a.status != "appel_tente" and a.status != "appel_reussi" %}hidden{% endif %}
               ><i class="fa-solid fa-phone"></i><span>Demarrer</span></button>
               <button
                 type="button"
@@ -434,7 +474,7 @@
                 <div class="progress"><div class="progress-fill"></div></div>
                 <span class="time-label">0:00</span>
               </div>
-              <audio class="js-audio" style="display:none;" {% if a.has_audio_file %}src="{{ a.audio_file_url }}"{% endif %}></audio>
+              <audio class="js-audio" preload="metadata" style="display:none;" {% if a.has_audio_file %}src="{{ a.audio_file_url }}"{% endif %}></audio>
             </div>
           </td>
         </tr>
@@ -617,39 +657,39 @@
 <div id="js-sat-questions">
         <div class="form-inline" style="justify-content:space-between; margin-bottom:4px;">
           <label style="font-size:0.85rem;">1. Clarté des exposés et explications</label>
-          <div style="font-size:0.85rem;"><input type="radio" name="q1" value="1"> 1 <input type="radio" name="q1" value="2"> 2 <input type="radio" name="q1" value="3" checked> 3 <input type="radio" name="q1" value="4"> 4 <input type="radio" name="q1" value="5"> 5</div>
+          <div style="font-size:0.85rem;"><input type="radio" name="q1" value="1"> 1 <input type="radio" name="q1" value="2"> 2 <input type="radio" name="q1" value="3"> 3 <input type="radio" name="q1" value="4"> 4 <input type="radio" name="q1" value="5"> 5</div>
         </div>
         <div class="form-inline" style="justify-content:space-between; margin-bottom:4px;">
           <label style="font-size:0.85rem;">2. Interaction avec le formateur</label>
-          <div style="font-size:0.85rem;"><input type="radio" name="q2" value="1"> 1 <input type="radio" name="q2" value="2"> 2 <input type="radio" name="q2" value="3" checked> 3 <input type="radio" name="q2" value="4"> 4 <input type="radio" name="q2" value="5"> 5</div>
+          <div style="font-size:0.85rem;"><input type="radio" name="q2" value="1"> 1 <input type="radio" name="q2" value="2"> 2 <input type="radio" name="q2" value="3"> 3 <input type="radio" name="q2" value="4"> 4 <input type="radio" name="q2" value="5"> 5</div>
         </div>
         <div class="form-inline" style="justify-content:space-between; margin-bottom:4px;">
           <label style="font-size:0.85rem;">3. Maîtrise du contenu par le formateur</label>
-          <div style="font-size:0.85rem;"><input type="radio" name="q3" value="1"> 1 <input type="radio" name="q3" value="2"> 2 <input type="radio" name="q3" value="3" checked> 3 <input type="radio" name="q3" value="4"> 4 <input type="radio" name="q3" value="5"> 5</div>
+          <div style="font-size:0.85rem;"><input type="radio" name="q3" value="1"> 1 <input type="radio" name="q3" value="2"> 2 <input type="radio" name="q3" value="3"> 3 <input type="radio" name="q3" value="4"> 4 <input type="radio" name="q3" value="5"> 5</div>
         </div>
         <div class="form-inline" style="justify-content:space-between; margin-bottom:4px;">
           <label style="font-size:0.85rem;">4. Adéquation et confort de la salle</label>
-          <div style="font-size:0.85rem;"><input type="radio" name="q4" value="1"> 1 <input type="radio" name="q4" value="2"> 2 <input type="radio" name="q4" value="3" checked> 3 <input type="radio" name="q4" value="4"> 4 <input type="radio" name="q4" value="5"> 5</div>
+          <div style="font-size:0.85rem;"><input type="radio" name="q4" value="1"> 1 <input type="radio" name="q4" value="2"> 2 <input type="radio" name="q4" value="3"> 3 <input type="radio" name="q4" value="4"> 4 <input type="radio" name="q4" value="5"> 5</div>
         </div>
         <div class="form-inline" style="justify-content:space-between; margin-bottom:4px;">
           <label style="font-size:0.85rem;">5. Disponibilité du matériel pédagogique</label>
-          <div style="font-size:0.85rem;"><input type="radio" name="q5" value="1"> 1 <input type="radio" name="q5" value="2"> 2 <input type="radio" name="q5" value="3" checked> 3 <input type="radio" name="q5" value="4"> 4 <input type="radio" name="q5" value="5"> 5</div>
+          <div style="font-size:0.85rem;"><input type="radio" name="q5" value="1"> 1 <input type="radio" name="q5" value="2"> 2 <input type="radio" name="q5" value="3"> 3 <input type="radio" name="q5" value="4"> 4 <input type="radio" name="q5" value="5"> 5</div>
         </div>
         <div class="form-inline" style="justify-content:space-between; margin-bottom:4px;">
           <label style="font-size:0.85rem;">6. Organisation et gestion du temps</label>
-          <div style="font-size:0.85rem;"><input type="radio" name="q6" value="1"> 1 <input type="radio" name="q6" value="2"> 2 <input type="radio" name="q6" value="3" checked> 3 <input type="radio" name="q6" value="4"> 4 <input type="radio" name="q6" value="5"> 5</div>
+          <div style="font-size:0.85rem;"><input type="radio" name="q6" value="1"> 1 <input type="radio" name="q6" value="2"> 2 <input type="radio" name="q6" value="3"> 3 <input type="radio" name="q6" value="4"> 4 <input type="radio" name="q6" value="5"> 5</div>
         </div>
         <div class="form-inline" style="justify-content:space-between; margin-bottom:4px;">
           <label style="font-size:0.85rem;">7. Utilité et applicabilité de la formation</label>
-          <div style="font-size:0.85rem;"><input type="radio" name="q7" value="1"> 1 <input type="radio" name="q7" value="2"> 2 <input type="radio" name="q7" value="3" checked> 3 <input type="radio" name="q7" value="4"> 4 <input type="radio" name="q7" value="5"> 5</div>
+          <div style="font-size:0.85rem;"><input type="radio" name="q7" value="1"> 1 <input type="radio" name="q7" value="2"> 2 <input type="radio" name="q7" value="3"> 3 <input type="radio" name="q7" value="4"> 4 <input type="radio" name="q7" value="5"> 5</div>
         </div>
         <div class="form-inline" style="justify-content:space-between; margin-bottom:4px;">
           <label style="font-size:0.85rem;">8. Adéquation du contenu avec les besoins</label>
-          <div style="font-size:0.85rem;"><input type="radio" name="q8" value="1"> 1 <input type="radio" name="q8" value="2"> 2 <input type="radio" name="q8" value="3" checked> 3 <input type="radio" name="q8" value="4"> 4 <input type="radio" name="q8" value="5"> 5</div>
+          <div style="font-size:0.85rem;"><input type="radio" name="q8" value="1"> 1 <input type="radio" name="q8" value="2"> 2 <input type="radio" name="q8" value="3"> 3 <input type="radio" name="q8" value="4"> 4 <input type="radio" name="q8" value="5"> 5</div>
         </div>
         <div class="form-inline" style="justify-content:space-between; margin-bottom:10px;">
           <label style="font-size:0.85rem;">9. Satisfaction globale</label>
-          <div style="font-size:0.85rem;"><input type="radio" name="q9" value="1"> 1 <input type="radio" name="q9" value="2"> 2 <input type="radio" name="q9" value="3" checked> 3 <input type="radio" name="q9" value="4"> 4 <input type="radio" name="q9" value="5"> 5</div>
+          <div style="font-size:0.85rem;"><input type="radio" name="q9" value="1"> 1 <input type="radio" name="q9" value="2"> 2 <input type="radio" name="q9" value="3"> 3 <input type="radio" name="q9" value="4"> 4 <input type="radio" name="q9" value="5"> 5</div>
         </div>
         <div class="modal-field">
           <label style="font-size:0.85rem;">Commentaire général</label>
@@ -702,6 +742,8 @@
     const consolidationFrame = document.getElementById("js-consolidation-frame");
     const offlineDbName = "padesce-offline-cache";
     const offlineStoreName = "jobs";
+    const completedStatuses = new Set(["termine", "appel_reussi", "formulaire_rempli", "formulaire_avec_audio"]);
+    const startableStatuses = new Set(["en_attente", "appel_tente", "appel_reussi", "a_rappeler"]);
 
     function buildStatusLabel(status) {
       const labels = {
@@ -710,16 +752,96 @@
         pause: "Pause",
         a_rappeler: "A rappeler",
         termine: "Termine",
+        appel_tente: "Appel Tenté",
+        appel_reussi: "Appel Réussi",
+        formulaire_rempli: "Formulaire Rempli",
+        formulaire_avec_audio: "Formulaire avec Audio",
       };
       return labels[status] || status || "";
     }
 
-    function optimisticStatusFromAction(action) {
+    function isCompletedStatus(status) {
+      return completedStatuses.has(status);
+    }
+
+    function normalizeStoredFormEntries(entriesLike) {
+      if (!entriesLike) return [];
+      if (Array.isArray(entriesLike)) {
+        return entriesLike
+          .map((entry) => {
+            if (Array.isArray(entry) && entry.length >= 2) return [entry[0], entry[1]];
+            if (entry && typeof entry === "object" && "name" in entry) {
+              return [entry.name, entry.value ?? ""];
+            }
+            return null;
+          })
+          .filter(Boolean);
+      }
+      if (typeof entriesLike.entries === "function") {
+        try {
+          return Array.from(entriesLike.entries());
+        } catch (err) {}
+      }
+      if (typeof entriesLike[Symbol.iterator] === "function") {
+        try {
+          return Array.from(entriesLike);
+        } catch (err) {}
+      }
+      if (typeof entriesLike === "object") return Object.entries(entriesLike);
+      return [];
+    }
+
+    function appendStoredFormEntries(form, entriesLike) {
+      normalizeStoredFormEntries(entriesLike).forEach(([name, value]) => {
+        if (Array.isArray(value)) {
+          value.forEach((item) => form.append(name, item ?? ""));
+          return;
+        }
+        form.append(name, value ?? "");
+      });
+    }
+
+    function hasQueuedQuestionnaireAnswer(entriesLike) {
+      return normalizeStoredFormEntries(entriesLike).some(([name, value]) => (
+        /^q[1-9]$/.test(String(name || "")) && ["1", "2", "3", "4", "5"].includes(String(value ?? ""))
+      ));
+    }
+
+    function hasQueuedSuccessSignal(entriesLike) {
+      return normalizeStoredFormEntries(entriesLike).some(([name, value]) => {
+        const field = String(name || "");
+        const normalized = String(value ?? "").trim();
+        if (!normalized) return false;
+        if (["flag_pas_forme", "flag_faux_nom", "flag_deja_appele", "flag_numero_double", "deja_forme"].includes(field)) {
+          return ["1", "true", "True"].includes(normalized);
+        }
+        if (field === "flag_vrai_nom") return true;
+        if (["commentaire", "recommandations"].includes(field)) {
+          return normalized.toUpperCase() !== "RAS";
+        }
+        return false;
+      });
+    }
+
+    function optimisticStatusFromAction(action, extra = {}) {
       if (action === "start" || action === "resume") return "en_cours";
       if (action === "pause") return "pause";
       if (action === "rappeler") return "a_rappeler";
-      if (action === "terminer") return "termine";
+      if (action === "terminer") {
+        return (extra?.deja_forme || extra?.flag_pas_forme) ? "appel_reussi" : "appel_tente";
+      }
       return "";
+    }
+
+    function optimisticStatusFromFinalize(action, entriesLike, hasAudio) {
+      if (action === "rappeler") return "a_rappeler";
+      if (action !== "terminer") return optimisticStatusFromAction(action);
+      const hasForm = hasQueuedQuestionnaireAnswer(entriesLike);
+      const hasSuccessSignal = hasQueuedSuccessSignal(entriesLike);
+      if (hasForm && hasAudio) return "formulaire_avec_audio";
+      if (hasForm) return "formulaire_rempli";
+      if (hasAudio || hasSuccessSignal) return "appel_reussi";
+      return "appel_tente";
     }
 
     function openOfflineDb() {
@@ -785,6 +907,21 @@
         if (row) updateRow(row, data);
         return;
       }
+      if (job.kind === "finalize") {
+        const form = new FormData();
+        form.append("action", job.action || "terminer");
+        appendStoredFormEntries(form, job.satFormEntries || job.satFormData);
+        if (job.audioBlob) {
+          form.append("audio", job.audioBlob, job.audioFilename || `appel-${job.rowId}.webm`);
+        }
+        const res = await fetch(job.url, { method: "POST", headers: { "X-CSRFToken": csrfToken }, body: form });
+        if (!res.ok) throw new Error("sync finalize failed");
+        const payload = await res.json();
+        const row = document.querySelector(`tr[data-id="${job.rowId}"]`);
+        if (row) updateRow(row, payload);
+        if (payload?.audio_url) updateDownloadButtonState();
+        return;
+      }
       if (job.kind === "audio") {
         const form = new FormData();
         form.append("audio", job.blob, job.filename);
@@ -792,6 +929,9 @@
         if (!res.ok) throw new Error("sync audio failed");
         const payload = await res.json();
         const row = document.querySelector(`tr[data-id="${job.rowId}"]`);
+        if (row && payload?.status) {
+          updateRow(row, payload);
+        }
         if (row && payload?.audio_url) {
           const audio = row.querySelector(".js-audio");
           if (audio) audio.src = payload.audio_url;
@@ -804,7 +944,9 @@
           syncAudioControls(row);
           updateDownloadButtonState();
         }
+        return;
       }
+      throw new Error(`unsupported offline job kind: ${job.kind || "unknown"}`);
     }
 
     async function syncOfflineJobs() {
@@ -937,6 +1079,7 @@
     const satModalRappel = document.getElementById("js-sat-modal-rappel");
     const satModalRappelAt = document.getElementById("js-sat-modal-rappel-at");
     let currentSatFormData = null;
+    const satisfactionStateCache = new Map();
 
     function resetSatisfactionFlags() {
       document.getElementById("js-sat-flag-pas-forme").checked = false;
@@ -960,7 +1103,9 @@
     }
 
     function resetSatisfactionAnswers() {
-      document.querySelectorAll("#js-sat-questions input[type=radio][value='3']").forEach(r => r.checked = true);
+      document.querySelectorAll("#js-sat-questions input[type=radio]").forEach((radio) => {
+        radio.checked = false;
+      });
       document.getElementById("js-sat-commentaire").value = "";
       document.getElementById("js-sat-recommandations").value = "";
       if (satModal) satModal.dataset.formModified = "0";
@@ -982,19 +1127,133 @@
       document.getElementById("js-sat-recommandations").value = currentAnswers.recommandations || "";
     }
 
-    async function hydrateSatisfactionModal(id) {
+    function cacheSatisfactionState(id, payload) {
+      if (!id || !payload) return;
+      satisfactionStateCache.set(String(id), {
+        appel: payload.appel ? { ...payload.appel } : null,
+        answers: payload.answers ? { ...payload.answers } : null,
+      });
+    }
+
+    function applyCachedSatisfactionState(id) {
+      const cached = satisfactionStateCache.get(String(id));
+      if (!cached) return false;
+      resetSatisfactionAnswers();
+      resetSatisfactionFlags();
+      applySatisfactionAppelState(cached.appel);
+      applySatisfactionAnswerState(cached.answers);
+      return true;
+    }
+
+    function captureSatisfactionModalState() {
+      const answers = {};
+      for (let i = 1; i <= 9; i++) {
+        const checked = document.querySelector(`#js-sat-questions input[name="q${i}"]:checked`);
+        answers[`q${i}`] = checked?.value || "3";
+      }
+      answers.commentaire = document.getElementById("js-sat-commentaire").value || "";
+      answers.recommandations = document.getElementById("js-sat-recommandations").value || "";
+      return {
+        appel: {
+          deja_forme: document.getElementById("js-sat-modal-deja-forme").checked,
+          flag_pas_forme: document.getElementById("js-sat-flag-pas-forme").checked,
+          flag_faux_nom: document.getElementById("js-sat-flag-faux-nom").checked,
+          flag_vrai_nom: document.getElementById("js-sat-vrai-nom").value || "",
+          flag_deja_appele: document.getElementById("js-sat-flag-deja-appele").checked,
+          flag_numero_double: document.getElementById("js-sat-flag-numero-double").checked,
+        },
+        answers,
+      };
+    }
+
+    async function hydrateSatisfactionModal(id, { force = false } = {}) {
+      if (!force && applyCachedSatisfactionState(id)) {
+        return satisfactionStateCache.get(String(id));
+      }
       resetSatisfactionAnswers();
       resetSatisfactionFlags();
       try {
         const res = await fetch(`/appels/${id}/answers/`);
         const data = await res.json();
-        if (!data.ok) return;
+        if (!data.ok) return null;
+        cacheSatisfactionState(id, data);
         applySatisfactionAppelState(data.appel);
         applySatisfactionAnswerState(data.answers);
+        return data;
       } catch (e) {
         resetSatisfactionAnswers();
         resetSatisfactionFlags();
+        return null;
       }
+    }
+
+    const AUDIO_STOP_FLUSH_MS = 80;
+    const AUDIO_RECORDER_TIMESLICE_MS = 100;
+
+    function revokePreviewUrl(url) {
+      if (!url || !String(url).startsWith("blob:")) return;
+      try {
+        URL.revokeObjectURL(url);
+      } catch (err) {
+        // Ignore blob URL cleanup failures.
+      }
+    }
+
+    function setRowAudioSource(row, sourceUrl, { isPreview = false } = {}) {
+      if (!row || !sourceUrl) return;
+      const audio = row.querySelector(".js-audio");
+      if (!audio) return;
+      const state = getRecordState(row);
+      if (state?.previewUrl && state.previewUrl !== sourceUrl) {
+        revokePreviewUrl(state.previewUrl);
+        state.previewUrl = "";
+      }
+      audio.src = sourceUrl;
+      if (typeof audio.load === "function") {
+        audio.load();
+      }
+      if (state) {
+        state.previewUrl = isPreview ? sourceUrl : "";
+        recordState.set(row.dataset.id, state);
+      }
+      if (!isPreview) {
+        const checkbox = row.querySelector(".js-audio-select");
+        if (checkbox) {
+          checkbox.disabled = false;
+          checkbox.removeAttribute("title");
+        }
+      }
+      ensureDownloadLink(row, sourceUrl);
+      syncAudioControls(row);
+      updateDownloadButtonState();
+    }
+
+    async function stopRecordingAndCollectBlob(row, timeoutMs = AUDIO_STOP_FLUSH_MS) {
+      const state = row ? getRecordState(row) : null;
+      if (!state) return null;
+      if (!state.recorder || state.recorder.state === "inactive") {
+        return state.blob || null;
+      }
+      try {
+        state.recorder.requestData?.();
+      } catch (err) {
+        // Best effort flush before stop.
+      }
+      try {
+        state.recorder.stop();
+      } catch (err) {
+        return recordState.get(row.dataset.id)?.blob || state.blob || null;
+      }
+      state.stream?.getTracks().forEach((track) => track.stop());
+      const stopPromise = state.stopPromise instanceof Promise
+        ? state.stopPromise
+        : Promise.resolve(recordState.get(row.dataset.id)?.blob || state.blob || null);
+      const fallbackPromise = new Promise((resolve) => {
+        setTimeout(() => {
+          resolve(recordState.get(row.dataset.id)?.blob || state.blob || null);
+        }, timeoutMs);
+      });
+      return Promise.race([stopPromise, fallbackPromise]);
     }
 
     // Track explicit Q1-Q9 radio clicks
@@ -1024,13 +1283,13 @@
         const de_forme_check = document.getElementById("js-sat-modal-deja-forme")?.checked;
         const action = shouldRappeler ? "rappeler" : "terminer";
         
-        // Build satisfaction form data - TOUJOURS envoyer les réponses (même les valeurs par défaut)
+        // Build satisfaction form data from the answers that were explicitly selected.
         const satForm = new FormData();
         for (let i = 1; i <= 9; i++) {
             const checked = satQuestions?.querySelector(`input[name="q${i}"]:checked`);
-            // Toujours inclure la réponse (cochez par défaut ou par l'utilisateur)
-            const value = checked?.value || "3";
-            satForm.append(`q${i}`, value);
+            if (checked?.value) {
+                satForm.append(`q${i}`, checked.value);
+            }
         }
         satForm.append("commentaire", document.getElementById("js-sat-commentaire").value || "");
         satForm.append("recommandations", document.getElementById("js-sat-recommandations").value || "");
@@ -1043,29 +1302,13 @@
         satForm.append("rappel_at", rappelAt || "");
         satForm.append("form_modified", satModal?.dataset.formModified || "0");
 
+        cacheSatisfactionState(rowId, captureSatisfactionModalState());
         satModal.hidden = true;
 
         // Collect audio blob if recording is active
-        let audioBlob = null;
-        const state = getRecordState(row);
-        if (state?.recorder && state.recorder.state !== "inactive") {
-            // Stop recorder and wait for blob
-            await new Promise((resolve) => {
-                const originalStop = state.recorder.onstop;
-                state.recorder.onstop = (e) => {
-                    if (originalStop) originalStop(e);
-                    audioBlob = recordState.get(row.dataset.id)?.blob || null;
-                    resolve();
-                };
-                state.recorder.stop();
-                state.stream?.getTracks().forEach(t => t.stop());
-                setTimeout(() => {
-                    audioBlob = recordState.get(row.dataset.id)?.blob || null;
-                    resolve();
-                }, 200);
-            });
-        } else if (state?.blob) {
-            audioBlob = state.blob;
+        let audioBlob = await stopRecordingAndCollectBlob(row);
+        if (!audioBlob) {
+            audioBlob = getRecordState(row)?.blob || null;
         }
 
         // Send everything atomically via finalize endpoint
@@ -1100,7 +1343,7 @@
         return data;
       } catch (err) {
         await queueOfflineJob({ kind: "action", rowId: id, url, action, extra });
-        const status = optimisticStatusFromAction(action);
+        const status = optimisticStatusFromAction(action, extra);
         return { ok: true, queued: true, status, status_label: buildStatusLabel(status) };
       }
     }
@@ -1117,10 +1360,12 @@
       }
       
       // Add audio if available
+      let audioFilename = "";
       if (audioBlob) {
         const blobType = (audioBlob && audioBlob.type) ? audioBlob.type.toLowerCase() : "";
         const ext = blobType.includes("webm") ? "webm" : "mp3";
-        form.append("audio", audioBlob, `appel-${id}.${ext}`);
+        audioFilename = `appel-${id}.${ext}`;
+        form.append("audio", audioBlob, audioFilename);
       }
       
       try {
@@ -1136,31 +1381,24 @@
           return data || { ok: false, error: "Erreur serveur" };
         }
         
-        // Update audio element if audio was saved
         if (data.audio_url) {
-          const audio = row.querySelector(".js-audio");
-          if (audio) audio.src = data.audio_url;
-          const checkbox = row.querySelector(".js-audio-select");
-          if (checkbox) {
-            checkbox.disabled = false;
-            checkbox.removeAttribute("title");
-          }
-          syncAudioControls(row);
-          updateDownloadButtonState();
+          setRowAudioSource(row, data.audio_url);
         }
         
         return data;
       } catch (err) {
         console.error("Finalize offline/error:", err);
+        const satFormEntries = Array.from(satFormData.entries());
         await queueOfflineJob({ 
           kind: "finalize", 
           rowId: id, 
           url, 
           action,
-          satFormData,
-          audioBlob
+          satFormEntries,
+          audioBlob,
+          audioFilename
         });
-        const status = optimisticStatusFromAction(action);
+        const status = optimisticStatusFromFinalize(action, satFormEntries, !!audioBlob);
         return { ok: true, queued: true, status, status_label: buildStatusLabel(status) };
       }
     }
@@ -1263,20 +1501,21 @@
 
     function updateRow(row, data) {
       if (!data) return;
-      row.dataset.status = data.status || row.dataset.status;
+      const status = data.status || row.dataset.status;
+      row.dataset.status = status;
       const badge = row.querySelector("[data-badge]");
       if (badge && data.status_label) badge.textContent = data.status_label;
-      badge?.classList.toggle("run", data.status === "en_cours");
-      badge?.classList.toggle("pause", data.status === "pause");
-      badge?.classList.toggle("done", data.status === "termine");
-      badge?.classList.toggle("wait", !["en_cours","pause","termine"].includes(data.status));
+      badge?.classList.toggle("run", status === "en_cours");
+      badge?.classList.toggle("pause", status === "pause");
+      badge?.classList.toggle("done", isCompletedStatus(status));
+      badge?.classList.toggle("wait", !["en_cours", "pause"].includes(status) && !isCompletedStatus(status));
       const actions = row.querySelector(".js-actions");
       if (actions) {
         const start = actions.querySelector(".js-start");
         const pause = actions.querySelector(".js-pause");
         const resume = actions.querySelector(".js-resume");
         const terminer = actions.querySelector(".js-terminer");
-        const canStart = ["en_attente", "a_rappeler", "appel_tente"].includes(data.status);
+        const canStart = startableStatuses.has(status);
         if (canStart) {
           start.hidden = false;
           pause.hidden = true;
@@ -1284,14 +1523,14 @@
           pause.disabled = true;
           resume.disabled = true;
           terminer.hidden = true;
-        } else if (data.status === "en_cours") {
+        } else if (status === "en_cours") {
           start.hidden = true;
           pause.hidden = false;
           resume.hidden = false;
           pause.disabled = false;
           resume.disabled = true;
           terminer.hidden = false;
-        } else if (data.status === "pause") {
+        } else if (status === "pause") {
           start.hidden = true;
           pause.hidden = false;
           resume.hidden = false;
@@ -1307,13 +1546,9 @@
           terminer.hidden = true;
         }
       }
-      // Mettre à jour le player audio si audio_url dans la réponse
       if (data.audio_url) {
-        const audio = row.querySelector(".js-audio");
-        if (audio) audio.src = data.audio_url;
-        const checkbox = row.querySelector(".js-audio-select");
-        if (checkbox) { checkbox.disabled = false; checkbox.removeAttribute("title"); }
-        ensureDownloadLink(row, data.audio_url);
+        setRowAudioSource(row, data.audio_url);
+        return;
       }
       syncAudioControls(row);
     }
@@ -1366,7 +1601,7 @@
           const state = getRecordState(row);
           if (state?.recorder && state.recorder.state === "paused") {
             state.recorder.resume();
-          } else if (!state) {
+          } else if (!state || !state.recorder || state.recorder.state === "inactive") {
             await startRecording(row);
           }
         } catch (err) { alert("Action impossible."); }
@@ -1378,21 +1613,7 @@
         const satModal = document.getElementById("js-satisfaction-modal");
         if (!satModal) return;
 
-        // Stop recording if active before opening modal — attendre onstop proprement
-        const state = getRecordState(row);
-        if (state?.recorder && state.recorder.state !== "inactive") {
-          await new Promise((resolve) => {
-            const origStop = state.recorder.onstop;
-            state.recorder.onstop = (e) => {
-              if (origStop) origStop(e);
-              resolve();
-            };
-            state.recorder.stop();
-            state.stream?.getTracks().forEach(t => t.stop());
-            setTimeout(resolve, 1000); // fallback si onstop ne fire pas
-          });
-        }
-
+        const stopPromise = stopRecordingAndCollectBlob(row);
         await hydrateSatisfactionModal(id);
         
         // Mettre à jour les métadonnées
@@ -1404,6 +1625,7 @@
         
         satModal.dataset.rowId = id;
         satModal.hidden = false;
+        await stopPromise;
       });
     });
     document.querySelectorAll("tr[data-id]").forEach((row) => {
@@ -1413,10 +1635,14 @@
 
     async function startRecording(row) {
       const id = row.dataset.id;
+      const hydratePromise = hydrateSatisfactionModal(id);
+      const existingState = getRecordState(row);
+      if (existingState?.previewUrl) {
+        revokePreviewUrl(existingState.previewUrl);
+      }
       
       const satModal = document.getElementById("js-satisfaction-modal");
       if (satModal) {
-          await hydrateSatisfactionModal(id);
           const smr = document.getElementById("js-sat-modal-rappel");
           if (smr) smr.checked = false;
           const smrat = document.getElementById("js-sat-modal-rappel-at");
@@ -1429,19 +1655,25 @@
           if (satNom) satNom.textContent = row.dataset.name || "-";
           satModal.dataset.rowId = id;
           document.getElementById("js-sat-modal-phone").textContent = row.dataset.phone || "-";
-          satModal.hidden = false;
       }
       
       let stream;
       try {
-        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const mediaPromise = navigator.mediaDevices.getUserMedia({ audio: true });
+        const [, resolvedStream] = await Promise.all([
+          hydratePromise.catch(() => null),
+          mediaPromise,
+        ]);
+        stream = resolvedStream;
       } catch (err) {
+        await hydratePromise.catch(() => null);
         const reason = (err && err.message) ? `(${err.message})` : "";
         const insecure = location.protocol !== "https:" && location.hostname !== "localhost";
         const hint = insecure ? "\\nActivez HTTPS ou utilisez http://localhost pour autoriser le micro." : "\\nVerifiez les permissions micro dans le navigateur.";
         alert(`Micro non accessible ${reason}. ${hint}`);
         return;
       }
+      if (satModal) satModal.hidden = false;
       const audioCtx = new AudioContext();
       const source = audioCtx.createMediaStreamSource(stream);
       const analyser = audioCtx.createAnalyser();
@@ -1470,20 +1702,45 @@
       const mimeType = MediaRecorder.isTypeSupported("audio/mpeg") ? "audio/mpeg" : "audio/webm";
       const recorder = new MediaRecorder(stream, { mimeType });
       const chunks = [];
+      let resolveStoppedBlob;
+      const stopPromise = new Promise((resolve) => {
+        resolveStoppedBlob = resolve;
+      });
       recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
       recorder.onstop = async () => {
         const blob = new Blob(chunks, { type: mimeType });
-        const audio = row.querySelector(".js-audio");
-        audio.src = URL.createObjectURL(blob);
-        recordState.set(id, { recorder: null, chunks: [], blob });
+        const previewUrl = URL.createObjectURL(blob);
+        recordState.set(id, {
+          recorder: null,
+          chunks: [],
+          stream: null,
+          raf: null,
+          ctx: null,
+          canvas: null,
+          audioCtx: null,
+          blob,
+          stopPromise: Promise.resolve(blob),
+          previewUrl,
+        });
         cancelAnimationFrame(raf);
         ctx.clearRect(0,0,canvas.width, canvas.height);
         audioCtx.close();
-        syncAudioControls(row);
-        // Audio upload now handled atomic by finalize endpoint
+        setRowAudioSource(row, previewUrl, { isPreview: true });
+        resolveStoppedBlob?.(blob);
       };
-      recorder.start();
-      recordState.set(id, { recorder, chunks, stream, raf, ctx, canvas, audioCtx });
+      recorder.start(AUDIO_RECORDER_TIMESLICE_MS);
+      recordState.set(id, {
+        recorder,
+        chunks,
+        stream,
+        raf,
+        ctx,
+        canvas,
+        audioCtx,
+        blob: null,
+        stopPromise,
+        previewUrl: "",
+      });
     }
 
     async function uploadAudio(row, blob) {
@@ -1514,17 +1771,7 @@
           alert(payload.satisfaction_message);
         }
         if (audioUrl) {
-          const audio = row.querySelector(".js-audio");
-          if (audio) audio.src = audioUrl;
-
-          const checkbox = row.querySelector(".js-audio-select");
-          if (checkbox) {
-            checkbox.disabled = false;
-            checkbox.removeAttribute("title");
-          }
-          ensureDownloadLink(row, audioUrl);
-          syncAudioControls(row);
-          updateDownloadButtonState();
+          setRowAudioSource(row, audioUrl);
         }
       } catch (err) {
         await queueOfflineJob({
@@ -1808,13 +2055,11 @@
     });
 
     const stopRecBtn = document.getElementById("js-sat-stop-record");
-    stopRecBtn.addEventListener("click", () => {
+    stopRecBtn.addEventListener("click", async () => {
        const id = satModal.dataset.rowId;
        const row = document.querySelector(`tr[data-id="${id}"]`);
-       const state = getRecordState(row);
-       if (state?.recorder && state.recorder.state !== "inactive") {
-         state.recorder.stop();
-         state.stream?.getTracks().forEach(t => t.stop());
+       const audioBlob = await stopRecordingAndCollectBlob(row);
+       if (audioBlob) {
          alert("Enregistrement arrêté. Vous pouvez finir de remplir le formulaire.");
        }
     });

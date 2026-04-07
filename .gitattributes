@@ -4,3 +4,6 @@
 *.zip filter=lfs diff=lfs merge=lfs -text
 media/*.zip filter=lfs diff=lfs merge=lfs -text
 media/padesce[[:space:]](2).zip filter=lfs diff=lfs merge=lfs -text
+# Template files must be stored as regular git blobs (not LFS) so the server
+# always gets the real binary, not the LFS pointer text file.
+data/templates/fast_stats_template.xlsx -filter -diff -merge -text

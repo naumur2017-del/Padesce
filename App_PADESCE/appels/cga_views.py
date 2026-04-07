@@ -16,7 +16,7 @@ from django.utils import timezone
 from django.utils.text import slugify
 from django.views.decorators.http import require_POST
 
-from App_PADESCE.appels.models import AppelCGA
+from App_PADESCE.appels.models import AppelCGA, CALL_COMPLETED_STATUSES
 from App_PADESCE.appels.views import (
     _bind_audio_state,
     _check_other_active_calls,
@@ -118,7 +118,10 @@ def _build_filtered_cga_queryset(request):
     search = (request.GET.get("q") or "").strip()
 
     if status_filter:
-        qs = qs.filter(status=status_filter)
+        if status_filter == "completed":
+            qs = qs.filter(status__in=CALL_COMPLETED_STATUSES)
+        else:
+            qs = qs.filter(status=status_filter)
     if regime_filter:
         qs = qs.filter(regime__iexact=regime_filter)
     if cri_filter:

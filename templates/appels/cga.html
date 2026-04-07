@@ -155,6 +155,7 @@
       <option value="en_cours" {% if filters.status == "en_cours" %}selected{% endif %}>En cours</option>
       <option value="pause" {% if filters.status == "pause" %}selected{% endif %}>Pause</option>
       <option value="a_rappeler" {% if filters.status == "a_rappeler" %}selected{% endif %}>A rappeler</option>
+      <option value="completed" {% if filters.status == "completed" %}selected{% endif %}>Finalisés</option>
       <option value="termine" {% if filters.status == "termine" %}selected{% endif %}>Termine</option>
     </select>
     <select name="regime" class="input">

@@ -12,6 +12,7 @@ from django.views.decorators.http import require_GET, require_POST
 
 from App_PADESCE.core.access import require_superadmin_access
 from App_PADESCE.core.deployment_live import live_status_payload
+from App_PADESCE.core.models import AuditLog
 from App_PADESCE.core.gandi_deploy import (
     deployment_config_summary,
     get_active_run,
@@ -206,6 +207,15 @@ def deployment_start(request):
         return JsonResponse({"ok": False, "error": "Mode invalide."}, status=400)
 
     run_id, process = _start_pipeline(mode)
+    if getattr(request.user, "is_authenticated", False):
+        AuditLog.objects.create(
+            actor=request.user,
+            model_name="core.deployment_run",
+            object_pk=run_id,
+            object_repr=f"Deploiement {mode} {run_id}",
+            action="created",
+            extra={"event": "deployment_start", "mode": mode},
+        )
     return JsonResponse(
         {
             "ok": True,

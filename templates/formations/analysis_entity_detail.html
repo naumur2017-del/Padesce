@@ -370,6 +370,10 @@
         <div class="label">Fenêtre</div>
         <div class="value">{{ classe.fenetre|default:"-" }}</div>
       </div>
+      <div class="meta-card">
+        <div class="label">TOTAL DES PARTICIPANTS A LA FORMATION</div>
+        <div class="value">{{ summary.apprenants_total|default:0 }}</div>
+      </div>
     {% else %}
       <div class="meta-card">
         <div class="label">Prestataire</div>
@@ -479,7 +483,7 @@
   <section class="panel tab-panel{% if active_tab == 'apprenants' %} active{% endif %}" data-panel="apprenants-chapeau">
     <div class="panel-head">
       <div>
-        <strong>Note de satisfaction</strong>
+        <strong>Chapeau de satisfaction</strong>
         <div class="row-meta">{{ class_chapeau.title }}</div>
       </div>
       <span class="badge{% if class_chapeau.has_data %} badge-ok{% else %} badge-wait{% endif %}">
@@ -508,7 +512,7 @@
   <section class="panel tab-panel{% if active_tab == 'formateurs' %} active{% endif %}" data-panel="formateurs-chapeau">
     <div class="panel-head">
       <div>
-        <strong>Note de satisfaction (Apprenants)</strong>
+        <strong>Chapeau de satisfaction (Apprenants)</strong>
         <div class="row-meta">{{ class_chapeau.title }}</div>
       </div>
       <span class="badge{% if class_chapeau.has_data %} badge-ok{% else %} badge-wait{% endif %}">
@@ -582,7 +586,7 @@
             <td>{{ row.updated_at|date:"d/m/Y H:i" }}</td>
             <td>
               <div class="actions">
-                <a class="btn-link{% if not row.has_audio %} disabled{% endif %}" href="{{ row.detail_url }}#audio">Écouter</a>
+                <a class="btn-link{% if not row.has_audio %} disabled{% endif %}" href="{{ row.detail_url }}#audio">Ecouter</a>
                 <a class="btn-link secondary{% if not row.has_form %} disabled{% endif %}" href="{{ row.detail_url }}#formulaire">Formulaire</a>
               </div>
             </td>
@@ -680,7 +684,7 @@
             </td>
             <td>
               <div class="actions">
-                <a class="btn-link{% if not row.has_audio %} disabled{% endif %}" href="{{ row.detail_url }}#audio">Écouter</a>
+                <a class="btn-link{% if not row.has_audio %} disabled{% endif %}" href="{{ row.detail_url }}#audio">Ecouter</a>
                 <a class="btn-link secondary{% if not row.has_form %} disabled{% endif %}" href="{{ row.detail_url }}#formulaire">Formulaire</a>
               </div>
             </td>
@@ -765,10 +769,10 @@
           const form = row.dataset.hasForm === '1';
           
           let show = false;
-          // Reussis includes: appel_reussi, termine, formulaire_rempli, formulaire_avec_audio
-          // Tentes includes Reussis + appel_tente
+          // Reussis includes finalized successful calls.
+          // Tentes includes calls already started, including active ones.
           const isReussi = ["appel_reussi", "termine", "formulaire_rempli", "formulaire_avec_audio"].includes(s);
-          const isTente = isReussi || s === "appel_tente";
+          const isTente = isReussi || ["appel_tente", "en_cours", "pause"].includes(s);
 
           if (activeFilter === "tente" && isTente) show = true;
           else if (activeFilter === "reussi" && isReussi) show = true;
