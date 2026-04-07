@@ -303,11 +303,30 @@ def _cache_settings_from_env() -> dict:
     max_entries = int(str(os.getenv("PADESCE_CACHE_MAX_ENTRIES", "5000") or "5000"))
 
     if backend_key in {"file", "filebased", "file_based"}:
-        location = str(
-            os.getenv("PADESCE_CACHE_LOCATION", "") or (BASE_DIR / "data" / "django_cache")
-        ).strip()
-        location_path = Path(location)
-        location_path.mkdir(parents=True, exist_ok=True)
+        requested_location = str(os.getenv("PADESCE_CACHE_LOCATION", "") or "").strip()
+        location_candidates = [
+            Path(requested_location) if requested_location else None,
+            BASE_DIR / "data" / "django_cache",
+            Path(tempfile.gettempdir()) / "padesce-cache",
+            BASE_DIR / ".django_cache",
+        ]
+        location_path = None
+        seen_locations: set[str] = set()
+        for candidate in location_candidates:
+            if candidate is None:
+                continue
+            candidate_key = str(candidate)
+            if candidate_key in seen_locations:
+                continue
+            seen_locations.add(candidate_key)
+            try:
+                candidate.mkdir(parents=True, exist_ok=True)
+            except OSError:
+                continue
+            location_path = candidate
+            break
+        if location_path is None:
+            raise RuntimeError("Impossible d'initialiser un dossier de cache Django ecrivable.")
         return {
             "default": {
                 "BACKEND": "django.core.cache.backends.filebased.FileBasedCache",
