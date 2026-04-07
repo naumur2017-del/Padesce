@@ -5,15 +5,13 @@ from django.http import HttpRequest, JsonResponse
 from django.shortcuts import render
 from django.views.decorators.csrf import requires_csrf_token
 
-
 ERROR_PAGE_COPY = {
     400: {
         "page_title": "Demande invalide",
         "eyebrow": "Validation de la requete",
         "headline": "La demande n'a pas pu etre comprise.",
         "lead": (
-            "Certaines informations transmises au site sont incompletes, "
-            "expirees ou invalides."
+            "Certaines informations transmises au site sont incompletes, expirees ou invalides."
         ),
         "next_step": "Reprenez l'action depuis une page stable ou rechargez votre session.",
     },
@@ -54,7 +52,9 @@ def request_prefers_json(request: HttpRequest, response=None) -> bool:
     headers = getattr(request, "headers", {})
     accept = str(headers.get("Accept", "") or "")
     requested_with = str(headers.get("X-Requested-With", "") or "")
-    content_type = str(getattr(request, "content_type", "") or request.META.get("CONTENT_TYPE", "") or "")
+    content_type = str(
+        getattr(request, "content_type", "") or request.META.get("CONTENT_TYPE", "") or ""
+    )
     path = str(getattr(request, "path", "") or "")
     response_content_type = str(getattr(response, "headers", {}).get("Content-Type", "") or "")
     lowered_accept = accept.lower()
@@ -95,7 +95,9 @@ def _error_context(request: HttpRequest, status_code: int) -> dict:
         "environment_label": environment_label,
         "home_url": _home_url(request),
         "maintenance_url": _maintenance_url(request),
-        "show_maintenance_link": bool(getattr(getattr(request, "user", None), "is_authenticated", False)),
+        "show_maintenance_link": bool(
+            getattr(getattr(request, "user", None), "is_authenticated", False)
+        ),
         "maintenance_message": (
             "Si le probleme persiste, contactez l'equipe de maintenance en precisant "
             "la page concernee, l'heure de l'incident et, si possible, une capture d'ecran."
@@ -111,7 +113,9 @@ def json_error_response(status_code: int) -> JsonResponse:
         404: "Ressource introuvable.",
         500: "Une erreur interne est survenue.",
     }
-    return JsonResponse({"error": messages.get(status_code, "Une erreur est survenue.")}, status=status_code)
+    return JsonResponse(
+        {"error": messages.get(status_code, "Une erreur est survenue.")}, status=status_code
+    )
 
 
 @requires_csrf_token

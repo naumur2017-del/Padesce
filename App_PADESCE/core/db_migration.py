@@ -125,7 +125,11 @@ def _get_copy_models(
         if opts.db_table in excluded_tables:
             skipped_tables.append(opts.db_table)
             continue
-        if requested_labels and opts.label_lower not in requested_labels and opts.db_table.lower() not in requested_labels:
+        if (
+            requested_labels
+            and opts.label_lower not in requested_labels
+            and opts.db_table.lower() not in requested_labels
+        ):
             continue
         if opts.db_table not in source_tables or opts.db_table not in target_tables:
             skipped_tables.append(opts.db_table)

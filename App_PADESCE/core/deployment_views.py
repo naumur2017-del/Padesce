@@ -12,7 +12,7 @@ from django.views.decorators.http import require_GET, require_POST
 
 from App_PADESCE.core.access import require_superadmin_access
 from App_PADESCE.core.deployment_live import live_status_payload
-from App_PADESCE.core.models import AuditLog
+from App_PADESCE.core.deployment_reporting import load_history, load_history_entry, load_report
 from App_PADESCE.core.gandi_deploy import (
     deployment_config_summary,
     get_active_run,
@@ -21,7 +21,7 @@ from App_PADESCE.core.gandi_deploy import (
     make_run_id,
     save_runtime_config,
 )
-from App_PADESCE.core.deployment_reporting import load_history, load_history_entry, load_report
+from App_PADESCE.core.models import AuditLog
 
 
 def _start_pipeline(mode: str) -> tuple[str, subprocess.Popen[bytes]]:

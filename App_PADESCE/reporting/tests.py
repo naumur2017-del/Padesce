@@ -4,8 +4,8 @@ from datetime import date
 from pathlib import Path
 from unittest.mock import patch
 
-from django.contrib.auth.models import Group
 from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Group
 from django.test import SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 from openpyxl import Workbook
@@ -144,7 +144,19 @@ class NetworkExcelApiTests(TestCase):
             ]
         )
         apprenants_sheet.append(
-            ["APP001", "IND001", "BEN001", "Nom 1", "CAPEF", "CLA001", "C001", "1", "Actif", "1", "F"]
+            [
+                "APP001",
+                "IND001",
+                "BEN001",
+                "Nom 1",
+                "CAPEF",
+                "CLA001",
+                "C001",
+                "1",
+                "Actif",
+                "1",
+                "F",
+            ]
         )
 
         classes_sheet = workbook.create_sheet("Classes")
@@ -162,7 +174,17 @@ class NetworkExcelApiTests(TestCase):
             ]
         )
         classes_sheet.append(
-            ["CLA001", "PRESTA001", "Prestataire Alpha", "CAPEF", "1", "Site A", "Garoua", "Formation X", "Nord"]
+            [
+                "CLA001",
+                "PRESTA001",
+                "Prestataire Alpha",
+                "CAPEF",
+                "1",
+                "Site A",
+                "Garoua",
+                "Formation X",
+                "Nord",
+            ]
         )
 
         prestations_sheet = workbook.create_sheet("Prestations")
@@ -205,7 +227,19 @@ class NetworkExcelApiTests(TestCase):
             ]
         )
         cutoff_apprenants_sheet.append(
-            ["APPCUT001", "INDCUT001", "BENCUT001", "Nom CutOff", "CAPEF", "CLACUT001", "CUT001", "1", "Actif", "1", "F"]
+            [
+                "APPCUT001",
+                "INDCUT001",
+                "BENCUT001",
+                "Nom CutOff",
+                "CAPEF",
+                "CLACUT001",
+                "CUT001",
+                "1",
+                "Actif",
+                "1",
+                "F",
+            ]
         )
 
         cutoff_classes_sheet = cutoff_workbook.create_sheet("Classes")
@@ -223,7 +257,17 @@ class NetworkExcelApiTests(TestCase):
             ]
         )
         cutoff_classes_sheet.append(
-            ["CLACUT001", "PRESTACUT001", "Prestataire CutOff", "CAPEF", "1", "Site CutOff", "Maroua", "Formation CutOff", "Extreme-Nord"]
+            [
+                "CLACUT001",
+                "PRESTACUT001",
+                "Prestataire CutOff",
+                "CAPEF",
+                "1",
+                "Site CutOff",
+                "Maroua",
+                "Formation CutOff",
+                "Extreme-Nord",
+            ]
         )
 
         cutoff_prestations_sheet = cutoff_workbook.create_sheet("Prestations")
@@ -381,7 +425,9 @@ class ReportEmailDeliveryTests(SimpleTestCase):
     @patch("App_PADESCE.reporting.app_report._get_report_logo_path", return_value=None)
     @patch("App_PADESCE.reporting.app_report.EmailMessage")
     @patch("App_PADESCE.reporting.app_report.get_connection")
-    @patch("App_PADESCE.reporting.app_report.build_report_email_html", return_value="<p>rapport</p>")
+    @patch(
+        "App_PADESCE.reporting.app_report.build_report_email_html", return_value="<p>rapport</p>"
+    )
     def test_send_report_by_email_forces_smtp_when_console_backend_is_active(
         self,
         _mock_html,
@@ -437,7 +483,9 @@ class ReportEmailDeliveryTests(SimpleTestCase):
     )
     @patch("App_PADESCE.reporting.app_report._get_report_logo_path", return_value=None)
     @patch("App_PADESCE.reporting.app_report.EmailMessage")
-    @patch("App_PADESCE.reporting.app_report.build_report_email_html", return_value="<p>rapport</p>")
+    @patch(
+        "App_PADESCE.reporting.app_report.build_report_email_html", return_value="<p>rapport</p>"
+    )
     def test_send_report_by_email_returns_error_when_smtp_send_fails(
         self,
         _mock_html,

@@ -17,7 +17,6 @@ from App_PADESCE.reporting.network_excel import (
     normalize_network_lookup,
 )
 
-
 DEFAULT_STATUT_PRESTATION = "TERMINÉ"
 PENDING_PAGE_SIZE = 50
 FILTER_FIELD_MAP = {
@@ -70,7 +69,9 @@ def _candidate_matches_filters(candidate: dict, filters: dict, skip_field: str =
         expected = str(filters.get(filter_name) or "").strip()
         if not expected:
             continue
-        if normalize_network_lookup(candidate.get(candidate_field, "")) != normalize_network_lookup(expected):
+        if normalize_network_lookup(candidate.get(candidate_field, "")) != normalize_network_lookup(
+            expected
+        ):
             return False
     return True
 
@@ -225,7 +226,8 @@ def consolidation_pending_appels(request):
             targets = [
                 candidate
                 for candidate in dataset["pending_candidates"]
-                if normalize_network_lookup(candidate.get("code", "")) == normalize_network_lookup(code)
+                if normalize_network_lookup(candidate.get("code", ""))
+                == normalize_network_lookup(code)
             ][:1]
         elif action == "create_batch":
             try:

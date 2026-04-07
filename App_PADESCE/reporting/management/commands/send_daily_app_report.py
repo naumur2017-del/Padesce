@@ -5,8 +5,8 @@ Usage :
     python manage.py send_daily_app_report --dry-run
     python manage.py send_daily_app_report --start 2025-01-01 --end 2025-01-31
 """
+
 import logging
-from datetime import date, timedelta
 
 from django.core.management.base import BaseCommand
 
@@ -60,12 +60,18 @@ class Command(BaseCommand):
         self.stdout.write(build_report_text(report))
 
         if dry_run:
-            self.stdout.write(self.style.WARNING("Mode dry-run : le rapport n'est pas envoye par email."))
+            self.stdout.write(
+                self.style.WARNING("Mode dry-run : le rapport n'est pas envoye par email.")
+            )
             recipients = get_report_email_recipients()
             if recipients:
                 self.stdout.write(f"Destinataires configures: {', '.join(recipients)}")
             else:
-                self.stdout.write(self.style.WARNING("ATTENTION: Aucun destinataire configure (REPORT_EMAIL_TO vide)."))
+                self.stdout.write(
+                    self.style.WARNING(
+                        "ATTENTION: Aucun destinataire configure (REPORT_EMAIL_TO vide)."
+                    )
+                )
             return
 
         self.stdout.write("Envoi du rapport par email...")

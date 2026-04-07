@@ -11,8 +11,8 @@ from django.db.models import Prefetch
 from django.http import HttpResponse, JsonResponse, QueryDict
 from django.urls import reverse
 from django.utils import timezone
-from openpyxl.cell.cell import MergedCell
 from openpyxl import Workbook, load_workbook
+from openpyxl.cell.cell import MergedCell
 
 from App_PADESCE.appels.models import Appel, AppelAnswers, AppelFormateur
 from App_PADESCE.apprenants.models import Apprenant
@@ -24,7 +24,9 @@ from App_PADESCE.reporting.network_excel import (
 )
 from App_PADESCE.satisfaction_apprenants.models import SatisfactionApprenant
 
-FAST_STATS_TEMPLATE_PATH = Path(settings.BASE_DIR) / "data" / "templates" / "fast_stats_template.xlsx"
+FAST_STATS_TEMPLATE_PATH = (
+    Path(settings.BASE_DIR) / "data" / "templates" / "fast_stats_template.xlsx"
+)
 FAST_STATS_FILTER_KEYS = (
     "prestation",
     "classe",
@@ -87,7 +89,10 @@ def _location_matches(classe: Classe, raw_location: str) -> bool:
         getattr(getattr(classe, "lieu", None), "arrondissement", ""),
     ]
     normalized_candidates = [_normalize_text(item) for item in candidates if _safe_text(item)]
-    return any(candidate and (candidate in current or current in candidate) for candidate in normalized_candidates)
+    return any(
+        candidate and (candidate in current or current in candidate)
+        for candidate in normalized_candidates
+    )
 
 
 def _percentage(numerator: int, denominator: int) -> float | None:
@@ -108,7 +113,10 @@ def _status_label(classe: Classe) -> str:
         "en_cours": "EN COURS",
         "non_demarre": "NON DÉMARRÉ",
     }
-    return mapping.get(_safe_text(classe.statut), _safe_text(getattr(classe, "get_statut_display", lambda: "")()) or "—")
+    return mapping.get(
+        _safe_text(classe.statut),
+        _safe_text(getattr(classe, "get_statut_display", lambda: "")()) or "—",
+    )
 
 
 def _extract_fast_stats_filters(request) -> dict[str, str]:
@@ -117,11 +125,14 @@ def _extract_fast_stats_filters(request) -> dict[str, str]:
 
 
 def _filtered_classes_queryset(filters: dict[str, str]):
-    appels_qs = Appel.objects.filter(is_active=True).select_related("answers", "satisfaction_apprenant").order_by("code", "nom", "pk")
+    appels_qs = (
+        Appel.objects.filter(is_active=True)
+        .select_related("answers", "satisfaction_apprenant")
+        .order_by("code", "nom", "pk")
+    )
     apprenants_qs = Apprenant.objects.order_by("code", "nom_complet", "pk")
     return (
-        Classe.objects
-        .select_related(
+        Classe.objects.select_related(
             "prestation",
             "prestation__prestataire",
             "prestation__beneficiaire",
@@ -136,7 +147,7 @@ def _filtered_classes_queryset(filters: dict[str, str]):
         .order_by("prestation__code", "code")
     )
 
- 
+
 def _get_completed_satisfaction(appel: Appel):
     try:
         satisfaction = appel.satisfaction_apprenant
@@ -159,9 +170,11 @@ def _text_filter_matches(candidate: str, selected: str) -> bool:
     )
 
 
-def _class_matches_filters(classe: Classe, filters: dict[str, str]) -> bool:
+def _class_matches_filters(classe, filters: dict[str, str]) -> bool:
     prestation = getattr(classe, "prestation", None)
-    if filters["prestation"] and not _text_filter_matches(getattr(prestation, "code", ""), filters["prestation"]):
+    if filters["prestation"] and not _text_filter_matches(
+        getattr(prestation, "code", ""), filters["prestation"]
+    ):
         return False
     if filters["classe"] and not _text_filter_matches(classe.code, filters["classe"]):
         return False
@@ -177,21 +190,130 @@ def _class_matches_filters(classe: Classe, filters: dict[str, str]) -> bool:
         return False
     if filters["cohorte"] and not _cohorte_matches(str(classe.cohorte), filters["cohorte"]):
         return False
-    if filters["fenetre"] and not _text_filter_matches(getattr(classe, "fenetre", ""), filters["fenetre"]):
+    if filters["fenetre"] and not _text_filter_matches(
+        getattr(classe, "fenetre", ""), filters["fenetre"]
+    ):
         return False
-    if filters["ville"] and not _text_filter_matches(getattr(getattr(classe, "lieu", None), "ville", ""), filters["ville"]):
+    if filters["ville"] and not _text_filter_matches(
+        getattr(getattr(classe, "lieu", None), "ville", ""), filters["ville"]
+    ):
         return False
     return True
 
 
-def _resolve_fast_stats_classes(filters: dict[str, str]) -> tuple[list[Classe], dict]:
+def _get_template_class_codes() -> set[str]:
+    from openpyxl import load_workbook
+
+    if not FAST_STATS_TEMPLATE_PATH.exists():
+        return set()
+    try:
+        wb = load_workbook(FAST_STATS_TEMPLATE_PATH, read_only=True, data_only=True)
+        # Use find_sheet_name logic manually or just sheet index 1
+        # FAST_STATS_TEMPLATE_SHEET_HINTS["apprenant"] = ("enquete", "satisfaction")
+        target_sheet = None
+        for name in wb.sheetnames:
+            normalized = _normalize_text(name)
+            if "enquete" in normalized and "satisfaction" in normalized:
+                target_sheet = name
+                break
+        if not target_sheet and len(wb.sheetnames) > 1:
+            target_sheet = wb.sheetnames[1]
+
+        if not target_sheet or target_sheet not in wb.sheetnames:
+            return set()
+
+        sheet = wb[target_sheet]
+        return {
+            str(row[2]).strip()
+            for row in sheet.iter_rows(min_row=FAST_STATS_TEMPLATE_ROW_START, values_only=True)
+            if len(row) > 2 and row[2]
+        }
+    except Exception:
+        return set()
+
+
+def _build_virtual_classes(
+    source_bundle: dict | None, db_class_keys: set[str], template_class_codes: set[str]
+) -> list[SimpleNamespace]:
+    virtual_classes = []
+    source_classes = (source_bundle or {}).get("classes", {})
+
+    # If template is empty, do we allow all? The user says "ce qui est dans le fichier de reference".
+    # So if template has classes, restrict to those.
+
+    for classe_key, info in source_classes.items():
+        if classe_key in db_class_keys:
+            continue
+        classe_id = info.get("classe_id", "")
+        if not classe_id:
+            continue
+
+        if template_class_codes and classe_id not in template_class_codes:
+            continue
+
+        virtual = SimpleNamespace(
+            code=classe_id,
+            cohorte=info.get("cohorte", ""),
+            statut="termine",
+            actif=True,
+            intitule_formation=info.get("formation", ""),
+            fenetre="",
+            prestation=SimpleNamespace(
+                code=info.get("prestation_id", ""),
+                prestataire=SimpleNamespace(
+                    raison_sociale=info.get("prestataire", ""),
+                ),
+                beneficiaire=SimpleNamespace(
+                    nom_structure=info.get("beneficiaire", ""),
+                ),
+                formation=SimpleNamespace(nom=info.get("formation", "")),
+                pk=None,
+            ),
+            formation=SimpleNamespace(nom=info.get("formation", "")),
+            lieu=SimpleNamespace(
+                nom_lieu=info.get("lieu", ""),
+                ville=info.get("ville", ""),
+                arrondissement="",
+            ),
+            formateur=None,
+            apprenants=SimpleNamespace(all=lambda: []),
+            appels=SimpleNamespace(all=lambda: []),
+            _is_virtual=True,
+        )
+        virtual_classes.append(virtual)
+    return virtual_classes
+
+
+def _resolve_fast_stats_classes(
+    filters: dict[str, str], source_bundle: dict | None = None
+) -> tuple[list, dict]:
     all_classes = list(_filtered_classes_queryset(filters))
-    filtered = [classe for classe in all_classes if _class_matches_filters(classe, filters)]
+    db_keys = {normalize_network_lookup(c.code) for c in all_classes}
+
+    template_class_codes = _get_template_class_codes()
+    virtual_classes = _build_virtual_classes(source_bundle, db_keys, template_class_codes)
+
+    if template_class_codes:
+        all_classes = [c for c in all_classes if c.code in template_class_codes]
+
+    all_combined = all_classes + virtual_classes
+    all_combined.sort(
+        key=lambda c: (
+            _safe_text(getattr(getattr(c, "prestation", None), "code", "")),
+            _safe_text(getattr(c, "code", "")),
+        )
+    )
+
+    filtered = [classe for classe in all_combined if _class_matches_filters(classe, filters)]
 
     scopes = [
         (
             "terminees_actives",
-            [classe for classe in filtered if getattr(classe, "actif", True) and _safe_text(classe.statut) == "termine"],
+            [
+                classe
+                for classe in filtered
+                if getattr(classe, "actif", True) and _safe_text(classe.statut) == "termine"
+            ],
             True,
             "Classes actives terminées",
         ),
@@ -303,13 +425,16 @@ def _build_apprenant_row(
         person_flags["termine"] = person_flags["termine"] or _apprenant_call_termine(appel)
 
     calls_effectues = min(apprenant_count, sum(1 for flags in people.values() if flags["effectue"]))
-    calls_termines = min(apprenant_count, sum(1 for flags in people.values() if flags["termine"]), calls_effectues)
+    calls_termines = min(
+        apprenant_count, sum(1 for flags in people.values() if flags["termine"]), calls_effectues
+    )
     pct_appel_effectue = _percentage(calls_effectues, apprenant_count)
     pct_appel_termine = _percentage(calls_termines, calls_effectues)
     pct_enquetes = _percentage(calls_termines, apprenant_count)
     return {
         "index": index,
-        "prestation_id": _safe_text(getattr(getattr(classe, "prestation", None), "code", "")) or "—",
+        "prestation_id": _safe_text(getattr(getattr(classe, "prestation", None), "code", ""))
+        or "—",
         "classe_id": _safe_text(classe.code) or "—",
         "apprenant_count": apprenant_count,
         "calls_effectues": calls_effectues,
@@ -326,7 +451,9 @@ def _build_apprenant_row(
 
 def _formateur_directory_by_phone() -> dict[str, str]:
     directory: dict[str, str] = {}
-    for phone, name in Formateur.objects.exclude(telephone="").values_list("telephone", "nom_complet"):
+    for phone, name in Formateur.objects.exclude(telephone="").values_list(
+        "telephone", "nom_complet"
+    ):
         digits = _phone_digits(phone)
         if digits and digits not in directory:
             directory[digits] = _safe_text(name)
@@ -359,7 +486,9 @@ def _build_calendar_contacts(
     if getattr(classe, "formateur", None):
         phone = _phone_digits(classe.formateur.telephone)
         if phone or _safe_text(classe.formateur.nom_complet):
-            contacts.append(_build_contact(classe.formateur.nom_complet or classe.formateur.code, phone))
+            contacts.append(
+                _build_contact(classe.formateur.nom_complet or classe.formateur.code, phone)
+            )
             if phone:
                 seen_phones.add(phone)
 
@@ -406,7 +535,9 @@ def _call_phone_candidates(call: AppelFormateur) -> list[str]:
     return deduped
 
 
-def _prestation_formateur_candidates(classe: Classe, cache: dict[int, list[AppelFormateur]]) -> list[AppelFormateur]:
+def _prestation_formateur_candidates(
+    classe: Classe, cache: dict[int, list[AppelFormateur]]
+) -> list[AppelFormateur]:
     prestation = getattr(classe, "prestation", None)
     prestation_id = getattr(prestation, "pk", None)
     if prestation_id is None:
@@ -414,9 +545,17 @@ def _prestation_formateur_candidates(classe: Classe, cache: dict[int, list[Appel
     if prestation_id in cache:
         return cache[prestation_id]
 
-    rows = list(AppelFormateur.objects.filter(is_active=True).order_by("session_date", "numero_seance", "reference_code"))
-    prestataire_name = _safe_text(getattr(getattr(prestation, "prestataire", None), "raison_sociale", ""))
-    beneficiaire_name = _safe_text(getattr(getattr(prestation, "beneficiaire", None), "nom_structure", ""))
+    rows = list(
+        AppelFormateur.objects.filter(is_active=True).order_by(
+            "session_date", "numero_seance", "reference_code"
+        )
+    )
+    prestataire_name = _safe_text(
+        getattr(getattr(prestation, "prestataire", None), "raison_sociale", "")
+    )
+    beneficiaire_name = _safe_text(
+        getattr(getattr(prestation, "beneficiaire", None), "nom_structure", "")
+    )
     if prestataire_name:
         rows = [row for row in rows if _text_filter_matches(row.prestataire, prestataire_name)]
     if beneficiaire_name:
@@ -440,7 +579,9 @@ def _build_descente_contacts(
     limit: int = 4,
 ) -> tuple[list[dict], int, int]:
     class_phone = _phone_digits(getattr(getattr(classe, "formateur", None), "telephone", ""))
-    formation_name = _safe_text(classe.intitule_formation or getattr(getattr(classe, "formation", None), "nom", ""))
+    formation_name = _safe_text(
+        classe.intitule_formation or getattr(getattr(classe, "formation", None), "nom", "")
+    )
     candidates = []
 
     for call in _prestation_formateur_candidates(classe, prestation_calls_cache):
@@ -459,7 +600,9 @@ def _build_descente_contacts(
                     0 if location_match else 1,
                     0 if _safe_text(call.status) == "termine" else 1,
                     0 if call.q1_prerequis_apprenants is not None else 1,
-                    call.session_date.isoformat() if getattr(call, "session_date", None) else "9999-12-31",
+                    call.session_date.isoformat()
+                    if getattr(call, "session_date", None)
+                    else "9999-12-31",
                     getattr(call, "numero_seance", None) or 9999,
                     _safe_text(call.reference_code),
                 ),
@@ -504,7 +647,9 @@ def _build_descente_contacts(
     return _pad_contacts(contacts, limit=limit), actual_count, completed_count
 
 
-def _build_class_link(request, classe: Classe, *, source_bundle: dict | None = None) -> tuple[str, str]:
+def _build_class_link(
+    request, classe: Classe, *, source_bundle: dict | None = None
+) -> tuple[str, str]:
     classe_key = normalize_network_lookup(classe.code)
     source_classe = dict((source_bundle or {}).get("classes", {}).get(classe_key, {}) or {})
     teams_channel_url = _safe_text(source_classe.get("teams_channel_url"))
@@ -551,8 +696,12 @@ def _build_formateur_row(
         "classe_id": _safe_text(classe.code) or "—",
         "class_link_url": class_link_url,
         "class_link_label": class_link_label,
-        "beneficiaire_name": _safe_text(getattr(getattr(prestation, "beneficiaire", None), "nom_structure", "")),
-        "prestataire_name": _safe_text(getattr(getattr(prestation, "prestataire", None), "raison_sociale", "")),
+        "beneficiaire_name": _safe_text(
+            getattr(getattr(prestation, "beneficiaire", None), "nom_structure", "")
+        ),
+        "prestataire_name": _safe_text(
+            getattr(getattr(prestation, "prestataire", None), "raison_sociale", "")
+        ),
         "calendar_contacts": calendar_contacts,
         "calendar_contact_count": calendar_contact_count,
         "descente_contacts": descente_contacts,
@@ -613,7 +762,9 @@ def _formateur_summary_cards(rows: list[dict]) -> list[dict]:
     ]
 
 
-def _mode_payload(mode_id: str, *, rows: list[dict], summary_cards: list[dict], sheet_name: str, scope: dict) -> dict:
+def _mode_payload(
+    mode_id: str, *, rows: list[dict], summary_cards: list[dict], sheet_name: str, scope: dict
+) -> dict:
     if mode_id == "apprenant":
         return {
             "id": mode_id,
@@ -700,8 +851,8 @@ def _find_sheet_name(workbook: Workbook, mode_id: str) -> str:
 
 def build_fast_stats_bundle(request) -> dict:
     filters = _extract_fast_stats_filters(request)
-    classes, scope = _resolve_fast_stats_classes(filters)
     source_bundle = _load_source_bundle(filters)
+    classes, scope = _resolve_fast_stats_classes(filters, source_bundle=source_bundle)
     source_class_counts = _source_class_apprenant_totals(source_bundle)
     formateur_directory = _formateur_directory_by_phone()
     prestation_calls_cache: dict[int, list[AppelFormateur]] = {}
@@ -768,7 +919,9 @@ def _copy_style(source_cell, target_cell) -> None:
     target_cell.protection = copy(source_cell.protection)
 
 
-def _ensure_sheet_capacity(worksheet, *, last_row: int, max_col: int, template_row: int = FAST_STATS_TEMPLATE_ROW_START) -> None:
+def _ensure_sheet_capacity(
+    worksheet, *, last_row: int, max_col: int, template_row: int = FAST_STATS_TEMPLATE_ROW_START
+) -> None:
     if worksheet.max_row >= last_row:
         return
     template_height = worksheet.row_dimensions[template_row].height
@@ -826,7 +979,9 @@ def _write_apprenant_sheet(worksheet, mode_payload: dict) -> None:
     worksheet["I3"] = "%enquêtes"
 
     _clear_data_rows(worksheet, start_row=FAST_STATS_TEMPLATE_ROW_START, max_col=9)
-    last_row = max(FAST_STATS_TEMPLATE_ROW_START, FAST_STATS_TEMPLATE_ROW_START + len(mode_payload["rows"]) - 1)
+    last_row = max(
+        FAST_STATS_TEMPLATE_ROW_START, FAST_STATS_TEMPLATE_ROW_START + len(mode_payload["rows"]) - 1
+    )
     _ensure_sheet_capacity(worksheet, last_row=last_row, max_col=9)
 
     for offset, row in enumerate(mode_payload["rows"], start=FAST_STATS_TEMPLATE_ROW_START):
@@ -868,7 +1023,9 @@ def _write_formateur_sheet(worksheet, mode_payload: dict) -> None:
     worksheet["R3"] = "Numero formateur N4"
 
     _clear_data_rows(worksheet, start_row=FAST_STATS_TEMPLATE_ROW_START, max_col=18)
-    last_row = max(FAST_STATS_TEMPLATE_ROW_START, FAST_STATS_TEMPLATE_ROW_START + len(mode_payload["rows"]) - 1)
+    last_row = max(
+        FAST_STATS_TEMPLATE_ROW_START, FAST_STATS_TEMPLATE_ROW_START + len(mode_payload["rows"]) - 1
+    )
     _ensure_sheet_capacity(worksheet, last_row=last_row, max_col=18)
 
     for offset, row in enumerate(mode_payload["rows"], start=FAST_STATS_TEMPLATE_ROW_START):
@@ -915,26 +1072,34 @@ def build_fast_stats_workbook(request, *, active_mode: str = "apprenant") -> Wor
     _write_apprenant_sheet(apprenant_sheet, modes["apprenant"])
     _write_formateur_sheet(formateur_sheet, modes["formateur"])
 
-    active_sheet_name = formateur_sheet.title if active_mode == "formateur" else apprenant_sheet.title
+    active_sheet_name = (
+        formateur_sheet.title if active_mode == "formateur" else apprenant_sheet.title
+    )
     workbook.active = workbook.sheetnames.index(active_sheet_name)
     return workbook
 
 
 def build_fast_stats_export_response(request) -> HttpResponse:
-    active_mode = _safe_text(getattr(request, "GET", QueryDict("", mutable=True)).get("fast_stats_mode", "apprenant"))
+    active_mode = _safe_text(
+        getattr(request, "GET", QueryDict("", mutable=True)).get("fast_stats_mode", "apprenant")
+    )
     workbook = build_fast_stats_workbook(request, active_mode=active_mode)
     timestamp = timezone.localtime().strftime("%Y%m%d_%H%M%S")
     response = HttpResponse(
         content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
-    response["Content-Disposition"] = f'attachment; filename="fast_stats_satisfaction_{timestamp}.xlsx"'
+    response["Content-Disposition"] = (
+        f'attachment; filename="fast_stats_satisfaction_{timestamp}.xlsx"'
+    )
     workbook.save(response)
     return response
 
 
 def build_fast_stats_context(request, *, default_mode: str) -> dict:
     return {
-        "fast_stats_default_mode": default_mode if default_mode in {"apprenant", "formateur"} else "apprenant",
+        "fast_stats_default_mode": default_mode
+        if default_mode in {"apprenant", "formateur"}
+        else "apprenant",
     }
 
 

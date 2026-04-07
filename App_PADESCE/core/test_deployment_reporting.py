@@ -46,7 +46,13 @@ class DeploymentReportingTests(SimpleTestCase):
                             "errors": [],
                         },
                         "steps": [
-                            {"label": "Preparation", "status": "completed", "message": "OK", "started_at": "", "completed_at": ""},
+                            {
+                                "label": "Preparation",
+                                "status": "completed",
+                                "message": "OK",
+                                "started_at": "",
+                                "completed_at": "",
+                            },
                         ],
                         "diff": {
                             "additions": ["a.py", "b.py"],
@@ -55,7 +61,11 @@ class DeploymentReportingTests(SimpleTestCase):
                             "remote_untracked": ["legacy.txt"],
                         },
                         "logs": [
-                            {"at": "2026-03-30T19:00:00+00:00", "level": "info", "message": "Pipeline termine."},
+                            {
+                                "at": "2026-03-30T19:00:00+00:00",
+                                "level": "info",
+                                "message": "Pipeline termine.",
+                            },
                         ],
                     }
                 )

@@ -3,13 +3,11 @@ import datetime
 from django.conf import settings
 from django.db import models
 from django.db.models import F, Q
-
 from django.utils import timezone
 from django.utils.text import slugify
 
 from App_PADESCE.core.models import TimeStampedModel
 from App_PADESCE.formations.models import Classe
-
 
 APPEL_ANSWER_QUESTION_FIELDS = (
     "q1_clarte_exposes",
@@ -114,12 +112,18 @@ def appel_audio_upload(instance: "Appel", filename: str) -> str:
 
 
 def answers_have_any_answer(answers) -> bool:
-    return bool(answers and any(getattr(answers, field, None) is not None for field in APPEL_ANSWER_QUESTION_FIELDS))
+    return bool(
+        answers
+        and any(getattr(answers, field, None) is not None for field in APPEL_ANSWER_QUESTION_FIELDS)
+    )
 
 
 def satisfaction_has_any_answer(satisfaction) -> bool:
     return bool(
-        satisfaction and any(getattr(satisfaction, field, None) is not None for field in APPEL_ANSWER_QUESTION_FIELDS)
+        satisfaction
+        and any(
+            getattr(satisfaction, field, None) is not None for field in APPEL_ANSWER_QUESTION_FIELDS
+        )
     )
 
 
@@ -130,14 +134,21 @@ def _has_meaningful_text_signal(value) -> bool:
 
 def answers_have_success_signal(answers) -> bool:
     return bool(
-        answers and any(_has_meaningful_text_signal(getattr(answers, field_name, "")) for field_name in APPEL_SUCCESS_TEXT_FIELDS)
+        answers
+        and any(
+            _has_meaningful_text_signal(getattr(answers, field_name, ""))
+            for field_name in APPEL_SUCCESS_TEXT_FIELDS
+        )
     )
 
 
 def satisfaction_has_success_signal(satisfaction) -> bool:
     return bool(
         satisfaction
-        and any(_has_meaningful_text_signal(getattr(satisfaction, field_name, "")) for field_name in APPEL_SUCCESS_TEXT_FIELDS)
+        and any(
+            _has_meaningful_text_signal(getattr(satisfaction, field_name, ""))
+            for field_name in APPEL_SUCCESS_TEXT_FIELDS
+        )
     )
 
 
@@ -196,7 +207,9 @@ def appel_has_any_audio(appel: "Appel") -> bool:
     return _file_field_has_name(getattr(satisfaction, "audio_appel", None))
 
 
-def infer_padesce_status(current_status: str, *, has_form: bool, has_audio: bool, has_success_signal: bool = False) -> str:
+def infer_padesce_status(
+    current_status: str, *, has_form: bool, has_audio: bool, has_success_signal: bool = False
+) -> str:
     normalized_status = normalize_call_status(current_status)
     if normalized_status in CALL_ACTIVE_STATUSES:
         return normalized_status
@@ -260,7 +273,9 @@ class Appel(TimeStampedModel):
     classe_label = models.CharField(max_length=100, blank=True)
     fenetre = models.CharField(max_length=50, blank=True)
     is_active = models.BooleanField(default=True)
-    classe = models.ForeignKey(Classe, on_delete=models.SET_NULL, null=True, blank=True, related_name="appels")
+    classe = models.ForeignKey(
+        Classe, on_delete=models.SET_NULL, null=True, blank=True, related_name="appels"
+    )
     telephone1 = models.CharField(max_length=30, blank=True)
     telephone2 = models.CharField(max_length=30, blank=True)
     taux_presence = models.DecimalField(max_digits=5, decimal_places=2, default=0)
@@ -274,9 +289,15 @@ class Appel(TimeStampedModel):
     flag_vrai_nom = models.CharField(max_length=255, blank=True, verbose_name="Vrai nom")
     flag_deja_appele = models.BooleanField(default=False, verbose_name="D\u00e9j\u00e0 appel\u00e9")
     flag_numero_double = models.BooleanField(default=False, verbose_name="Num\u00e9ro double")
-    audio_file = models.FileField(upload_to=appel_audio_upload, null=True, blank=True, max_length=255)
+    audio_file = models.FileField(
+        upload_to=appel_audio_upload, null=True, blank=True, max_length=255
+    )
     locked_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="appels_lock"
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="appels_lock",
     )
     locked_at = models.DateTimeField(null=True, blank=True)
 
@@ -383,11 +404,19 @@ class AppelCGA(TimeStampedModel):
     ville = models.CharField(max_length=120, blank=True)
     telephone = models.CharField(max_length=30, blank=True)
     is_active = models.BooleanField(default=True, db_index=True)
-    status = models.CharField(max_length=25, choices=STATUS_CHOICES, default="en_attente", db_index=True)
+    status = models.CharField(
+        max_length=25, choices=STATUS_CHOICES, default="en_attente", db_index=True
+    )
     rappel_at = models.DateTimeField(null=True, blank=True)
-    audio_file = models.FileField(upload_to=appel_cga_audio_upload, null=True, blank=True, max_length=255)
+    audio_file = models.FileField(
+        upload_to=appel_cga_audio_upload, null=True, blank=True, max_length=255
+    )
     locked_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="appels_cga_lock"
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="appels_cga_lock",
     )
     locked_at = models.DateTimeField(null=True, blank=True)
 
@@ -422,9 +451,13 @@ class AppelFormateur(TimeStampedModel):
     heure_fin = models.CharField(max_length=30, blank=True)
     source_contact = models.CharField(max_length=255, blank=True)
     is_active = models.BooleanField(default=True, db_index=True)
-    status = models.CharField(max_length=25, choices=STATUS_CHOICES, default="en_attente", db_index=True)
+    status = models.CharField(
+        max_length=25, choices=STATUS_CHOICES, default="en_attente", db_index=True
+    )
     rappel_at = models.DateTimeField(null=True, blank=True)
-    audio_file = models.FileField(upload_to=appel_formateur_audio_upload, null=True, blank=True, max_length=255)
+    audio_file = models.FileField(
+        upload_to=appel_formateur_audio_upload, null=True, blank=True, max_length=255
+    )
     q1_prerequis_apprenants = models.PositiveSmallIntegerField(null=True, blank=True)
     q2_interaction_apprenants = models.PositiveSmallIntegerField(null=True, blank=True)
     q3_competences_acquises = models.PositiveSmallIntegerField(null=True, blank=True)
@@ -459,7 +492,6 @@ class AppelFormateur(TimeStampedModel):
         return f"Appel formateur {self.reference_code} - {label}"
 
 
-
 class AppelAnswers(TimeStampedModel):
     appel = models.OneToOneField(Appel, on_delete=models.CASCADE, related_name="answers")
     q1_clarte_exposes = models.PositiveSmallIntegerField(null=True, blank=True)
@@ -474,7 +506,11 @@ class AppelAnswers(TimeStampedModel):
     commentaire = models.TextField(blank=True, default="RAS")
     recommandations = models.TextField(blank=True, default="RAS")
     modified_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="appel_answers_modified"
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="appel_answers_modified",
     )
     modified_at = models.DateTimeField(null=True, blank=True)
 

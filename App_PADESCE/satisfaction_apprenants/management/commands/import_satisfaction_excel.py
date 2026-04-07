@@ -5,7 +5,7 @@ import re
 import unicodedata
 import warnings
 from dataclasses import dataclass
-from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from difflib import SequenceMatcher
 from pathlib import Path
 
@@ -14,12 +14,19 @@ from django.db import transaction
 from django.utils import timezone
 from openpyxl import load_workbook
 
-from App_PADESCE.apprenants.models import Apprenant
 from App_PADESCE.appels.models import APPEL_ANSWER_QUESTION_FIELDS, Appel, AppelAnswers
-from App_PADESCE.formations.models import Beneficiaire, Classe, Formation, Inspecteur, Lieu, Prestataire, Prestation
+from App_PADESCE.apprenants.models import Apprenant
+from App_PADESCE.formations.models import (
+    Beneficiaire,
+    Classe,
+    Formation,
+    Inspecteur,
+    Lieu,
+    Prestataire,
+    Prestation,
+)
 from App_PADESCE.reporting.network_excel import build_padesce_source_index, normalize_network_lookup
 from App_PADESCE.satisfaction_apprenants.models import SatisfactionApprenant
-
 
 WORKSHEET_NAME = "Appels termines"
 QUESTION_INDEXES = {
@@ -98,7 +105,10 @@ def _candidate_score(name: str, candidate_name: str) -> tuple[int, int, float]:
     prefix_hits = sum(
         1
         for token in source_tokens
-        if any(candidate.startswith(token) or token.startswith(candidate) for candidate in candidate_tokens)
+        if any(
+            candidate.startswith(token) or token.startswith(candidate)
+            for candidate in candidate_tokens
+        )
     )
     sequence = SequenceMatcher(None, _normalize_text(name), _normalize_text(candidate_name)).ratio()
     return prefix_hits, exact_overlap, sequence
@@ -111,21 +121,24 @@ def _unique_name_match(candidates: list[dict], row: WorksheetRow) -> tuple[dict 
     preferred_candidates = [
         record
         for record in candidates
-        if (
-            not row.prestataire
-            or _same_structure(record.get("prestataire", ""), row.prestataire)
-        )
+        if (not row.prestataire or _same_structure(record.get("prestataire", ""), row.prestataire))
         and (
             not row.beneficiaire
             or _same_structure(record.get("beneficiaire", ""), row.beneficiaire)
         )
     ]
-    pools = [preferred_candidates, candidates] if preferred_candidates and preferred_candidates != candidates else [candidates]
+    pools = (
+        [preferred_candidates, candidates]
+        if preferred_candidates and preferred_candidates != candidates
+        else [candidates]
+    )
     row_name = _normalize_text(row.apprenant)
     row_tokens = _tokenize_name(row.apprenant)
 
     for pool in pools:
-        exact = [record for record in pool if _normalize_text(record.get("nom_individu", "")) == row_name]
+        exact = [
+            record for record in pool if _normalize_text(record.get("nom_individu", "")) == row_name
+        ]
         if len(exact) == 1:
             return exact[0], "exact_name"
 
@@ -143,7 +156,10 @@ def _unique_name_match(candidates: list[dict], row: WorksheetRow) -> tuple[dict 
             if not row_tokens or len(row_tokens) > len(candidate_tokens):
                 continue
             if all(
-                any(candidate.startswith(token) or token.startswith(candidate) for candidate in candidate_tokens)
+                any(
+                    candidate.startswith(token) or token.startswith(candidate)
+                    for candidate in candidate_tokens
+                )
                 for token in row_tokens
             ):
                 prefix.append(record)
@@ -158,13 +174,23 @@ def _unique_name_match(candidates: list[dict], row: WorksheetRow) -> tuple[dict 
         if not scored:
             continue
         best_prefix, best_overlap, best_ratio, best_record = scored[0]
-        second_prefix, second_overlap, second_ratio = scored[1][:3] if len(scored) > 1 else (-1, -1, 0.0)
+        second_prefix, second_overlap, second_ratio = (
+            scored[1][:3] if len(scored) > 1 else (-1, -1, 0.0)
+        )
         prefix_margin = best_prefix - second_prefix
         overlap_margin = best_overlap - second_overlap
         ratio_margin = best_ratio - second_ratio
         confident = (
-            (best_prefix >= max(2, len(row_tokens) - 1) and best_ratio >= 0.55 and (prefix_margin > 0 or ratio_margin >= 0.08))
-            or (best_overlap >= 2 and best_ratio >= 0.5 and (overlap_margin > 0 or ratio_margin >= 0.08))
+            (
+                best_prefix >= max(2, len(row_tokens) - 1)
+                and best_ratio >= 0.55
+                and (prefix_margin > 0 or ratio_margin >= 0.08)
+            )
+            or (
+                best_overlap >= 2
+                and best_ratio >= 0.5
+                and (overlap_margin > 0 or ratio_margin >= 0.08)
+            )
             or (len(row_tokens) <= 1 and best_ratio >= 0.8 and ratio_margin >= 0.12)
             or (best_ratio >= 0.92 and ratio_margin >= 0.12)
         )
@@ -187,7 +213,9 @@ def _synthetic_code(row: WorksheetRow, prefix: str) -> str:
     return f"{prefix}-{digest}"
 
 
-def _find_source_record(row: WorksheetRow, source_by_class: dict[str, list[dict]]) -> tuple[dict | None, str]:
+def _find_source_record(
+    row: WorksheetRow, source_by_class: dict[str, list[dict]]
+) -> tuple[dict | None, str]:
     class_key = normalize_network_lookup(row.classe_label)
     if not class_key:
         return None, "missing_class"
@@ -198,7 +226,9 @@ def _find_source_record(row: WorksheetRow, source_by_class: dict[str, list[dict]
     return record, method or "unresolved_name"
 
 
-def _find_existing_appel(row: WorksheetRow, source_record: dict | None, synthetic_prefix: str) -> tuple[Appel | None, str]:
+def _find_existing_appel(
+    row: WorksheetRow, source_record: dict | None, synthetic_prefix: str
+) -> tuple[Appel | None, str]:
     source_code = str((source_record or {}).get("code") or "").strip()
     if source_code:
         appel = Appel.objects.filter(code__iexact=source_code).first()
@@ -239,7 +269,9 @@ def _find_existing_appel(row: WorksheetRow, source_record: dict | None, syntheti
     if not record:
         return None, ""
     matched_code = str(record.get("code") or "").strip()
-    return next((candidate for candidate in candidates if candidate.code == matched_code), None), method
+    return next(
+        (candidate for candidate in candidates if candidate.code == matched_code), None
+    ), method
 
 
 def _clean_text(value) -> str:
@@ -291,7 +323,9 @@ def _reference_cache() -> dict[str, dict]:
     }
 
 
-def _sync_source_models(source_record: dict | None, cache: dict[str, dict] | None = None) -> dict[str, object | None]:
+def _sync_source_models(
+    source_record: dict | None, cache: dict[str, dict] | None = None
+) -> dict[str, object | None]:
     if not source_record:
         return {
             "formation": None,
@@ -332,7 +366,9 @@ def _sync_source_models(source_record: dict | None, cache: dict[str, dict] | Non
         prestataire_code = _entity_code("PST", prestataire_name, max_length=50)
         prestataire = Prestataire.objects.filter(code=prestataire_code).first()
         if prestataire is None:
-            prestataire = Prestataire.objects.filter(raison_sociale__iexact=prestataire_name).first()
+            prestataire = Prestataire.objects.filter(
+                raison_sociale__iexact=prestataire_name
+            ).first()
         if prestataire is None:
             prestataire = Prestataire(code=prestataire_code)
         prestataire.raison_sociale = prestataire_name
@@ -397,7 +433,9 @@ def _sync_source_models(source_record: dict | None, cache: dict[str, dict] | Non
         classe.prestation = prestation
         classe.lieu = lieu
         classe.formation = formation
-        classe.intitule_formation = formation_name or getattr(classe, "intitule_formation", "") or classe_code
+        classe.intitule_formation = (
+            formation_name or getattr(classe, "intitule_formation", "") or classe_code
+        )
         classe.fenetre = _clean_text(source_record.get("fenetre") or "")
         classe.cohorte = _cohorte_value(source_record.get("cohorte"))
         classe.statut = _local_classe_status(source_record.get("statut_prestation"))
@@ -413,7 +451,9 @@ def _sync_source_models(source_record: dict | None, cache: dict[str, dict] | Non
             inspecteur, _created = Inspecteur.objects.update_or_create(
                 code=inspecteur_code,
                 defaults={
-                    "nom_complet": _clean_text(source_record.get("inspecteur_label") or inspecteur_code),
+                    "nom_complet": _clean_text(
+                        source_record.get("inspecteur_label") or inspecteur_code
+                    ),
                     "actif": True,
                 },
             )
@@ -427,7 +467,9 @@ def _sync_source_models(source_record: dict | None, cache: dict[str, dict] | Non
         if apprenant is None:
             apprenant = Apprenant.objects.filter(code=apprenant_code).first()
         if apprenant is None and apprenant_name:
-            apprenant = Apprenant.objects.filter(classe=classe, nom_complet__iexact=apprenant_name).first()
+            apprenant = Apprenant.objects.filter(
+                classe=classe, nom_complet__iexact=apprenant_name
+            ).first()
         if apprenant is None:
             apprenant = Apprenant(code=apprenant_code, classe=classe, formation=formation)
         apprenant.code = apprenant_code
@@ -490,9 +532,17 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument("file_path", help="Chemin du fichier Excel a importer.")
-        parser.add_argument("--sheet", default=WORKSHEET_NAME, help=f"Nom de la feuille source. Defaut: {WORKSHEET_NAME}.")
-        parser.add_argument("--synthetic-prefix", default="SATXLS", help="Prefixe utilise pour les codes generes.")
-        parser.add_argument("--dry-run", action="store_true", help="Analyse le fichier sans modifier la base.")
+        parser.add_argument(
+            "--sheet",
+            default=WORKSHEET_NAME,
+            help=f"Nom de la feuille source. Defaut: {WORKSHEET_NAME}.",
+        )
+        parser.add_argument(
+            "--synthetic-prefix", default="SATXLS", help="Prefixe utilise pour les codes generes."
+        )
+        parser.add_argument(
+            "--dry-run", action="store_true", help="Analyse le fichier sans modifier la base."
+        )
 
     def handle(self, *args, **options):
         file_path = Path(options["file_path"]).expanduser()
@@ -549,7 +599,9 @@ class Command(BaseCommand):
                     continue
                 summary["rows"] += 1
                 for field, index in QUESTION_INDEXES.items():
-                    _note, rounded = _note_value(raw_values[index] if index < len(raw_values) else None)
+                    _note, rounded = _note_value(
+                        raw_values[index] if index < len(raw_values) else None
+                    )
                     if rounded:
                         summary["rounded_scores"] += 1
 
@@ -571,10 +623,18 @@ class Command(BaseCommand):
                 if not target_code:
                     target_code = _synthetic_code(row, synthetic_prefix)
                     summary["synthetic_codes"] += 1
-                target_name = _clean_text((source_record or {}).get("nom_individu") or row.apprenant)
-                target_class = _clean_text((source_record or {}).get("classe_id") or row.classe_label)
-                target_prestataire = _clean_text((source_record or {}).get("prestataire") or row.prestataire)
-                target_beneficiaire = _clean_text((source_record or {}).get("beneficiaire") or row.beneficiaire)
+                target_name = _clean_text(
+                    (source_record or {}).get("nom_individu") or row.apprenant
+                )
+                target_class = _clean_text(
+                    (source_record or {}).get("classe_id") or row.classe_label
+                )
+                target_prestataire = _clean_text(
+                    (source_record or {}).get("prestataire") or row.prestataire
+                )
+                target_beneficiaire = _clean_text(
+                    (source_record or {}).get("beneficiaire") or row.beneficiaire
+                )
 
                 appel_defaults = {
                     "code": target_code,

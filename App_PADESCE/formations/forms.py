@@ -7,15 +7,21 @@ class ClasseCreateForm(forms.ModelForm):
     lieu_nom = forms.CharField(
         required=False,
         label="Nom du lieu / Quartier",
-        widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "Ex: Hotel de ville"}),
+        widget=forms.TextInput(
+            attrs={"class": "form-control", "placeholder": "Ex: Hotel de ville"}
+        ),
     )
     lieu_precision = forms.CharField(
         required=False,
         label="Precision du lieu",
-        widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "Adresse, point de repere..."}),
+        widget=forms.TextInput(
+            attrs={"class": "form-control", "placeholder": "Adresse, point de repere..."}
+        ),
     )
     lieu_arrondissement = forms.CharField(
-        required=False, label="Arrondissement", widget=forms.TextInput(attrs={"class": "form-control"})
+        required=False,
+        label="Arrondissement",
+        widget=forms.TextInput(attrs={"class": "form-control"}),
     )
     lieu_departement = forms.CharField(
         required=False, label="Departement", widget=forms.TextInput(attrs={"class": "form-control"})
@@ -24,7 +30,9 @@ class ClasseCreateForm(forms.ModelForm):
         required=False, label="Ville", widget=forms.TextInput(attrs={"class": "form-control"})
     )
     lieu_region = forms.CharField(
-        required=False, label="Region (Cameroun)", widget=forms.TextInput(attrs={"class": "form-control"})
+        required=False,
+        label="Region (Cameroun)",
+        widget=forms.TextInput(attrs={"class": "form-control"}),
     )
     lieu_longitude = forms.CharField(
         required=False, label="Longitude", widget=forms.TextInput(attrs={"class": "form-control"})
@@ -32,6 +40,7 @@ class ClasseCreateForm(forms.ModelForm):
     lieu_latitude = forms.CharField(
         required=False, label="Latitude", widget=forms.TextInput(attrs={"class": "form-control"})
     )
+
     class Meta:
         model = Classe
         fields = [
@@ -45,10 +54,14 @@ class ClasseCreateForm(forms.ModelForm):
         ]
         widgets = {
             "code": forms.TextInput(attrs={"readonly": "readonly", "class": "form-control"}),
-            "intitule_formation": forms.TextInput(attrs={"class": "form-control", "placeholder": "Ex: Transformation agroalimentaire"}),
+            "intitule_formation": forms.TextInput(
+                attrs={"class": "form-control", "placeholder": "Ex: Transformation agroalimentaire"}
+            ),
             "prestation": forms.Select(attrs={"class": "form-select"}),
             "formateur": forms.Select(attrs={"class": "form-select"}),
-            "fenetre": forms.TextInput(attrs={"class": "form-control", "placeholder": "Fenêtre 2 ou 3"}),
+            "fenetre": forms.TextInput(
+                attrs={"class": "form-control", "placeholder": "Fenêtre 2 ou 3"}
+            ),
             "cohorte": forms.NumberInput(attrs={"readonly": "readonly", "class": "form-control"}),
             "statut": forms.Select(attrs={"class": "form-select"}),
         }

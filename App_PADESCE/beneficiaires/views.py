@@ -34,7 +34,12 @@ GENRE_HEADERS = ["genre", "gender", "sexe"]
 AGE_HEADERS = ["age"]
 FONCTION_HEADERS = ["fonction", "function"]
 DIPLOME_HEADERS = ["diplome", "diploma", "niveau diplome", "niveau d etude", "qualification"]
-EXPERIENCE_HEADERS = ["nb d annees d experience", "annees d experience", "years of experience", "experience"]
+EXPERIENCE_HEADERS = [
+    "nb d annees d experience",
+    "annees d experience",
+    "years of experience",
+    "experience",
+]
 VILLE_RESIDENCE_HEADERS = [
     "ville de residence de l apprenant",
     "ville residence apprenant",
@@ -42,7 +47,12 @@ VILLE_RESIDENCE_HEADERS = [
     "city of residence",
     "ville residence",
 ]
-PRESTATAIRE_HEADERS = ["prestataire", "training provider", "organisme prestataire", "structure prestataire"]
+PRESTATAIRE_HEADERS = [
+    "prestataire",
+    "training provider",
+    "organisme prestataire",
+    "structure prestataire",
+]
 FORMATION_SOL_HEADERS = [
     "intitule de la formation sollicitee",
     "formation sollicitee",
@@ -398,7 +408,9 @@ def _save_recap_excel(rows, storage_path: str) -> str:
 
 
 def _get_recap_global_url() -> str:
-    return default_storage.url(RECAP_GLOBAL_PATH) if default_storage.exists(RECAP_GLOBAL_PATH) else ""
+    return (
+        default_storage.url(RECAP_GLOBAL_PATH) if default_storage.exists(RECAP_GLOBAL_PATH) else ""
+    )
 
 
 def _parse_date(value: str):
@@ -633,9 +645,7 @@ def _validate_dataframe(df):
 
     diplome_num = pd.to_numeric(diplome_series, errors="coerce")
     diplome_allowed = {-1, 0, 1, 2, 3, 4, 5}
-    diplome_invalid = ~diplome_missing & (
-        diplome_num.isna() | ~diplome_num.isin(diplome_allowed)
-    )
+    diplome_invalid = ~diplome_missing & (diplome_num.isna() | ~diplome_num.isin(diplome_allowed))
 
     genre_norm = genre_series.apply(_normalize_gender)
     genre_invalid = ~genre_missing & ~genre_norm.isin({"H", "M", "F"})
@@ -657,14 +667,10 @@ def _validate_dataframe(df):
         gps_latitude_num.isna() | (gps_latitude_num < -90) | (gps_latitude_num > 90)
     )
 
-    telephone1_digits = (
-        telephone1_series.fillna("").astype(str).str.replace(r"\D", "", regex=True)
-    )
+    telephone1_digits = telephone1_series.fillna("").astype(str).str.replace(r"\D", "", regex=True)
     telephone1_invalid = ~telephone1_missing & (telephone1_digits.str.len() != 9)
 
-    telephone2_digits = (
-        telephone2_series.fillna("").astype(str).str.replace(r"\D", "", regex=True)
-    )
+    telephone2_digits = telephone2_series.fillna("").astype(str).str.replace(r"\D", "", regex=True)
     telephone2_invalid = ~telephone2_missing & (telephone2_digits.str.len() != 9)
 
     telephone_formateur_digits = (
@@ -710,7 +716,9 @@ def _validate_dataframe(df):
         )
         error_types.add("numero_invalid")
     if age_invalid.any():
-        errors.append("Age invalide: %s ligne(s). Valeur attendue: entier > 0." % int(age_invalid.sum()))
+        errors.append(
+            "Age invalide: %s ligne(s). Valeur attendue: entier > 0." % int(age_invalid.sum())
+        )
         error_types.add("age_invalid")
     if fonction_invalid.any():
         errors.append(
@@ -983,6 +991,7 @@ def _validate_dataframe(df):
         "recap_stats": recap_stats,
         "missing_columns": [],
     }
+
 
 def beneficiaire_portal(request):
     history_filters = {

@@ -39,7 +39,7 @@ def init_agent_if_needed():
                             if k not in os.environ:
                                 os.environ[k.strip()] = v.strip().strip("'\"")
                     break
-            
+
             # Import de l'agent
             from agent_padesceV2 import configure_memory, load_data, register_dataframes
 

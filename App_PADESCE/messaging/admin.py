@@ -5,7 +5,14 @@ from .models import CampagneMessage, Contact, SupportAlarm, SupportMessage
 
 @admin.register(Contact)
 class ContactAdmin(admin.ModelAdmin):
-    list_display = ("nom_complet", "telephone", "prestataire", "fenetre", "ville_residence", "actif")
+    list_display = (
+        "nom_complet",
+        "telephone",
+        "prestataire",
+        "fenetre",
+        "ville_residence",
+        "actif",
+    )
     search_fields = ("nom_complet", "telephone", "ville_residence")
     list_filter = ("prestataire", "fenetre", "actif")
 

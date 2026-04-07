@@ -12,11 +12,11 @@ from App_PADESCE.appels.models import Appel, AppelAnswers, AppelFormateur
 from App_PADESCE.formations.models import (
     Beneficiaire,
     Classe,
-    Formation,
     Formateur,
+    Formation,
     Lieu,
-    Prestation,
     Prestataire,
+    Prestation,
 )
 
 
@@ -189,7 +189,7 @@ class AnalysisEntityDetailTests(TestCase):
         self.assertContains(response, 'href="/padesce/dashboard/"', html=False)
         self.assertContains(
             response,
-            '/padesce/analyse/appels/apprenant/',
+            "/padesce/analyse/appels/apprenant/",
             html=False,
         )
 
@@ -221,7 +221,9 @@ class AnalysisEntityDetailTests(TestCase):
         self.assertNotContains(formateur_response, "Demarrer")
 
     @patch("App_PADESCE.formations.views.build_padesce_source_index")
-    def test_class_analysis_detail_falls_back_to_source_when_class_is_not_synced(self, mock_source_index):
+    def test_class_analysis_detail_falls_back_to_source_when_class_is_not_synced(
+        self, mock_source_index
+    ):
         self.apprenant_call.classe = None
         self.apprenant_call.classe_label = "CLA001"
         self.apprenant_call.save(update_fields=["classe", "classe_label"])
@@ -262,7 +264,9 @@ class AnalysisEntityDetailTests(TestCase):
         self.assertContains(response, "Formateurs (2)")
 
     @patch("App_PADESCE.formations.views.build_padesce_source_index")
-    def test_prestation_analysis_detail_falls_back_to_source_when_missing_in_db(self, mock_source_index):
+    def test_prestation_analysis_detail_falls_back_to_source_when_missing_in_db(
+        self, mock_source_index
+    ):
         self.apprenant_call.classe = None
         self.apprenant_call.classe_label = "CLA001"
         self.apprenant_call.save(update_fields=["classe", "classe_label"])

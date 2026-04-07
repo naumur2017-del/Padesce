@@ -13,9 +13,15 @@ class Presence(TimeStampedModel):
 
     classe = models.ForeignKey(Classe, on_delete=models.CASCADE, related_name="presences")
     apprenant = models.ForeignKey(Apprenant, on_delete=models.CASCADE, related_name="presences")
-    inspecteur = models.ForeignKey(Inspecteur, on_delete=models.SET_NULL, null=True, blank=True, related_name="presences")
+    inspecteur = models.ForeignKey(
+        Inspecteur, on_delete=models.SET_NULL, null=True, blank=True, related_name="presences"
+    )
     enqueteur = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="presences_saisies"
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="presences_saisies",
     )
     date = models.DateField()
     heure_debut = models.TimeField(null=True, blank=True)
@@ -29,7 +35,9 @@ class Presence(TimeStampedModel):
     class Meta:
         ordering = ["-date", "classe"]
         constraints = [
-            models.UniqueConstraint(fields=["classe", "apprenant", "date"], name="presence_unique_par_jour")
+            models.UniqueConstraint(
+                fields=["classe", "apprenant", "date"], name="presence_unique_par_jour"
+            )
         ]
         indexes = [models.Index(fields=["classe", "date"])]
 

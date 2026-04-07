@@ -1,12 +1,10 @@
-from datetime import timedelta
 from types import SimpleNamespace
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
 from django.db import OperationalError
-from django.test import override_settings
-from django.test import SimpleTestCase, TestCase
+from django.test import SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
@@ -15,8 +13,8 @@ from App_PADESCE.core.analysis_rules import (
     appel_analysis_exclusion_reason,
     appel_is_analysis_eligible,
 )
-from App_PADESCE.core.views import _consultant_analysis_snapshot
 from App_PADESCE.core.models import UserActivity, UserActivityEvent
+from App_PADESCE.core.views import _consultant_analysis_snapshot
 
 
 class DashboardVisibilityTests(TestCase):
@@ -110,7 +108,10 @@ class UserActivityMiddlewareFallbackTests(TestCase):
             password="test-pass-123",
         )
 
-    @patch("App_PADESCE.core.middleware.UserActivity.objects.filter", side_effect=OperationalError("missing column"))
+    @patch(
+        "App_PADESCE.core.middleware.UserActivity.objects.filter",
+        side_effect=OperationalError("missing column"),
+    )
     def test_missing_useractivity_column_does_not_break_request(self, _mock_filter):
         self.client.force_login(self.user)
 
@@ -199,7 +200,9 @@ class AnalysisEligibilityTests(TestCase):
             modified_by=self.yanava,
         )
 
-        self.assertEqual(appel_analysis_exclusion_reason(appel, answer=answer), "Pas suivi formation")
+        self.assertEqual(
+            appel_analysis_exclusion_reason(appel, answer=answer), "Pas suivi formation"
+        )
         self.assertFalse(appel_is_analysis_eligible(appel, answer=answer))
 
 
@@ -400,20 +403,40 @@ class SuperadminTrackingTests(TestCase):
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0]["username"], "other-agent")
 
-    @patch("App_PADESCE.core.views.UserLoginLog.objects.select_related", side_effect=OperationalError("missing column"))
-    @patch("App_PADESCE.core.views.UserActivityEvent.objects.select_related", side_effect=OperationalError("missing column"))
-    @patch("App_PADESCE.core.views.UserActivity.objects.select_related", side_effect=OperationalError("missing column"))
+    @patch(
+        "App_PADESCE.core.views.UserLoginLog.objects.select_related",
+        side_effect=OperationalError("missing column"),
+    )
+    @patch(
+        "App_PADESCE.core.views.UserActivityEvent.objects.select_related",
+        side_effect=OperationalError("missing column"),
+    )
+    @patch(
+        "App_PADESCE.core.views.UserActivity.objects.select_related",
+        side_effect=OperationalError("missing column"),
+    )
     def test_superadmin_user_tracking_page_handles_outdated_schema(self, *_mocks):
         self.client.force_login(self.superuser)
 
         response = self.client.get(reverse("user_tracking"))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Certaines donnees de suivi avance sont temporairement indisponibles")
+        self.assertContains(
+            response, "Certaines donnees de suivi avance sont temporairement indisponibles"
+        )
 
-    @patch("App_PADESCE.core.views.UserLoginLog.objects.select_related", side_effect=OperationalError("missing column"))
-    @patch("App_PADESCE.core.views.UserActivityEvent.objects.select_related", side_effect=OperationalError("missing column"))
-    @patch("App_PADESCE.core.views.UserActivity.objects.select_related", side_effect=OperationalError("missing column"))
+    @patch(
+        "App_PADESCE.core.views.UserLoginLog.objects.select_related",
+        side_effect=OperationalError("missing column"),
+    )
+    @patch(
+        "App_PADESCE.core.views.UserActivityEvent.objects.select_related",
+        side_effect=OperationalError("missing column"),
+    )
+    @patch(
+        "App_PADESCE.core.views.UserActivity.objects.select_related",
+        side_effect=OperationalError("missing column"),
+    )
     def test_superadmin_user_tracking_live_api_handles_outdated_schema(self, *_mocks):
         self.client.force_login(self.superuser)
 
@@ -455,9 +478,14 @@ class ActivityTrackingApiTests(TestCase):
         self.assertEqual(activity.current_page_title, "Appels")
         self.assertEqual(activity.last_action_type, "button_click")
         self.assertEqual(activity.last_action_label, "Valider")
-        self.assertTrue(UserActivityEvent.objects.filter(user=self.user, target_label="Valider").exists())
+        self.assertTrue(
+            UserActivityEvent.objects.filter(user=self.user, target_label="Valider").exists()
+        )
 
-    @patch("App_PADESCE.core.views.UserActivity.objects.get_or_create", side_effect=OperationalError("missing column"))
+    @patch(
+        "App_PADESCE.core.views.UserActivity.objects.get_or_create",
+        side_effect=OperationalError("missing column"),
+    )
     def test_activity_track_api_ignores_outdated_schema(self, _mock_get_or_create):
         self.client.force_login(self.user)
 
@@ -516,8 +544,12 @@ class FriendlyErrorPagesTests(TestCase):
         response = self.client.get("/missing/")
 
         self.assertEqual(response.status_code, 404)
-        self.assertContains(response, "La page demandee est introuvable ou a ete deplacee.", status_code=404)
-        self.assertContains(response, "contactez l'equipe de maintenance", html=False, status_code=404)
+        self.assertContains(
+            response, "La page demandee est introuvable ou a ete deplacee.", status_code=404
+        )
+        self.assertContains(
+            response, "contactez l'equipe de maintenance", html=False, status_code=404
+        )
         self.assertNotContains(response, "The current path", status_code=404)
 
     def test_custom_500_page_is_used_in_debug(self):
@@ -525,7 +557,11 @@ class FriendlyErrorPagesTests(TestCase):
 
         self.assertEqual(response.status_code, 500)
         self.assertContains(response, "Une interruption technique a empeche l", status_code=500)
-        self.assertContains(response, "Aucune information technique sensible n'est affichee sur cette page.", status_code=500)
+        self.assertContains(
+            response,
+            "Aucune information technique sensible n'est affichee sur cette page.",
+            status_code=500,
+        )
         self.assertNotContains(response, "Traceback", status_code=500)
 
     def test_custom_400_page_is_used_in_debug(self):
@@ -533,7 +569,9 @@ class FriendlyErrorPagesTests(TestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertContains(response, "La demande n", status_code=400)
-        self.assertContains(response, "contactez l'equipe de maintenance", html=False, status_code=400)
+        self.assertContains(
+            response, "contactez l'equipe de maintenance", html=False, status_code=400
+        )
 
     def test_custom_403_page_is_used_in_debug(self):
         response = self.client.get("/forbidden/")
@@ -769,7 +807,9 @@ class BackupTriggerAccessTests(TestCase):
 
 class ConsultantAnalysisSnapshotTests(SimpleTestCase):
     @patch("App_PADESCE.satisfaction_apprenants.views._build_satisfaction_dashboard_data")
-    def test_consultant_snapshot_reuses_satisfaction_dashboard_counts(self, mock_build_dashboard_data):
+    def test_consultant_snapshot_reuses_satisfaction_dashboard_counts(
+        self, mock_build_dashboard_data
+    ):
         mock_build_dashboard_data.return_value = {
             "context": {
                 "total": 200,

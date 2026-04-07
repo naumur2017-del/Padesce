@@ -17,14 +17,14 @@ os.makedirs(EXPORTS_DIR, exist_ok=True)
 #  COULEURS EXCEL
 # ═══════════════════════════════════════════════════════════════
 
-PURPLE     = "7030A0"
+PURPLE = "7030A0"
 GREEN_DARK = "7030A0"
-GREEN_MED  = "7030A0"
-TEAL       = "7030A0"
+GREEN_MED = "7030A0"
+TEAL = "7030A0"
 YELLOW_HDR = "7030A0"
 GRAY_LIGHT = "D9D9D9"
-WHITE      = "FFFFFF"
-BLACK      = "000000"
+WHITE = "FFFFFF"
+BLACK = "000000"
 
 # ═══════════════════════════════════════════════════════════════
 #  CONFIGURATION MÉMOIRE
@@ -94,17 +94,19 @@ def reset_memory() -> None:
 def configure_memory(enabled: bool = True, max_conversations: int = 5) -> None:
     """
     Configure la mémoire de l'agent.
-    
+
     Args:
         enabled: Active/désactive la mémoire
         max_conversations: Nombre de conversations à retenir (1-20)
-    
+
     Example:
         configure_memory(enabled=True, max_conversations=10)
     """
     _MEMORY_CONFIG["enabled"] = enabled
     _MEMORY_CONFIG["max_conversations"] = max(1, min(20, max_conversations))
-    print(f"[Mémoire] Configurée : enabled={enabled}, max_conversations={_MEMORY_CONFIG['max_conversations']}")
+    print(
+        f"[Mémoire] Configurée : enabled={enabled}, max_conversations={_MEMORY_CONFIG['max_conversations']}"
+    )
 
 
 def get_memory_config() -> dict:
@@ -119,35 +121,31 @@ def get_memory_context() -> str:
     """
     if not _MEMORY_CONFIG["enabled"] or not _MEMORY:
         return ""
-    
+
     max_conv = _MEMORY_CONFIG["max_conversations"]
-    recent = _MEMORY[-max_conv * 2:]  # 2 messages par conversation (user + assistant)
-    
+    recent = _MEMORY[-max_conv * 2 :]  # 2 messages par conversation (user + assistant)
+
     if not recent:
         return ""
-    
+
     context_parts = ["HISTORIQUE DES CONVERSATIONS PRÉCÉDENTES :"]
     for msg in recent:
         role = "👤 Utilisateur" if msg["role"] == "user" else "🤖 Assistant"
         content = msg["content"][:300] + "..." if len(msg["content"]) > 300 else msg["content"]
         context_parts.append(f"{role} : {content}")
-    
+
     return "\n".join(context_parts)
 
 
 def add_to_memory(role: str, content: str) -> None:
     """Ajoute un message à la mémoire."""
     from datetime import datetime
-    
+
     if not _MEMORY_CONFIG["enabled"]:
         return
-    
-    _MEMORY.append({
-        "role": role,
-        "content": content,
-        "ts": datetime.now().isoformat()
-    })
-    
+
+    _MEMORY.append({"role": role, "content": content, "ts": datetime.now().isoformat()})
+
     # Limiter la taille de la mémoire
     max_messages = _MEMORY_CONFIG["max_conversations"] * 2
     while len(_MEMORY) > max_messages:

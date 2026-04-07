@@ -30,7 +30,9 @@ urlpatterns = [
     ),
     path(
         "analyse/general/toggle-exclusion/",
-        lazy_view("App_PADESCE.satisfaction_apprenants.views.satisfaction_general_toggle_exclusion"),
+        lazy_view(
+            "App_PADESCE.satisfaction_apprenants.views.satisfaction_general_toggle_exclusion"
+        ),
         name="satisfaction_general_toggle_exclusion",
     ),
     path(

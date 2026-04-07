@@ -9,7 +9,7 @@ from .schema import build_modalities_cache, build_schema_cache
 
 def load_data(path: str = "Decompte et facturation.xlsm") -> dict[str, pd.DataFrame]:
     """Charge les deux feuilles Excel et retourne un dict de DataFrames."""
-    
+
     # Charger la feuille Classes
     classe = pd.read_excel(path, sheet_name="Classes", header=0, engine="openpyxl")
     classe = classe.query("Cohorte != 0")
@@ -43,7 +43,7 @@ def load_data(path: str = "Decompte et facturation.xlsm") -> dict[str, pd.DataFr
         else:
             new_cols.append(col)
     decompte.columns = new_cols
-    
+
     return {"classe": classe, "decompte": decompte}
 
 

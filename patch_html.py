@@ -1,17 +1,17 @@
-import os
-
-html_path = 'templates/appels/index.html'
-with open(html_path, 'r', encoding='utf-8') as f:
+html_path = "templates/appels/index.html"
+with open(html_path, "r", encoding="utf-8") as f:
     content = f.read()
 
 # 1. Add HTML modal
-chunk1_target = '''    <div class="modal-actions">
+chunk1_target = """    <div class="modal-actions">
       <a id="js-transcription-download" class="btn btn-ghost btn-sm" href="#" download>Telecharger</a>
       <button type="button" class="btn btn-primary btn-sm" data-transcription-close>Fermer</button>
     </div>
   </div>
-</div>'''
-chunk1_replacement = chunk1_target + '''
+</div>"""
+chunk1_replacement = (
+    chunk1_target
+    + """
 
 <div id="js-satisfaction-modal" class="modal-backdrop" hidden>
   <div class="modal-panel" style="width: 550px; max-height: 90vh; overflow-y: auto;">
@@ -91,13 +91,16 @@ chunk1_replacement = chunk1_target + '''
       <button type="button" class="btn btn-danger btn-sm" id="js-sat-terminer">Terminer l'appel et Sauvegarder</button>
     </div>
   </div>
-</div>'''
+</div>"""
+)
 
 # 2. Add event listeners
-chunk2_target = '''    transcriptionModal?.addEventListener("click", (event) => {
+chunk2_target = """    transcriptionModal?.addEventListener("click", (event) => {
       if (event.target === transcriptionModal) transcriptionModal.hidden = true;
-    });'''
-chunk2_replacement = chunk2_target + '''
+    });"""
+chunk2_replacement = (
+    chunk2_target
+    + """
 
     const satModal = document.getElementById("js-satisfaction-modal");
     const satModalRappel = document.getElementById("js-sat-modal-rappel");
@@ -151,13 +154,14 @@ chunk2_replacement = chunk2_target + '''
             });
             updateRow(row, data);
         } catch (err) { alert("Action impossible."); }
-    });'''
+    });"""
+)
 
 # 3. Update startRecording
-chunk3_target = '''    async function startRecording(row) {
+chunk3_target = """    async function startRecording(row) {
       const id = row.dataset.id;
-      let stream;'''
-chunk3_replacement = '''    async function startRecording(row) {
+      let stream;"""
+chunk3_replacement = """    async function startRecording(row) {
       const id = row.dataset.id;
       
       const satModal = document.getElementById("js-satisfaction-modal");
@@ -181,17 +185,17 @@ chunk3_replacement = '''    async function startRecording(row) {
           satModal.hidden = false;
       }
       
-      let stream;'''
+      let stream;"""
 
 # 4. Update uploadAudio
-chunk4_target = '''    async function uploadAudio(row, blob) {
+chunk4_target = """    async function uploadAudio(row, blob) {
       const id = row.dataset.id;
       const blobType = (blob && blob.type) ? blob.type.toLowerCase() : "";
       const ext = blobType.includes("webm") ? "webm" : "mp3";
       const form = new FormData();
       form.append("audio", blob, `appel-${id}.${ext}`);
-      try {'''
-chunk4_replacement = '''    async function uploadAudio(row, blob) {
+      try {"""
+chunk4_replacement = """    async function uploadAudio(row, blob) {
       const id = row.dataset.id;
       const blobType = (blob && blob.type) ? blob.type.toLowerCase() : "";
       const ext = blobType.includes("webm") ? "webm" : "mp3";
@@ -205,19 +209,23 @@ chunk4_replacement = '''    async function uploadAudio(row, blob) {
           currentSatFormData = null;
       }
       
-      try {'''
+      try {"""
 
-if chunk1_target not in content: print("Chunk 1 not found")
-if chunk2_target not in content: print("Chunk 2 not found")
-if chunk3_target not in content: print("Chunk 3 not found")
-if chunk4_target not in content: print("Chunk 4 not found")
+if chunk1_target not in content:
+    print("Chunk 1 not found")
+if chunk2_target not in content:
+    print("Chunk 2 not found")
+if chunk3_target not in content:
+    print("Chunk 3 not found")
+if chunk4_target not in content:
+    print("Chunk 4 not found")
 
 content = content.replace(chunk1_target, chunk1_replacement)
 content = content.replace(chunk2_target, chunk2_replacement)
 content = content.replace(chunk3_target, chunk3_replacement)
 content = content.replace(chunk4_target, chunk4_replacement)
 
-with open(html_path, 'w', encoding='utf-8') as f:
+with open(html_path, "w", encoding="utf-8") as f:
     f.write(content)
 
 print("Patched correctly.")

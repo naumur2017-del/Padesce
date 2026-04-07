@@ -7,7 +7,11 @@ from App_PADESCE.formations.models import Formation, Prestataire
 
 class Contact(TimeStampedModel):
     apprenant = models.ForeignKey(
-        "apprenants.Apprenant", on_delete=models.SET_NULL, null=True, blank=True, related_name="contacts"
+        "apprenants.Apprenant",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="contacts",
     )
     nom_complet = models.CharField(max_length=255)
     telephone = models.CharField(max_length=30)
@@ -40,7 +44,11 @@ class CampagneMessage(TimeStampedModel):
     message_rejete_json = models.JSONField(default=list, blank=True)
     motif_rejet = models.TextField(blank=True)
     enqueteur = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="campagnes_saisies"
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="campagnes_saisies",
     )
 
     class Meta:

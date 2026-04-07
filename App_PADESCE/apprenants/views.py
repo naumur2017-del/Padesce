@@ -3,20 +3,20 @@ import io
 import json
 import logging
 import os
-import re
 import random
+import re
 import string
 import unicodedata
 import urllib.parse
 import urllib.request
 from typing import List, Tuple
 
+from django.conf import settings
 from django.contrib import messages
 from django.db import IntegrityError, transaction
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, render
 from django.views.decorators.http import require_POST
-from django.conf import settings
 from openpyxl import load_workbook
 
 from App_PADESCE.apprenants.forms import ImportApprenantsForm
@@ -58,6 +58,7 @@ HEADER_ALIASES = {
     # Primary labels (normalized) from the default column definitions
     # normalized dynamically later to stay in sync with COLUMN_DEFS
 }
+
 
 def generate_code(existing: set[str]) -> str:
     """Generate a 4-char alphanumeric uppercase code, unique against existing."""
@@ -218,7 +219,9 @@ def _rows_from_table(rows: List[List[str]], header_map: List[Tuple[int, str, str
     preview_rows: List[dict] = []
     if not header_map:
         header_map = [
-            (idx, key, label) for idx, (key, label) in enumerate(COLUMN_DEFS) if idx < len(rows[0] if rows else [])
+            (idx, key, label)
+            for idx, (key, label) in enumerate(COLUMN_DEFS)
+            if idx < len(rows[0] if rows else [])
         ]
     for row in rows:
         normalized_cells = [_normalize_cell(cell) for cell in row]
@@ -245,11 +248,13 @@ def _header_map_to_defs(header_map: List[Tuple[int, str, str]]) -> List[dict]:
     return [{"field": key, "label": label} for _, key, label in header_map]
 
 
-def _validate_preview(preview_rows: List[dict], formation, generate_codes: bool, errors: List[str]) -> None:
+def _validate_preview(
+    preview_rows: List[dict], formation, generate_codes: bool, errors: List[str]
+) -> None:
     noms = [r["nom_complet"] for r in preview_rows if r.get("nom_complet")]
     tels = [r["telephone1"] for r in preview_rows if r.get("telephone1")]
     numeros = [r["numero"] for r in preview_rows if r.get("numero")]
-    
+
     if len(noms) != len(set(noms)):
         errors.append("Noms en double detectes dans le fichier.")
     if len(tels) != len(set(tels)):
@@ -273,7 +278,7 @@ def _validate_preview(preview_rows: List[dict], formation, generate_codes: bool,
                 invalid_tel_count += 1
         else:
             missing_tel_count += 1
-    
+
     if invalid_tel_count > 0 or missing_tel_count > 0:
         msg = f"Telephone apprenant 1 invalide: {invalid_tel_count} ligne(s). Format attendu: 9 chiffres."
         if missing_tel_count > 0:
@@ -372,7 +377,9 @@ def import_csv(request, classe_id: int):
                             )
                         )
                     Apprenant.objects.bulk_create(new_objects, ignore_conflicts=False)
-                messages.success(request, f"{len(preview_rows)} apprenants importes pour {classe.code}.")
+                messages.success(
+                    request, f"{len(preview_rows)} apprenants importes pour {classe.code}."
+                )
             except IntegrityError:
                 errors.append(
                     "Telephones en double detectes dans le fichier ou deja en base. "
@@ -392,7 +399,6 @@ def import_csv(request, classe_id: int):
             "header_aliases": HEADER_ALIASES,
         },
     )
-
 
 
 def api_codes(request):
@@ -431,8 +437,11 @@ def _normalize_phone(value: str) -> str:
         return ""
     digits = "".join(ch for ch in str(value) if ch.isdigit())
     if len(digits) > 9:
-        if digits.startswith(settings.OBIT_COUNTRY) and len(digits) == len(settings.OBIT_COUNTRY) + 9:
-            digits = digits[len(settings.OBIT_COUNTRY):]
+        if (
+            digits.startswith(settings.OBIT_COUNTRY)
+            and len(digits) == len(settings.OBIT_COUNTRY) + 9
+        ):
+            digits = digits[len(settings.OBIT_COUNTRY) :]
         else:
             digits = digits[-9:]
     return digits if len(digits) == 9 else ""

@@ -1,27 +1,24 @@
+import csv
 import datetime
 import io
 import logging
-import threading
-import zipfile
 import unicodedata
-import csv
+import zipfile
 from decimal import Decimal
 from pathlib import Path
 
 import openpyxl
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.core.cache import cache
-from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
-from django.db.models import Case, Count, DecimalField, ExpressionWrapper, F, Q, When
+from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
 from django.db import transaction
+from django.db.models import Case, Count, DecimalField, ExpressionWrapper, F, Q, When
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.utils.text import slugify
 from django.views.decorators.http import require_POST
 
-from App_PADESCE.apprenants.models import Apprenant
 from App_PADESCE.appels.models import (
     Appel,
     AppelAnswers,
@@ -32,11 +29,11 @@ from App_PADESCE.appels.models import (
     appel_answers_modified_completion_q,
     padesce_form_tracking_cutoff,
 )
+from App_PADESCE.apprenants.models import Apprenant
 from App_PADESCE.formations.models import Classe
 
 logger = logging.getLogger(__name__)
 from App_PADESCE.satisfaction_apprenants.models import SatisfactionApprenant
-
 
 APPEL_QUESTION_FIELDS = [
     "q1_clarte_exposes",
@@ -49,9 +46,6 @@ APPEL_QUESTION_FIELDS = [
     "q8_adequation_besoins",
     "q9_satisfaction_globale",
 ]
-
-
-
 
 
 def _normalize_header(value):
@@ -163,7 +157,12 @@ def _build_satisfaction_defaults(payload: dict, user, *, now=None) -> dict:
 
 
 def _appel_reference_details(appel: Appel) -> str:
-    classe_ref = str(getattr(getattr(appel, "classe", None), "code", "") or appel.classe_label or "-").strip() or "-"
+    classe_ref = (
+        str(
+            getattr(getattr(appel, "classe", None), "code", "") or appel.classe_label or "-"
+        ).strip()
+        or "-"
+    )
     tel_ref = str(appel.telephone1 or appel.telephone2 or "").strip() or "-"
     return (
         f"(ligne={appel.id}, code={appel.code or '-'}, nom={appel.nom or '-'}, "
@@ -186,7 +185,9 @@ def _find_existing_satisfaction_for_appel(appel: Appel, apprenant: Apprenant | N
     else:
         return None
 
-    candidate_ids = list(legacy_qs.order_by("-updated_at", "-created_at", "-id").values_list("id", flat=True)[:2])
+    candidate_ids = list(
+        legacy_qs.order_by("-updated_at", "-created_at", "-id").values_list("id", flat=True)[:2]
+    )
     if len(candidate_ids) == 1:
         return SatisfactionApprenant.objects.filter(pk=candidate_ids[0]).first()
     return None
@@ -334,37 +335,20 @@ def _build_progress_metrics(queryset):
     return stats
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 def _find_apprenant_for_appel(base_qs, appel: Appel):
     """
     Cherche l'apprenant correspondant à l'appel.
     Utilise plusieurs stratégies : code, téléphone, nom, combinaisons.
     """
     apprenant = None
-    
+
     # 1. Chercher par code (exact)
     if appel.code:
         apprenant = base_qs.filter(code__iexact=str(appel.code or "").strip()).first()
         if apprenant:
             logger.debug("Apprenant trouvé par code exact: %s", appel.code)
             return apprenant
-    
+
     # 2. Chercher par code (partiel)
     if appel.code:
         apprenant = base_qs.filter(code__icontains=str(appel.code).strip()).order_by("id").first()
@@ -393,7 +377,7 @@ def _find_apprenant_for_appel(base_qs, appel: Appel):
                 apprenant = candidate
                 logger.debug("Apprenant trouvé par nom: %s (%s)", appel.nom, apprenant.id)
                 return apprenant
-    
+
     # 5. Chercher par nom + prénom (plus flexible)
     if appel.nom:
         # Essayer de chercher les mots-clés du nom dans le nom_complet
@@ -405,21 +389,26 @@ def _find_apprenant_for_appel(base_qs, appel: Appel):
             matching_words = sum(1 for part in nom_parts if part in nom_complet_lower)
             if matching_words > 0:
                 matching_apprenants.append((matching_words, candidate))
-        
+
         if matching_apprenants:
             # Retourner celui avec le plus de mots correspondants
             matching_apprenants.sort(key=lambda x: x[0], reverse=True)
             apprenant = matching_apprenants[0][1]
-            logger.debug("Apprenant trouvé par correspondance de nom flexible: %s (%s)", appel.nom, apprenant.id)
+            logger.debug(
+                "Apprenant trouvé par correspondance de nom flexible: %s (%s)",
+                appel.nom,
+                apprenant.id,
+            )
             return apprenant
-    
+
     logger.warning(
         "Apprenant NON trouvé. code=%s nom=%s tel=%s",
         appel.code or "-",
         appel.nom or "-",
-        appel.telephone1 or appel.telephone2 or "-"
+        appel.telephone1 or appel.telephone2 or "-",
     )
     return None
+
 
 def _parse_excel_sheet(file_obj, sheet_name: str):
     wb = openpyxl.load_workbook(file_obj, read_only=True, data_only=True)
@@ -458,7 +447,12 @@ def _parse_excel_sheet(file_obj, sheet_name: str):
         lieu = get(row, "lieux")
         classe_label = get(row, "classe")
         taux_presence = get(row, "taux de presence", "taux de présence", "présence (%)") or 0
-        tel1 = get(row, "1er no tel 0 tel no apprenant", "1er no tel 0 tel no", "1er no tel 0 tel no apprenant")
+        tel1 = get(
+            row,
+            "1er no tel 0 tel no apprenant",
+            "1er no tel 0 tel no",
+            "1er no tel 0 tel no apprenant",
+        )
         tel2 = get(
             row,
             "2e no tel 0 tel no apprenant (si disponible)",
@@ -537,8 +531,12 @@ def _archive_before_import_overwrite(appel: Appel, import_mode: str):
             "audio_file": appel.audio_file.name if appel.audio_file else "",
             "locked_by_id": appel.locked_by_id,
             "locked_at": appel.locked_at.isoformat() if appel.locked_at else None,
-            "created_at": appel.created_at.isoformat() if getattr(appel, "created_at", None) else None,
-            "updated_at": appel.updated_at.isoformat() if getattr(appel, "updated_at", None) else None,
+            "created_at": appel.created_at.isoformat()
+            if getattr(appel, "created_at", None)
+            else None,
+            "updated_at": appel.updated_at.isoformat()
+            if getattr(appel, "updated_at", None)
+            else None,
         },
     )
 
@@ -597,7 +595,11 @@ def _build_filtered_appels_queryset(request):
         if tracking_username:
             form_tracking_cutoff = padesce_form_tracking_cutoff()
             tracking_filter = (
-                Q(locked_by__username__iexact=tracking_username, status="termine", updated_at__lt=form_tracking_cutoff)
+                Q(
+                    locked_by__username__iexact=tracking_username,
+                    status="termine",
+                    updated_at__lt=form_tracking_cutoff,
+                )
                 | (Q(locked_by__username__iexact=tracking_username) & completed_answers_filter)
                 | (
                     Q(
@@ -607,7 +609,10 @@ def _build_filtered_appels_queryset(request):
                     )
                     & tracked_audio_filter
                 )
-                | (Q(answers__modified_by__username__iexact=tracking_username) & modified_answers_filter)
+                | (
+                    Q(answers__modified_by__username__iexact=tracking_username)
+                    & modified_answers_filter
+                )
             )
             appels_qs = appels_qs.filter(tracking_filter).distinct()
     if taux_filter:
@@ -647,7 +652,10 @@ def _build_filtered_appels_queryset(request):
         taux_presence_display=Case(
             When(
                 taux_presence__lte=1,
-                then=ExpressionWrapper(F("taux_presence") * 100, output_field=DecimalField(max_digits=7, decimal_places=2)),
+                then=ExpressionWrapper(
+                    F("taux_presence") * 100,
+                    output_field=DecimalField(max_digits=7, decimal_places=2),
+                ),
             ),
             default=F("taux_presence"),
             output_field=DecimalField(max_digits=7, decimal_places=2),
@@ -665,13 +673,25 @@ def _build_filtered_appels_queryset(request):
         "modified_by": modified_by_filter,
         "q": search,
         "prestataires": sorted(
-            {p.strip() for p in appels_qs.exclude(prestataire="").values_list("prestataire", flat=True) if p}
+            {
+                p.strip()
+                for p in appels_qs.exclude(prestataire="").values_list("prestataire", flat=True)
+                if p
+            }
         ),
         "beneficiaires": sorted(
-            {b.strip() for b in appels_qs.exclude(beneficiaire="").values_list("beneficiaire", flat=True) if b}
+            {
+                b.strip()
+                for b in appels_qs.exclude(beneficiaire="").values_list("beneficiaire", flat=True)
+                if b
+            }
         ),
         "classes": sorted(
-            {c.strip() for c in appels_qs.exclude(classe_label="").values_list("classe_label", flat=True) if c}
+            {
+                c.strip()
+                for c in appels_qs.exclude(classe_label="").values_list("classe_label", flat=True)
+                if c
+            }
         ),
         "fenetres": sorted(
             {
@@ -686,7 +706,9 @@ def _build_filtered_appels_queryset(request):
         "agents": sorted(
             {
                 u.strip()
-                for u in appels_qs.exclude(locked_by__isnull=True).values_list("locked_by__username", flat=True)
+                for u in appels_qs.exclude(locked_by__isnull=True).values_list(
+                    "locked_by__username", flat=True
+                )
                 if u
             }
         ),
@@ -815,7 +837,9 @@ def appels_index(request):
                         is_active=True,
                     )
                     created += 1
-            deduped = _deactivate_duplicate_rows(Appel.objects.filter(is_active=True), _appel_duplicate_key)
+            deduped = _deactivate_duplicate_rows(
+                Appel.objects.filter(is_active=True), _appel_duplicate_key
+            )
             messages.success(
                 request,
                 (
@@ -849,7 +873,10 @@ def appels_index(request):
                     )
                     created += 1
             _deactivate_duplicate_rows(Appel.objects.filter(is_active=True), _appel_duplicate_key)
-            messages.success(request, f"Fichier importe. {created} nouveau(x) appel(s), {updated} appel(s) mis a jour.")
+            messages.success(
+                request,
+                f"Fichier importe. {created} nouveau(x) appel(s), {updated} appel(s) mis a jour.",
+            )
         else:
             updated = 0
             for item in payload:
@@ -860,13 +887,17 @@ def appels_index(request):
                 if not appel:
                     continue
                 _archive_before_import_overwrite(appel, mode)
-                appel.type_formation_declaree = str(item.get("type_formation_declaree") or "").strip()
+                appel.type_formation_declaree = str(
+                    item.get("type_formation_declaree") or ""
+                ).strip()
                 appel.formation_padesce = str(item.get("formation_padesce") or "").strip()
-                appel.save(update_fields=["type_formation_declaree", "formation_padesce", "updated_at"])
+                appel.save(
+                    update_fields=["type_formation_declaree", "formation_padesce", "updated_at"]
+                )
                 updated += 1
             messages.success(
                 request,
-                f"Fichier importe. {updated} appel(s) mis a jour avec le type de formation et la formation Padesce."
+                f"Fichier importe. {updated} appel(s) mis a jour avec le type de formation et la formation Padesce.",
             )
         return redirect(request.path_info)
 
@@ -875,7 +906,7 @@ def appels_index(request):
     appels_count = appels_qs.count()
     stats = _build_progress_metrics(appels_qs)
     appels_qs = appels_qs.order_by("status", "nom")
-    
+
     # ── Pagination: 30 lignes par page ──
     paginator = Paginator(appels_qs, 30)
     page_number = request.GET.get("page", 1)
@@ -883,12 +914,14 @@ def appels_index(request):
         page_obj = paginator.page(page_number)
     except (PageNotAnInteger, EmptyPage):
         page_obj = paginator.page(1)
-    
+
     appels = _bind_audio_state(list(page_obj.object_list))
     page_obj.object_list = appels
 
     # ── per-class 50 % threshold ──
-    from django.db.models import Count, Q as DQ
+    from django.db.models import Count
+    from django.db.models import Q as DQ
+
     classe_progress_qs = (
         Appel.objects.filter(is_active=True)
         .exclude(classe_label="")
@@ -905,14 +938,16 @@ def appels_index(request):
         termines = row["termines"]
         target = (total + 1) // 2 if total else 0
         reached = total > 0 and termines >= target
-        classe_progress.append({
-            "classe": row["classe_label"],
-            "total": total,
-            "termines": termines,
-            "target": target,
-            "reached": reached,
-            "pct": round((termines / total) * 100, 1) if total else 0,
-        })
+        classe_progress.append(
+            {
+                "classe": row["classe_label"],
+                "total": total,
+                "termines": termines,
+                "target": target,
+                "reached": reached,
+                "pct": round((termines / total) * 100, 1) if total else 0,
+            }
+        )
 
     # Map progress to class filter options
     progress_map = {item["classe"]: item for item in classe_progress}
@@ -929,6 +964,7 @@ def appels_index(request):
     filters["classes_enriched"] = enriched_classes
 
     import json as _json
+
     return render(
         request,
         "appels/index.html",
@@ -996,97 +1032,100 @@ def appels_export_filtered_csv(request):
     return response
 
 
-
-
 def _cleanup_stale_locks(timeout_minutes=3):
     """Release locks older than timeout_minutes to prevent stuck calls.
-    
+
     Lock timeouts (very aggressive to handle network failures):
     - en_cours: 3 minutes max (dropped connections should release within 3min)
     - pause: 2 minutes max (paused calls should resume or terminate quickly)
     """
     from App_PADESCE.appels.models import Appel, AppelCGA, AppelFormateur
-    
+
     # Cleanup for en_cours locks (3 min)
     cutoff_active = timezone.now() - datetime.timedelta(minutes=timeout_minutes)
     Appel.objects.filter(
-        locked_by__isnull=False,
-        locked_at__lt=cutoff_active,
-        status='en_cours'
-    ).update(locked_by=None, locked_at=None, status='pause')
-    
+        locked_by__isnull=False, locked_at__lt=cutoff_active, status="en_cours"
+    ).update(locked_by=None, locked_at=None, status="pause")
+
     AppelCGA.objects.filter(
-        locked_by__isnull=False,
-        locked_at__lt=cutoff_active,
-        status='en_cours'
-    ).update(locked_by=None, locked_at=None, status='pause')
-    
+        locked_by__isnull=False, locked_at__lt=cutoff_active, status="en_cours"
+    ).update(locked_by=None, locked_at=None, status="pause")
+
     AppelFormateur.objects.filter(
-        locked_by__isnull=False,
-        locked_at__lt=cutoff_active,
-        status='en_cours'
-    ).update(locked_by=None, locked_at=None, status='pause')
-    
+        locked_by__isnull=False, locked_at__lt=cutoff_active, status="en_cours"
+    ).update(locked_by=None, locked_at=None, status="pause")
+
     # Cleanup for pause locks (2 min)
     cutoff_pause = timezone.now() - datetime.timedelta(minutes=2)
     Appel.objects.filter(
-        locked_by__isnull=False,
-        locked_at__lt=cutoff_pause,
-        status='pause'
+        locked_by__isnull=False, locked_at__lt=cutoff_pause, status="pause"
     ).update(locked_by=None, locked_at=None)
-    
+
     AppelCGA.objects.filter(
-        locked_by__isnull=False,
-        locked_at__lt=cutoff_pause,
-        status='pause'
+        locked_by__isnull=False, locked_at__lt=cutoff_pause, status="pause"
     ).update(locked_by=None, locked_at=None)
-    
+
     AppelFormateur.objects.filter(
-        locked_by__isnull=False,
-        locked_at__lt=cutoff_pause,
-        status='pause'
+        locked_by__isnull=False, locked_at__lt=cutoff_pause, status="pause"
     ).update(locked_by=None, locked_at=None)
 
 
 def _handle_lock_conflict(instance, current_user, action):
     """Handle lock conflicts with stale lock recovery.
-    
+
     After cleanup runs, any remaining lock is less than 3 min old.
     Allow takeover of very recent locks (< 2 min) to recover from network failures.
-    
+
     Returns: (is_ok, error_message)
     """
     if not instance.locked_by or instance.locked_by == current_user:
         return True, None
-    
-    if instance.status not in ('en_cours', 'pause'):
+
+    if instance.status not in ("en_cours", "pause"):
         return True, None
-    
+
     # Check if lock is recent enough to takeover
     now = timezone.now()
     if instance.locked_at:
         age = now - instance.locked_at
-        
+
         # Ultra-aggressive: takeover any lock older than 90 seconds
         # This prevents stuck calls from blocking other agents
         very_stale_delta = datetime.timedelta(seconds=90)
         if age > very_stale_delta:
             return True, None
-        
+
         # Lock is very recent - block with helpful message
         remaining_secs = max(1, int(90 - age.total_seconds()))
-        return False, f"Appel actif. Veuillez essayer dans {remaining_secs}s ou contacter l'agent: {instance.locked_by.username or 'N/A'}"
-    
+        return (
+            False,
+            f"Appel actif. Veuillez essayer dans {remaining_secs}s ou contacter l'agent: {instance.locked_by.username or 'N/A'}",
+        )
+
     # No lock timestamp - allow
     return True, None
 
 
 def _check_other_active_calls(user, current_instance):
     from App_PADESCE.appels.models import Appel, AppelCGA, AppelFormateur
-    has_padesce = Appel.objects.filter(locked_by=user, status__in=['en_cours', 'pause']).exclude(pk=current_instance.pk if isinstance(current_instance, Appel) else None).exists()
-    has_cga = AppelCGA.objects.filter(locked_by=user, status__in=['en_cours', 'pause']).exclude(pk=current_instance.pk if isinstance(current_instance, AppelCGA) else None).exists()
-    has_formateur = AppelFormateur.objects.filter(locked_by=user, status__in=['en_cours', 'pause']).exclude(pk=current_instance.pk if isinstance(current_instance, AppelFormateur) else None).exists()
+
+    has_padesce = (
+        Appel.objects.filter(locked_by=user, status__in=["en_cours", "pause"])
+        .exclude(pk=current_instance.pk if isinstance(current_instance, Appel) else None)
+        .exists()
+    )
+    has_cga = (
+        AppelCGA.objects.filter(locked_by=user, status__in=["en_cours", "pause"])
+        .exclude(pk=current_instance.pk if isinstance(current_instance, AppelCGA) else None)
+        .exists()
+    )
+    has_formateur = (
+        AppelFormateur.objects.filter(locked_by=user, status__in=["en_cours", "pause"])
+        .exclude(pk=current_instance.pk if isinstance(current_instance, AppelFormateur) else None)
+        .exists()
+    )
     return has_padesce or has_cga or has_formateur
+
 
 @login_required
 @require_POST
@@ -1094,7 +1133,7 @@ def appel_action(request, pk: int):
     # Clean up stale locks that may be blocking access
     _cleanup_stale_locks()
     _cleanup_stale_locks()
-    
+
     appel = get_object_or_404(Appel, pk=pk)
     action = request.POST.get("action")
     rappel_at = request.POST.get("rappel_at")
@@ -1134,7 +1173,13 @@ def appel_action(request, pk: int):
 
     # Save flag fields
     update_fields = ["status", "locked_by", "locked_at", "rappel_at", "deja_forme", "updated_at"]
-    for flag_name in ("flag_pas_forme", "flag_faux_nom", "flag_vrai_nom", "flag_deja_appele", "flag_numero_double"):
+    for flag_name in (
+        "flag_pas_forme",
+        "flag_faux_nom",
+        "flag_vrai_nom",
+        "flag_deja_appele",
+        "flag_numero_double",
+    ):
         val = request.POST.get(flag_name)
         if val is not None:
             if flag_name == "flag_vrai_nom":
@@ -1178,7 +1223,7 @@ def appel_action(request, pk: int):
 def finalize_appel(request, pk: int):
     """Save questionnaire answers first, then attach audio if one was provided."""
     _cleanup_stale_locks()
-    
+
     try:
         with transaction.atomic():
             appel = Appel.objects.select_for_update().get(pk=pk)
@@ -1205,7 +1250,13 @@ def finalize_appel(request, pk: int):
             appel.deja_forme = deja_forme_flag
             update_fields.append("deja_forme")
 
-            for flag_name in ("flag_pas_forme", "flag_faux_nom", "flag_vrai_nom", "flag_deja_appele", "flag_numero_double"):
+            for flag_name in (
+                "flag_pas_forme",
+                "flag_faux_nom",
+                "flag_vrai_nom",
+                "flag_deja_appele",
+                "flag_numero_double",
+            ):
                 val = request.POST.get(flag_name)
                 if val is not None:
                     if flag_name == "flag_vrai_nom":
@@ -1235,7 +1286,9 @@ def finalize_appel(request, pk: int):
                     "commentaire": commentaire_val.strip() or "RAS",
                     "recommandations": recommandations_val.strip() or "RAS",
                 }
-                auto_result = _auto_process_satisfaction_from_appel(appel, request.user, manual_data=manual_data)
+                auto_result = _auto_process_satisfaction_from_appel(
+                    appel, request.user, manual_data=manual_data
+                )
                 satisfaction_saved = auto_result.get("satisfaction_saved", False)
                 satisfaction_message = auto_result.get("message", "")
                 satisfaction_id = auto_result.get("satisfaction_id")
@@ -1248,7 +1301,7 @@ def finalize_appel(request, pk: int):
                 if satisfaction_id:
                     satisfaction = SatisfactionApprenant.objects.filter(pk=satisfaction_id).first()
                     _attach_appel_audio_to_satisfaction(satisfaction, appel)
-            
+
             # 5. Get class progress
             class_info = None
             if appel.classe_label:
@@ -1265,22 +1318,26 @@ def finalize_appel(request, pk: int):
                     "reached": reached_c,
                     "pct": round((termines_c / total_c) * 100, 1) if total_c else 0,
                 }
-            
+
             audio_url = _safe_audio_url(appel)
-            return JsonResponse({
-                "ok": True,
-                "status": appel.status,
-                "status_label": appel.get_status_display(),
-                "audio_saved": bool(file_obj),
-                "audio_url": audio_url,
-                "satisfaction_saved": satisfaction_saved,
-                "satisfaction_message": satisfaction_message,
-                "class_progress": class_info,
-            })
+            return JsonResponse(
+                {
+                    "ok": True,
+                    "status": appel.status,
+                    "status_label": appel.get_status_display(),
+                    "audio_saved": bool(file_obj),
+                    "audio_url": audio_url,
+                    "satisfaction_saved": satisfaction_saved,
+                    "satisfaction_message": satisfaction_message,
+                    "class_progress": class_info,
+                }
+            )
     except Appel.DoesNotExist:
         return JsonResponse({"ok": False, "error": "Appel introuvable."}, status=404)
     except Exception as e:
-        return JsonResponse({"ok": False, "error": f"Erreur lors de la finalisation: {str(e)}"}, status=500)
+        return JsonResponse(
+            {"ok": False, "error": f"Erreur lors de la finalisation: {str(e)}"}, status=500
+        )
 
 
 @login_required
@@ -1294,7 +1351,13 @@ def appel_upload_audio(request, pk: int):
 
     # Save flag fields
     update_fields = ["audio_file", "updated_at"]
-    for flag_name in ("flag_pas_forme", "flag_faux_nom", "flag_vrai_nom", "flag_deja_appele", "flag_numero_double"):
+    for flag_name in (
+        "flag_pas_forme",
+        "flag_faux_nom",
+        "flag_vrai_nom",
+        "flag_deja_appele",
+        "flag_numero_double",
+    ):
         val = request.POST.get(flag_name)
         if val is not None:
             if flag_name == "flag_vrai_nom":
@@ -1322,10 +1385,14 @@ def appel_upload_audio(request, pk: int):
             "recommandations": recommandations_val.strip() or "RAS",
         }
         manual_data = {k: v for k, v in manual_data.items() if v is not None and v != ""}
-        auto_result = _auto_process_satisfaction_from_appel(appel, request.user, manual_data=manual_data)
+        auto_result = _auto_process_satisfaction_from_appel(
+            appel, request.user, manual_data=manual_data
+        )
         payload.update(
             {
-                "satisfaction_saved": auto_result.get("satisfaction_saved", auto_result.get("ok", False)),
+                "satisfaction_saved": auto_result.get(
+                    "satisfaction_saved", auto_result.get("ok", False)
+                ),
                 "satisfaction_message": auto_result["message"],
             }
         )
@@ -1387,9 +1454,9 @@ def _auto_process_satisfaction_from_appel(appel: Appel, user, manual_data: dict 
         apprenant.id if apprenant else "N/A",
         getattr(satisfaction.classe, "code", "N/A"),
         appel.prestataire or "N/A",
-        appel.beneficiaire or "N/A"
+        appel.beneficiaire or "N/A",
     )
-    
+
     return {
         "ok": True,
         "satisfaction_saved": True,
@@ -1409,12 +1476,12 @@ def download_appel_audios(request):
     except ValueError:
         return JsonResponse({"ok": False, "error": "Identifiants invalides."}, status=400)
 
-    appels = list(
-        Appel.objects.filter(pk__in=ids, audio_file__isnull=False)
-        .order_by("nom")
-    )
+    appels = list(Appel.objects.filter(pk__in=ids, audio_file__isnull=False).order_by("nom"))
     if not appels:
-        return JsonResponse({"ok": False, "error": "Aucun audio disponible pour les appels sélectionnés."}, status=404)
+        return JsonResponse(
+            {"ok": False, "error": "Aucun audio disponible pour les appels sélectionnés."},
+            status=404,
+        )
 
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_DEFLATED) as archive:
@@ -1425,7 +1492,9 @@ def download_appel_audios(request):
             try:
                 with appel.audio_file.open("rb") as audio:
                     suffix = Path(appel.audio_file.name).suffix or ".mp3"
-                    safe_name = f"{slugify(appel.code) or 'code'}-{slugify(appel.nom) or 'appel'}{suffix}"
+                    safe_name = (
+                        f"{slugify(appel.code) or 'code'}-{slugify(appel.nom) or 'appel'}{suffix}"
+                    )
                     archive.writestr(safe_name, audio.read())
                     written += 1
             except Exception:
@@ -1447,8 +1516,12 @@ def deduplicate_all_call_tables(request):
         messages.error(request, "Seul un superadmin peut nettoyer les doublons.")
         return redirect(request.META.get("HTTP_REFERER") or "/dashboard/")
 
-    appels_removed = _deactivate_duplicate_rows(Appel.objects.filter(is_active=True), _appel_duplicate_key)
-    cga_removed = _deactivate_duplicate_rows(AppelCGA.objects.filter(is_active=True), _cga_duplicate_key)
+    appels_removed = _deactivate_duplicate_rows(
+        Appel.objects.filter(is_active=True), _appel_duplicate_key
+    )
+    cga_removed = _deactivate_duplicate_rows(
+        AppelCGA.objects.filter(is_active=True), _cga_duplicate_key
+    )
     formateurs_removed = _deactivate_duplicate_rows(
         AppelFormateur.objects.filter(is_active=True),
         _formateur_duplicate_key,
@@ -1464,22 +1537,17 @@ def deduplicate_all_call_tables(request):
     return redirect(request.META.get("HTTP_REFERER") or "/dashboard/")
 
 
-
-
-
-
-
-
 @login_required
 @require_POST
 def appel_transcription_detail(request, pk: int):
     appel = get_object_or_404(Appel, pk=pk)
     try:
         obj, generated = _ensure_appel_transcription(appel)
-        return JsonResponse({"ok": True, "generated": generated, "transcription": _transcription_to_payload(obj)})
+        return JsonResponse(
+            {"ok": True, "generated": generated, "transcription": _transcription_to_payload(obj)}
+        )
     except Exception as exc:
         return JsonResponse({"ok": False, "error": str(exc)}, status=400)
-
 
 
 @login_required
@@ -1489,9 +1557,15 @@ def appel_answers_detail(request, pk: int):
     if request.method == "POST":
         answers, _ = AppelAnswers.objects.get_or_create(appel=appel)
         q_fields = [
-            "q1_clarte_exposes", "q2_interaction_formateur", "q3_maitrise_contenu",
-            "q4_salle_adequate", "q5_materiel_disponible", "q6_organisation_temps",
-            "q7_utilite_formation", "q8_adequation_besoins", "q9_satisfaction_globale",
+            "q1_clarte_exposes",
+            "q2_interaction_formateur",
+            "q3_maitrise_contenu",
+            "q4_salle_adequate",
+            "q5_materiel_disponible",
+            "q6_organisation_temps",
+            "q7_utilite_formation",
+            "q8_adequation_besoins",
+            "q9_satisfaction_globale",
         ]
         for i, field in enumerate(q_fields, 1):
             val = request.POST.get(f"q{i}")
@@ -1510,7 +1584,14 @@ def appel_answers_detail(request, pk: int):
 
         # Also save flags on the appel
         update_fields = ["updated_at"]
-        for flag_name in ("flag_pas_forme", "flag_faux_nom", "flag_vrai_nom", "flag_deja_appele", "flag_numero_double", "deja_forme"):
+        for flag_name in (
+            "flag_pas_forme",
+            "flag_faux_nom",
+            "flag_vrai_nom",
+            "flag_deja_appele",
+            "flag_numero_double",
+            "deja_forme",
+        ):
             val = request.POST.get(flag_name)
             if val is not None:
                 if flag_name in ("flag_vrai_nom",):

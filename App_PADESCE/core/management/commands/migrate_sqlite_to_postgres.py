@@ -36,10 +36,22 @@ class Command(BaseCommand):
             dest="exclude_tables",
             help="Exclure une table cible precise. Repetable.",
         )
-        parser.add_argument("--batch-size", type=int, default=1000, help="Taille des lots de copie.")
-        parser.add_argument("--skip-migrate", action="store_true", help="N'execute pas les migrations sur PostgreSQL.")
-        parser.add_argument("--skip-flush", action="store_true", help="Ne vide pas la base cible avant import.")
-        parser.add_argument("--no-verify", action="store_true", help="Desactive la verification des comptes par table.")
+        parser.add_argument(
+            "--batch-size", type=int, default=1000, help="Taille des lots de copie."
+        )
+        parser.add_argument(
+            "--skip-migrate",
+            action="store_true",
+            help="N'execute pas les migrations sur PostgreSQL.",
+        )
+        parser.add_argument(
+            "--skip-flush", action="store_true", help="Ne vide pas la base cible avant import."
+        )
+        parser.add_argument(
+            "--no-verify",
+            action="store_true",
+            help="Desactive la verification des comptes par table.",
+        )
 
     def handle(self, *args, **options) -> None:
         target_alias = options["target"]
@@ -61,7 +73,9 @@ class Command(BaseCommand):
             raise CommandError(f"Base SQLite source introuvable: {source_path}")
 
         source_alias = "sqlite_migration_source"
-        self._register_sqlite_source(alias=source_alias, source_path=source_path, target_alias=target_alias)
+        self._register_sqlite_source(
+            alias=source_alias, source_path=source_path, target_alias=target_alias
+        )
 
         self.stdout.write("")
         self.stdout.write(self.style.MIGRATE_HEADING("Migration SQLite -> PostgreSQL"))

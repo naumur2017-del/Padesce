@@ -21,14 +21,14 @@ from django.views.decorators.http import require_GET, require_POST
 
 from App_PADESCE.appels.models import (
     APPEL_ANSWER_QUESTION_FIELDS,
-    Appel,
-    AppelAnswers,
-    AppelCGA,
-    AppelFormateur,
     CALL_ANALYSIS_THRESHOLD_STATUSES,
     CALL_COMPLETED_STATUSES,
     CALL_SUCCESS_STATUSES,
     CALL_TENTATIVE_STATUSES,
+    Appel,
+    AppelAnswers,
+    AppelCGA,
+    AppelFormateur,
     appel_answers_completed_q,
     appel_answers_modified_completion_q,
     padesce_form_tracking_cutoff,
@@ -90,7 +90,9 @@ def _count_audit_events_by_user(
     expected_extra: dict[str, str] | None = None,
 ) -> dict[int, int]:
     counts: dict[int, int] = defaultdict(int)
-    for entry in AuditLog.objects.filter(actor__isnull=False, model_name=model_name).only("actor_id", "extra"):
+    for entry in AuditLog.objects.filter(actor__isnull=False, model_name=model_name).only(
+        "actor_id", "extra"
+    ):
         extra = entry.extra if isinstance(entry.extra, dict) else {}
         if event_name and str(extra.get("event", "") or "").strip() != event_name:
             continue
@@ -891,14 +893,18 @@ def consultant_dashboard(request):
     fenetre_filter = (request.GET.get("fenetre") or "").strip()
     status_filter = (request.GET.get("status") or "").strip()
 
-    rows_qs = Appel.objects.filter(is_active=True).exclude(status="en_attente").select_related(
-        "classe",
-        "classe__prestation__beneficiaire",
-        "classe__prestation__prestataire",
-        "answers",
-        "answers__modified_by",
-        "satisfaction_apprenant",
-        "satisfaction_apprenant__enqueteur",
+    rows_qs = (
+        Appel.objects.filter(is_active=True)
+        .exclude(status="en_attente")
+        .select_related(
+            "classe",
+            "classe__prestation__beneficiaire",
+            "classe__prestation__prestataire",
+            "answers",
+            "answers__modified_by",
+            "satisfaction_apprenant",
+            "satisfaction_apprenant__enqueteur",
+        )
     )
     if search:
         rows_qs = rows_qs.filter(
@@ -942,22 +948,24 @@ def consultant_dashboard(request):
         app.consultant_has_audio = has_audio
         app.consultant_audio_duration = audio_duration or 0
         app.consultant_has_form = answers_complete
-        app.consultant_priority = bool(has_audio and answers_complete and (audio_duration or 0) >= 60)
-        
+        app.consultant_priority = bool(
+            has_audio and answers_complete and (audio_duration or 0) >= 60
+        )
+
         # Descriptive status display
         status_display = app.get_status_display()
-        if getattr(app, 'flag_pas_forme', False):
+        if getattr(app, "flag_pas_forme", False):
             status_display = "Pas formé"
-        elif getattr(app, 'flag_faux_nom', False):
+        elif getattr(app, "flag_faux_nom", False):
             status_display = "Faux nom"
-        elif getattr(app, 'flag_numero_double', False):
+        elif getattr(app, "flag_numero_double", False):
             status_display = "Numéro double"
-        elif getattr(app, 'deja_forme', False):
+        elif getattr(app, "deja_forme", False):
             status_display = "Déjà formé"
         elif answers:
             if not answers_complete:
                 status_display = "Formulaire incomplet"
-            elif (getattr(answers, 'commentaire', '') or 'RAS').strip().upper() == "RAS":
+            elif (getattr(answers, "commentaire", "") or "RAS").strip().upper() == "RAS":
                 status_display = "Formulaire RAS"
             else:
                 status_display = "Formulaire rempli"
@@ -971,7 +979,8 @@ def consultant_dashboard(request):
 
     # Unfiltered snapshot for card counts (must match satisfaction analysis page)
     _all_eligible_qs = (
-        Appel.objects.filter(is_active=True).exclude(status="en_attente")
+        Appel.objects.filter(is_active=True)
+        .exclude(status="en_attente")
         .select_related(
             "classe",
             "classe__prestation__beneficiaire",
@@ -984,7 +993,8 @@ def consultant_dashboard(request):
         .order_by("nom", "pk")
     )
     _all_eligible = [
-        app for app in _all_eligible_qs
+        app
+        for app in _all_eligible_qs
         if _consultant_dashboard_fenetre(app) in {"2", "3"}
         and appel_is_analysis_eligible(
             app,
@@ -1005,17 +1015,21 @@ def consultant_dashboard(request):
     for app in _all_eligible:
         fenetre = _consultant_dashboard_fenetre(app)
         classe = getattr(app, "classe", None)
-        class_code = str(getattr(classe, "code", "") or "").strip() or (app.classe_label or "").strip()
+        class_code = (
+            str(getattr(classe, "code", "") or "").strip() or (app.classe_label or "").strip()
+        )
         class_label = _consultant_class_display(app)
-        _filter_rows.append({
-            "beneficiaire": (app.beneficiaire or "").strip(),
-            "prestataire": (app.prestataire or "").strip(),
-            "classe_value": class_code,
-            "classe_label": class_label if class_label != "-" else class_code,
-            "fenetre": fenetre,
-            "status": app.status or "",
-            "status_label": _status_label_map.get(app.status, app.status or ""),
-        })
+        _filter_rows.append(
+            {
+                "beneficiaire": (app.beneficiaire or "").strip(),
+                "prestataire": (app.prestataire or "").strip(),
+                "classe_value": class_code,
+                "classe_label": class_label if class_label != "-" else class_code,
+                "fenetre": fenetre,
+                "status": app.status or "",
+                "status_label": _status_label_map.get(app.status, app.status or ""),
+            }
+        )
     filter_map_json = json.dumps(_filter_rows, ensure_ascii=False)
 
     # Strict form counting: q1-q9 must all be non-null.
@@ -1024,9 +1038,15 @@ def consultant_dashboard(request):
     # record is sufficient (avoids Django 6.x ValueError on non-nullable
     # integer fields used with __isnull via a LEFT JOIN).
     q_fields = [
-        "q1_clarte_exposes", "q2_interaction_formateur", "q3_maitrise_contenu",
-        "q4_salle_adequate", "q5_materiel_disponible", "q6_organisation_temps",
-        "q7_utilite_formation", "q8_adequation_besoins", "q9_satisfaction_globale"
+        "q1_clarte_exposes",
+        "q2_interaction_formateur",
+        "q3_maitrise_contenu",
+        "q4_salle_adequate",
+        "q5_materiel_disponible",
+        "q6_organisation_temps",
+        "q7_utilite_formation",
+        "q8_adequation_besoins",
+        "q9_satisfaction_globale",
     ]
     answers_valid_q = Q()
     for f in q_fields:
@@ -1046,8 +1066,10 @@ def consultant_dashboard(request):
             tentes=Count("id", filter=~Q(status="en_attente")),
             reussis=Count("id", filter=Q(status__in=CALL_SUCCESS_STATUSES)),
             forms=Count("id", filter=strict_form_q),
-            forms_audio=Count("id", filter=strict_form_q & (Q(audio_file__isnull=False) & ~Q(audio_file=""))),
-            audios=Count("id", filter=Q(audio_file__isnull=False) & ~Q(audio_file=""))
+            forms_audio=Count(
+                "id", filter=strict_form_q & (Q(audio_file__isnull=False) & ~Q(audio_file=""))
+            ),
+            audios=Count("id", filter=Q(audio_file__isnull=False) & ~Q(audio_file="")),
         )
         tentes = stats["tentes"] or 0
         reussis = stats["reussis"] or 0
@@ -1087,8 +1109,12 @@ def consultant_dashboard(request):
             "total_rows": len(rows),
             "card_prestations_count": card_snapshot["counts"].get("analyzed_prestations_count", 0),
             "card_classes_count": card_snapshot["counts"].get("analyzed_classes_count", 0),
-            "card_prestataires_count": card_snapshot["counts"].get("analyzed_prestataires_count", 0),
-            "card_beneficiaires_count": card_snapshot["counts"].get("analyzed_beneficiaires_count", 0),
+            "card_prestataires_count": card_snapshot["counts"].get(
+                "analyzed_prestataires_count", 0
+            ),
+            "card_beneficiaires_count": card_snapshot["counts"].get(
+                "analyzed_beneficiaires_count", 0
+            ),
             "card_apprenants_count": card_snapshot["counts"].get("analyzed_learners_count", 0),
             "card_audio_count": card_snapshot["counts"].get("analysis_audio_count", 0),
             "card_fenetres": card_snapshot["fenetre_options"],
@@ -1343,7 +1369,9 @@ def _log_tracking_schema_warning(scope: str) -> None:
 
 def _safe_user_activities_index() -> tuple[dict[int, UserActivity], bool]:
     try:
-        return {activity.user_id: activity for activity in UserActivity.objects.select_related("user")}, True
+        return {
+            activity.user_id: activity for activity in UserActivity.objects.select_related("user")
+        }, True
     except (OperationalError, ProgrammingError):
         _log_tracking_schema_warning("activity read")
         return {}, False
@@ -1351,7 +1379,9 @@ def _safe_user_activities_index() -> tuple[dict[int, UserActivity], bool]:
 
 def _safe_recent_activity_events(limit: int = 1000) -> tuple[list[UserActivityEvent], bool]:
     try:
-        return list(UserActivityEvent.objects.select_related("user").order_by("-occurred_at")[:limit]), True
+        return list(
+            UserActivityEvent.objects.select_related("user").order_by("-occurred_at")[:limit]
+        ), True
     except (OperationalError, ProgrammingError):
         _log_tracking_schema_warning("event read")
         return [], False
@@ -1359,7 +1389,9 @@ def _safe_recent_activity_events(limit: int = 1000) -> tuple[list[UserActivityEv
 
 def _safe_recent_login_logs(limit: int = 50) -> tuple[list[UserLoginLog], bool]:
     try:
-        return list(UserLoginLog.objects.select_related("user").order_by("-logged_at")[:limit]), True
+        return list(
+            UserLoginLog.objects.select_related("user").order_by("-logged_at")[:limit]
+        ), True
     except (OperationalError, ProgrammingError):
         _log_tracking_schema_warning("login log read")
         return [], False
@@ -1512,10 +1544,14 @@ def _build_tracking_payload(*, user_search: str = "") -> dict[str, object]:
                 "last_city": last_city,
                 "last_country": last_country,
                 "current_page": getattr(activity, "current_page", "") if activity else "",
-                "current_page_title": getattr(activity, "current_page_title", "") if activity else "",
+                "current_page_title": getattr(activity, "current_page_title", "")
+                if activity
+                else "",
                 "last_action_type": getattr(activity, "last_action_type", "") if activity else "",
                 "last_action_label": getattr(activity, "last_action_label", "") if activity else "",
-                "last_action_target": getattr(activity, "last_action_target", "") if activity else "",
+                "last_action_target": getattr(activity, "last_action_target", "")
+                if activity
+                else "",
                 "last_action_at": getattr(activity, "last_action_at", None) if activity else None,
                 "recent_events": events_by_user.get(user.id, []),
             }
@@ -1599,7 +1635,9 @@ def activity_track_api(request):
     except (TypeError, ValueError):
         browser_latitude = None
     try:
-        browser_longitude = float(browser_longitude) if browser_longitude not in (None, "") else None
+        browser_longitude = (
+            float(browser_longitude) if browser_longitude not in (None, "") else None
+        )
     except (TypeError, ValueError):
         browser_longitude = None
 
@@ -1689,7 +1727,9 @@ def user_tracking_live_api(request):
                     "last_action_type": row["last_action_type"],
                     "last_action_label": row["last_action_label"],
                     "last_action_target": row["last_action_target"],
-                    "last_action_at": timezone.localtime(row["last_action_at"]).strftime("%d/%m/%Y %H:%M:%S")
+                    "last_action_at": timezone.localtime(row["last_action_at"]).strftime(
+                        "%d/%m/%Y %H:%M:%S"
+                    )
                     if row["last_action_at"]
                     else "",
                     "city": row["last_city"],
@@ -1710,4 +1750,3 @@ def user_tracking_view(request):
 
     payload = _build_tracking_payload(user_search=(request.GET.get("user_search") or "").strip())
     return render(request, "core/user_tracking.html", payload)
-

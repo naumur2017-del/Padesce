@@ -1,15 +1,13 @@
 import logging
 import threading
 from urllib.parse import urlsplit
-from typing import Optional
 
 from django.conf import settings
 from django.contrib.auth import authenticate, login
 from django.contrib.auth.views import redirect_to_login
 from django.core.exceptions import PermissionDenied, SuspiciousOperation
 from django.db import OperationalError, ProgrammingError
-from django.http import Http404
-from django.http import HttpRequest, HttpResponseRedirect
+from django.http import Http404, HttpRequest, HttpResponseRedirect
 from django.shortcuts import resolve_url
 from django.urls import get_script_prefix, reverse, set_script_prefix
 from django.utils import timezone
@@ -112,7 +110,9 @@ class PathPrefixMiddleware:
 
     def __call__(self, request: HttpRequest):
         original_prefix = get_script_prefix()
-        matched_prefix = detect_path_prefix(getattr(request, "path_info", "") or getattr(request, "path", ""))
+        matched_prefix = detect_path_prefix(
+            getattr(request, "path_info", "") or getattr(request, "path", "")
+        )
         request.url_mount_prefix = matched_prefix
         if matched_prefix:
             set_script_prefix(f"{matched_prefix}/")
@@ -221,7 +221,9 @@ class LoginRequiredMiddleware:
                     _normalize_prefix(getattr(settings, "STATIC_URL", "")),
                     _normalize_prefix(getattr(settings, "MEDIA_URL", "")),
                 ]
-                if path != "/dashboard/" and not any(path.startswith(p) for p in allowed_prefixes if p):
+                if path != "/dashboard/" and not any(
+                    path.startswith(p) for p in allowed_prefixes if p
+                ):
                     return HttpResponseRedirect(reverse("home"))
             return self.get_response(request)
 
@@ -260,8 +262,8 @@ def _get_client_ip(request: HttpRequest) -> str:
 
 def _fetch_ip_geolocation(ip: str) -> dict:
     """Appel synchrone à ip-api.com. Retourne un dict avec lat/lon/city/country."""
-    import urllib.request
     import json as _json
+    import urllib.request
 
     if not ip or ip in ("127.0.0.1", "::1") or ip.startswith("192.168.") or ip.startswith("10."):
         return {"lat": None, "lon": None, "city": "Local", "country": "Local"}
@@ -302,6 +304,7 @@ def _update_activity_with_geo(user_id: int, ip: str, now):
         )
         # Enregistrer dans l'historique des connexions
         from App_PADESCE.core.models import UserLoginLog
+
         UserLoginLog.objects.create(
             user_id=user_id,
             ip_address=ip or None,

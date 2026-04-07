@@ -12,23 +12,22 @@ from django.urls import reverse
 from django.views.decorators.http import require_POST
 
 from App_PADESCE.appels.models import (
+    CALL_SUCCESS_STATUSES,
     Appel,
     AppelAnswers,
     AppelFormateur,
-    CALL_SUCCESS_STATUSES,
     is_call_success_status,
 )
 from App_PADESCE.apprenants.models import Apprenant
 from App_PADESCE.core.access import require_analysis_access
 from App_PADESCE.core.analysis_rules import appel_is_analysis_eligible
+from App_PADESCE.environnement.models import EnqueteEnvironnement
 from App_PADESCE.formations.forms import ClasseCreateForm
-from App_PADESCE.formations.models import Classe, Formation, Lieu, Prestation
-from App_PADESCE.reporting.network_excel import build_padesce_source_index, normalize_network_lookup
+from App_PADESCE.formations.models import Classe, Lieu, Prestation
 from App_PADESCE.presences.models import Presence
+from App_PADESCE.reporting.network_excel import build_padesce_source_index, normalize_network_lookup
 from App_PADESCE.satisfaction_apprenants.models import SatisfactionApprenant
 from App_PADESCE.satisfaction_formateurs.models import SatisfactionFormateur
-from App_PADESCE.environnement.models import EnqueteEnvironnement
-
 
 APPRENANT_DETAIL_FIELDS = (
     ("Clarte des exposes", "q1_clarte_exposes"),
@@ -300,7 +299,9 @@ def _analysis_source_lookup(source_bundle: dict | None, bucket: str, code: str) 
     return dict(source_bundle.get(bucket, {}).get(normalize_network_lookup(str(code)), {}) or {})
 
 
-def _analysis_source_classes_for_prestation(source_bundle: dict | None, prestation_code: str) -> list[dict]:
+def _analysis_source_classes_for_prestation(
+    source_bundle: dict | None, prestation_code: str
+) -> list[dict]:
     if not source_bundle or not prestation_code:
         return []
     prestation_key = normalize_network_lookup(str(prestation_code))
@@ -322,7 +323,13 @@ def _analysis_statut_label(value) -> str:
     return mapping.get(raw_value, raw_value or "-")
 
 
-def _analysis_placeholder_prestation(code: str, *, source_prestation: dict | None = None, source_classes: list[dict] | None = None, apprenant_appels: list[Appel] | None = None):
+def _analysis_placeholder_prestation(
+    code: str,
+    *,
+    source_prestation: dict | None = None,
+    source_classes: list[dict] | None = None,
+    apprenant_appels: list[Appel] | None = None,
+):
     source_prestation = source_prestation or {}
     source_classes = source_classes or []
     apprenant_appels = apprenant_appels or []
@@ -364,7 +371,13 @@ def _analysis_placeholder_prestation(code: str, *, source_prestation: dict | Non
     )
 
 
-def _analysis_placeholder_classe(code: str, prestation, *, source_classe: dict | None = None, apprenant_appels: list[Appel] | None = None):
+def _analysis_placeholder_classe(
+    code: str,
+    prestation,
+    *,
+    source_classe: dict | None = None,
+    apprenant_appels: list[Appel] | None = None,
+):
     source_classe = source_classe or {}
     apprenant_appels = apprenant_appels or []
     first_appel = apprenant_appels[0] if apprenant_appels else None
@@ -392,13 +405,18 @@ def _analysis_placeholder_classe(code: str, prestation, *, source_classe: dict |
         formation=SimpleNamespace(nom=str(formation_name or "").strip()),
         intitule_formation=str(formation_name or "").strip(),
         formateur=SimpleNamespace(nom_complet="", telephone=""),
-        fenetre=str(_first_present(getattr(prestation, "fenetre", ""), getattr(first_appel, "fenetre", "")) or "").strip(),
+        fenetre=str(
+            _first_present(getattr(prestation, "fenetre", ""), getattr(first_appel, "fenetre", ""))
+            or ""
+        ).strip(),
         cohorte=cohorte,
         get_statut_display=_analysis_statut_label(source_classe.get("statut_prestation")),
     )
 
 
-def _analysis_source_class_links(source_classes: list[dict], apprenant_appels: list[Appel]) -> list[dict]:
+def _analysis_source_class_links(
+    source_classes: list[dict], apprenant_appels: list[Appel]
+) -> list[dict]:
     call_counts: dict[str, int] = {}
     for appel in apprenant_appels:
         class_code = getattr(getattr(appel, "classe", None), "code", "") or appel.classe_label
@@ -442,8 +460,12 @@ def _analysis_source_record_for_appel(source_bundle: dict | None, appel: Appel) 
 
 
 def _prestation_formateur_candidates(prestation: Prestation):
-    prestataire_name = str(getattr(getattr(prestation, "prestataire", None), "raison_sociale", "") or "").strip()
-    beneficiaire_name = str(getattr(getattr(prestation, "beneficiaire", None), "nom_structure", "") or "").strip()
+    prestataire_name = str(
+        getattr(getattr(prestation, "prestataire", None), "raison_sociale", "") or ""
+    ).strip()
+    beneficiaire_name = str(
+        getattr(getattr(prestation, "beneficiaire", None), "nom_structure", "") or ""
+    ).strip()
     formation_name = str(getattr(getattr(prestation, "formation", None), "nom", "") or "").strip()
     if not any((prestataire_name, beneficiaire_name, formation_name)):
         return []
@@ -462,7 +484,9 @@ def _prestation_formateur_candidates(prestation: Prestation):
 
 def _class_formateur_candidates(classe: Classe):
     class_phone = _phone_digits(getattr(getattr(classe, "formateur", None), "telephone", ""))
-    formation_name = str(classe.intitule_formation or getattr(getattr(classe, "formation", None), "nom", "") or "").strip()
+    formation_name = str(
+        classe.intitule_formation or getattr(getattr(classe, "formation", None), "nom", "") or ""
+    ).strip()
     if not any(
         (
             class_phone,
@@ -476,7 +500,10 @@ def _class_formateur_candidates(classe: Classe):
     for row in _prestation_formateur_candidates(classe.prestation):
         if not _cohorte_matches(row.cohorte, classe.cohorte):
             continue
-        row_phone_candidates = [_phone_digits(getattr(row, "telephone", "")), *_split_source_contact_phones(row.source_contact)]
+        row_phone_candidates = [
+            _phone_digits(getattr(row, "telephone", "")),
+            *_split_source_contact_phones(row.source_contact),
+        ]
         if class_phone and class_phone in row_phone_candidates:
             matched_rows.append(row)
             continue
@@ -509,7 +536,11 @@ def _resolve_classe_for_formateur_analysis(row: AppelFormateur):
 
     formation_name = str(row.formation or "").strip()
     for classe in candidates:
-        current_name = str(classe.intitule_formation or getattr(getattr(classe, "formation", None), "nom", "") or "").strip()
+        current_name = str(
+            classe.intitule_formation
+            or getattr(getattr(classe, "formation", None), "nom", "")
+            or ""
+        ).strip()
         if _formation_matches(current_name, formation_name):
             return classe
     return candidates[0] if candidates else None
@@ -521,10 +552,18 @@ def _get_apprenant_id_for_appel(appel: Appel) -> str:
         apprenant = getattr(appel, "_cached_apprenant", None)
         if apprenant is None and appel.classe_id:
             from App_PADESCE.apprenants.models import Apprenant as ApprenantModel
+
             apprenant = (
-                ApprenantModel.objects.filter(classe_id=appel.classe_id, code__iexact=appel.code).first()
+                ApprenantModel.objects.filter(
+                    classe_id=appel.classe_id, code__iexact=appel.code
+                ).first()
                 or ApprenantModel.objects.filter(classe_id=appel.classe_id)
-                .filter(Q(telephone1=appel.telephone1) | Q(telephone1=appel.telephone2) | Q(telephone2=appel.telephone1) | Q(telephone2=appel.telephone2))
+                .filter(
+                    Q(telephone1=appel.telephone1)
+                    | Q(telephone1=appel.telephone2)
+                    | Q(telephone2=appel.telephone1)
+                    | Q(telephone2=appel.telephone2)
+                )
                 .first()
             )
     except Exception:
@@ -567,7 +606,11 @@ def _build_apprenant_rows(appels, *, back_url: str):
         )
     return sorted(
         rows,
-        key=lambda item: (_status_sort_value(item["statut"]), (item["nom"] or "").casefold(), item["id"]),
+        key=lambda item: (
+            _status_sort_value(item["statut"]),
+            (item["nom"] or "").casefold(),
+            item["id"],
+        ),
     )
 
 
@@ -642,10 +685,14 @@ def _build_formateur_rows(rows, *, back_url: str):
         # Try to resolve formateur name from linked Classe
         resolved_classe = _resolve_classe_for_formateur_analysis(row)
         formateur_nom = str(
-            getattr(getattr(resolved_classe, "formateur", None), "nom_complet", "") or row.source_contact or ""
+            getattr(getattr(resolved_classe, "formateur", None), "nom_complet", "")
+            or row.source_contact
+            or ""
         ).strip()
         formateur_telephone = str(
-            getattr(getattr(resolved_classe, "formateur", None), "telephone", "") or row.telephone or ""
+            getattr(getattr(resolved_classe, "formateur", None), "telephone", "")
+            or row.telephone
+            or ""
         ).strip()
         payload.append(
             {
@@ -692,11 +739,15 @@ def _entity_summary(apprenant_rows, formateur_rows) -> dict:
     appels_tentes = sum(1 for row in apprenant_rows if row["statut"] not in EXCLUDED_TENTE)
     appels_reussis = sum(1 for row in apprenant_rows if is_call_success_status(row["statut"]))
     formulaires_remplis = sum(1 for row in apprenant_rows if row["has_form"])
-    formulaires_avec_audio = sum(1 for row in apprenant_rows if row["has_audio"] and row["has_form"])
+    formulaires_avec_audio = sum(
+        1 for row in apprenant_rows if row["has_audio"] and row["has_form"]
+    )
     audios_enregistres = sum(1 for row in apprenant_rows if row["has_audio"])
 
     total_form = len(formateur_rows)
-    form_threshold_target = max(1, int(total_form * FORMATEUR_THRESHOLD_PERCENT / 100)) if total_form else 0
+    form_threshold_target = (
+        max(1, int(total_form * FORMATEUR_THRESHOLD_PERCENT / 100)) if total_form else 0
+    )
     form_threshold_reached = total_form > 0 and analyzed_formateurs >= form_threshold_target
 
     return {
@@ -759,7 +810,9 @@ def class_create(request):
     initial_data = {"code": initial_code, "cohorte": 1}
 
     if prestation_id:
-        prestation = get_object_or_404(Prestation.objects.select_related("formation"), pk=prestation_id)
+        prestation = get_object_or_404(
+            Prestation.objects.select_related("formation"), pk=prestation_id
+        )
         initial_data["prestation"] = prestation
 
     form = ClasseCreateForm(request.POST or None, initial=initial_data)
@@ -936,7 +989,11 @@ def class_analysis_detail(request, code: str):
             .order_by("nom", "code", "pk")
         )
 
-    active_tab = request.GET.get("tab") if request.GET.get("tab") in {"apprenants", "formateurs"} else "apprenants"
+    active_tab = (
+        request.GET.get("tab")
+        if request.GET.get("tab") in {"apprenants", "formateurs"}
+        else "apprenants"
+    )
     apprenant_back_url = _resolve_back_url("class_analysis_detail", classe.code, "apprenants")
     formateur_back_url = _resolve_back_url("class_analysis_detail", classe.code, "formateurs")
 
@@ -982,10 +1039,12 @@ def prestation_analysis_detail(request, code: str):
         .prefetch_related(
             Prefetch(
                 "classes",
-                queryset=Classe.objects.select_related("lieu", "formateur").annotate(
+                queryset=Classe.objects.select_related("lieu", "formateur")
+                .annotate(
                     apprenants_count=Count("apprenants", distinct=True),
                     appels_count=Count("appels", distinct=True),
-                ).order_by("code"),
+                )
+                .order_by("code"),
             )
         )
         .filter(code__iexact=code)
@@ -999,10 +1058,16 @@ def prestation_analysis_detail(request, code: str):
         source_bundle = _analysis_source_bundle()
         source_prestation = _analysis_source_lookup(source_bundle, "prestations", code)
         source_classes = _analysis_source_classes_for_prestation(source_bundle, code)
-        source_class_codes = [str(item.get("classe_id", "") or "").strip() for item in source_classes if str(item.get("classe_id", "") or "").strip()]
+        source_class_codes = [
+            str(item.get("classe_id", "") or "").strip()
+            for item in source_classes
+            if str(item.get("classe_id", "") or "").strip()
+        ]
         apprenant_appels = list(
             _analysis_appel_queryset()
-            .filter(Q(classe__prestation__code__iexact=code) | Q(classe_label__in=source_class_codes))
+            .filter(
+                Q(classe__prestation__code__iexact=code) | Q(classe_label__in=source_class_codes)
+            )
             .order_by("classe__code", "nom", "code", "pk")
         )
         if not source_prestation and not source_classes and not apprenant_appels:
@@ -1031,9 +1096,17 @@ def prestation_analysis_detail(request, code: str):
             }
             for item in prestation.classes.all()
         ]
-    active_tab = request.GET.get("tab") if request.GET.get("tab") in {"apprenants", "formateurs"} else "apprenants"
-    apprenant_back_url = _resolve_back_url("prestation_analysis_detail", prestation.code, "apprenants")
-    formateur_back_url = _resolve_back_url("prestation_analysis_detail", prestation.code, "formateurs")
+    active_tab = (
+        request.GET.get("tab")
+        if request.GET.get("tab") in {"apprenants", "formateurs"}
+        else "apprenants"
+    )
+    apprenant_back_url = _resolve_back_url(
+        "prestation_analysis_detail", prestation.code, "apprenants"
+    )
+    formateur_back_url = _resolve_back_url(
+        "prestation_analysis_detail", prestation.code, "formateurs"
+    )
 
     formateur_appels = _prestation_formateur_candidates(prestation)
 
@@ -1047,7 +1120,9 @@ def prestation_analysis_detail(request, code: str):
         {
             "entity_type": "prestation",
             "entity_title": prestation.code,
-            "entity_subtitle": str(getattr(getattr(prestation, "formation", None), "nom", "") or prestation),
+            "entity_subtitle": str(
+                getattr(getattr(prestation, "formation", None), "nom", "") or prestation
+            ),
             "entity": prestation,
             "prestation": prestation,
             "classe": None,
@@ -1127,7 +1202,11 @@ def class_reports(request, pk: int):
     presence_dates = (
         Presence.objects.filter(classe=classe)
         .values("date")
-        .annotate(total=Count("id"), presents=Count("id", filter=Q(presence="PR")), absents=Count("id", filter=Q(presence="AB")))
+        .annotate(
+            total=Count("id"),
+            presents=Count("id", filter=Q(presence="PR")),
+            absents=Count("id", filter=Q(presence="AB")),
+        )
         .order_by("-date")
     )
     sat_appr = SatisfactionApprenant.objects.filter(classe=classe).order_by("-date")
@@ -1151,7 +1230,11 @@ def presence_report_detail(request, pk: int, date_str: str):
         Classe.objects.select_related("prestation", "formation", "lieu"),
         pk=pk,
     )
-    presences = Presence.objects.select_related("apprenant").filter(classe=classe, date=date_str).order_by("apprenant__nom_complet")
+    presences = (
+        Presence.objects.select_related("apprenant")
+        .filter(classe=classe, date=date_str)
+        .order_by("apprenant__nom_complet")
+    )
     total = presences.count()
     presents = presences.filter(presence="PR").count()
     absents = presences.filter(presence="AB").count()

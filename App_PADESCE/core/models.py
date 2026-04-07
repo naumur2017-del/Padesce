@@ -20,7 +20,11 @@ class AuditLog(models.Model):
     ]
 
     actor = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="audit_entries"
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="audit_entries",
     )
     model_name = models.CharField(max_length=200)
     object_pk = models.CharField(max_length=100)

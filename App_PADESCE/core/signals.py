@@ -38,7 +38,9 @@ def audit_presence_delete(sender, instance: Presence, **kwargs):
 
 
 @receiver(post_save, sender=SatisfactionApprenant)
-def audit_satisfaction_apprenant_save(sender, instance: SatisfactionApprenant, created: bool, **kwargs):
+def audit_satisfaction_apprenant_save(
+    sender, instance: SatisfactionApprenant, created: bool, **kwargs
+):
     _log_audit(instance, "created" if created else "updated")
 
 
@@ -48,7 +50,9 @@ def audit_satisfaction_apprenant_delete(sender, instance: SatisfactionApprenant,
 
 
 @receiver(post_save, sender=SatisfactionFormateur)
-def audit_satisfaction_formateur_save(sender, instance: SatisfactionFormateur, created: bool, **kwargs):
+def audit_satisfaction_formateur_save(
+    sender, instance: SatisfactionFormateur, created: bool, **kwargs
+):
     _log_audit(instance, "created" if created else "updated")
 
 
