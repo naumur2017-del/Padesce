@@ -41,6 +41,9 @@ from App_PADESCE.appels.models import (
     CALL_ANALYSIS_THRESHOLD_STATUSES,
     CALL_FORM_STATUSES,
     CALL_SUCCESS_STATUSES,
+    appel_has_any_audio,
+    appel_has_any_form_data,
+    derive_padesce_status,
     sync_padesce_status,
 )
 from App_PADESCE.apprenants.models import Apprenant
@@ -1582,6 +1585,19 @@ def _has_complete_answer_set(answer: AppelAnswers | None) -> bool:
     if not answer:
         return False
     return all(getattr(answer, field, None) not in (None, "") for field in APPEL_ANSWER_QUESTION_FIELDS)
+
+
+def _has_complete_satisfaction_set(survey: SatisfactionApprenant | None) -> bool:
+    if not survey:
+        return False
+    return all(getattr(survey, field, None) not in (None, "") for field in APPEL_ANSWER_QUESTION_FIELDS)
+
+
+def _has_complete_form_record(
+    answer: AppelAnswers | None,
+    survey: SatisfactionApprenant | None,
+) -> bool:
+    return _has_complete_answer_set(answer) or _has_complete_satisfaction_set(survey)
 
 
 def _has_ras_only_form(answer: AppelAnswers | None) -> bool:
@@ -3407,6 +3423,23 @@ def _parse_batch_update_targets(raw_codes: str, default_class_code: str = "") ->
     return parsed_targets
 
 
+def _merge_batch_update_targets(
+    raw_codes: str,
+    selected_targets: list[str] | None,
+    default_class_code: str = "",
+) -> list[dict[str, str]]:
+    merged_targets: list[dict[str, str]] = []
+    seen_codes: set[str] = set()
+    for raw_value in [raw_codes, *(selected_targets or [])]:
+        for target in _parse_batch_update_targets(raw_value, default_class_code):
+            code_key = str(target.get("code") or "").strip().casefold()
+            if not code_key or code_key in seen_codes:
+                continue
+            seen_codes.add(code_key)
+            merged_targets.append(target)
+    return merged_targets
+
+
 def _expand_batch_update_values(
     values: list,
     target_count: int,
@@ -3470,10 +3503,89 @@ def _linked_one_to_one(instance, attr_name: str):
         return None
 
 
-def _batch_update_answer_summary(answer: AppelAnswers | None) -> str:
-    if not answer:
+def _batch_update_answer_summary(
+    answer: AppelAnswers | None,
+    survey: SatisfactionApprenant | None = None,
+) -> str:
+    source = answer or survey
+    if not source:
         return "-"
-    return " / ".join(str(getattr(answer, field, None) or "-") for field in APPEL_ANSWER_QUESTION_FIELDS)
+    return " / ".join(str(getattr(source, field, None) or "-") for field in APPEL_ANSWER_QUESTION_FIELDS)
+
+
+def _batch_update_status_display(status_code: str) -> str:
+    normalized_status = str(status_code or "").strip()
+    return dict(Appel.STATUS_CHOICES).get(normalized_status, normalized_status or "-")
+
+
+def _build_update_form_candidate_row(
+    appel: Appel,
+    apprenant: Apprenant | None,
+    answer: AppelAnswers | None,
+    survey: SatisfactionApprenant | None,
+) -> dict:
+    resolved_class = appel.classe or getattr(apprenant, "classe", None)
+    classe_code = (
+        getattr(resolved_class, "code", "")
+        or str(getattr(appel, "classe_label", "") or "").strip()
+        or getattr(getattr(apprenant, "classe", None), "code", "")
+        or "-"
+    )
+    prestation_code = getattr(getattr(resolved_class, "prestation", None), "code", "") or "-"
+    has_complete_form = _has_complete_form_record(answer, survey)
+    has_partial_form = appel_has_any_form_data(appel)
+    current_status = str(appel.status or "").strip()
+    computed_status = derive_padesce_status(appel)
+    selection_value = appel.code
+    if classe_code and classe_code != "-":
+        selection_value = f"{appel.code}|{classe_code}"
+    return {
+        "code": appel.code,
+        "nom": str(appel.nom or getattr(apprenant, "nom_complet", "") or "-").strip() or "-",
+        "classe_code": classe_code,
+        "prestation_code": prestation_code,
+        "audio_label": "Oui" if appel_has_any_audio(appel) else "Non",
+        "formulaire_label": "Complet" if has_complete_form else ("Partiel" if has_partial_form else "Non"),
+        "current_status": current_status,
+        "current_status_label": appel.get_status_display(),
+        "computed_status": computed_status,
+        "computed_status_label": _batch_update_status_display(computed_status),
+        "commentaire": getattr(answer or survey, "commentaire", "") or "-",
+        "recommandations": getattr(answer or survey, "recommandations", "") or "-",
+        "selection_value": selection_value,
+        "has_complete_form": has_complete_form,
+    }
+
+
+def _build_update_form_candidate_lists() -> tuple[list[dict], list[dict]]:
+    appels = list(
+        Appel.objects.filter(is_active=True)
+        .select_related("classe", "classe__prestation", "answers", "satisfaction_apprenant")
+        .order_by("classe_label", "code")
+    )
+    apprenant_codes = [str(appel.code or "").strip() for appel in appels if str(appel.code or "").strip()]
+    apprenants_by_code = {
+        str(apprenant.code or "").strip().casefold(): apprenant
+        for apprenant in Apprenant.objects.select_related("classe", "classe__prestation").filter(
+            code__in=apprenant_codes
+        )
+    }
+    termine_without_form_rows: list[dict] = []
+    form_status_issue_rows: list[dict] = []
+
+    for appel in appels:
+        answer = _linked_one_to_one(appel, "answers")
+        survey = _linked_one_to_one(appel, "satisfaction_apprenant")
+        apprenant = apprenants_by_code.get(str(appel.code or "").strip().casefold())
+        if apprenant is None:
+            apprenant = _resolve_batch_update_apprenant(appel)
+        row = _build_update_form_candidate_row(appel, apprenant, answer, survey)
+        if str(appel.status or "").strip() == "termine" and not row["has_complete_form"]:
+            termine_without_form_rows.append(row)
+        elif row["has_complete_form"] and str(appel.status or "").strip() != "termine":
+            form_status_issue_rows.append(row)
+
+    return termine_without_form_rows, form_status_issue_rows
 
 
 def _resolve_batch_update_apprenant(appel: Appel) -> Apprenant | None:
@@ -3614,7 +3726,11 @@ def _apply_batch_update_target(target: dict[str, str], payload: dict, user) -> d
         "survey_synced": False,
     }
 
-    appel = Appel.objects.filter(is_active=True, code__iexact=requested_code).select_related("classe").first()
+    appel = (
+        Appel.objects.filter(is_active=True, code__iexact=requested_code)
+        .select_related("classe", "answers", "satisfaction_apprenant")
+        .first()
+    )
     if appel is None:
         result["message"] = "Code apprenant introuvable."
         return result
@@ -3622,7 +3738,8 @@ def _apply_batch_update_target(target: dict[str, str], payload: dict, user) -> d
     result["nom"] = appel.nom or "-"
     result["before_status"] = appel.get_status_display()
     before_answers = _linked_one_to_one(appel, "answers")
-    result["before_answers"] = _batch_update_answer_summary(before_answers)
+    before_survey = _linked_one_to_one(appel, "satisfaction_apprenant")
+    result["before_answers"] = _batch_update_answer_summary(before_answers, before_survey)
 
     try:
         with transaction.atomic():
@@ -3662,6 +3779,80 @@ def _apply_batch_update_target(target: dict[str, str], payload: dict, user) -> d
     except ValueError as exc:
         result["message"] = str(exc)
         return result
+    except Exception as exc:
+        logger.exception("UPDATE FORM batch update failed for code=%s", requested_code)
+        result["message"] = f"Erreur interne pendant la mise a jour: {exc}"
+        return result
+
+
+def _apply_batch_status_target(target: dict[str, str], target_status: str) -> dict:
+    requested_code = target["code"]
+    requested_class_code = str(target.get("requested_class_code") or "").strip()
+    result = {
+        "code": requested_code,
+        "requested_class_code": requested_class_code or "-",
+        "resolved_class_code": "-",
+        "nom": "-",
+        "before_status": "-",
+        "after_status": "-",
+        "before_answers": "-",
+        "after_answers": "-",
+        "commentaire": "-",
+        "recommandations": "-",
+        "message": "",
+        "ok": False,
+        "survey_synced": False,
+    }
+
+    appel = (
+        Appel.objects.filter(is_active=True, code__iexact=requested_code)
+        .select_related("classe", "answers", "satisfaction_apprenant")
+        .first()
+    )
+    if appel is None:
+        result["message"] = "Code apprenant introuvable."
+        return result
+
+    answer = _linked_one_to_one(appel, "answers")
+    survey = _linked_one_to_one(appel, "satisfaction_apprenant")
+    if not _has_complete_form_record(answer, survey):
+        result["nom"] = appel.nom or "-"
+        result["before_status"] = appel.get_status_display()
+        result["before_answers"] = _batch_update_answer_summary(answer, survey)
+        result["message"] = "Aucun formulaire complet trouve pour ce code."
+        return result
+
+    result["nom"] = appel.nom or "-"
+    result["before_status"] = appel.get_status_display()
+    result["before_answers"] = _batch_update_answer_summary(answer, survey)
+    result["commentaire"] = getattr(answer or survey, "commentaire", "") or "-"
+    result["recommandations"] = getattr(answer or survey, "recommandations", "") or "-"
+
+    try:
+        with transaction.atomic():
+            apprenant = _resolve_batch_update_apprenant(appel)
+            resolved_class, effective_class_code = _resolve_batch_update_class(
+                appel,
+                apprenant,
+                requested_class_code,
+            )
+            _sync_batch_update_appel_class(appel, resolved_class, effective_class_code)
+            appel.status = target_status
+            appel.save(update_fields=["status", "updated_at"])
+
+        result["resolved_class_code"] = effective_class_code or "-"
+        result["after_status"] = appel.get_status_display()
+        result["after_answers"] = _batch_update_answer_summary(answer, survey)
+        result["message"] = f"Statut mis a jour vers {appel.get_status_display()}."
+        result["ok"] = True
+        return result
+    except ValueError as exc:
+        result["message"] = str(exc)
+        return result
+    except Exception as exc:
+        logger.exception("UPDATE FORM status update failed for code=%s", requested_code)
+        result["message"] = f"Erreur interne pendant le changement de statut: {exc}"
+        return result
 
 
 @require_analysis_access
@@ -3678,47 +3869,91 @@ def satisfaction_update_form_page(request):
         "updated_total": 0,
         "error_total": 0,
         "synced_total": 0,
+        "action_label": "formulaire(s)",
+    }
+    selected_target_values = {
+        str(value or "").strip()
+        for value in request.POST.getlist("selected_targets")
+        if str(value or "").strip()
     }
 
     if request.method == "POST" and form.is_valid():
-        targets = _parse_batch_update_targets(
+        action = str(request.POST.get("action") or "update_form").strip() or "update_form"
+        targets = _merge_batch_update_targets(
             form.cleaned_data["codes_text"],
+            request.POST.getlist("selected_targets"),
             form.cleaned_data.get("classe_code", ""),
         )
         if not targets:
-            form.add_error("codes_text", "Ajoutez au moins un code apprenant valide.")
+            form.add_error(
+                "codes_text",
+                "Ajoutez au moins un code apprenant valide ou selectionnez au moins une ligne.",
+            )
         else:
-            try:
-                payloads = _build_batch_update_payloads(form.cleaned_data, len(targets))
-            except ValueError as exc:
-                form.add_error(None, str(exc))
+            if action == "update_status":
+                requested_status = str(form.cleaned_data.get("target_status") or "").strip()
+                if not requested_status:
+                    form.add_error("target_status", "Choisissez le statut a appliquer.")
+                else:
+                    results = [
+                        _apply_batch_status_target(target, requested_status) for target in targets
+                    ]
+                    summary = {
+                        "requested_total": len(results),
+                        "updated_total": sum(1 for item in results if item["ok"]),
+                        "error_total": sum(1 for item in results if not item["ok"]),
+                        "synced_total": 0,
+                        "action_label": "statut(s)",
+                    }
+                    if summary["updated_total"]:
+                        messages.success(
+                            request,
+                            f"{summary['updated_total']} statut(s) mis a jour.",
+                        )
+                    if summary["error_total"]:
+                        messages.warning(
+                            request,
+                            f"{summary['error_total']} code(s) n'ont pas pu etre traites.",
+                        )
             else:
-                results = [
-                    _apply_batch_update_target(target, payload, request.user)
-                    for target, payload in zip(targets, payloads)
-                ]
-                summary = {
-                    "requested_total": len(results),
-                    "updated_total": sum(1 for item in results if item["ok"]),
-                    "error_total": sum(1 for item in results if not item["ok"]),
-                    "synced_total": sum(1 for item in results if item["survey_synced"]),
-                }
-                if summary["updated_total"]:
-                    messages.success(
-                        request,
-                        f"{summary['updated_total']} formulaire(s) mis a jour.",
-                    )
-                if summary["error_total"]:
-                    messages.warning(
-                        request,
-                        f"{summary['error_total']} code(s) n'ont pas pu etre traites.",
-                    )
+                try:
+                    payloads = _build_batch_update_payloads(form.cleaned_data, len(targets))
+                except ValueError as exc:
+                    form.add_error(None, str(exc))
+                else:
+                    results = [
+                        _apply_batch_update_target(target, payload, request.user)
+                        for target, payload in zip(targets, payloads)
+                    ]
+                    summary = {
+                        "requested_total": len(results),
+                        "updated_total": sum(1 for item in results if item["ok"]),
+                        "error_total": sum(1 for item in results if not item["ok"]),
+                        "synced_total": sum(1 for item in results if item["survey_synced"]),
+                        "action_label": "formulaire(s)",
+                    }
+                    if summary["updated_total"]:
+                        messages.success(
+                            request,
+                            f"{summary['updated_total']} formulaire(s) mis a jour.",
+                        )
+                    if summary["error_total"]:
+                        messages.warning(
+                            request,
+                            f"{summary['error_total']} code(s) n'ont pas pu etre traites.",
+                        )
+
+    termine_without_form_rows, form_status_issue_rows = _build_update_form_candidate_lists()
 
     context = {
         "form": form,
         "results": results,
         "summary": summary,
         "question_fields": Q_FIELDS,
+        "selected_target_values": selected_target_values,
+        "termine_without_form_rows": termine_without_form_rows,
+        "form_status_issue_rows": form_status_issue_rows,
+        "candidate_total": len(termine_without_form_rows) + len(form_status_issue_rows),
         "selected_source": selected_source,
         "general_url": f"{reverse('satisfaction_general_page')}?source={selected_source}",
         "dashboard_url": f"{reverse('satisfaction_dashboard')}?source={selected_source}",

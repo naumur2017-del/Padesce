@@ -1019,6 +1019,65 @@ class SatisfactionGeneralPageTests(TestCase):
             fenetre="2",
             prestataire="Prestataire A",
         )
+        self.termine_without_form_appel = Appel.objects.create(
+            code="APP102",
+            nom="Celia Sans Formulaire",
+            classe_label="CLA001",
+            classe=self.classe,
+            prestataire="Prestataire A",
+            beneficiaire="Beneficiaire A",
+            telephone1="690001102",
+            fenetre="2",
+            status="termine",
+            is_active=True,
+        )
+        self.termine_without_form_apprenant = Apprenant.objects.create(
+            code="APP102",
+            classe=self.classe,
+            formation=self.formation,
+            nom_complet="Celia Sans Formulaire",
+            beneficiaire="Beneficiaire A",
+            fenetre="2",
+            prestataire="Prestataire A",
+            telephone1="690001102",
+        )
+        self.formulaire_non_termine_appel = Appel.objects.create(
+            code="APP103",
+            nom="David Statut A Corriger",
+            classe_label="CLA001",
+            classe=self.classe,
+            prestataire="Prestataire A",
+            beneficiaire="Beneficiaire A",
+            telephone1="690001103",
+            fenetre="2",
+            status="formulaire_rempli",
+            is_active=True,
+        )
+        AppelAnswers.objects.create(
+            appel=self.formulaire_non_termine_appel,
+            q1_clarte_exposes=5,
+            q2_interaction_formateur=5,
+            q3_maitrise_contenu=4,
+            q4_salle_adequate=4,
+            q5_materiel_disponible=4,
+            q6_organisation_temps=4,
+            q7_utilite_formation=5,
+            q8_adequation_besoins=5,
+            q9_satisfaction_globale=5,
+            commentaire="Formulaire deja rempli",
+            recommandations="Passer en termine",
+            modified_by=self.user,
+        )
+        self.formulaire_non_termine_apprenant = Apprenant.objects.create(
+            code="APP103",
+            classe=self.classe,
+            formation=self.formation,
+            nom_complet="David Statut A Corriger",
+            beneficiaire="Beneficiaire A",
+            fenetre="2",
+            prestataire="Prestataire A",
+            telephone1="690001103",
+        )
 
     @patch("App_PADESCE.satisfaction_apprenants.views.get_workbook_source_options")
     @patch("App_PADESCE.satisfaction_apprenants.views.build_padesce_source_index")
@@ -1122,6 +1181,10 @@ class SatisfactionGeneralPageTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "UPDATE FORM")
         self.assertContains(response, "[APP100, APP101]")
+        self.assertContains(response, "Termine Sans Formulaire")
+        self.assertContains(response, "Formulaire Present / Statut Non Termine")
+        self.assertContains(response, "APP102")
+        self.assertContains(response, "APP103")
 
     def test_update_form_page_updates_batch_codes_in_declared_order(self):
         response = self.client.post(
@@ -1226,6 +1289,65 @@ class SatisfactionGeneralPageTests(TestCase):
         self.no_phone_appel.refresh_from_db()
         self.assertEqual(self.eligible_appel.status, "formulaire_rempli")
         self.assertEqual(self.no_phone_appel.status, "formulaire_rempli")
+
+    def test_update_form_page_updates_selected_termine_without_form_rows(self):
+        response = self.client.post(
+            reverse("satisfaction_update_form_page"),
+            {
+                "selected_targets": [f"{self.termine_without_form_appel.code}|CLA001"],
+                "action": "update_form",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "1 formulaire(s) mis a jour.")
+
+        answers = AppelAnswers.objects.get(appel=self.termine_without_form_appel)
+        self.assertEqual(answers.q1_clarte_exposes, 3)
+        self.assertEqual(answers.q9_satisfaction_globale, 3)
+        self.assertEqual(answers.commentaire, "RAS")
+        self.assertEqual(answers.recommandations, "RAS")
+
+        self.termine_without_form_appel.refresh_from_db()
+        self.assertEqual(self.termine_without_form_appel.status, "formulaire_rempli")
+        survey = SatisfactionApprenant.objects.get(appel=self.termine_without_form_appel)
+        self.assertEqual(survey.apprenant, self.termine_without_form_apprenant)
+        self.assertEqual(survey.classe, self.classe)
+
+    def test_update_form_page_changes_status_for_rows_with_existing_form(self):
+        response = self.client.post(
+            reverse("satisfaction_update_form_page"),
+            {
+                "selected_targets": [f"{self.formulaire_non_termine_appel.code}|CLA001"],
+                "target_status": "termine",
+                "action": "update_status",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "1 statut(s) mis a jour.")
+        self.assertContains(response, "Statut mis a jour vers Termine.")
+
+        self.formulaire_non_termine_appel.refresh_from_db()
+        self.assertEqual(self.formulaire_non_termine_appel.status, "termine")
+        answers = AppelAnswers.objects.get(appel=self.formulaire_non_termine_appel)
+        self.assertEqual(answers.commentaire, "Formulaire deja rempli")
+        self.assertEqual(answers.recommandations, "Passer en termine")
+
+    def test_update_form_page_requires_target_status_for_status_action(self):
+        response = self.client.post(
+            reverse("satisfaction_update_form_page"),
+            {
+                "selected_targets": [f"{self.formulaire_non_termine_appel.code}|CLA001"],
+                "action": "update_status",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Statut a appliquer: Choisissez le statut a appliquer.")
+
+        self.formulaire_non_termine_appel.refresh_from_db()
+        self.assertEqual(self.formulaire_non_termine_appel.status, "formulaire_rempli")
 
 
 class SatisfactionImportExcelSyncTests(TestCase):

@@ -2,6 +2,7 @@ import re
 
 from django import forms
 
+from App_PADESCE.appels.models import Appel
 from App_PADESCE.satisfaction_apprenants.models import SatisfactionApprenant
 
 
@@ -47,10 +48,12 @@ class SatisfactionBatchUpdateForm(forms.Form):
         ),
     )
     codes_text = forms.CharField(
+        required=False,
         label="Codes apprenants",
         help_text=(
             "Accepte un code par ligne, une liste entre crochets comme "
-            "[APP100, APP101] ou le format CODE|CLASSE pour forcer la classe."
+            "[APP100, APP101] ou le format CODE|CLASSE pour forcer la classe. "
+            "Laissez vide si vous selectionnez les lignes plus bas."
         ),
         widget=forms.Textarea(
             attrs={
@@ -58,6 +61,12 @@ class SatisfactionBatchUpdateForm(forms.Form):
                 "placeholder": "[APP100, APP101]\nAPP102|CLA002",
             }
         ),
+    )
+    target_status = forms.ChoiceField(
+        required=False,
+        label="Statut a appliquer",
+        help_text="Utilise uniquement le bouton de changement de statut.",
+        choices=(),
     )
     q1_clarte_exposes = forms.CharField(
         required=False,
@@ -186,6 +195,14 @@ class SatisfactionBatchUpdateForm(forms.Form):
             }
         ),
     )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["target_status"].choices = [
+            ("", "Selectionner un statut"),
+            *Appel.STATUS_CHOICES,
+        ]
+        self.initial.setdefault("target_status", "termine")
 
     @staticmethod
     def _normalize_container(raw_value: str) -> str:
