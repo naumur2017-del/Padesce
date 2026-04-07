@@ -171,8 +171,7 @@ class SatisfactionBatchUpdateForm(forms.Form):
         required=False,
         label="Commentaires",
         help_text=(
-            "Texte unique ou liste ordonnee entre crochets. "
-            "Exemple: [RAS, Besoin de suivi]."
+            "Texte unique ou liste ordonnee entre crochets. Exemple: [RAS, Besoin de suivi]."
         ),
         widget=forms.Textarea(
             attrs={
@@ -236,9 +235,7 @@ class SatisfactionBatchUpdateForm(forms.Form):
                 continue
             scores.append(score)
         if invalid_items:
-            raise forms.ValidationError(
-                "Les notes doivent etre comprises entre 1 et 5."
-            )
+            raise forms.ValidationError("Les notes doivent etre comprises entre 1 et 5.")
         return scores
 
     def clean_q1_clarte_exposes(self) -> list[int]:

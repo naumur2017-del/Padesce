@@ -22,7 +22,6 @@ from django.views.decorators.http import require_GET, require_POST
 from App_PADESCE.appels.models import (
     APPEL_ANSWER_QUESTION_FIELDS,
     CALL_ANALYSIS_THRESHOLD_STATUSES,
-    CALL_COMPLETED_STATUSES,
     CALL_SUCCESS_STATUSES,
     CALL_TENTATIVE_STATUSES,
     Appel,
@@ -81,31 +80,6 @@ def _group_appel_ids_by_user(queryset, user_field: str) -> dict[int, set[int]]:
         if user_id:
             grouped[user_id].add(row["id"])
     return grouped
-
-
-def _count_audit_events_by_user(
-    *,
-    model_name: str,
-    event_name: str | None = None,
-    expected_extra: dict[str, str] | None = None,
-) -> dict[int, int]:
-    counts: dict[int, int] = defaultdict(int)
-    for entry in AuditLog.objects.filter(actor__isnull=False, model_name=model_name).only(
-        "actor_id", "extra"
-    ):
-        extra = entry.extra if isinstance(entry.extra, dict) else {}
-        if event_name and str(extra.get("event", "") or "").strip() != event_name:
-            continue
-        if expected_extra:
-            matches = True
-            for key, value in expected_extra.items():
-                if str(extra.get(key, "") or "").strip() != str(value):
-                    matches = False
-                    break
-            if not matches:
-                continue
-        counts[entry.actor_id] += 1
-    return counts
 
 
 def _source_class_apprenant_counts(source_bundle: dict | None) -> dict[str, int]:
@@ -200,11 +174,27 @@ def _consultant_dashboard_fenetre(appel: Appel) -> str:
     return ""
 
 
-@lru_cache(maxsize=1)
-def _load_conformity_ranking_priorities():
+_conformity_ranking_cache: dict = {"mtime": None, "data": {}}
+
+
+def _load_conformity_ranking_priorities() -> dict:
+    """Load priorities from conformity_ranking.json with mtime-based cache invalidation.
+
+    The cache is refreshed whenever the file is modified on disk, so a new
+    deployment of conformity_ranking.json is picked up automatically without
+    restarting the server process.
+    """
     path = os.path.join(settings.BASE_DIR, "conformity_ranking.json")
     if not os.path.exists(path):
         return {}
+    try:
+        mtime = os.path.getmtime(path)
+    except OSError:
+        return {}
+
+    if _conformity_ranking_cache["mtime"] == mtime:
+        return _conformity_ranking_cache["data"]
+
     try:
         with open(path, "r", encoding="utf-8") as f:
             data = json.load(f)
@@ -220,6 +210,8 @@ def _load_conformity_ranking_priorities():
                     "avg_satisfaction": avg,
                     "name": item.get("name"),
                 }
+        _conformity_ranking_cache["mtime"] = mtime
+        _conformity_ranking_cache["data"] = priorities
         return priorities
     except Exception:
         return {}
@@ -490,6 +482,9 @@ def _consultant_analysis_snapshot(
                 "analysis_audio_count": context.get("analysis_audio_count", 0),
                 "analyzed_learners_count": context["total"],
                 "total_apprenants": context["total"],
+                "source_apprenant_count": (context.get("source_summary") or {}).get(
+                    "source_apprenant_count", 0
+                ),
             },
         }
     except Exception:
@@ -505,7 +500,7 @@ def home(request):
     progress_pct = round((elapsed_days / total_days) * 100, 1)
     countdown_days = max(0, (end_date - today).days)
 
-    appels_termine_qs = Appel.objects.filter(is_active=True, status__in=CALL_COMPLETED_STATUSES)
+    appels_termine_qs = Appel.objects.filter(is_active=True, status="termine")
     prestataire_appels = (
         appels_termine_qs.values("prestataire")
         .annotate(total=Count("id"))
@@ -594,7 +589,7 @@ def home(request):
 
             # --- KPIs 24h ---
             padesce_24h_qs = Appel.objects.filter(
-                is_active=True, status__in=CALL_COMPLETED_STATUSES, updated_at__gte=since_24h
+                is_active=True, status="termine", updated_at__gte=since_24h
             )
             context["kpi_24h_total_termines"] = padesce_24h_qs.count()
 
@@ -645,7 +640,7 @@ def home(request):
                 .values("prestataire")
                 .annotate(
                     total_appeles=Count("id", filter=~Q(status="en_attente")),
-                    total_termines=Count("id", filter=Q(status__in=CALL_COMPLETED_STATUSES)),
+                    total_termines=Count("id", filter=Q(status="termine")),
                 )
                 .order_by("-total_termines", "-total_appeles", "prestataire")
             )
@@ -660,7 +655,7 @@ def home(request):
                 .annotate(
                     total_apprenants=Count("id"),
                     total_appeles=Count("id", filter=~Q(status="en_attente")),
-                    total_termines=Count("id", filter=Q(status__in=CALL_COMPLETED_STATUSES)),
+                    total_termines=Count("id", filter=Q(status="termine")),
                 )
                 .order_by("prestataire", "beneficiaire")
             )
@@ -705,7 +700,7 @@ def home(request):
                 .values("locked_by__username")
                 .annotate(
                     total_appeles=Count("id"),
-                    total_termines=Count("id", filter=Q(status__in=CALL_COMPLETED_STATUSES)),
+                    total_termines=Count("id", filter=Q(status="termine")),
                     recent_24h=Count("id", filter=Q(updated_at__gte=since_24h)),
                 )
                 .order_by("-total_termines", "-total_appeles", "locked_by__username")
@@ -716,7 +711,7 @@ def home(request):
                 padesce_called_qs.values("classe_label", "prestataire", "beneficiaire")
                 .annotate(
                     total_appeles=Count("id"),
-                    total_termines=Count("id", filter=Q(status__in=CALL_COMPLETED_STATUSES)),
+                    total_termines=Count("id", filter=Q(status="termine")),
                 )
                 .order_by(
                     "-total_termines",
@@ -742,7 +737,7 @@ def home(request):
                 .values("locked_by__username", "classe_label", "prestataire", "beneficiaire")
                 .annotate(
                     total_appeles=Count("id"),
-                    total_termines=Count("id", filter=Q(status__in=CALL_COMPLETED_STATUSES)),
+                    total_termines=Count("id", filter=Q(status="termine")),
                 )
                 .order_by(
                     "-total_termines", "-total_appeles", "locked_by__username", "classe_label"
@@ -768,7 +763,7 @@ def home(request):
                 formateurs_all_qs.values("prestataire")
                 .annotate(
                     total_appels=Count("id", filter=~Q(status="en_attente")),
-                    total_termines=Count("id", filter=Q(status__in=CALL_COMPLETED_STATUSES)),
+                    total_termines=Count("id", filter=Q(status="termine")),
                 )
                 .order_by("-total_termines", "-total_appels", "prestataire")
             )
@@ -782,7 +777,7 @@ def home(request):
                 formateurs_all_qs.values("cohorte")
                 .annotate(
                     total=Count("id"),
-                    total_termines=Count("id", filter=Q(status__in=CALL_COMPLETED_STATUSES)),
+                    total_termines=Count("id", filter=Q(status="termine")),
                 )
                 .order_by("-total", "cohorte")
             )
@@ -810,7 +805,7 @@ def home(request):
                 .values("locked_by__username")
                 .annotate(
                     total_appels=Count("id"),
-                    total_termines=Count("id", filter=Q(status__in=CALL_COMPLETED_STATUSES)),
+                    total_termines=Count("id", filter=Q(status="termine")),
                 )
                 .order_by("-total_termines", "-total_appels", "locked_by__username")
             )
@@ -823,7 +818,7 @@ def home(request):
                 cga_called_qs.values("regime")
                 .annotate(
                     total_appeles=Count("id"),
-                    total_termines=Count("id", filter=Q(status__in=CALL_COMPLETED_STATUSES)),
+                    total_termines=Count("id", filter=Q(status="termine")),
                 )
                 .order_by("-total_termines", "-total_appeles", "regime")
             )
@@ -835,7 +830,7 @@ def home(request):
                 cga_called_qs.values("cri")
                 .annotate(
                     total_appeles=Count("id"),
-                    total_termines=Count("id", filter=Q(status__in=CALL_COMPLETED_STATUSES)),
+                    total_termines=Count("id", filter=Q(status="termine")),
                 )
                 .order_by("-total_termines", "-total_appeles", "cri")
             )
@@ -847,7 +842,7 @@ def home(request):
                 cga_called_qs.values("centre_de_rattachement")
                 .annotate(
                     total_appeles=Count("id"),
-                    total_termines=Count("id", filter=Q(status__in=CALL_COMPLETED_STATUSES)),
+                    total_termines=Count("id", filter=Q(status="termine")),
                 )
                 .order_by("-total_termines", "-total_appeles", "centre_de_rattachement")
             )
@@ -862,7 +857,7 @@ def home(request):
                 .values("locked_by__username")
                 .annotate(
                     total_appeles=Count("id"),
-                    total_termines=Count("id", filter=Q(status__in=CALL_COMPLETED_STATUSES)),
+                    total_termines=Count("id", filter=Q(status="termine")),
                 )
                 .order_by("-total_termines", "-total_appeles", "locked_by__username")
             )
@@ -1056,18 +1051,32 @@ def consultant_dashboard(request):
 
     strict_form_q = answers_valid_q | survey_valid_q
 
-    tentes = reussis = form_remplis = form_audio = audios_enregistres = 0
+    appels_cibles = tentes = reussis = form_remplis = form_sans_audio = form_audio = (
+        audios_enregistres
+    ) = 0
     target_class_codes = [opt["value"] for opt in card_snapshot["class_options"] if opt["value"]]
     if target_class_codes:
         base_qs = Appel.objects.filter(is_active=True).filter(
             Q(classe__code__in=target_class_codes) | Q(classe_label__in=target_class_codes)
         )
+        appels_cibles = (
+            int(card_snapshot["counts"].get("source_apprenant_count") or 0) or base_qs.count()
+        )
+        success_q = (
+            Q(status__in=CALL_SUCCESS_STATUSES)
+            | Q(status="pause")
+            | Q(deja_forme=True)
+            | Q(flag_numero_double=True)
+            | Q(flag_pas_forme=True)
+            | Q(flag_faux_nom=True)
+        )
         stats = base_qs.aggregate(
             tentes=Count("id", filter=~Q(status="en_attente")),
-            reussis=Count("id", filter=Q(status__in=CALL_SUCCESS_STATUSES)),
+            reussis=Count("id", filter=success_q),
             forms=Count("id", filter=strict_form_q),
             forms_audio=Count(
-                "id", filter=strict_form_q & (Q(audio_file__isnull=False) & ~Q(audio_file=""))
+                "id",
+                filter=strict_form_q & (Q(audio_file__isnull=False) & ~Q(audio_file="")),
             ),
             audios=Count("id", filter=Q(audio_file__isnull=False) & ~Q(audio_file="")),
         )
@@ -1075,9 +1084,11 @@ def consultant_dashboard(request):
         reussis = stats["reussis"] or 0
         form_remplis = stats["forms"] or 0
         form_audio = stats["forms_audio"] or 0
+        form_sans_audio = max(form_remplis - form_audio, 0)
         audios_enregistres = stats["audios"] or 0
 
-        # Optional: refine the count using actual form validation, but database query is much faster for a dashboard.  # noqa: E501
+        # Optional: refine the count using actual form validation.
+        # The database query stays much faster for a dashboard.
 
     paginator = Paginator(rows, 25)
     page_number = request.GET.get("page", 1)
@@ -1116,11 +1127,12 @@ def consultant_dashboard(request):
                 "analyzed_beneficiaires_count", 0
             ),
             "card_apprenants_count": card_snapshot["counts"].get("analyzed_learners_count", 0),
-            "card_audio_count": card_snapshot["counts"].get("analysis_audio_count", 0),
             "card_fenetres": card_snapshot["fenetre_options"],
+            "summary_appels_cibles": appels_cibles,
             "summary_tentes": tentes,
             "summary_reussis": reussis,
             "summary_form_remplis": form_remplis,
+            "summary_form_sans_audio": form_sans_audio,
             "summary_form_audio": form_audio,
             "summary_audios": audios_enregistres,
         },
@@ -1192,7 +1204,7 @@ def consultant_call_detail(request, pk: int):
     )
 
 
-def user_tracking_view(request):
+def _legacy_user_tracking_view(request):
     """Page dédiée au suivi des utilisateurs PADESCE (superuser uniquement)."""
     from django.http import HttpResponseForbidden
 
@@ -1224,15 +1236,6 @@ def user_tracking_view(request):
             en_cours=Count("id", filter=Q(status="en_cours")),
         )
     }
-    push_counts_by_user = _count_audit_events_by_user(  # noqa: F841
-        model_name="core.git_push_main",
-        event_name="push_main",
-    )
-    deploy_counts_by_user = _count_audit_events_by_user(  # noqa: F841
-        model_name="core.deployment_run",
-        event_name="deployment_start",
-        expected_extra={"mode": "deploy"},
-    )
     formulaires_remplis_by_user = _group_appel_ids_by_user(
         Appel.objects.filter(is_active=True, locked_by__isnull=False)
         .filter(completed_answers_filter)
@@ -1415,6 +1418,31 @@ def _safe_recent_login_logs(limit: int = 50) -> tuple[list[UserLoginLog], bool]:
     except (OperationalError, ProgrammingError):
         _log_tracking_schema_warning("login log read")
         return [], False
+
+
+def _count_audit_events_by_user(
+    *,
+    model_name: str,
+    event_name: str | None = None,
+    expected_extra: dict[str, str] | None = None,
+) -> dict[int, int]:
+    counts: dict[int, int] = defaultdict(int)
+    for entry in AuditLog.objects.filter(actor__isnull=False, model_name=model_name).only(
+        "actor_id", "extra"
+    ):
+        extra = entry.extra if isinstance(entry.extra, dict) else {}
+        if event_name and str(extra.get("event", "") or "").strip() != event_name:
+            continue
+        if expected_extra:
+            matches = True
+            for key, value in expected_extra.items():
+                if str(extra.get(key, "") or "").strip() != str(value):
+                    matches = False
+                    break
+            if not matches:
+                continue
+        counts[entry.actor_id] += 1
+    return counts
 
 
 def _build_tracking_payload(*, user_search: str = "") -> dict[str, object]:
@@ -1761,7 +1789,7 @@ def user_tracking_live_api(request):
     )
 
 
-def user_tracking_view(request):  # noqa: F811
+def user_tracking_view(request):
     """Page dediee au suivi des utilisateurs PADESCE (superuser uniquement)."""
     from django.http import HttpResponseForbidden
 

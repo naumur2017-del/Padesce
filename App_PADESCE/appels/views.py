@@ -3,8 +3,6 @@ import datetime
 import io
 import logging
 import os
-import threading
-import zipfile
 import unicodedata
 import zipfile
 from collections import Counter, defaultdict
@@ -14,6 +12,7 @@ from pathlib import Path
 import openpyxl
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.core.cache import cache
 from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
 from django.db import transaction
 from django.db.models import Case, Count, DecimalField, ExpressionWrapper, F, Q, When
@@ -41,6 +40,7 @@ from App_PADESCE.appels.models import (
 )
 from App_PADESCE.apprenants.models import Apprenant
 from App_PADESCE.core.analysis_rules import analysis_threshold_label, analysis_threshold_target
+from App_PADESCE.core.cache_versions import get_analysis_cache_version
 from App_PADESCE.core.call_metrics import (
     count_callable_source_records_by_class,
     has_usable_phone,
@@ -48,13 +48,11 @@ from App_PADESCE.core.call_metrics import (
     phone_variants,
     summarize_source_class_phone_coverage,
 )
-from App_PADESCE.core.analysis_rules import analysis_threshold_label, analysis_threshold_target
-from App_PADESCE.core.cache_versions import get_analysis_cache_version
 from App_PADESCE.formations.models import Classe
 from App_PADESCE.reporting.network_excel import build_padesce_source_index, normalize_network_lookup
+from App_PADESCE.satisfaction_apprenants.models import SatisfactionApprenant
 
 logger = logging.getLogger(__name__)
-from App_PADESCE.satisfaction_apprenants.models import SatisfactionApprenant
 
 ANALYSIS_CACHE_TIMEOUT = int(str(os.getenv("PADESCE_ANALYSIS_CACHE_TIMEOUT", "300") or "300"))
 
@@ -659,7 +657,9 @@ def _safe_build_padesce_source_index() -> dict | None:
 
 
 def _cached_appel_class_progress_snapshot(source_bundle: dict | None = None) -> dict:
-    source_marker = str(((source_bundle or {}).get("source") or {}).get("modified_at") or "no-source")
+    source_marker = str(
+        ((source_bundle or {}).get("source") or {}).get("modified_at") or "no-source"
+    )
     cache_key = (
         "appels:class-progress-snapshot:"
         f"{source_marker}:"
@@ -1413,7 +1413,9 @@ def appels_index(request):
             )
         return redirect(request.path_info)
 
-    optimization_snapshot = _cached_appel_class_progress_snapshot(_safe_build_padesce_source_index())
+    optimization_snapshot = _cached_appel_class_progress_snapshot(
+        _safe_build_padesce_source_index()
+    )
     appels_qs, filters = _build_filtered_appels_queryset(
         request,
         hidden_class_labels=optimization_snapshot["hidden_class_labels"],
@@ -1496,7 +1498,9 @@ def appels_index(request):
 
 @login_required
 def appels_export_filtered_csv(request):
-    optimization_snapshot = _cached_appel_class_progress_snapshot(_safe_build_padesce_source_index())
+    optimization_snapshot = _cached_appel_class_progress_snapshot(
+        _safe_build_padesce_source_index()
+    )
     appels_qs, _ = _build_filtered_appels_queryset(
         request,
         hidden_class_labels=optimization_snapshot["hidden_class_labels"],
@@ -2073,19 +2077,6 @@ def deduplicate_all_call_tables(request):
         ),
     )
     return redirect(request.META.get("HTTP_REFERER") or "/dashboard/")
-
-
-@login_required
-@require_POST
-def appel_transcription_detail(request, pk: int):
-    appel = get_object_or_404(Appel, pk=pk)
-    try:
-        obj, generated = _ensure_appel_transcription(appel)  # noqa: F821
-        return JsonResponse(
-            {"ok": True, "generated": generated, "transcription": _transcription_to_payload(obj)}  # noqa: F821
-        )
-    except Exception as exc:
-        return JsonResponse({"ok": False, "error": str(exc)}, status=400)
 
 
 @login_required

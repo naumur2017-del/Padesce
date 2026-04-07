@@ -309,6 +309,7 @@ LOGIN_REDIRECT_URL = "home"
 LOGOUT_REDIRECT_URL = "login"
 CSRF_FAILURE_VIEW = "App_PADESCE.core.error_views.csrf_failure"
 
+
 def _cache_settings_from_env() -> dict:
     backend_key = str(os.getenv("PADESCE_CACHE_BACKEND", "locmem") or "").strip().lower()
     timeout = int(str(os.getenv("PADESCE_CACHE_TIMEOUT", "28800") or "28800"))
