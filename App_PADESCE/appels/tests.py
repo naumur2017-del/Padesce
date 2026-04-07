@@ -376,6 +376,127 @@ class AppelsIndexFilterTests(TestCase):
         self.assertEqual(list(response.context["appels"]), [])
 
     @patch("App_PADESCE.appels.views.build_padesce_source_index")
+    def test_appels_index_counts_termine_status_for_25_percent_threshold(self, mock_build_source_index):
+        mock_build_source_index.return_value = {
+            "source": {"label": "Fichier consolide", "modified_label": "27/03/2026 a 12:20"},
+            "classes": {
+                "cla200": {"classe_id": "CLA200", "prestation_id": "PRESTA200", "statut_prestation": "TERMINE"},
+            },
+            "prestations": {
+                "presta200": {"prestation_id": "PRESTA200", "statut_prestation": "TERMINE"},
+            },
+            "records": {
+                "a1": {"classe_id": "CLA200", "telephone1": "690200001", "telephone2": ""},
+                "a2": {"classe_id": "CLA200", "telephone1": "690200002", "telephone2": ""},
+                "a3": {"classe_id": "CLA200", "telephone1": "690200003", "telephone2": ""},
+                "a4": {"classe_id": "CLA200", "telephone1": "690200004", "telephone2": ""},
+            },
+        }
+
+        Appel.objects.create(
+            code="CLA200-A",
+            nom="Alpha",
+            classe_label="CLA200",
+            telephone1="690200001",
+            status="termine",
+        )
+        Appel.objects.create(code="CLA200-B", nom="Bravo", classe_label="CLA200", telephone1="690200002", status="en_attente")
+        Appel.objects.create(code="CLA200-C", nom="Charlie", classe_label="CLA200", telephone1="690200003", status="en_attente")
+        Appel.objects.create(code="CLA200-D", nom="Delta", classe_label="CLA200", telephone1="690200004", status="en_attente")
+
+        response = self.client.get(reverse("appels_index"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(list(response.context["filters"]["classes_enriched"]), [])
+        self.assertEqual(list(response.context["appels"]), [])
+        classe_progress = {item["classe"]: item for item in response.context["classe_progress"]}
+        self.assertEqual(classe_progress["CLA200"]["termines"], 1)
+        self.assertTrue(classe_progress["CLA200"]["reached"])
+
+    @patch("App_PADESCE.appels.views.build_padesce_source_index")
+    def test_appels_index_maps_completed_rows_without_class_label_from_source_code(self, mock_build_source_index):
+        mock_build_source_index.return_value = {
+            "source": {"label": "Fichier consolide", "modified_label": "27/03/2026 a 12:20"},
+            "classes": {
+                "cla210": {"classe_id": "CLA210", "prestation_id": "PRESTA210", "statut_prestation": "TERMINE"},
+            },
+            "prestations": {
+                "presta210": {"prestation_id": "PRESTA210", "statut_prestation": "TERMINE"},
+            },
+            "records": {
+                "app210a": {"code": "APP210A", "classe_id": "CLA210", "telephone1": "690210001", "telephone2": ""},
+            },
+        }
+
+        Appel.objects.create(
+            code="APP210A",
+            nom="Alpha",
+            classe_label="",
+            telephone1="690210001",
+            status="termine",
+        )
+
+        response = self.client.get(reverse("appels_index"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(list(response.context["appels"]), [])
+        self.assertEqual(response.context["hidden_class_summary"]["hidden_class_count"], 1)
+        classe_progress = {item["classe"]: item for item in response.context["classe_progress"]}
+        self.assertEqual(classe_progress["CLA210"]["termines"], 1)
+        self.assertTrue(classe_progress["CLA210"]["reached"])
+
+    @patch("App_PADESCE.appels.views.build_padesce_source_index")
+    def test_appels_index_exposes_goal_summary_for_70_of_75_prestations(self, mock_build_source_index):
+        classes = {}
+        prestations = {}
+        records = {}
+        for index in range(1, 76):
+            prestation_id = f"PRESTA{index:03d}"
+            classe_id = f"CLA{index:03d}"
+            classes[classe_id.lower()] = {
+                "classe_id": classe_id,
+                "prestation_id": prestation_id,
+                "statut_prestation": "TERMINE",
+            }
+            prestations[prestation_id.lower()] = {
+                "prestation_id": prestation_id,
+                "statut_prestation": "TERMINE",
+            }
+            records[f"r{index:03d}"] = {
+                "classe_id": classe_id,
+                "telephone1": f"690{index:06d}",
+                "telephone2": "",
+            }
+        mock_build_source_index.return_value = {
+            "source": {"label": "Fichier consolide", "modified_label": "27/03/2026 a 12:20"},
+            "counts": {"prestations": 75, "classes": 75, "apprenants": 75},
+            "classes": classes,
+            "prestations": prestations,
+            "records": records,
+        }
+
+        Appel.objects.create(
+            code="CLA001-A",
+            nom="Alpha",
+            classe_label="CLA001",
+            telephone1="690000001",
+            status="termine",
+        )
+
+        response = self.client.get(reverse("appels_index"))
+
+        self.assertEqual(response.status_code, 200)
+        summary = response.context["analysis_goal_summary"]
+        self.assertEqual(summary["total_prestations_count"], 75)
+        self.assertEqual(summary["analysis_prestations_count"], 1)
+        self.assertEqual(summary["minimum_target"], 70)
+        self.assertEqual(summary["remaining_to_minimum_target"], 69)
+        self.assertEqual(summary["actionable_prestations_count"], 74)
+        self.assertEqual(summary["blocked_prestations_count"], 0)
+        self.assertEqual(summary["max_reachable_prestations_count"], 75)
+        self.assertEqual(summary["minimum_target_gap"], 0)
+
+    @patch("App_PADESCE.appels.views.build_padesce_source_index")
     def test_appels_index_recommends_last_class_to_finish_prestation(self, mock_build_source_index):
         mock_build_source_index.return_value = {
             "source": {"label": "Fichier consolide", "modified_label": "27/03/2026 a 12:20"},

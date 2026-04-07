@@ -50,7 +50,7 @@ from App_PADESCE.core.call_metrics import (
     phone_variants,
     summarize_source_class_phone_coverage,
 )
-from App_PADESCE.core.analysis_rules import ANALYSIS_THRESHOLD_PERCENT, analysis_threshold_label, analysis_threshold_target
+from App_PADESCE.core.analysis_rules import analysis_threshold_label, analysis_threshold_target
 from App_PADESCE.formations.models import Classe
 from App_PADESCE.reporting.network_excel import build_padesce_source_index, normalize_network_lookup
 
@@ -681,9 +681,9 @@ def _callable_phone_summary_from_appel_rows(appel_rows: list[dict]) -> dict[str,
 def _build_appel_class_progress_snapshot(source_bundle: dict | None = None) -> dict:
     appel_rows = list(
         Appel.objects.filter(is_active=True)
-        .exclude(classe_label="")
         .values(
             "id",
+            "code",
             "classe_label",
             "status",
             "prestataire",
@@ -693,6 +693,17 @@ def _build_appel_class_progress_snapshot(source_bundle: dict | None = None) -> d
             "telephone2",
         )
     )
+    source_records_by_code = (source_bundle or {}).get("records") or {}
+    normalized_appel_rows = []
+    for row in appel_rows:
+        normalized_row = dict(row)
+        classe_label = str(normalized_row.get("classe_label") or "").strip()
+        if not classe_label:
+            row_code_key = normalize_network_lookup(str(normalized_row.get("code") or ""))
+            source_record = source_records_by_code.get(row_code_key, {})
+            classe_label = str(source_record.get("classe_id") or "").strip()
+        normalized_row["classe_label"] = classe_label
+        normalized_appel_rows.append(normalized_row)
 
     label_by_key: dict[str, str] = {}
     raw_labels_by_key: dict[str, set[str]] = defaultdict(set)
@@ -702,14 +713,14 @@ def _build_appel_class_progress_snapshot(source_bundle: dict | None = None) -> d
     # Total DB appels per class (regardless of phone) – used for coherence check
     total_db_appels_by_key: dict[str, int] = defaultdict(int)
 
-    for classe_label, summary in _callable_phone_summary_from_appel_rows(appel_rows).items():
+    for classe_label, summary in _callable_phone_summary_from_appel_rows(normalized_appel_rows).items():
         classe_key = normalize_network_lookup(classe_label)
         if not classe_key:
             continue
         fallback_phone_summary_by_key[classe_key] = summary
         fallback_callable_counts_by_key[classe_key] = int(summary.get("callable_total") or 0)
 
-    for row in appel_rows:
+    for row in normalized_appel_rows:
         classe_label = str(row.get("classe_label") or "").strip()
         classe_key = normalize_network_lookup(classe_label)
         if not classe_key:
@@ -759,6 +770,7 @@ def _build_appel_class_progress_snapshot(source_bundle: dict | None = None) -> d
     progress_by_key: dict[str, dict] = {}
     hidden_class_labels: set[str] = set()
     hidden_class_keys: set[str] = set()
+    hidden_call_codes: set[str] = set()
     hidden_appel_count = 0
     classes_without_callable_phone = 0
 
@@ -807,15 +819,22 @@ def _build_appel_class_progress_snapshot(source_bundle: dict | None = None) -> d
         if reached:
             hidden_class_keys.add(classe_key)
             hidden_class_labels.update(raw_labels_by_key.get(classe_key) or {display_label})
+            hidden_call_codes.update(
+                str(row.get("code") or "").strip()
+                for row in normalized_appel_rows
+                if normalize_network_lookup(row.get("classe_label", "")) == classe_key
+                and str(row.get("code") or "").strip()
+            )
             hidden_appel_count += sum(
                 1
-                for row in appel_rows
+                for row in normalized_appel_rows
                 if normalize_network_lookup(row.get("classe_label", "")) == classe_key
             )
 
+    prestations = (source_bundle or {}).get("prestations") or {}
+
     recommended_classes = []
     if source_bundle:
-        prestations = source_bundle.get("prestations") or {}
         for prestation_key, class_keys in prestation_classes.items():
             actionable_keys = [
                 classe_key
@@ -891,24 +910,68 @@ def _build_appel_class_progress_snapshot(source_bundle: dict | None = None) -> d
     for item in recommended_classes:
         item.pop("score", None)
 
-    # classe_progress only contains classes NOT yet at the analysis threshold.
-    # classe_progress_all contains ALL classes including those already hidden.
     classe_progress_all = list(progress_by_key.values())
 
-    # Count prestations where ALL classes reached the 25% analysis threshold
-    analysis_threshold_pct = ANALYSIS_THRESHOLD_PERCENT
+    prestation_keys = set(prestation_classes)
+    prestation_keys.update(prestations)
     analysis_prestations_count = 0
-    if source_bundle:
-        for prestation_key, class_keys in prestation_classes.items():
-            if not class_keys:
-                continue
-            all_at_threshold = all(
-                int(progress_by_key.get(ck, {}).get("total") or 0) > 0
-                and float(progress_by_key.get(ck, {}).get("pct") or 0) >= analysis_threshold_pct
-                for ck in class_keys
-            )
-            if all_at_threshold:
-                analysis_prestations_count += 1
+    actionable_prestations_count = 0
+    blocked_prestations_count = 0
+    prestation_progress = []
+    for prestation_key in sorted(
+        prestation_keys,
+        key=lambda item: str((prestations.get(item, {}) or {}).get("prestation_id") or item).casefold(),
+    ):
+        class_keys = prestation_classes.get(prestation_key, set())
+        reached_class_count = sum(
+            1
+            for classe_key in class_keys
+            if bool(progress_by_key.get(classe_key, {}).get("reached"))
+        )
+        actionable_keys = [
+            classe_key
+            for classe_key in class_keys
+            if int(progress_by_key.get(classe_key, {}).get("total") or 0) > 0
+            and not bool(progress_by_key.get(classe_key, {}).get("reached"))
+        ]
+        blocked_class_count = sum(
+            1
+            for classe_key in class_keys
+            if int(progress_by_key.get(classe_key, {}).get("total") or 0) <= 0
+            and not bool(progress_by_key.get(classe_key, {}).get("reached"))
+        )
+        analyzed = bool(class_keys) and all(
+            int(progress_by_key.get(classe_key, {}).get("total") or 0) > 0
+            and bool(progress_by_key.get(classe_key, {}).get("reached"))
+            for classe_key in class_keys
+        )
+        if analyzed:
+            analysis_prestations_count += 1
+        elif actionable_keys:
+            actionable_prestations_count += 1
+        else:
+            blocked_prestations_count += 1
+
+        prestation_info = prestations.get(prestation_key, {})
+        prestation_progress.append(
+            {
+                "prestation": prestation_info.get("prestation_id") or prestation_key.upper(),
+                "class_total": len(class_keys),
+                "class_reached": reached_class_count,
+                "class_actionable": len(actionable_keys),
+                "class_blocked": blocked_class_count,
+                "analyzed": analyzed,
+            }
+        )
+
+    total_prestations_count = len(prestation_keys)
+    minimum_target = min(70, total_prestations_count) if total_prestations_count else 0
+    max_reachable_prestations_count = min(
+        total_prestations_count,
+        analysis_prestations_count + actionable_prestations_count,
+    )
+    remaining_to_minimum_target = max(minimum_target - analysis_prestations_count, 0)
+    minimum_target_gap = max(minimum_target - max_reachable_prestations_count, 0)
 
     return {
         "source_bundle": source_bundle,
@@ -917,19 +980,39 @@ def _build_appel_class_progress_snapshot(source_bundle: dict | None = None) -> d
         "classe_progress_all": classe_progress_all,
         "progress_by_key": progress_by_key,
         "hidden_class_labels": sorted(hidden_class_labels),
+        "hidden_call_codes": sorted(hidden_call_codes),
         "hidden_class_count": len(hidden_class_keys),
         "hidden_appel_count": hidden_appel_count,
         "classes_without_callable_phone_count": classes_without_callable_phone,
         "recommended_classes": recommended_classes[:8],
+        "prestation_progress": prestation_progress,
         "analysis_prestations_count": analysis_prestations_count,
+        "analysis_goal_summary": {
+            "total_prestations_count": total_prestations_count,
+            "analysis_prestations_count": analysis_prestations_count,
+            "actionable_prestations_count": actionable_prestations_count,
+            "blocked_prestations_count": blocked_prestations_count,
+            "minimum_target": minimum_target,
+            "remaining_to_minimum_target": remaining_to_minimum_target,
+            "max_reachable_prestations_count": max_reachable_prestations_count,
+            "minimum_target_gap": minimum_target_gap,
+        },
     }
 
 
-def _build_filtered_appels_queryset(request, *, hidden_class_labels: list[str] | None = None):
+def _build_filtered_appels_queryset(
+    request,
+    *,
+    hidden_class_labels: list[str] | None = None,
+    hidden_call_codes: list[str] | None = None,
+):
     appels_qs = Appel.objects.filter(is_active=True)
     hidden_class_labels = [label for label in (hidden_class_labels or []) if str(label or "").strip()]
+    hidden_call_codes = [code for code in (hidden_call_codes or []) if str(code or "").strip()]
     if hidden_class_labels:
         appels_qs = appels_qs.exclude(classe_label__in=hidden_class_labels)
+    if hidden_call_codes:
+        appels_qs = appels_qs.exclude(code__in=hidden_call_codes)
     completed_answers_filter = appel_answers_has_any_answer_q("answers__")
     modified_answers_filter = appel_answers_modified_any_answer_q("answers__")
     tracked_audio_filter = Q(audio_file__isnull=False) & ~Q(audio_file="")
@@ -1266,6 +1349,7 @@ def appels_index(request):
     appels_qs, filters = _build_filtered_appels_queryset(
         request,
         hidden_class_labels=optimization_snapshot["hidden_class_labels"],
+        hidden_call_codes=optimization_snapshot.get("hidden_call_codes", []),
     )
 
     appels_count = appels_qs.count()
@@ -1301,14 +1385,14 @@ def appels_index(request):
         enriched_classes.append({"value": c_label, "label": label_with_prog})
     filters["classes_enriched"] = enriched_classes
 
-    # ── Analysis threshold stats (25%) across ALL classes (visible + hidden) ──
+    # ── Analysis threshold stats across ALL classes (visible + hidden) ──
     all_classe_progress = optimization_snapshot["classe_progress_all"]
     analysis_classes_count = sum(
         1 for item in all_classe_progress
-        if int(item.get("total") or 0) > 0 and float(item.get("pct") or 0) >= ANALYSIS_THRESHOLD_PERCENT
+        if int(item.get("total") or 0) > 0 and bool(item.get("reached"))
     )
-    # Count distinct prestations where all their classes reached the 25% threshold
     analysis_prestations_count = optimization_snapshot.get("analysis_prestations_count", 0)
+    analysis_goal_summary = optimization_snapshot.get("analysis_goal_summary", {})
 
     import json as _json
     return render(
@@ -1331,6 +1415,7 @@ def appels_index(request):
                 "analysis_classes_count": analysis_classes_count,
                 "analysis_prestations_count": analysis_prestations_count,
             },
+            "analysis_goal_summary": analysis_goal_summary,
             "source_summary": optimization_snapshot["source_summary"],
             "analysis_threshold_label": analysis_threshold_label(),
         },
@@ -1343,6 +1428,7 @@ def appels_export_filtered_csv(request):
     appels_qs, _ = _build_filtered_appels_queryset(
         request,
         hidden_class_labels=optimization_snapshot["hidden_class_labels"],
+        hidden_call_codes=optimization_snapshot.get("hidden_call_codes", []),
     )
     appels = appels_qs.select_related("locked_by").order_by("status", "nom")
 

@@ -31,7 +31,9 @@ CALL_FORM_STATUSES = ("formulaire_rempli", "formulaire_avec_audio")
 CALL_SUCCESS_STATUSES = ("appel_reussi",) + CALL_FORM_STATUSES + ("termine",)
 CALL_COMPLETED_STATUSES = CALL_SUCCESS_STATUSES
 CALL_STARTABLE_STATUSES = ("en_attente", "appel_tente", "appel_reussi", "a_rappeler")
-CALL_ANALYSIS_THRESHOLD_STATUSES = CALL_FORM_STATUSES
+# Les classes atteignent le seuil d'analyse quand un formulaire est sauve
+# ou quand une ancienne ligne deja finalisee est au statut "termine".
+CALL_ANALYSIS_THRESHOLD_STATUSES = CALL_FORM_STATUSES + ("termine",)
 
 
 def appel_answers_completed_q(prefix: str = "answers__") -> Q:

@@ -292,8 +292,41 @@
     </div>
     <div class="ops-tile" style="border-color: rgba(15,139,141,0.3); background: linear-gradient(180deg, rgba(15,139,141,0.1), rgba(255,255,255,0.97));">
       <div class="ops-kicker" style="color: #0f5f61;">Prestations analysées ✅</div>
-      <strong style="color: #0f5f61;">{{ hidden_class_summary.analysis_prestations_count }}</strong>
+      <strong style="color: #0f5f61;">
+        {{ analysis_goal_summary.analysis_prestations_count|default:0 }} / {{ analysis_goal_summary.total_prestations_count|default:0 }}
+      </strong>
       <div class="subtitle" style="margin:6px 0 0;">Prestations dont toutes les classes ont atteint le seuil {{ analysis_threshold_label }}.</div>
+    </div>
+    <div class="ops-tile" style="border-color: rgba(15,139,141,0.3); background: linear-gradient(180deg, rgba(15,139,141,0.1), rgba(255,255,255,0.97));">
+      <div class="ops-kicker" style="color: #0f5f61;">Objectif minimum</div>
+      <strong style="color: #0f5f61;">
+        {{ analysis_goal_summary.minimum_target|default:0 }} / {{ analysis_goal_summary.total_prestations_count|default:0 }}
+      </strong>
+      <div class="subtitle" style="margin:6px 0 0;">
+        {% if analysis_goal_summary.remaining_to_minimum_target|default:0 > 0 %}
+          Encore {{ analysis_goal_summary.remaining_to_minimum_target }} prestation{% if analysis_goal_summary.remaining_to_minimum_target > 1 %}s{% endif %} a cloturer pour atteindre le minimum.
+        {% else %}
+          Objectif minimum atteint. Continuez seulement pour securiser davantage l'analyse.
+        {% endif %}
+      </div>
+    </div>
+    <div class="ops-tile">
+      <div class="ops-kicker">Prestations encore joignables</div>
+      <strong>{{ analysis_goal_summary.actionable_prestations_count|default:0 }}</strong>
+      <div class="subtitle" style="margin:6px 0 0;">
+        Projection maximale actuelle: {{ analysis_goal_summary.max_reachable_prestations_count|default:0 }} / {{ analysis_goal_summary.total_prestations_count|default:0 }} si toutes les classes restantes avancent.
+      </div>
+    </div>
+    <div class="ops-tile">
+      <div class="ops-kicker">Prestations bloquees</div>
+      <strong>{{ analysis_goal_summary.blocked_prestations_count|default:0 }}</strong>
+      <div class="subtitle" style="margin:6px 0 0;">
+        {% if analysis_goal_summary.minimum_target_gap|default:0 > 0 %}
+          Le vivier joignable actuel ne couvre pas encore l'objectif: il manque au moins {{ analysis_goal_summary.minimum_target_gap }} prestation{% if analysis_goal_summary.minimum_target_gap > 1 %}s{% endif %}.
+        {% else %}
+          Le vivier joignable actuel peut encore couvrir l'objectif minimum.
+        {% endif %}
+      </div>
     </div>
     <div class="ops-tile">
       <div class="ops-kicker">Classes sans numero</div>
@@ -321,7 +354,13 @@
         <div class="ops-kicker">Recommandations PADESCE</div>
         <h3 style="margin:4px 0 0;">Classes a appeler pour finir plus vite les prestations</h3>
       </div>
-      <div class="subtitle" style="margin:0; max-width:360px;">Priorite aux classes qui cloturent une prestation, puis a celles avec peu d'apprenants joignables et sans numeros dupliques.</div>
+      <div class="subtitle" style="margin:0; max-width:380px;">
+        {% if analysis_goal_summary.remaining_to_minimum_target|default:0 > 0 %}
+          Encore {{ analysis_goal_summary.remaining_to_minimum_target }} prestation{% if analysis_goal_summary.remaining_to_minimum_target > 1 %}s{% endif %} a cloturer pour viser le minimum. Priorite aux classes qui ferment une prestation.
+        {% else %}
+          Objectif minimum atteint. Priorite ensuite aux classes les plus rapides pour consolider davantage les prestations.
+        {% endif %}
+      </div>
     </div>
     {% if recommended_classes %}
       <div class="recommend-grid">
@@ -435,7 +474,7 @@
                 <div class="progress"><div class="progress-fill"></div></div>
                 <span class="time-label">0:00</span>
               </div>
-              <audio class="js-audio" style="display:none;" {% if a.has_audio_file %}src="{{ a.audio_file_url }}"{% endif %}></audio>
+              <audio class="js-audio" preload="metadata" style="display:none;" {% if a.has_audio_file %}src="{{ a.audio_file_url }}"{% endif %}></audio>
             </div>
           </td>
         </tr>
@@ -1148,33 +1187,73 @@
       }
     }
 
-    async function stopRecordingAndCollectBlob(row, timeoutMs = 350) {
+    const AUDIO_STOP_FLUSH_MS = 80;
+    const AUDIO_RECORDER_TIMESLICE_MS = 100;
+
+    function revokePreviewUrl(url) {
+      if (!url || !String(url).startsWith("blob:")) return;
+      try {
+        URL.revokeObjectURL(url);
+      } catch (err) {
+        // Ignore blob URL cleanup failures.
+      }
+    }
+
+    function setRowAudioSource(row, sourceUrl, { isPreview = false } = {}) {
+      if (!row || !sourceUrl) return;
+      const audio = row.querySelector(".js-audio");
+      if (!audio) return;
+      const state = getRecordState(row);
+      if (state?.previewUrl && state.previewUrl !== sourceUrl) {
+        revokePreviewUrl(state.previewUrl);
+        state.previewUrl = "";
+      }
+      audio.src = sourceUrl;
+      if (typeof audio.load === "function") {
+        audio.load();
+      }
+      if (state) {
+        state.previewUrl = isPreview ? sourceUrl : "";
+        recordState.set(row.dataset.id, state);
+      }
+      if (!isPreview) {
+        const checkbox = row.querySelector(".js-audio-select");
+        if (checkbox) {
+          checkbox.disabled = false;
+          checkbox.removeAttribute("title");
+        }
+      }
+      ensureDownloadLink(row, sourceUrl);
+      syncAudioControls(row);
+      updateDownloadButtonState();
+    }
+
+    async function stopRecordingAndCollectBlob(row, timeoutMs = AUDIO_STOP_FLUSH_MS) {
       const state = row ? getRecordState(row) : null;
       if (!state) return null;
       if (!state.recorder || state.recorder.state === "inactive") {
         return state.blob || null;
       }
-      return new Promise((resolve) => {
-        let settled = false;
-        const finish = () => {
-          if (settled) return;
-          settled = true;
-          resolve(recordState.get(row.dataset.id)?.blob || state.blob || null);
-        };
-        const originalStop = state.recorder.onstop;
-        state.recorder.onstop = (event) => {
-          if (originalStop) originalStop(event);
-          finish();
-        };
-        try {
-          state.recorder.requestData?.();
-        } catch (err) {
-          // Best effort flush before stop.
-        }
+      try {
+        state.recorder.requestData?.();
+      } catch (err) {
+        // Best effort flush before stop.
+      }
+      try {
         state.recorder.stop();
-        state.stream?.getTracks().forEach((track) => track.stop());
-        setTimeout(finish, timeoutMs);
+      } catch (err) {
+        return recordState.get(row.dataset.id)?.blob || state.blob || null;
+      }
+      state.stream?.getTracks().forEach((track) => track.stop());
+      const stopPromise = state.stopPromise instanceof Promise
+        ? state.stopPromise
+        : Promise.resolve(recordState.get(row.dataset.id)?.blob || state.blob || null);
+      const fallbackPromise = new Promise((resolve) => {
+        setTimeout(() => {
+          resolve(recordState.get(row.dataset.id)?.blob || state.blob || null);
+        }, timeoutMs);
       });
+      return Promise.race([stopPromise, fallbackPromise]);
     }
 
     // Track explicit Q1-Q9 radio clicks
@@ -1302,17 +1381,8 @@
           return data || { ok: false, error: "Erreur serveur" };
         }
         
-        // Update audio element if audio was saved
         if (data.audio_url) {
-          const audio = row.querySelector(".js-audio");
-          if (audio) audio.src = data.audio_url;
-          const checkbox = row.querySelector(".js-audio-select");
-          if (checkbox) {
-            checkbox.disabled = false;
-            checkbox.removeAttribute("title");
-          }
-          syncAudioControls(row);
-          updateDownloadButtonState();
+          setRowAudioSource(row, data.audio_url);
         }
         
         return data;
@@ -1476,13 +1546,9 @@
           terminer.hidden = true;
         }
       }
-      // Mettre à jour le player audio si audio_url dans la réponse
       if (data.audio_url) {
-        const audio = row.querySelector(".js-audio");
-        if (audio) audio.src = data.audio_url;
-        const checkbox = row.querySelector(".js-audio-select");
-        if (checkbox) { checkbox.disabled = false; checkbox.removeAttribute("title"); }
-        ensureDownloadLink(row, data.audio_url);
+        setRowAudioSource(row, data.audio_url);
+        return;
       }
       syncAudioControls(row);
     }
@@ -1535,7 +1601,7 @@
           const state = getRecordState(row);
           if (state?.recorder && state.recorder.state === "paused") {
             state.recorder.resume();
-          } else if (!state) {
+          } else if (!state || !state.recorder || state.recorder.state === "inactive") {
             await startRecording(row);
           }
         } catch (err) { alert("Action impossible."); }
@@ -1547,8 +1613,7 @@
         const satModal = document.getElementById("js-satisfaction-modal");
         if (!satModal) return;
 
-        await stopRecordingAndCollectBlob(row, 450);
-
+        const stopPromise = stopRecordingAndCollectBlob(row);
         await hydrateSatisfactionModal(id);
         
         // Mettre à jour les métadonnées
@@ -1560,6 +1625,7 @@
         
         satModal.dataset.rowId = id;
         satModal.hidden = false;
+        await stopPromise;
       });
     });
     document.querySelectorAll("tr[data-id]").forEach((row) => {
@@ -1570,6 +1636,10 @@
     async function startRecording(row) {
       const id = row.dataset.id;
       const hydratePromise = hydrateSatisfactionModal(id);
+      const existingState = getRecordState(row);
+      if (existingState?.previewUrl) {
+        revokePreviewUrl(existingState.previewUrl);
+      }
       
       const satModal = document.getElementById("js-satisfaction-modal");
       if (satModal) {
@@ -1632,20 +1702,45 @@
       const mimeType = MediaRecorder.isTypeSupported("audio/mpeg") ? "audio/mpeg" : "audio/webm";
       const recorder = new MediaRecorder(stream, { mimeType });
       const chunks = [];
+      let resolveStoppedBlob;
+      const stopPromise = new Promise((resolve) => {
+        resolveStoppedBlob = resolve;
+      });
       recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
       recorder.onstop = async () => {
         const blob = new Blob(chunks, { type: mimeType });
-        const audio = row.querySelector(".js-audio");
-        audio.src = URL.createObjectURL(blob);
-        recordState.set(id, { recorder: null, chunks: [], blob });
+        const previewUrl = URL.createObjectURL(blob);
+        recordState.set(id, {
+          recorder: null,
+          chunks: [],
+          stream: null,
+          raf: null,
+          ctx: null,
+          canvas: null,
+          audioCtx: null,
+          blob,
+          stopPromise: Promise.resolve(blob),
+          previewUrl,
+        });
         cancelAnimationFrame(raf);
         ctx.clearRect(0,0,canvas.width, canvas.height);
         audioCtx.close();
-        syncAudioControls(row);
-        // Audio upload now handled atomic by finalize endpoint
+        setRowAudioSource(row, previewUrl, { isPreview: true });
+        resolveStoppedBlob?.(blob);
       };
-      recorder.start(250);
-      recordState.set(id, { recorder, chunks, stream, raf, ctx, canvas, audioCtx });
+      recorder.start(AUDIO_RECORDER_TIMESLICE_MS);
+      recordState.set(id, {
+        recorder,
+        chunks,
+        stream,
+        raf,
+        ctx,
+        canvas,
+        audioCtx,
+        blob: null,
+        stopPromise,
+        previewUrl: "",
+      });
     }
 
     async function uploadAudio(row, blob) {
@@ -1676,17 +1771,7 @@
           alert(payload.satisfaction_message);
         }
         if (audioUrl) {
-          const audio = row.querySelector(".js-audio");
-          if (audio) audio.src = audioUrl;
-
-          const checkbox = row.querySelector(".js-audio-select");
-          if (checkbox) {
-            checkbox.disabled = false;
-            checkbox.removeAttribute("title");
-          }
-          ensureDownloadLink(row, audioUrl);
-          syncAudioControls(row);
-          updateDownloadButtonState();
+          setRowAudioSource(row, audioUrl);
         }
       } catch (err) {
         await queueOfflineJob({
@@ -1973,7 +2058,7 @@
     stopRecBtn.addEventListener("click", async () => {
        const id = satModal.dataset.rowId;
        const row = document.querySelector(`tr[data-id="${id}"]`);
-       const audioBlob = await stopRecordingAndCollectBlob(row, 450);
+       const audioBlob = await stopRecordingAndCollectBlob(row);
        if (audioBlob) {
          alert("Enregistrement arrêté. Vous pouvez finir de remplir le formulaire.");
        }
