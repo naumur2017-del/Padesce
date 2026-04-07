@@ -646,7 +646,7 @@ def _source_class_is_finished(source_class: dict) -> bool:
 
 def _safe_build_padesce_source_index() -> dict | None:
     try:
-        return build_padesce_source_index()
+        return build_padesce_source_index(source_key="cutoff")
     except Exception as exc:
         logger.warning("Impossible de charger la source PADESCE pour les optimisations d'appels: %s", exc)
         return None

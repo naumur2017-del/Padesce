@@ -289,7 +289,7 @@ def _first_present(*values):
 
 def _analysis_source_bundle() -> dict | None:
     try:
-        return build_padesce_source_index()
+        return build_padesce_source_index(source_key="cutoff")
     except Exception:
         return None
 

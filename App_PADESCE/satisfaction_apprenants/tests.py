@@ -19,6 +19,7 @@ from App_PADESCE.core.analysis_rules import appel_is_manually_excluded
 from App_PADESCE.formations.models import Beneficiaire, Classe, Formation, Inspecteur, Lieu, Prestataire, Prestation
 from App_PADESCE.satisfaction_apprenants.management.commands.import_satisfaction_excel import _sync_source_models
 from App_PADESCE.satisfaction_apprenants.views import (
+    _analysis_selected_source,
     _attach_network_source_to_rows,
     _build_satisfaction_dashboard_data,
     _build_missing_prestations_analysis,
@@ -40,6 +41,11 @@ from App_PADESCE.satisfaction_apprenants.views import (
 
 
 class SatisfactionDashboardSourceTests(SimpleTestCase):
+    def test_analysis_selected_source_defaults_to_cutoff(self):
+        source = _analysis_selected_source(SimpleNamespace(GET=QueryDict("", mutable=True)))
+
+        self.assertEqual(source, "cutoff")
+
     @patch("App_PADESCE.satisfaction_apprenants.views._build_satisfaction_dashboard_data")
     def test_export_chapeau_prefixes_table_title_with_enquete_label(self, mock_dashboard):
         class_label = (
@@ -333,6 +339,25 @@ class SatisfactionDashboardSourceTests(SimpleTestCase):
         self.assertEqual(classe_stats[0]["nb"], 2)
         self.assertEqual(threshold_codes, {"CLA012"})
 
+    def test_build_threshold_class_stats_uses_external_threshold_codes(self):
+        classe_stats, threshold_codes = _build_threshold_class_stats(
+            [
+                {
+                    "classe_code": "CLA099",
+                    "formation_intitule": "Formation Z",
+                    "classe_intitule": "Formation Z",
+                    "prestation_code": "PRESTA099",
+                    "cohorte": "1",
+                    "q9_satisfaction_globale": 5,
+                }
+            ],
+            {"CLA099": 8},
+            threshold_class_codes={"cla099"},
+        )
+
+        self.assertTrue(classe_stats[0]["threshold_reached"])
+        self.assertEqual(threshold_codes, {"CLA099"})
+
     def test_qualified_prestation_codes_from_source_requires_all_source_classes(self):
         qualified = _qualified_prestation_codes_from_source(
             {
@@ -398,6 +423,42 @@ class SatisfactionDashboardSourceTests(SimpleTestCase):
         )
 
         self.assertEqual(qualified, set())
+
+    def test_qualified_prestation_codes_from_source_uses_status_threshold_codes(self):
+        qualified = _qualified_prestation_codes_from_source(
+            {
+                "prestation": "",
+                "fenetre": "",
+                "ville": "",
+                "user": "",
+                "classe": "",
+                "prestataire": "",
+                "beneficiaire": "",
+                "cohorte": "",
+            },
+            [],
+            {
+                "classes": {
+                    "cla001": {
+                        "classe_id": "CLA001",
+                        "prestation_id": "PRESTA001",
+                        "statut_prestation": "TERMINE",
+                    },
+                    "cla002": {
+                        "classe_id": "CLA002",
+                        "prestation_id": "PRESTA001",
+                        "statut_prestation": "TERMINE",
+                    },
+                },
+                "records": {
+                    "a1": {"classe_id": "CLA001", "telephone1": "690000001"},
+                    "a2": {"classe_id": "CLA002", "telephone1": "690000002"},
+                },
+            },
+            threshold_class_codes={"cla001", "cla002"},
+        )
+
+        self.assertEqual(qualified, {"presta001"})
 
     def test_terminated_prestation_codes_from_source_counts_only_terminated_statuses(self):
         terminated = _terminated_prestation_codes_from_source(
@@ -579,6 +640,10 @@ class SatisfactionDashboardRegressionTests(SimpleTestCase):
         return_value={"presta001"},
     )
     @patch(
+        "App_PADESCE.satisfaction_apprenants.views._status_threshold_class_codes",
+        return_value={"cla001"},
+    )
+    @patch(
         "App_PADESCE.satisfaction_apprenants.views._terminated_prestation_codes_from_source",
         return_value={"presta001"},
     )
@@ -593,6 +658,7 @@ class SatisfactionDashboardRegressionTests(SimpleTestCase):
         mock_dashboard_row_from_answer,
         mock_thresholded_dashboard_rows,
         _mock_terminated,
+        _mock_threshold_codes,
         _mock_qualified,
         _mock_source_options,
         _mock_source_index,
@@ -684,6 +750,10 @@ class SatisfactionDashboardRegressionTests(SimpleTestCase):
         return_value={"presta001"},
     )
     @patch(
+        "App_PADESCE.satisfaction_apprenants.views._status_threshold_class_codes",
+        return_value={"cla001"},
+    )
+    @patch(
         "App_PADESCE.satisfaction_apprenants.views._terminated_prestation_codes_from_source",
         return_value={"presta001"},
     )
@@ -698,6 +768,7 @@ class SatisfactionDashboardRegressionTests(SimpleTestCase):
         mock_dashboard_row_from_answer,
         mock_thresholded_dashboard_rows,
         _mock_terminated,
+        _mock_threshold_codes,
         _mock_qualified,
         _mock_source_options,
         _mock_source_index,
@@ -755,6 +826,7 @@ class SatisfactionDashboardRegressionTests(SimpleTestCase):
         self.assertEqual(dashboard["context"]["analyzed_prestations_count"], 47)
         self.assertEqual(dashboard["context"]["analyzed_prestations_total_count"], 75)
         self.assertEqual(dashboard["context"]["analyzed_prestations_ratio"], "47/75")
+        _mock_source_index.assert_called_once_with(source_key="cutoff")
 
 
 class SatisfactionMissingPrestationsAnalysisTests(TestCase):

@@ -316,6 +316,7 @@ class AppelsIndexFilterTests(TestCase):
         response = self.client.get(reverse("appels_index"))
 
         self.assertEqual(response.status_code, 200)
+        mock_build_source_index.assert_any_call(source_key="cutoff")
         visible_classes = {row.classe_label for row in response.context["appels"]}
         self.assertEqual(visible_classes, {"CLA002"})
         self.assertEqual(
