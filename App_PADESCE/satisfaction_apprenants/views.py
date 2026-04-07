@@ -1360,16 +1360,39 @@ def _build_table_details_context(context: dict, rows: list[dict]) -> dict[str, d
     return _build_dashboard_table_details(context, rows)
 
 
-def _build_appel_status_summary() -> dict[str, int]:
+def _build_appel_status_summary(
+    *,
+    target_class_codes: list[str] | None = None,
+    strict_form_q=None,
+) -> dict[str, int]:
     from App_PADESCE.appels.models import Appel as _Appel
     from django.db.models import Count as _Count, Q as _Q
 
     try:
-        return _Appel.objects.filter(is_active=True).aggregate(
+        queryset = _Appel.objects.filter(is_active=True)
+        if target_class_codes is not None:
+            if target_class_codes:
+                queryset = queryset.filter(
+                    _Q(classe__code__in=target_class_codes)
+                    | _Q(classe_label__in=target_class_codes)
+                )
+            else:
+                queryset = queryset.none()
+
+        form_filter = strict_form_q if strict_form_q is not None else _Q(status__in=CALL_FORM_STATUSES)
+        forms_with_audio_filter = (
+            form_filter & _Q(audio_file__isnull=False) & ~_Q(audio_file="")
+            if strict_form_q is not None
+            else _Q(status="formulaire_avec_audio")
+        )
+        forms_without_audio_filter = form_filter & (_Q(audio_file__isnull=True) | _Q(audio_file=""))
+
+        return queryset.aggregate(
             appels_tentes=_Count("id", filter=~_Q(status="en_attente")),
-            appels_reussis=_Count("id", filter=_Q(status__in=CALL_SUCCESS_STATUSES)),
-            formulaires_remplis=_Count("id", filter=_Q(status__in=CALL_FORM_STATUSES)),
-            formulaires_avec_audio=_Count("id", filter=_Q(status="formulaire_avec_audio")),
+            appels_reussis=_Count("id", filter=~_Q(status__in=["en_attente", "a_rappeler"])),
+            formulaires_remplis=_Count("id", filter=form_filter),
+            formulaires_remplis_sans_audio=_Count("id", filter=forms_without_audio_filter),
+            formulaires_avec_audio=_Count("id", filter=forms_with_audio_filter),
             audios_enregistres=_Count("id", filter=_Q(audio_file__isnull=False) & ~_Q(audio_file="")),
         )
     except Exception as exc:
@@ -1382,6 +1405,7 @@ def _build_appel_status_summary() -> dict[str, int]:
                 "appels_tentes": 0,
                 "appels_reussis": 0,
                 "formulaires_remplis": 0,
+                "formulaires_remplis_sans_audio": 0,
                 "formulaires_avec_audio": 0,
                 "audios_enregistres": 0,
             }
@@ -2825,10 +2849,39 @@ def _build_satisfaction_dashboard_data(request):
         "status": filter_options.get("status", []),
         "filter_map_json": filter_map_json,
     }
-    _appel_stats = _build_appel_status_summary()
+    from django.db.models import Q as _Q
+
+    q_fields = [
+        "q1_clarte_exposes",
+        "q2_interaction_formateur",
+        "q3_maitrise_contenu",
+        "q4_salle_adequate",
+        "q5_materiel_disponible",
+        "q6_organisation_temps",
+        "q7_utilite_formation",
+        "q8_adequation_besoins",
+        "q9_satisfaction_globale",
+    ]
+    answers_valid_q = _Q()
+    for field_name in q_fields:
+        answers_valid_q &= _Q(**{f"answers__{field_name}__isnull": False})
+    survey_valid_q = _Q(satisfaction_apprenant__isnull=False)
+    strict_form_q = answers_valid_q | survey_valid_q
+
+    target_class_codes = [
+        str(item.get("code") or "").strip()
+        for item in classe_stats_seuil
+        if str(item.get("code") or "").strip()
+    ]
+
+    _appel_stats = _build_appel_status_summary(
+        target_class_codes=target_class_codes,
+        strict_form_q=strict_form_q,
+    )
     context["appels_tentes"] = _appel_stats["appels_tentes"]
     context["appels_reussis"] = _appel_stats["appels_reussis"]
     context["formulaires_remplis_appels"] = _appel_stats["formulaires_remplis"]
+    context["formulaires_remplis_sans_audio_appels"] = _appel_stats["formulaires_remplis_sans_audio"]
     context["formulaires_avec_audio_appels"] = _appel_stats["formulaires_avec_audio"]
     context["audios_enregistres_appels"] = _appel_stats["audios_enregistres"]
     context["tab_details"] = _build_table_details_context(context, rows)
