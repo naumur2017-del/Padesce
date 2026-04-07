@@ -1,10 +1,10 @@
+import csv
 import datetime
 import io
 import logging
-import threading
-import zipfile
+import os
 import unicodedata
-import csv
+import zipfile
 from collections import Counter, defaultdict
 from decimal import Decimal
 from pathlib import Path
@@ -13,28 +13,34 @@ import openpyxl
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.cache import cache
-from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
-from django.db.models import Case, Count, DecimalField, ExpressionWrapper, F, Q, When
+from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
 from django.db import transaction
+from django.db.models import Case, Count, DecimalField, ExpressionWrapper, F, Q, When
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.utils.text import slugify
 from django.views.decorators.http import require_POST
 
-from App_PADESCE.apprenants.models import Apprenant
 from App_PADESCE.appels.models import (
+    CALL_ANALYSIS_THRESHOLD_STATUSES,
+    CALL_COMPLETED_STATUSES,
+    CALL_FORM_STATUSES,
+    CALL_SUCCESS_STATUSES,
     Appel,
     AppelAnswers,
     AppelCGA,
     AppelFormateur,
     AppelImportArchive,
-    CALL_COMPLETED_STATUSES,
     appel_answers_has_any_answer_q,
     appel_answers_modified_any_answer_q,
+    is_call_success_status,
     padesce_form_tracking_cutoff,
     sync_padesce_status,
 )
+from App_PADESCE.apprenants.models import Apprenant
+from App_PADESCE.core.analysis_rules import analysis_threshold_label, analysis_threshold_target
+from App_PADESCE.core.cache_versions import get_analysis_cache_version
 from App_PADESCE.core.call_metrics import (
     count_callable_source_records_by_class,
     has_usable_phone,
@@ -42,12 +48,13 @@ from App_PADESCE.core.call_metrics import (
     phone_variants,
     summarize_source_class_phone_coverage,
 )
-from App_PADESCE.core.analysis_rules import ANALYSIS_THRESHOLD_PERCENT, analysis_threshold_label, analysis_threshold_target
 from App_PADESCE.formations.models import Classe
 from App_PADESCE.reporting.network_excel import build_padesce_source_index, normalize_network_lookup
 
 logger = logging.getLogger(__name__)
 from App_PADESCE.satisfaction_apprenants.models import SatisfactionApprenant
+
+ANALYSIS_CACHE_TIMEOUT = int(str(os.getenv("PADESCE_ANALYSIS_CACHE_TIMEOUT", "300") or "300"))
 
 
 APPEL_QUESTION_FIELDS = [
@@ -61,9 +68,6 @@ APPEL_QUESTION_FIELDS = [
     "q8_adequation_besoins",
     "q9_satisfaction_globale",
 ]
-
-
-
 
 
 def _normalize_header(value):
@@ -147,13 +151,34 @@ def _payload_has_any_question_answer(payload: dict) -> bool:
     return False
 
 
+def _payload_has_complete_questionnaire(payload: dict) -> bool:
+    for index, field in enumerate(APPEL_QUESTION_FIELDS, 1):
+        raw_value = payload.get(field, payload.get(f"q{index}"))
+        if _coerce_note_value(raw_value) is None:
+            return False
+    return True
+
+
 def _build_live_class_progress(classe_label: str | None):
     if not classe_label:
         return None
-    q_count = Appel.objects.filter(classe_label=classe_label, is_active=True)
-    total_c = q_count.count()
-    termines_c = q_count.filter(status__in=COMPLETED_STATUSES).count()
-    target_c = (total_c + 1) // 2
+    rows = list(
+        Appel.objects.filter(classe_label=classe_label, is_active=True).values(
+            "status",
+            "telephone1",
+            "telephone2",
+        )
+    )
+    callable_rows = [
+        row for row in rows if has_usable_phone(row.get("telephone1"), row.get("telephone2"))
+    ]
+    total_c = len(callable_rows)
+    termines_c = sum(
+        1
+        for row in callable_rows
+        if str(row.get("status") or "").strip() in CALL_ANALYSIS_THRESHOLD_STATUSES
+    )
+    target_c = analysis_threshold_target(total_c)
     reached_c = total_c > 0 and termines_c >= target_c
     return {
         "label": classe_label,
@@ -201,7 +226,12 @@ def _build_satisfaction_defaults(payload: dict, user, *, now=None) -> dict:
 
 
 def _appel_reference_details(appel: Appel) -> str:
-    classe_ref = str(getattr(getattr(appel, "classe", None), "code", "") or appel.classe_label or "-").strip() or "-"
+    classe_ref = (
+        str(
+            getattr(getattr(appel, "classe", None), "code", "") or appel.classe_label or "-"
+        ).strip()
+        or "-"
+    )
     tel_ref = str(appel.telephone1 or appel.telephone2 or "").strip() or "-"
     return (
         f"(ligne={appel.id}, code={appel.code or '-'}, nom={appel.nom or '-'}, "
@@ -224,18 +254,31 @@ def _find_existing_satisfaction_for_appel(appel: Appel, apprenant: Apprenant | N
     else:
         return None
 
-    candidate_ids = list(legacy_qs.order_by("-updated_at", "-created_at", "-id").values_list("id", flat=True)[:2])
+    candidate_ids = list(
+        legacy_qs.order_by("-updated_at", "-created_at", "-id").values_list("id", flat=True)[:2]
+    )
     if len(candidate_ids) == 1:
         return SatisfactionApprenant.objects.filter(pk=candidate_ids[0]).first()
     return None
 
 
-def _save_satisfaction_for_appel(appel: Appel, user, payload: dict, apprenant: Apprenant | None):
+def _save_satisfaction_for_appel(
+    appel: Appel,
+    user,
+    payload: dict,
+    apprenant: Apprenant | None,
+    *,
+    existing_satisfaction: SatisfactionApprenant | None = None,
+):
     defaults = _build_satisfaction_defaults(payload, user)
     defaults["apprenant"] = apprenant
     defaults["classe"] = getattr(apprenant, "classe", None) or appel.classe
 
-    satisfaction = _find_existing_satisfaction_for_appel(appel, apprenant, defaults["date"])
+    satisfaction = existing_satisfaction or _find_existing_satisfaction_for_appel(
+        appel,
+        apprenant,
+        defaults["date"],
+    )
     if satisfaction:
         for field, value in defaults.items():
             setattr(satisfaction, field, value)
@@ -269,7 +312,7 @@ def _status_rank(value: str) -> int:
     return ranks.get(str(value or "").strip(), -1)
 
 
-COMPLETED_STATUSES = set(CALL_COMPLETED_STATUSES)
+COMPLETED_STATUSES = set(CALL_SUCCESS_STATUSES)
 
 
 def _best_duplicate_winner(rows):
@@ -347,15 +390,16 @@ def _normalize_dashboard_fenetre(value):
 
 
 def _build_progress_metrics(queryset):
-    completed_q = Q(status__in=CALL_COMPLETED_STATUSES)
+    completed_q = Q(status__in=CALL_SUCCESS_STATUSES)
+    threshold_q = Q(status__in=CALL_ANALYSIS_THRESHOLD_STATUSES)
     stats = queryset.aggregate(
         total=Count("id"),
-        termines=Count("id", filter=completed_q),
+        termines=Count("id", filter=threshold_q),
         # Appels = tous ceux où Demarrer a été pressé au moins une fois (status != en_attente)
         appels_tentes=Count("id", filter=~Q(status="en_attente")),
-        appels_reussis=Count("id", filter=Q(status__in=CALL_COMPLETED_STATUSES)),
+        appels_reussis=Count("id", filter=completed_q),
         # Formulaires remplis = formulaire_rempli OU formulaire_avec_audio
-        formulaires_remplis=Count("id", filter=Q(status__in=["formulaire_rempli", "formulaire_avec_audio"])),
+        formulaires_remplis=Count("id", filter=Q(status__in=CALL_FORM_STATUSES)),
         formulaires_avec_audio=Count("id", filter=Q(status="formulaire_avec_audio")),
         rappels=Count("id", filter=Q(status="a_rappeler")),
         # Audios = présence fichier audio (indépendant du statut)
@@ -379,7 +423,7 @@ def _build_progress_metrics(queryset):
                 f"Seuil de {threshold_label} atteint. Vous pouvez passer a autre chose."
                 if threshold_reached
                 else (
-                    f"Encore {max(threshold_target - termines, 0)} appel(s) termine(s) pour atteindre {threshold_label}."
+                    f"Encore {max(threshold_target - termines, 0)} formulaire(s) pour atteindre {threshold_label}."
                     if total
                     else "Aucun appel dans ce filtre."
                 )
@@ -389,37 +433,20 @@ def _build_progress_metrics(queryset):
     return stats
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 def _find_apprenant_for_appel(base_qs, appel: Appel):
     """
     Cherche l'apprenant correspondant à l'appel.
     Utilise plusieurs stratégies : code, téléphone, nom, combinaisons.
     """
     apprenant = None
-    
+
     # 1. Chercher par code (exact)
     if appel.code:
         apprenant = base_qs.filter(code__iexact=str(appel.code or "").strip()).first()
         if apprenant:
             logger.debug("Apprenant trouvé par code exact: %s", appel.code)
             return apprenant
-    
+
     # 2. Chercher par code (partiel)
     if appel.code:
         apprenant = base_qs.filter(code__icontains=str(appel.code).strip()).order_by("id").first()
@@ -448,7 +475,7 @@ def _find_apprenant_for_appel(base_qs, appel: Appel):
                 apprenant = candidate
                 logger.debug("Apprenant trouvé par nom: %s (%s)", appel.nom, apprenant.id)
                 return apprenant
-    
+
     # 5. Chercher par nom + prénom (plus flexible)
     if appel.nom:
         # Essayer de chercher les mots-clés du nom dans le nom_complet
@@ -460,21 +487,26 @@ def _find_apprenant_for_appel(base_qs, appel: Appel):
             matching_words = sum(1 for part in nom_parts if part in nom_complet_lower)
             if matching_words > 0:
                 matching_apprenants.append((matching_words, candidate))
-        
+
         if matching_apprenants:
             # Retourner celui avec le plus de mots correspondants
             matching_apprenants.sort(key=lambda x: x[0], reverse=True)
             apprenant = matching_apprenants[0][1]
-            logger.debug("Apprenant trouvé par correspondance de nom flexible: %s (%s)", appel.nom, apprenant.id)
+            logger.debug(
+                "Apprenant trouvé par correspondance de nom flexible: %s (%s)",
+                appel.nom,
+                apprenant.id,
+            )
             return apprenant
-    
+
     logger.warning(
         "Apprenant NON trouvé. code=%s nom=%s tel=%s",
         appel.code or "-",
         appel.nom or "-",
-        appel.telephone1 or appel.telephone2 or "-"
+        appel.telephone1 or appel.telephone2 or "-",
     )
     return None
+
 
 def _parse_excel_sheet(file_obj, sheet_name: str):
     wb = openpyxl.load_workbook(file_obj, read_only=True, data_only=True)
@@ -513,7 +545,12 @@ def _parse_excel_sheet(file_obj, sheet_name: str):
         lieu = get(row, "lieux")
         classe_label = get(row, "classe")
         taux_presence = get(row, "taux de presence", "taux de présence", "présence (%)") or 0
-        tel1 = get(row, "1er no tel 0 tel no apprenant", "1er no tel 0 tel no", "1er no tel 0 tel no apprenant")
+        tel1 = get(
+            row,
+            "1er no tel 0 tel no apprenant",
+            "1er no tel 0 tel no",
+            "1er no tel 0 tel no apprenant",
+        )
         tel2 = get(
             row,
             "2e no tel 0 tel no apprenant (si disponible)",
@@ -592,8 +629,12 @@ def _archive_before_import_overwrite(appel: Appel, import_mode: str):
             "audio_file": appel.audio_file.name if appel.audio_file else "",
             "locked_by_id": appel.locked_by_id,
             "locked_at": appel.locked_at.isoformat() if appel.locked_at else None,
-            "created_at": appel.created_at.isoformat() if getattr(appel, "created_at", None) else None,
-            "updated_at": appel.updated_at.isoformat() if getattr(appel, "updated_at", None) else None,
+            "created_at": appel.created_at.isoformat()
+            if getattr(appel, "created_at", None)
+            else None,
+            "updated_at": appel.updated_at.isoformat()
+            if getattr(appel, "updated_at", None)
+            else None,
         },
     )
 
@@ -607,10 +648,29 @@ def _source_class_is_finished(source_class: dict) -> bool:
 
 def _safe_build_padesce_source_index() -> dict | None:
     try:
-        return build_padesce_source_index()
+        return build_padesce_source_index(source_key="cutoff")
     except Exception as exc:
-        logger.warning("Impossible de charger la source PADESCE pour les optimisations d'appels: %s", exc)
+        logger.warning(
+            "Impossible de charger la source PADESCE pour les optimisations d'appels: %s", exc
+        )
         return None
+
+
+def _cached_appel_class_progress_snapshot(source_bundle: dict | None = None) -> dict:
+    source_marker = str(
+        ((source_bundle or {}).get("source") or {}).get("modified_at") or "no-source"
+    )
+    cache_key = (
+        "appels:class-progress-snapshot:"
+        f"{source_marker}:"
+        f"{get_analysis_cache_version('appels-progress')}"
+    )
+    cached_snapshot = cache.get(cache_key)
+    if cached_snapshot is not None:
+        return cached_snapshot
+    snapshot = _build_appel_class_progress_snapshot(source_bundle)
+    cache.set(cache_key, snapshot, timeout=ANALYSIS_CACHE_TIMEOUT)
+    return snapshot
 
 
 def _callable_phone_summary_from_appel_rows(appel_rows: list[dict]) -> dict[str, dict[str, int]]:
@@ -641,10 +701,9 @@ def _callable_phone_summary_from_appel_rows(appel_rows: list[dict]) -> dict[str,
 
 def _build_appel_class_progress_snapshot(source_bundle: dict | None = None) -> dict:
     appel_rows = list(
-        Appel.objects.filter(is_active=True)
-        .exclude(classe_label="")
-        .values(
+        Appel.objects.filter(is_active=True).values(
             "id",
+            "code",
             "classe_label",
             "status",
             "prestataire",
@@ -654,6 +713,17 @@ def _build_appel_class_progress_snapshot(source_bundle: dict | None = None) -> d
             "telephone2",
         )
     )
+    source_records_by_code = (source_bundle or {}).get("records") or {}
+    normalized_appel_rows = []
+    for row in appel_rows:
+        normalized_row = dict(row)
+        classe_label = str(normalized_row.get("classe_label") or "").strip()
+        if not classe_label:
+            row_code_key = normalize_network_lookup(str(normalized_row.get("code") or ""))
+            source_record = source_records_by_code.get(row_code_key, {})
+            classe_label = str(source_record.get("classe_id") or "").strip()
+        normalized_row["classe_label"] = classe_label
+        normalized_appel_rows.append(normalized_row)
 
     label_by_key: dict[str, str] = {}
     raw_labels_by_key: dict[str, set[str]] = defaultdict(set)
@@ -663,14 +733,16 @@ def _build_appel_class_progress_snapshot(source_bundle: dict | None = None) -> d
     # Total DB appels per class (regardless of phone) – used for coherence check
     total_db_appels_by_key: dict[str, int] = defaultdict(int)
 
-    for classe_label, summary in _callable_phone_summary_from_appel_rows(appel_rows).items():
+    for classe_label, summary in _callable_phone_summary_from_appel_rows(
+        normalized_appel_rows
+    ).items():
         classe_key = normalize_network_lookup(classe_label)
         if not classe_key:
             continue
         fallback_phone_summary_by_key[classe_key] = summary
         fallback_callable_counts_by_key[classe_key] = int(summary.get("callable_total") or 0)
 
-    for row in appel_rows:
+    for row in normalized_appel_rows:
         classe_label = str(row.get("classe_label") or "").strip()
         classe_key = normalize_network_lookup(classe_label)
         if not classe_key:
@@ -679,7 +751,12 @@ def _build_appel_class_progress_snapshot(source_bundle: dict | None = None) -> d
             label_by_key.setdefault(classe_key, classe_label)
             raw_labels_by_key[classe_key].add(classe_label)
         total_db_appels_by_key[classe_key] += 1
-        if row.get("status") in {"formulaire_avec_audio", "formulaire_rempli", "appel_reussi", "termine"} and has_usable_phone(row.get("telephone1"), row.get("telephone2")):
+        if str(
+            row.get("status") or ""
+        ).strip() in CALL_ANALYSIS_THRESHOLD_STATUSES and has_usable_phone(
+            row.get("telephone1"),
+            row.get("telephone2"),
+        ):
             callable_termines_by_key[classe_key] += 1
 
     source_callable_counts_by_key: dict[str, int] = {}
@@ -709,15 +786,22 @@ def _build_appel_class_progress_snapshot(source_bundle: dict | None = None) -> d
             if prestation_key:
                 prestation_classes[prestation_key].add(classe_key)
 
-    classe_keys = set(label_by_key) | set(source_callable_counts_by_key) | set(fallback_callable_counts_by_key)
+    classe_keys = (
+        set(label_by_key)
+        | set(source_callable_counts_by_key)
+        | set(fallback_callable_counts_by_key)
+    )
     classe_progress = []
     progress_by_key: dict[str, dict] = {}
     hidden_class_labels: set[str] = set()
     hidden_class_keys: set[str] = set()
+    hidden_call_codes: set[str] = set()
     hidden_appel_count = 0
     classes_without_callable_phone = 0
 
-    for classe_key in sorted(classe_keys, key=lambda item: (label_by_key.get(item, item)).casefold()):
+    for classe_key in sorted(
+        classe_keys, key=lambda item: (label_by_key.get(item, item)).casefold()
+    ):
         display_label = label_by_key.get(classe_key, classe_key).strip() or classe_key
         raw_labels_by_key[classe_key].add(display_label)
         db_total = int(total_db_appels_by_key.get(classe_key) or 0)
@@ -741,7 +825,7 @@ def _build_appel_class_progress_snapshot(source_bundle: dict | None = None) -> d
                 or {}
             )
         termines = int(callable_termines_by_key.get(classe_key) or 0)
-        target = (callable_total + 1) // 2 if callable_total else 0
+        target = analysis_threshold_target(callable_total)
         reached = callable_total > 0 and termines >= target
         remaining_to_target = max(target - termines, 0)
         progress = {
@@ -759,18 +843,25 @@ def _build_appel_class_progress_snapshot(source_bundle: dict | None = None) -> d
         progress_by_key[classe_key] = progress
         if callable_total <= 0:
             classes_without_callable_phone += 1
-        if float(progress["pct"]) >= 25:
+        if reached:
             hidden_class_keys.add(classe_key)
             hidden_class_labels.update(raw_labels_by_key.get(classe_key) or {display_label})
+            hidden_call_codes.update(
+                str(row.get("code") or "").strip()
+                for row in normalized_appel_rows
+                if normalize_network_lookup(row.get("classe_label", "")) == classe_key
+                and str(row.get("code") or "").strip()
+            )
             hidden_appel_count += sum(
                 1
-                for row in appel_rows
+                for row in normalized_appel_rows
                 if normalize_network_lookup(row.get("classe_label", "")) == classe_key
             )
 
+    prestations = (source_bundle or {}).get("prestations") or {}
+
     recommended_classes = []
     if source_bundle:
-        prestations = source_bundle.get("prestations") or {}
         for prestation_key, class_keys in prestation_classes.items():
             actionable_keys = [
                 classe_key
@@ -781,7 +872,11 @@ def _build_appel_class_progress_snapshot(source_bundle: dict | None = None) -> d
             if not actionable_keys:
                 continue
 
-            reached_count = sum(1 for classe_key in class_keys if bool(progress_by_key.get(classe_key, {}).get("reached")))
+            reached_count = sum(
+                1
+                for classe_key in class_keys
+                if bool(progress_by_key.get(classe_key, {}).get("reached"))
+            )
             remaining_count = len(actionable_keys)
             prestation_info = prestations.get(prestation_key, {})
             prestation_finished = all(
@@ -807,12 +902,16 @@ def _build_appel_class_progress_snapshot(source_bundle: dict | None = None) -> d
                     reason = "Peu d'apprenants joignables et aucun numero duplique sur la classe."
                     priority_label = "A prioriser"
                 else:
-                    reason = "Classe proche du seuil, a appeler pour accelerer la fin de prestation."
+                    reason = (
+                        "Classe proche du seuil, a appeler pour accelerer la fin de prestation."
+                    )
                     priority_label = "A suivre"
 
                 recommended_classes.append(
                     {
-                        "classe": progress.get("classe") or source_class.get("classe_id") or classe_key.upper(),
+                        "classe": progress.get("classe")
+                        or source_class.get("classe_id")
+                        or classe_key.upper(),
                         "prestation": prestation_info.get("prestation_id")
                         or source_class.get("prestation_id")
                         or "-",
@@ -846,24 +945,70 @@ def _build_appel_class_progress_snapshot(source_bundle: dict | None = None) -> d
     for item in recommended_classes:
         item.pop("score", None)
 
-    # classe_progress only contains classes NOT yet at 50% (shown in the UI filter)
-    # classe_progress_all contains ALL classes including those already hidden (50% reached)
     classe_progress_all = list(progress_by_key.values())
 
-    # Count prestations where ALL classes reached the 25% analysis threshold
-    analysis_threshold_pct = ANALYSIS_THRESHOLD_PERCENT
+    prestation_keys = set(prestation_classes)
+    prestation_keys.update(prestations)
     analysis_prestations_count = 0
-    if source_bundle:
-        for prestation_key, class_keys in prestation_classes.items():
-            if not class_keys:
-                continue
-            all_at_threshold = all(
-                int(progress_by_key.get(ck, {}).get("total") or 0) > 0
-                and float(progress_by_key.get(ck, {}).get("pct") or 0) >= analysis_threshold_pct
-                for ck in class_keys
-            )
-            if all_at_threshold:
-                analysis_prestations_count += 1
+    actionable_prestations_count = 0
+    blocked_prestations_count = 0
+    prestation_progress = []
+    for prestation_key in sorted(
+        prestation_keys,
+        key=lambda item: str(
+            (prestations.get(item, {}) or {}).get("prestation_id") or item
+        ).casefold(),
+    ):
+        class_keys = prestation_classes.get(prestation_key, set())
+        reached_class_count = sum(
+            1
+            for classe_key in class_keys
+            if bool(progress_by_key.get(classe_key, {}).get("reached"))
+        )
+        actionable_keys = [
+            classe_key
+            for classe_key in class_keys
+            if int(progress_by_key.get(classe_key, {}).get("total") or 0) > 0
+            and not bool(progress_by_key.get(classe_key, {}).get("reached"))
+        ]
+        blocked_class_count = sum(
+            1
+            for classe_key in class_keys
+            if int(progress_by_key.get(classe_key, {}).get("total") or 0) <= 0
+            and not bool(progress_by_key.get(classe_key, {}).get("reached"))
+        )
+        analyzed = bool(class_keys) and all(
+            int(progress_by_key.get(classe_key, {}).get("total") or 0) > 0
+            and bool(progress_by_key.get(classe_key, {}).get("reached"))
+            for classe_key in class_keys
+        )
+        if analyzed:
+            analysis_prestations_count += 1
+        elif actionable_keys:
+            actionable_prestations_count += 1
+        else:
+            blocked_prestations_count += 1
+
+        prestation_info = prestations.get(prestation_key, {})
+        prestation_progress.append(
+            {
+                "prestation": prestation_info.get("prestation_id") or prestation_key.upper(),
+                "class_total": len(class_keys),
+                "class_reached": reached_class_count,
+                "class_actionable": len(actionable_keys),
+                "class_blocked": blocked_class_count,
+                "analyzed": analyzed,
+            }
+        )
+
+    total_prestations_count = len(prestation_keys)
+    minimum_target = min(70, total_prestations_count) if total_prestations_count else 0
+    max_reachable_prestations_count = min(
+        total_prestations_count,
+        analysis_prestations_count + actionable_prestations_count,
+    )
+    remaining_to_minimum_target = max(minimum_target - analysis_prestations_count, 0)
+    minimum_target_gap = max(minimum_target - max_reachable_prestations_count, 0)
 
     return {
         "source_bundle": source_bundle,
@@ -872,19 +1017,41 @@ def _build_appel_class_progress_snapshot(source_bundle: dict | None = None) -> d
         "classe_progress_all": classe_progress_all,
         "progress_by_key": progress_by_key,
         "hidden_class_labels": sorted(hidden_class_labels),
+        "hidden_call_codes": sorted(hidden_call_codes),
         "hidden_class_count": len(hidden_class_keys),
         "hidden_appel_count": hidden_appel_count,
         "classes_without_callable_phone_count": classes_without_callable_phone,
         "recommended_classes": recommended_classes[:8],
+        "prestation_progress": prestation_progress,
         "analysis_prestations_count": analysis_prestations_count,
+        "analysis_goal_summary": {
+            "total_prestations_count": total_prestations_count,
+            "analysis_prestations_count": analysis_prestations_count,
+            "actionable_prestations_count": actionable_prestations_count,
+            "blocked_prestations_count": blocked_prestations_count,
+            "minimum_target": minimum_target,
+            "remaining_to_minimum_target": remaining_to_minimum_target,
+            "max_reachable_prestations_count": max_reachable_prestations_count,
+            "minimum_target_gap": minimum_target_gap,
+        },
     }
 
 
-def _build_filtered_appels_queryset(request, *, hidden_class_labels: list[str] | None = None):
+def _build_filtered_appels_queryset(
+    request,
+    *,
+    hidden_class_labels: list[str] | None = None,
+    hidden_call_codes: list[str] | None = None,
+):
     appels_qs = Appel.objects.filter(is_active=True)
-    hidden_class_labels = [label for label in (hidden_class_labels or []) if str(label or "").strip()]
+    hidden_class_labels = [
+        label for label in (hidden_class_labels or []) if str(label or "").strip()
+    ]
+    hidden_call_codes = [code for code in (hidden_call_codes or []) if str(code or "").strip()]
     if hidden_class_labels:
         appels_qs = appels_qs.exclude(classe_label__in=hidden_class_labels)
+    if hidden_call_codes:
+        appels_qs = appels_qs.exclude(code__in=hidden_call_codes)
     completed_answers_filter = appel_answers_has_any_answer_q("answers__")
     modified_answers_filter = appel_answers_modified_any_answer_q("answers__")
     tracked_audio_filter = Q(audio_file__isnull=False) & ~Q(audio_file="")
@@ -940,17 +1107,24 @@ def _build_filtered_appels_queryset(request, *, hidden_class_labels: list[str] |
         if tracking_username:
             form_tracking_cutoff = padesce_form_tracking_cutoff()
             tracking_filter = (
-                Q(locked_by__username__iexact=tracking_username, status="termine", updated_at__lt=form_tracking_cutoff)
+                Q(
+                    locked_by__username__iexact=tracking_username,
+                    status__in=CALL_SUCCESS_STATUSES,
+                    updated_at__lt=form_tracking_cutoff,
+                )
                 | (Q(locked_by__username__iexact=tracking_username) & completed_answers_filter)
                 | (
                     Q(
                         locked_by__username__iexact=tracking_username,
-                        status="termine",
+                        status__in=CALL_SUCCESS_STATUSES,
                         updated_at__gte=form_tracking_cutoff,
                     )
                     & tracked_audio_filter
                 )
-                | (Q(answers__modified_by__username__iexact=tracking_username) & modified_answers_filter)
+                | (
+                    Q(answers__modified_by__username__iexact=tracking_username)
+                    & modified_answers_filter
+                )
             )
             appels_qs = appels_qs.filter(tracking_filter).distinct()
     if taux_filter:
@@ -990,7 +1164,10 @@ def _build_filtered_appels_queryset(request, *, hidden_class_labels: list[str] |
         taux_presence_display=Case(
             When(
                 taux_presence__lte=1,
-                then=ExpressionWrapper(F("taux_presence") * 100, output_field=DecimalField(max_digits=7, decimal_places=2)),
+                then=ExpressionWrapper(
+                    F("taux_presence") * 100,
+                    output_field=DecimalField(max_digits=7, decimal_places=2),
+                ),
             ),
             default=F("taux_presence"),
             output_field=DecimalField(max_digits=7, decimal_places=2),
@@ -1008,13 +1185,25 @@ def _build_filtered_appels_queryset(request, *, hidden_class_labels: list[str] |
         "modified_by": modified_by_filter,
         "q": search,
         "prestataires": sorted(
-            {p.strip() for p in appels_qs.exclude(prestataire="").values_list("prestataire", flat=True) if p}
+            {
+                p.strip()
+                for p in appels_qs.exclude(prestataire="").values_list("prestataire", flat=True)
+                if p
+            }
         ),
         "beneficiaires": sorted(
-            {b.strip() for b in appels_qs.exclude(beneficiaire="").values_list("beneficiaire", flat=True) if b}
+            {
+                b.strip()
+                for b in appels_qs.exclude(beneficiaire="").values_list("beneficiaire", flat=True)
+                if b
+            }
         ),
         "classes": sorted(
-            {c.strip() for c in appels_qs.exclude(classe_label="").values_list("classe_label", flat=True) if c}
+            {
+                c.strip()
+                for c in appels_qs.exclude(classe_label="").values_list("classe_label", flat=True)
+                if c
+            }
         ),
         "fenetres": sorted(
             {
@@ -1029,7 +1218,9 @@ def _build_filtered_appels_queryset(request, *, hidden_class_labels: list[str] |
         "agents": sorted(
             {
                 u.strip()
-                for u in appels_qs.exclude(locked_by__isnull=True).values_list("locked_by__username", flat=True)
+                for u in appels_qs.exclude(locked_by__isnull=True).values_list(
+                    "locked_by__username", flat=True
+                )
                 if u
             }
         ),
@@ -1158,7 +1349,9 @@ def appels_index(request):
                         is_active=True,
                     )
                     created += 1
-            deduped = _deactivate_duplicate_rows(Appel.objects.filter(is_active=True), _appel_duplicate_key)
+            deduped = _deactivate_duplicate_rows(
+                Appel.objects.filter(is_active=True), _appel_duplicate_key
+            )
             messages.success(
                 request,
                 (
@@ -1192,7 +1385,10 @@ def appels_index(request):
                     )
                     created += 1
             _deactivate_duplicate_rows(Appel.objects.filter(is_active=True), _appel_duplicate_key)
-            messages.success(request, f"Fichier importe. {created} nouveau(x) appel(s), {updated} appel(s) mis a jour.")
+            messages.success(
+                request,
+                f"Fichier importe. {created} nouveau(x) appel(s), {updated} appel(s) mis a jour.",
+            )
         else:
             updated = 0
             for item in payload:
@@ -1203,26 +1399,33 @@ def appels_index(request):
                 if not appel:
                     continue
                 _archive_before_import_overwrite(appel, mode)
-                appel.type_formation_declaree = str(item.get("type_formation_declaree") or "").strip()
+                appel.type_formation_declaree = str(
+                    item.get("type_formation_declaree") or ""
+                ).strip()
                 appel.formation_padesce = str(item.get("formation_padesce") or "").strip()
-                appel.save(update_fields=["type_formation_declaree", "formation_padesce", "updated_at"])
+                appel.save(
+                    update_fields=["type_formation_declaree", "formation_padesce", "updated_at"]
+                )
                 updated += 1
             messages.success(
                 request,
-                f"Fichier importe. {updated} appel(s) mis a jour avec le type de formation et la formation Padesce."
+                f"Fichier importe. {updated} appel(s) mis a jour avec le type de formation et la formation Padesce.",
             )
         return redirect(request.path_info)
 
-    optimization_snapshot = _build_appel_class_progress_snapshot(_safe_build_padesce_source_index())
+    optimization_snapshot = _cached_appel_class_progress_snapshot(
+        _safe_build_padesce_source_index()
+    )
     appels_qs, filters = _build_filtered_appels_queryset(
         request,
         hidden_class_labels=optimization_snapshot["hidden_class_labels"],
+        hidden_call_codes=optimization_snapshot.get("hidden_call_codes", []),
     )
 
     appels_count = appels_qs.count()
     stats = _build_progress_metrics(appels_qs)
     appels_qs = appels_qs.order_by("status", "nom")
-    
+
     # ── Pagination: 30 lignes par page ──
     paginator = Paginator(appels_qs, 30)
     page_number = request.GET.get("page", 1)
@@ -1230,7 +1433,7 @@ def appels_index(request):
         page_obj = paginator.page(page_number)
     except (PageNotAnInteger, EmptyPage):
         page_obj = paginator.page(1)
-    
+
     appels = _bind_audio_state(list(page_obj.object_list))
     page_obj.object_list = appels
 
@@ -1252,16 +1455,18 @@ def appels_index(request):
         enriched_classes.append({"value": c_label, "label": label_with_prog})
     filters["classes_enriched"] = enriched_classes
 
-    # ── Analysis threshold stats (25%) across ALL classes (visible + hidden) ──
+    # ── Analysis threshold stats across ALL classes (visible + hidden) ──
     all_classe_progress = optimization_snapshot["classe_progress_all"]
     analysis_classes_count = sum(
-        1 for item in all_classe_progress
-        if int(item.get("total") or 0) > 0 and float(item.get("pct") or 0) >= ANALYSIS_THRESHOLD_PERCENT
+        1
+        for item in all_classe_progress
+        if int(item.get("total") or 0) > 0 and bool(item.get("reached"))
     )
-    # Count distinct prestations where all their classes reached the 25% threshold
     analysis_prestations_count = optimization_snapshot.get("analysis_prestations_count", 0)
+    analysis_goal_summary = optimization_snapshot.get("analysis_goal_summary", {})
 
     import json as _json
+
     return render(
         request,
         "appels/index.html",
@@ -1278,10 +1483,13 @@ def appels_index(request):
             "hidden_class_summary": {
                 "hidden_class_count": optimization_snapshot["hidden_class_count"],
                 "hidden_appel_count": optimization_snapshot["hidden_appel_count"],
-                "classes_without_callable_phone_count": optimization_snapshot["classes_without_callable_phone_count"],
+                "classes_without_callable_phone_count": optimization_snapshot[
+                    "classes_without_callable_phone_count"
+                ],
                 "analysis_classes_count": analysis_classes_count,
                 "analysis_prestations_count": analysis_prestations_count,
             },
+            "analysis_goal_summary": analysis_goal_summary,
             "source_summary": optimization_snapshot["source_summary"],
             "analysis_threshold_label": analysis_threshold_label(),
         },
@@ -1290,10 +1498,13 @@ def appels_index(request):
 
 @login_required
 def appels_export_filtered_csv(request):
-    optimization_snapshot = _build_appel_class_progress_snapshot(_safe_build_padesce_source_index())
+    optimization_snapshot = _cached_appel_class_progress_snapshot(
+        _safe_build_padesce_source_index()
+    )
     appels_qs, _ = _build_filtered_appels_queryset(
         request,
         hidden_class_labels=optimization_snapshot["hidden_class_labels"],
+        hidden_call_codes=optimization_snapshot.get("hidden_call_codes", []),
     )
     appels = appels_qs.select_related("locked_by").order_by("status", "nom")
 
@@ -1343,105 +1554,108 @@ def appels_export_filtered_csv(request):
     return response
 
 
-
-
 def _cleanup_stale_locks(timeout_minutes=3):
     """Release locks older than timeout_minutes to prevent stuck calls.
-    
+
     Lock timeouts (very aggressive to handle network failures):
     - en_cours: 3 minutes max (dropped connections should release within 3min)
     - pause: 2 minutes max (paused calls should resume or terminate quickly)
     """
     from App_PADESCE.appels.models import Appel, AppelCGA, AppelFormateur
-    
-    # Cleanup for en_cours locks (3 min)
+
+    # For PADESCE/formateurs, abandoned active rows fall back to "appel_tente"
+    # so the operator can see Demarrer again after a dropped connection.
     cutoff_active = timezone.now() - datetime.timedelta(minutes=timeout_minutes)
     Appel.objects.filter(
-        locked_by__isnull=False,
-        locked_at__lt=cutoff_active,
-        status='en_cours'
-    ).update(locked_by=None, locked_at=None, status='pause')
-    
+        locked_by__isnull=False, locked_at__lt=cutoff_active, status="en_cours"
+    ).update(locked_by=None, locked_at=None, status="appel_tente")
+
     AppelCGA.objects.filter(
-        locked_by__isnull=False,
-        locked_at__lt=cutoff_active,
-        status='en_cours'
-    ).update(locked_by=None, locked_at=None, status='pause')
-    
+        locked_by__isnull=False, locked_at__lt=cutoff_active, status="en_cours"
+    ).update(locked_by=None, locked_at=None, status="pause")
+
     AppelFormateur.objects.filter(
-        locked_by__isnull=False,
-        locked_at__lt=cutoff_active,
-        status='en_cours'
-    ).update(locked_by=None, locked_at=None, status='pause')
-    
+        locked_by__isnull=False, locked_at__lt=cutoff_active, status="en_cours"
+    ).update(locked_by=None, locked_at=None, status="appel_tente")
+
     # Cleanup for pause locks (2 min)
     cutoff_pause = timezone.now() - datetime.timedelta(minutes=2)
     Appel.objects.filter(
-        locked_by__isnull=False,
-        locked_at__lt=cutoff_pause,
-        status='pause'
-    ).update(locked_by=None, locked_at=None)
-    
+        locked_by__isnull=False, locked_at__lt=cutoff_pause, status="pause"
+    ).update(locked_by=None, locked_at=None, status="appel_tente")
+
     AppelCGA.objects.filter(
-        locked_by__isnull=False,
-        locked_at__lt=cutoff_pause,
-        status='pause'
+        locked_by__isnull=False, locked_at__lt=cutoff_pause, status="pause"
     ).update(locked_by=None, locked_at=None)
-    
+
     AppelFormateur.objects.filter(
-        locked_by__isnull=False,
-        locked_at__lt=cutoff_pause,
-        status='pause'
-    ).update(locked_by=None, locked_at=None)
+        locked_by__isnull=False, locked_at__lt=cutoff_pause, status="pause"
+    ).update(locked_by=None, locked_at=None, status="appel_tente")
 
 
 def _handle_lock_conflict(instance, current_user, action):
     """Handle lock conflicts with stale lock recovery.
-    
+
     After cleanup runs, any remaining lock is less than 3 min old.
     Allow takeover of very recent locks (< 2 min) to recover from network failures.
-    
+
     Returns: (is_ok, error_message)
     """
     if not instance.locked_by or instance.locked_by == current_user:
         return True, None
-    
-    if instance.status not in ('en_cours', 'pause'):
+
+    if instance.status not in ("en_cours", "pause"):
         return True, None
-    
+
     # Check if lock is recent enough to takeover
     now = timezone.now()
     if instance.locked_at:
         age = now - instance.locked_at
-        
+
         # Ultra-aggressive: takeover any lock older than 90 seconds
         # This prevents stuck calls from blocking other agents
         very_stale_delta = datetime.timedelta(seconds=90)
         if age > very_stale_delta:
             return True, None
-        
+
         # Lock is very recent - block with helpful message
         remaining_secs = max(1, int(90 - age.total_seconds()))
-        return False, f"Appel actif. Veuillez essayer dans {remaining_secs}s ou contacter l'agent: {instance.locked_by.username or 'N/A'}"
-    
+        return (
+            False,
+            f"Appel actif. Veuillez essayer dans {remaining_secs}s ou contacter l'agent: {instance.locked_by.username or 'N/A'}",
+        )
+
     # No lock timestamp - allow
     return True, None
 
 
 def _check_other_active_calls(user, current_instance):
     from App_PADESCE.appels.models import Appel, AppelCGA, AppelFormateur
-    has_padesce = Appel.objects.filter(locked_by=user, status__in=['en_cours', 'pause']).exclude(pk=current_instance.pk if isinstance(current_instance, Appel) else None).exists()
-    has_cga = AppelCGA.objects.filter(locked_by=user, status__in=['en_cours', 'pause']).exclude(pk=current_instance.pk if isinstance(current_instance, AppelCGA) else None).exists()
-    has_formateur = AppelFormateur.objects.filter(locked_by=user, status__in=['en_cours', 'pause']).exclude(pk=current_instance.pk if isinstance(current_instance, AppelFormateur) else None).exists()
+
+    has_padesce = (
+        Appel.objects.filter(locked_by=user, status__in=["en_cours", "pause"])
+        .exclude(pk=current_instance.pk if isinstance(current_instance, Appel) else None)
+        .exists()
+    )
+    has_cga = (
+        AppelCGA.objects.filter(locked_by=user, status__in=["en_cours", "pause"])
+        .exclude(pk=current_instance.pk if isinstance(current_instance, AppelCGA) else None)
+        .exists()
+    )
+    has_formateur = (
+        AppelFormateur.objects.filter(locked_by=user, status__in=["en_cours", "pause"])
+        .exclude(pk=current_instance.pk if isinstance(current_instance, AppelFormateur) else None)
+        .exists()
+    )
     return has_padesce or has_cga or has_formateur
+
 
 @login_required
 @require_POST
 def appel_action(request, pk: int):
     # Clean up stale locks that may be blocking access
     _cleanup_stale_locks()
-    _cleanup_stale_locks()
-    
+
     appel = get_object_or_404(Appel, pk=pk)
     action = request.POST.get("action")
     rappel_at = request.POST.get("rappel_at")
@@ -1452,15 +1666,17 @@ def appel_action(request, pk: int):
     satisfaction_message = ""
 
     if action == "start":
-        appel.status = "appel_tente"
+        appel.status = "en_cours"
         appel.locked_by = request.user
         appel.locked_at = now
+        appel.rappel_at = None
     elif action == "pause":
-        appel.status = "appel_tente"
+        appel.status = "pause"
     elif action == "resume":
-        appel.status = "appel_tente"
+        appel.status = "en_cours"
         appel.locked_by = request.user
         appel.locked_at = now
+        appel.rappel_at = None
     elif action == "rappeler":
         appel.status = "a_rappeler"
         appel.locked_by = request.user
@@ -1471,8 +1687,11 @@ def appel_action(request, pk: int):
                 appel.rappel_at = timezone.make_aware(naive_dt)
             except (ValueError, TypeError):
                 appel.rappel_at = None
+        else:
+            appel.rappel_at = None
     elif action == "terminer":
         appel.status = "termine"
+        appel.rappel_at = None
     else:
         return JsonResponse({"ok": False, "error": "Action inconnue."}, status=400)
 
@@ -1481,7 +1700,13 @@ def appel_action(request, pk: int):
 
     # Save flag fields
     update_fields = ["status", "locked_by", "locked_at", "rappel_at", "deja_forme", "updated_at"]
-    for flag_name in ("flag_pas_forme", "flag_faux_nom", "flag_vrai_nom", "flag_deja_appele", "flag_numero_double"):
+    for flag_name in (
+        "flag_pas_forme",
+        "flag_faux_nom",
+        "flag_vrai_nom",
+        "flag_deja_appele",
+        "flag_numero_double",
+    ):
         val = request.POST.get(flag_name)
         if val is not None:
             if flag_name == "flag_vrai_nom":
@@ -1490,7 +1715,8 @@ def appel_action(request, pk: int):
                 setattr(appel, flag_name, _parse_bool_flag(val) or False)
             update_fields.append(flag_name)
 
-    appel.save(update_fields=update_fields)
+    appel.save(update_fields=list(dict.fromkeys(update_fields)))
+    sync_padesce_status(appel)
     # Progress info for the UI
     class_info = None
     if appel.classe_label:
@@ -1513,7 +1739,7 @@ def appel_action(request, pk: int):
 def finalize_appel(request, pk: int):
     """Save questionnaire answers first, then attach audio if one was provided."""
     _cleanup_stale_locks()
-    
+
     try:
         with transaction.atomic():
             appel = Appel.objects.select_for_update().get(pk=pk)
@@ -1542,7 +1768,13 @@ def finalize_appel(request, pk: int):
             appel.deja_forme = deja_forme_flag
             update_fields.append("deja_forme")
 
-            for flag_name in ("flag_pas_forme", "flag_faux_nom", "flag_vrai_nom", "flag_deja_appele", "flag_numero_double"):
+            for flag_name in (
+                "flag_pas_forme",
+                "flag_faux_nom",
+                "flag_vrai_nom",
+                "flag_deja_appele",
+                "flag_numero_double",
+            ):
                 val = request.POST.get(flag_name)
                 if val is not None:
                     if flag_name == "flag_vrai_nom":
@@ -1551,28 +1783,30 @@ def finalize_appel(request, pk: int):
                         setattr(appel, flag_name, _parse_bool_flag(val) or False)
                     update_fields.append(flag_name)
 
-            appel.save(update_fields=list(dict.fromkeys(update_fields)))
-
             satisfaction_saved = False
             satisfaction_message = ""
             if action == "terminer":
-                commentaire_val = request.POST.get("commentaire", "") or "RAS"
-                recommandations_val = request.POST.get("recommandations", "") or "RAS"
-                # IMPORTANT: Toujours envoyer les réponses (même avec valeurs défaut)
+                commentaire_val = request.POST.get("commentaire", "") or ""
+                recommandations_val = request.POST.get("recommandations", "") or ""
                 manual_data = {
-                    "q1_clarte_exposes": request.POST.get("q1") or "3",
-                    "q2_interaction_formateur": request.POST.get("q2") or "3",
-                    "q3_maitrise_contenu": request.POST.get("q3") or "3",
-                    "q4_salle_adequate": request.POST.get("q4") or "3",
-                    "q5_materiel_disponible": request.POST.get("q5") or "3",
-                    "q6_organisation_temps": request.POST.get("q6") or "3",
-                    "q7_utilite_formation": request.POST.get("q7") or "3",
-                    "q8_adequation_besoins": request.POST.get("q8") or "3",
-                    "q9_satisfaction_globale": request.POST.get("q9") or "3",
-                    "commentaire": commentaire_val.strip() or "RAS",
-                    "recommandations": recommandations_val.strip() or "RAS",
+                    "q1_clarte_exposes": request.POST.get("q1"),
+                    "q2_interaction_formateur": request.POST.get("q2"),
+                    "q3_maitrise_contenu": request.POST.get("q3"),
+                    "q4_salle_adequate": request.POST.get("q4"),
+                    "q5_materiel_disponible": request.POST.get("q5"),
+                    "q6_organisation_temps": request.POST.get("q6"),
+                    "q7_utilite_formation": request.POST.get("q7"),
+                    "q8_adequation_besoins": request.POST.get("q8"),
+                    "q9_satisfaction_globale": request.POST.get("q9"),
+                    "commentaire": commentaire_val.strip(),
+                    "recommandations": recommandations_val.strip(),
                 }
-                auto_result = _auto_process_satisfaction_from_appel(appel, request.user, manual_data=manual_data)
+                manual_data = {
+                    key: value for key, value in manual_data.items() if value not in (None, "")
+                }
+                auto_result = _auto_process_satisfaction_from_appel(
+                    appel, request.user, manual_data=manual_data
+                )
                 satisfaction_saved = auto_result.get("satisfaction_saved", False)
                 satisfaction_message = auto_result.get("message", "")
                 satisfaction_id = auto_result.get("satisfaction_id")
@@ -1581,33 +1815,40 @@ def finalize_appel(request, pk: int):
 
             if file_obj:
                 appel.audio_file = file_obj
-                appel.save(update_fields=["audio_file", "updated_at"])
-                if satisfaction_id:
-                    satisfaction = SatisfactionApprenant.objects.filter(pk=satisfaction_id).first()
-                    _attach_appel_audio_to_satisfaction(satisfaction, appel)
+                update_fields.append("audio_file")
+
+            appel.save(update_fields=list(dict.fromkeys(update_fields)))
 
             sync_padesce_status(appel)
-            
+
+            if file_obj and satisfaction_id:
+                satisfaction = SatisfactionApprenant.objects.filter(pk=satisfaction_id).first()
+                _attach_appel_audio_to_satisfaction(satisfaction, appel)
+
             # 5. Get class progress
             class_info = None
             if appel.classe_label:
                 class_info = _build_live_class_progress(appel.classe_label)
-            
+
             audio_url = _safe_audio_url(appel)
-            return JsonResponse({
-                "ok": True,
-                "status": appel.status,
-                "status_label": appel.get_status_display(),
-                "audio_saved": bool(file_obj),
-                "audio_url": audio_url,
-                "satisfaction_saved": satisfaction_saved,
-                "satisfaction_message": satisfaction_message,
-                "class_progress": class_info,
-            })
+            return JsonResponse(
+                {
+                    "ok": True,
+                    "status": appel.status,
+                    "status_label": appel.get_status_display(),
+                    "audio_saved": bool(file_obj),
+                    "audio_url": audio_url,
+                    "satisfaction_saved": satisfaction_saved,
+                    "satisfaction_message": satisfaction_message,
+                    "class_progress": class_info,
+                }
+            )
     except Appel.DoesNotExist:
         return JsonResponse({"ok": False, "error": "Appel introuvable."}, status=404)
     except Exception as e:
-        return JsonResponse({"ok": False, "error": f"Erreur lors de la finalisation: {str(e)}"}, status=500)
+        return JsonResponse(
+            {"ok": False, "error": f"Erreur lors de la finalisation: {str(e)}"}, status=500
+        )
 
 
 @login_required
@@ -1621,7 +1862,13 @@ def appel_upload_audio(request, pk: int):
 
     # Save flag fields
     update_fields = ["audio_file", "updated_at"]
-    for flag_name in ("flag_pas_forme", "flag_faux_nom", "flag_vrai_nom", "flag_deja_appele", "flag_numero_double"):
+    for flag_name in (
+        "flag_pas_forme",
+        "flag_faux_nom",
+        "flag_vrai_nom",
+        "flag_deja_appele",
+        "flag_numero_double",
+    ):
         val = request.POST.get(flag_name)
         if val is not None:
             if flag_name == "flag_vrai_nom":
@@ -1632,7 +1879,7 @@ def appel_upload_audio(request, pk: int):
 
     appel.save(update_fields=update_fields)
     payload = {"ok": True, "audio_saved": True, "audio_url": _safe_audio_url(appel)}
-    if appel.status == "termine":
+    if is_call_success_status(appel.status):
         commentaire_val = request.POST.get("commentaire", "") or ""
         recommandations_val = request.POST.get("recommandations", "") or ""
         manual_data = {
@@ -1645,14 +1892,18 @@ def appel_upload_audio(request, pk: int):
             "q7_utilite_formation": request.POST.get("q7"),
             "q8_adequation_besoins": request.POST.get("q8"),
             "q9_satisfaction_globale": request.POST.get("q9"),
-            "commentaire": commentaire_val.strip() or "RAS",
-            "recommandations": recommandations_val.strip() or "RAS",
+            "commentaire": commentaire_val.strip(),
+            "recommandations": recommandations_val.strip(),
         }
         manual_data = {k: v for k, v in manual_data.items() if v is not None and v != ""}
-        auto_result = _auto_process_satisfaction_from_appel(appel, request.user, manual_data=manual_data)
+        auto_result = _auto_process_satisfaction_from_appel(
+            appel, request.user, manual_data=manual_data
+        )
         payload.update(
             {
-                "satisfaction_saved": auto_result.get("satisfaction_saved", auto_result.get("ok", False)),
+                "satisfaction_saved": auto_result.get(
+                    "satisfaction_saved", auto_result.get("ok", False)
+                ),
                 "satisfaction_message": auto_result["message"],
             }
         )
@@ -1675,7 +1926,34 @@ def _auto_process_satisfaction_from_appel(appel: Appel, user, manual_data: dict 
     """
     if manual_data is None:
         manual_data = {}
-    _save_appel_answers(appel, user, manual_data, apply_defaults=True)
+    has_any_question_answer = _payload_has_any_question_answer(manual_data)
+    has_complete_questionnaire = _payload_has_complete_questionnaire(manual_data)
+    has_open_feedback = bool(
+        str(manual_data.get("commentaire", "") or "").strip()
+        or str(manual_data.get("recommandations", "") or "").strip()
+    )
+
+    if has_any_question_answer or has_open_feedback:
+        _save_appel_answers(appel, user, manual_data, apply_defaults=False)
+
+    if not has_complete_questionnaire:
+        if has_any_question_answer:
+            message = "Reponses partielles enregistrees."
+        elif has_open_feedback:
+            message = "Resultat d'appel enregistre."
+        else:
+            message = "Appel finalise sans questionnaire."
+        return {
+            "ok": True,
+            "satisfaction_saved": False,
+            "satisfaction_id": None,
+            "message": message,
+        }
+    existing_satisfaction = (
+        SatisfactionApprenant.objects.select_related("apprenant", "classe")
+        .filter(appel=appel)
+        .first()
+    )
     base_qs = Apprenant.objects.all()
     scoped_qs = base_qs
     if appel.classe_id:
@@ -1683,11 +1961,23 @@ def _auto_process_satisfaction_from_appel(appel: Appel, user, manual_data: dict 
     elif appel.classe_label:
         scoped_qs = scoped_qs.filter(classe__code__iexact=str(appel.classe_label).strip())
 
-    apprenant = _find_apprenant_for_appel(scoped_qs, appel)
+    apprenant = (
+        existing_satisfaction.apprenant
+        if existing_satisfaction and existing_satisfaction.apprenant_id
+        else None
+    )
     if not apprenant:
+        apprenant = _find_apprenant_for_appel(scoped_qs, appel)
+    if not apprenant and (appel.classe_id or appel.classe_label):
         apprenant = _find_apprenant_for_appel(base_qs, appel)
 
-    satisfaction = _save_satisfaction_for_appel(appel, user, manual_data, apprenant)
+    satisfaction = _save_satisfaction_for_appel(
+        appel,
+        user,
+        manual_data,
+        apprenant,
+        existing_satisfaction=existing_satisfaction,
+    )
     if not apprenant:
         logger.info(
             "Satisfaction sauvegardee sans apprenant lie. %s",
@@ -1706,9 +1996,9 @@ def _auto_process_satisfaction_from_appel(appel: Appel, user, manual_data: dict 
         apprenant.id if apprenant else "N/A",
         getattr(satisfaction.classe, "code", "N/A"),
         appel.prestataire or "N/A",
-        appel.beneficiaire or "N/A"
+        appel.beneficiaire or "N/A",
     )
-    
+
     return {
         "ok": True,
         "satisfaction_saved": True,
@@ -1728,12 +2018,12 @@ def download_appel_audios(request):
     except ValueError:
         return JsonResponse({"ok": False, "error": "Identifiants invalides."}, status=400)
 
-    appels = list(
-        Appel.objects.filter(pk__in=ids, audio_file__isnull=False)
-        .order_by("nom")
-    )
+    appels = list(Appel.objects.filter(pk__in=ids, audio_file__isnull=False).order_by("nom"))
     if not appels:
-        return JsonResponse({"ok": False, "error": "Aucun audio disponible pour les appels sélectionnés."}, status=404)
+        return JsonResponse(
+            {"ok": False, "error": "Aucun audio disponible pour les appels sélectionnés."},
+            status=404,
+        )
 
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_DEFLATED) as archive:
@@ -1744,7 +2034,9 @@ def download_appel_audios(request):
             try:
                 with appel.audio_file.open("rb") as audio:
                     suffix = Path(appel.audio_file.name).suffix or ".mp3"
-                    safe_name = f"{slugify(appel.code) or 'code'}-{slugify(appel.nom) or 'appel'}{suffix}"
+                    safe_name = (
+                        f"{slugify(appel.code) or 'code'}-{slugify(appel.nom) or 'appel'}{suffix}"
+                    )
                     archive.writestr(safe_name, audio.read())
                     written += 1
             except Exception:
@@ -1766,8 +2058,12 @@ def deduplicate_all_call_tables(request):
         messages.error(request, "Seul un superadmin peut nettoyer les doublons.")
         return redirect(request.META.get("HTTP_REFERER") or "/dashboard/")
 
-    appels_removed = _deactivate_duplicate_rows(Appel.objects.filter(is_active=True), _appel_duplicate_key)
-    cga_removed = _deactivate_duplicate_rows(AppelCGA.objects.filter(is_active=True), _cga_duplicate_key)
+    appels_removed = _deactivate_duplicate_rows(
+        Appel.objects.filter(is_active=True), _appel_duplicate_key
+    )
+    cga_removed = _deactivate_duplicate_rows(
+        AppelCGA.objects.filter(is_active=True), _cga_duplicate_key
+    )
     formateurs_removed = _deactivate_duplicate_rows(
         AppelFormateur.objects.filter(is_active=True),
         _formateur_duplicate_key,
@@ -1783,22 +2079,17 @@ def deduplicate_all_call_tables(request):
     return redirect(request.META.get("HTTP_REFERER") or "/dashboard/")
 
 
-
-
-
-
-
-
 @login_required
 @require_POST
 def appel_transcription_detail(request, pk: int):
     appel = get_object_or_404(Appel, pk=pk)
     try:
         obj, generated = _ensure_appel_transcription(appel)
-        return JsonResponse({"ok": True, "generated": generated, "transcription": _transcription_to_payload(obj)})
+        return JsonResponse(
+            {"ok": True, "generated": generated, "transcription": _transcription_to_payload(obj)}
+        )
     except Exception as exc:
         return JsonResponse({"ok": False, "error": str(exc)}, status=400)
-
 
 
 @login_required
@@ -1808,9 +2099,15 @@ def appel_answers_detail(request, pk: int):
     if request.method == "POST":
         answers, _ = AppelAnswers.objects.get_or_create(appel=appel)
         q_fields = [
-            "q1_clarte_exposes", "q2_interaction_formateur", "q3_maitrise_contenu",
-            "q4_salle_adequate", "q5_materiel_disponible", "q6_organisation_temps",
-            "q7_utilite_formation", "q8_adequation_besoins", "q9_satisfaction_globale",
+            "q1_clarte_exposes",
+            "q2_interaction_formateur",
+            "q3_maitrise_contenu",
+            "q4_salle_adequate",
+            "q5_materiel_disponible",
+            "q6_organisation_temps",
+            "q7_utilite_formation",
+            "q8_adequation_besoins",
+            "q9_satisfaction_globale",
         ]
         for i, field in enumerate(q_fields, 1):
             val = request.POST.get(f"q{i}")
@@ -1829,7 +2126,14 @@ def appel_answers_detail(request, pk: int):
 
         # Also save flags on the appel
         update_fields = ["updated_at"]
-        for flag_name in ("flag_pas_forme", "flag_faux_nom", "flag_vrai_nom", "flag_deja_appele", "flag_numero_double", "deja_forme"):
+        for flag_name in (
+            "flag_pas_forme",
+            "flag_faux_nom",
+            "flag_vrai_nom",
+            "flag_deja_appele",
+            "flag_numero_double",
+            "deja_forme",
+        ):
             val = request.POST.get(flag_name)
             if val is not None:
                 if flag_name in ("flag_vrai_nom",):

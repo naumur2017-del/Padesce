@@ -3,13 +3,11 @@ import datetime
 from django.conf import settings
 from django.db import models
 from django.db.models import F, Q
-
 from django.utils import timezone
 from django.utils.text import slugify
 
 from App_PADESCE.core.models import TimeStampedModel
 from App_PADESCE.formations.models import Classe
-
 
 APPEL_ANSWER_QUESTION_FIELDS = (
     "q1_clarte_exposes",
@@ -22,10 +20,18 @@ APPEL_ANSWER_QUESTION_FIELDS = (
     "q8_adequation_besoins",
     "q9_satisfaction_globale",
 )
+APPEL_SUCCESS_TEXT_FIELDS = ("commentaire", "recommandations")
 
 PADESCE_FORM_TRACKING_CUTOFF = datetime.datetime(2026, 3, 9, 0, 0, 0)
-CALL_TENTATIVE_STATUSES = ("appel_tente", "en_cours", "pause")
-CALL_COMPLETED_STATUSES = ("appel_reussi", "formulaire_rempli", "formulaire_avec_audio", "termine")
+CALL_ACTIVE_STATUSES = ("en_cours", "pause")
+CALL_TENTATIVE_STATUSES = ("appel_tente",) + CALL_ACTIVE_STATUSES
+CALL_FORM_STATUSES = ("formulaire_rempli", "formulaire_avec_audio")
+CALL_SUCCESS_STATUSES = ("appel_reussi",) + CALL_FORM_STATUSES + ("termine",)
+CALL_COMPLETED_STATUSES = CALL_SUCCESS_STATUSES
+CALL_STARTABLE_STATUSES = ("en_attente", "appel_tente", "appel_reussi", "a_rappeler")
+# Les classes atteignent le seuil d'analyse quand un formulaire est sauve
+# ou quand une ancienne ligne deja finalisee est au statut "termine".
+CALL_ANALYSIS_THRESHOLD_STATUSES = CALL_FORM_STATUSES + ("termine",)
 
 
 def appel_answers_completed_q(prefix: str = "answers__") -> Q:
@@ -64,6 +70,30 @@ def padesce_form_tracking_cutoff():
     return timezone.make_aware(PADESCE_FORM_TRACKING_CUTOFF, timezone.get_current_timezone())
 
 
+def normalize_call_status(value: str) -> str:
+    return str(value or "").strip()
+
+
+def is_call_active_status(status: str) -> bool:
+    return normalize_call_status(status) in CALL_ACTIVE_STATUSES
+
+
+def is_call_attempted_status(status: str) -> bool:
+    return normalize_call_status(status) not in {"", "en_attente"}
+
+
+def is_call_success_status(status: str) -> bool:
+    return normalize_call_status(status) in CALL_SUCCESS_STATUSES
+
+
+def is_call_form_status(status: str) -> bool:
+    return normalize_call_status(status) in CALL_FORM_STATUSES
+
+
+def is_call_startable_status(status: str) -> bool:
+    return normalize_call_status(status) in CALL_STARTABLE_STATUSES
+
+
 def _short_slug(value: str, default: str, max_len: int = 36) -> str:
     slug = slugify(value) or default
     return slug[:max_len].strip("-") or default
@@ -82,12 +112,43 @@ def appel_audio_upload(instance: "Appel", filename: str) -> str:
 
 
 def answers_have_any_answer(answers) -> bool:
-    return bool(answers and any(getattr(answers, field, None) is not None for field in APPEL_ANSWER_QUESTION_FIELDS))
+    return bool(
+        answers
+        and any(getattr(answers, field, None) is not None for field in APPEL_ANSWER_QUESTION_FIELDS)
+    )
 
 
 def satisfaction_has_any_answer(satisfaction) -> bool:
     return bool(
-        satisfaction and any(getattr(satisfaction, field, None) is not None for field in APPEL_ANSWER_QUESTION_FIELDS)
+        satisfaction
+        and any(
+            getattr(satisfaction, field, None) is not None for field in APPEL_ANSWER_QUESTION_FIELDS
+        )
+    )
+
+
+def _has_meaningful_text_signal(value) -> bool:
+    normalized = str(value or "").strip()
+    return bool(normalized and normalized.upper() != "RAS")
+
+
+def answers_have_success_signal(answers) -> bool:
+    return bool(
+        answers
+        and any(
+            _has_meaningful_text_signal(getattr(answers, field_name, ""))
+            for field_name in APPEL_SUCCESS_TEXT_FIELDS
+        )
+    )
+
+
+def satisfaction_has_success_signal(satisfaction) -> bool:
+    return bool(
+        satisfaction
+        and any(
+            _has_meaningful_text_signal(getattr(satisfaction, field_name, ""))
+            for field_name in APPEL_SUCCESS_TEXT_FIELDS
+        )
     )
 
 
@@ -105,6 +166,33 @@ def appel_has_any_form_data(appel: "Appel") -> bool:
     return satisfaction_has_any_answer(satisfaction)
 
 
+def appel_has_success_signal(appel: "Appel") -> bool:
+    if any(
+        bool(getattr(appel, field_name, None))
+        for field_name in (
+            "deja_forme",
+            "flag_pas_forme",
+            "flag_faux_nom",
+            "flag_deja_appele",
+            "flag_numero_double",
+        )
+    ):
+        return True
+    if _has_meaningful_text_signal(getattr(appel, "flag_vrai_nom", "")):
+        return True
+    try:
+        answers = appel.answers
+    except Exception:
+        answers = None
+    if answers_have_success_signal(answers):
+        return True
+    try:
+        satisfaction = appel.satisfaction_apprenant
+    except Exception:
+        satisfaction = None
+    return satisfaction_has_success_signal(satisfaction)
+
+
 def _file_field_has_name(file_field) -> bool:
     return bool(getattr(file_field, "name", "") or "")
 
@@ -119,21 +207,25 @@ def appel_has_any_audio(appel: "Appel") -> bool:
     return _file_field_has_name(getattr(satisfaction, "audio_appel", None))
 
 
-def infer_padesce_status(current_status: str, *, has_form: bool, has_audio: bool) -> str:
-    normalized_status = str(current_status or "").strip()
+def infer_padesce_status(
+    current_status: str, *, has_form: bool, has_audio: bool, has_success_signal: bool = False
+) -> str:
+    normalized_status = normalize_call_status(current_status)
+    if normalized_status in CALL_ACTIVE_STATUSES:
+        return normalized_status
+    if normalized_status == "a_rappeler":
+        return "a_rappeler"
     if has_form and has_audio:
         return "formulaire_avec_audio"
     if has_form:
         return "formulaire_rempli"
-    if has_audio:
+    if has_audio or has_success_signal:
         return "appel_reussi"
     if normalized_status == "en_attente":
         return "en_attente"
-    if normalized_status == "a_rappeler":
-        return "a_rappeler"
     if normalized_status in CALL_TENTATIVE_STATUSES:
         return "appel_tente"
-    if normalized_status in CALL_COMPLETED_STATUSES:
+    if normalized_status in CALL_SUCCESS_STATUSES:
         return "appel_reussi"
     if normalized_status:
         return "appel_tente"
@@ -145,6 +237,7 @@ def derive_padesce_status(appel: "Appel") -> str:
         getattr(appel, "status", ""),
         has_form=appel_has_any_form_data(appel),
         has_audio=appel_has_any_audio(appel),
+        has_success_signal=appel_has_success_signal(appel),
     )
 
 
@@ -180,7 +273,9 @@ class Appel(TimeStampedModel):
     classe_label = models.CharField(max_length=100, blank=True)
     fenetre = models.CharField(max_length=50, blank=True)
     is_active = models.BooleanField(default=True)
-    classe = models.ForeignKey(Classe, on_delete=models.SET_NULL, null=True, blank=True, related_name="appels")
+    classe = models.ForeignKey(
+        Classe, on_delete=models.SET_NULL, null=True, blank=True, related_name="appels"
+    )
     telephone1 = models.CharField(max_length=30, blank=True)
     telephone2 = models.CharField(max_length=30, blank=True)
     taux_presence = models.DecimalField(max_digits=5, decimal_places=2, default=0)
@@ -194,9 +289,15 @@ class Appel(TimeStampedModel):
     flag_vrai_nom = models.CharField(max_length=255, blank=True, verbose_name="Vrai nom")
     flag_deja_appele = models.BooleanField(default=False, verbose_name="D\u00e9j\u00e0 appel\u00e9")
     flag_numero_double = models.BooleanField(default=False, verbose_name="Num\u00e9ro double")
-    audio_file = models.FileField(upload_to=appel_audio_upload, null=True, blank=True, max_length=255)
+    audio_file = models.FileField(
+        upload_to=appel_audio_upload, null=True, blank=True, max_length=255
+    )
     locked_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="appels_lock"
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="appels_lock",
     )
     locked_at = models.DateTimeField(null=True, blank=True)
 
@@ -245,6 +346,50 @@ def appel_formateur_audio_upload(instance: "AppelFormateur", filename: str) -> s
     )
 
 
+FORMATEUR_SCORE_FIELDS = (
+    "q1_prerequis_apprenants",
+    "q2_interaction_apprenants",
+    "q3_competences_acquises",
+)
+
+FORMATEUR_TEXT_FIELDS = (
+    "q4_gestion_administrative",
+    "q5_gestion_financiere",
+    "q6_communication",
+    "commentaires",
+    "recommandations",
+)
+
+
+def formateur_has_any_form_data(row: "AppelFormateur") -> bool:
+    return any(
+        getattr(row, field_name, None) not in (None, "")
+        for field_name in (*FORMATEUR_SCORE_FIELDS, *FORMATEUR_TEXT_FIELDS)
+    ) or bool(getattr(row, "satisfaction_completed_at", None))
+
+
+def formateur_has_any_audio(row: "AppelFormateur") -> bool:
+    return _file_field_has_name(getattr(row, "audio_file", None))
+
+
+def derive_formateur_status(row: "AppelFormateur") -> str:
+    return infer_padesce_status(
+        getattr(row, "status", ""),
+        has_form=formateur_has_any_form_data(row),
+        has_audio=formateur_has_any_audio(row),
+    )
+
+
+def sync_formateur_status(row: "AppelFormateur", *, save: bool = True) -> str:
+    new_status = derive_formateur_status(row)
+    if save and new_status != row.status:
+        row.status = new_status
+        row.save(update_fields=["status", "updated_at"])
+    else:
+        row.status = new_status
+    return new_status
+
+
 class AppelCGA(TimeStampedModel):
     STATUS_CHOICES = Appel.STATUS_CHOICES
 
@@ -259,11 +404,19 @@ class AppelCGA(TimeStampedModel):
     ville = models.CharField(max_length=120, blank=True)
     telephone = models.CharField(max_length=30, blank=True)
     is_active = models.BooleanField(default=True, db_index=True)
-    status = models.CharField(max_length=25, choices=STATUS_CHOICES, default="en_attente", db_index=True)
+    status = models.CharField(
+        max_length=25, choices=STATUS_CHOICES, default="en_attente", db_index=True
+    )
     rappel_at = models.DateTimeField(null=True, blank=True)
-    audio_file = models.FileField(upload_to=appel_cga_audio_upload, null=True, blank=True, max_length=255)
+    audio_file = models.FileField(
+        upload_to=appel_cga_audio_upload, null=True, blank=True, max_length=255
+    )
     locked_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="appels_cga_lock"
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="appels_cga_lock",
     )
     locked_at = models.DateTimeField(null=True, blank=True)
 
@@ -298,9 +451,13 @@ class AppelFormateur(TimeStampedModel):
     heure_fin = models.CharField(max_length=30, blank=True)
     source_contact = models.CharField(max_length=255, blank=True)
     is_active = models.BooleanField(default=True, db_index=True)
-    status = models.CharField(max_length=25, choices=STATUS_CHOICES, default="en_attente", db_index=True)
+    status = models.CharField(
+        max_length=25, choices=STATUS_CHOICES, default="en_attente", db_index=True
+    )
     rappel_at = models.DateTimeField(null=True, blank=True)
-    audio_file = models.FileField(upload_to=appel_formateur_audio_upload, null=True, blank=True, max_length=255)
+    audio_file = models.FileField(
+        upload_to=appel_formateur_audio_upload, null=True, blank=True, max_length=255
+    )
     q1_prerequis_apprenants = models.PositiveSmallIntegerField(null=True, blank=True)
     q2_interaction_apprenants = models.PositiveSmallIntegerField(null=True, blank=True)
     q3_competences_acquises = models.PositiveSmallIntegerField(null=True, blank=True)
@@ -335,7 +492,6 @@ class AppelFormateur(TimeStampedModel):
         return f"Appel formateur {self.reference_code} - {label}"
 
 
-
 class AppelAnswers(TimeStampedModel):
     appel = models.OneToOneField(Appel, on_delete=models.CASCADE, related_name="answers")
     q1_clarte_exposes = models.PositiveSmallIntegerField(null=True, blank=True)
@@ -350,7 +506,11 @@ class AppelAnswers(TimeStampedModel):
     commentaire = models.TextField(blank=True, default="RAS")
     recommandations = models.TextField(blank=True, default="RAS")
     modified_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="appel_answers_modified"
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="appel_answers_modified",
     )
     modified_at = models.DateTimeField(null=True, blank=True)
 

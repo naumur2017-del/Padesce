@@ -122,7 +122,9 @@ class ConsolidationImportTests(TestCase):
 
     @patch("App_PADESCE.appels.consolidation_views.messages.success")
     @patch("App_PADESCE.appels.consolidation_views.build_consolidation_call_candidates")
-    def test_consolidation_pending_appels_batch_action_uses_current_filter(self, mock_build_candidates, mock_messages_success):
+    def test_consolidation_pending_appels_batch_action_uses_current_filter(
+        self, mock_build_candidates, mock_messages_success
+    ):
         mock_build_candidates.return_value = {
             "source": {"name": "fichier consolide.xlsm", "modified_label": "24/03/2026 a 12:00"},
             "sheet_name": "Consolidation",
@@ -194,8 +196,12 @@ class AppelsIndexFilterTests(TestCase):
         self.client.force_login(self.user)
 
     def test_appels_index_filters_formulaire_and_modified_by(self):
-        first = Appel.objects.create(code="APP001", nom="Alpha One", locked_by=self.user, status="termine")
-        second = Appel.objects.create(code="APP002", nom="Beta Two", locked_by=self.user, status="en_cours")
+        first = Appel.objects.create(
+            code="APP001", nom="Alpha One", locked_by=self.user, status="formulaire_rempli"
+        )
+        second = Appel.objects.create(
+            code="APP002", nom="Beta Two", locked_by=self.user, status="en_cours"
+        )
         AppelAnswers.objects.create(
             appel=first,
             q1_clarte_exposes=4,
@@ -228,7 +234,9 @@ class AppelsIndexFilterTests(TestCase):
         self.assertNotContains(response, "APP002")
 
     def test_appels_index_treats_single_answer_as_filled_form(self):
-        appel = Appel.objects.create(code="APP003", nom="Gamma Three", locked_by=self.user, status="appel_tente")
+        appel = Appel.objects.create(
+            code="APP003", nom="Gamma Three", locked_by=self.user, status="appel_tente"
+        )
         AppelAnswers.objects.create(
             appel=appel,
             q1_clarte_exposes=5,
@@ -243,10 +251,18 @@ class AppelsIndexFilterTests(TestCase):
         self.assertContains(response, "APP003")
 
     def test_appels_index_completed_filter_includes_all_finalized_statuses(self):
-        Appel.objects.create(code="APP005", nom="Echo Five", locked_by=self.user, status="appel_reussi")
-        Appel.objects.create(code="APP006", nom="Foxtrot Six", locked_by=self.user, status="formulaire_rempli")
-        Appel.objects.create(code="APP007", nom="Golf Seven", locked_by=self.user, status="formulaire_avec_audio")
-        Appel.objects.create(code="APP008", nom="Hotel Eight", locked_by=self.user, status="a_rappeler")
+        Appel.objects.create(
+            code="APP005", nom="Echo Five", locked_by=self.user, status="appel_reussi"
+        )
+        Appel.objects.create(
+            code="APP006", nom="Foxtrot Six", locked_by=self.user, status="formulaire_rempli"
+        )
+        Appel.objects.create(
+            code="APP007", nom="Golf Seven", locked_by=self.user, status="formulaire_avec_audio"
+        )
+        Appel.objects.create(
+            code="APP008", nom="Hotel Eight", locked_by=self.user, status="a_rappeler"
+        )
 
         response = self.client.get(reverse("appels_index"), {"status": "completed"})
 
@@ -257,7 +273,9 @@ class AppelsIndexFilterTests(TestCase):
         self.assertNotContains(response, "APP008")
 
     def test_appel_answers_detail_syncs_status_after_single_answer(self):
-        appel = Appel.objects.create(code="APP004", nom="Delta Four", locked_by=self.user, status="appel_tente")
+        appel = Appel.objects.create(
+            code="APP004", nom="Delta Four", locked_by=self.user, status="appel_tente"
+        )
 
         response = self.client.post(
             reverse("appel_answers_detail", args=[appel.pk]),
@@ -290,12 +308,22 @@ class AppelsIndexFilterTests(TestCase):
         self.assertNotContains(response, "missing-audio.webm")
 
     @patch("App_PADESCE.appels.views.build_padesce_source_index")
-    def test_appels_index_hides_reached_classes_and_ignores_learners_without_phone(self, mock_build_source_index):
+    def test_appels_index_hides_reached_classes_and_ignores_learners_without_phone(
+        self, mock_build_source_index
+    ):
         mock_build_source_index.return_value = {
             "source": {"label": "Fichier consolide", "modified_label": "27/03/2026 a 12:20"},
             "classes": {
-                "cla001": {"classe_id": "CLA001", "prestation_id": "PRESTA001", "statut_prestation": "TERMINE"},
-                "cla002": {"classe_id": "CLA002", "prestation_id": "PRESTA001", "statut_prestation": "TERMINE"},
+                "cla001": {
+                    "classe_id": "CLA001",
+                    "prestation_id": "PRESTA001",
+                    "statut_prestation": "TERMINE",
+                },
+                "cla002": {
+                    "classe_id": "CLA002",
+                    "prestation_id": "PRESTA001",
+                    "statut_prestation": "TERMINE",
+                },
             },
             "prestations": {
                 "presta001": {"prestation_id": "PRESTA001", "statut_prestation": "TERMINE"},
@@ -308,26 +336,274 @@ class AppelsIndexFilterTests(TestCase):
             },
         }
 
-        Appel.objects.create(code="CLA001-A", nom="Alpha", classe_label="CLA001", telephone1="690000001", status="termine")
-        Appel.objects.create(code="CLA001-B", nom="Bravo", classe_label="CLA001", telephone1="690000002", status="en_attente")
-        Appel.objects.create(code="CLA001-C", nom="Charlie", classe_label="CLA001", telephone1="", status="en_attente")
-        Appel.objects.create(code="CLA002-A", nom="Delta", classe_label="CLA002", telephone1="690000010", status="en_attente")
+        Appel.objects.create(
+            code="CLA001-A",
+            nom="Alpha",
+            classe_label="CLA001",
+            telephone1="690000001",
+            status="formulaire_rempli",
+        )
+        Appel.objects.create(
+            code="CLA001-B",
+            nom="Bravo",
+            classe_label="CLA001",
+            telephone1="690000002",
+            status="en_attente",
+        )
+        Appel.objects.create(
+            code="CLA001-C",
+            nom="Charlie",
+            classe_label="CLA001",
+            telephone1="",
+            status="en_attente",
+        )
+        Appel.objects.create(
+            code="CLA002-A",
+            nom="Delta",
+            classe_label="CLA002",
+            telephone1="690000010",
+            status="en_attente",
+        )
 
         response = self.client.get(reverse("appels_index"))
 
         self.assertEqual(response.status_code, 200)
+        mock_build_source_index.assert_any_call(source_key="cutoff")
         visible_classes = {row.classe_label for row in response.context["appels"]}
         self.assertEqual(visible_classes, {"CLA002"})
         self.assertEqual(
             [item["value"] for item in response.context["filters"]["classes_enriched"]],
             ["CLA002"],
         )
-        classe_progress = {
-            item["classe"]: item
-            for item in response.context["classe_progress"]
-        }
+        classe_progress = {item["classe"]: item for item in response.context["classe_progress"]}
         self.assertEqual(classe_progress["CLA001"]["total"], 2)
         self.assertTrue(classe_progress["CLA001"]["reached"])
+
+    @patch("App_PADESCE.appels.views.build_padesce_source_index")
+    def test_appels_index_uses_saved_forms_for_25_percent_threshold(self, mock_build_source_index):
+        mock_build_source_index.return_value = {
+            "source": {"label": "Fichier consolide", "modified_label": "27/03/2026 a 12:20"},
+            "classes": {
+                "cla100": {
+                    "classe_id": "CLA100",
+                    "prestation_id": "PRESTA100",
+                    "statut_prestation": "TERMINE",
+                },
+            },
+            "prestations": {
+                "presta100": {"prestation_id": "PRESTA100", "statut_prestation": "TERMINE"},
+            },
+            "records": {
+                "a1": {"classe_id": "CLA100", "telephone1": "690100001", "telephone2": ""},
+                "a2": {"classe_id": "CLA100", "telephone1": "690100002", "telephone2": ""},
+                "a3": {"classe_id": "CLA100", "telephone1": "690100003", "telephone2": ""},
+                "a4": {"classe_id": "CLA100", "telephone1": "690100004", "telephone2": ""},
+            },
+        }
+
+        counted_row = Appel.objects.create(
+            code="CLA100-A",
+            nom="Alpha",
+            classe_label="CLA100",
+            telephone1="690100001",
+            status="appel_reussi",
+        )
+        Appel.objects.create(
+            code="CLA100-B",
+            nom="Bravo",
+            classe_label="CLA100",
+            telephone1="690100002",
+            status="en_attente",
+        )
+        Appel.objects.create(
+            code="CLA100-C",
+            nom="Charlie",
+            classe_label="CLA100",
+            telephone1="690100003",
+            status="en_attente",
+        )
+        Appel.objects.create(
+            code="CLA100-D",
+            nom="Delta",
+            classe_label="CLA100",
+            telephone1="690100004",
+            status="en_attente",
+        )
+
+        response = self.client.get(reverse("appels_index"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual({row.classe_label for row in response.context["appels"]}, {"CLA100"})
+        classe_progress = {item["classe"]: item for item in response.context["classe_progress"]}
+        self.assertEqual(classe_progress["CLA100"]["termines"], 0)
+        self.assertFalse(classe_progress["CLA100"]["reached"])
+
+        counted_row.status = "formulaire_rempli"
+        counted_row.save(update_fields=["status"])
+
+        response = self.client.get(reverse("appels_index"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(list(response.context["filters"]["classes_enriched"]), [])
+        self.assertEqual(list(response.context["appels"]), [])
+
+    @patch("App_PADESCE.appels.views.build_padesce_source_index")
+    def test_appels_index_counts_termine_status_for_25_percent_threshold(
+        self, mock_build_source_index
+    ):
+        mock_build_source_index.return_value = {
+            "source": {"label": "Fichier consolide", "modified_label": "27/03/2026 a 12:20"},
+            "classes": {
+                "cla200": {
+                    "classe_id": "CLA200",
+                    "prestation_id": "PRESTA200",
+                    "statut_prestation": "TERMINE",
+                },
+            },
+            "prestations": {
+                "presta200": {"prestation_id": "PRESTA200", "statut_prestation": "TERMINE"},
+            },
+            "records": {
+                "a1": {"classe_id": "CLA200", "telephone1": "690200001", "telephone2": ""},
+                "a2": {"classe_id": "CLA200", "telephone1": "690200002", "telephone2": ""},
+                "a3": {"classe_id": "CLA200", "telephone1": "690200003", "telephone2": ""},
+                "a4": {"classe_id": "CLA200", "telephone1": "690200004", "telephone2": ""},
+            },
+        }
+
+        Appel.objects.create(
+            code="CLA200-A",
+            nom="Alpha",
+            classe_label="CLA200",
+            telephone1="690200001",
+            status="termine",
+        )
+        Appel.objects.create(
+            code="CLA200-B",
+            nom="Bravo",
+            classe_label="CLA200",
+            telephone1="690200002",
+            status="en_attente",
+        )
+        Appel.objects.create(
+            code="CLA200-C",
+            nom="Charlie",
+            classe_label="CLA200",
+            telephone1="690200003",
+            status="en_attente",
+        )
+        Appel.objects.create(
+            code="CLA200-D",
+            nom="Delta",
+            classe_label="CLA200",
+            telephone1="690200004",
+            status="en_attente",
+        )
+
+        response = self.client.get(reverse("appels_index"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(list(response.context["filters"]["classes_enriched"]), [])
+        self.assertEqual(list(response.context["appels"]), [])
+        classe_progress = {item["classe"]: item for item in response.context["classe_progress"]}
+        self.assertEqual(classe_progress["CLA200"]["termines"], 1)
+        self.assertTrue(classe_progress["CLA200"]["reached"])
+
+    @patch("App_PADESCE.appels.views.build_padesce_source_index")
+    def test_appels_index_maps_completed_rows_without_class_label_from_source_code(
+        self, mock_build_source_index
+    ):
+        mock_build_source_index.return_value = {
+            "source": {"label": "Fichier consolide", "modified_label": "27/03/2026 a 12:20"},
+            "classes": {
+                "cla210": {
+                    "classe_id": "CLA210",
+                    "prestation_id": "PRESTA210",
+                    "statut_prestation": "TERMINE",
+                },
+            },
+            "prestations": {
+                "presta210": {"prestation_id": "PRESTA210", "statut_prestation": "TERMINE"},
+            },
+            "records": {
+                "app210a": {
+                    "code": "APP210A",
+                    "classe_id": "CLA210",
+                    "telephone1": "690210001",
+                    "telephone2": "",
+                },
+            },
+        }
+
+        Appel.objects.create(
+            code="APP210A",
+            nom="Alpha",
+            classe_label="",
+            telephone1="690210001",
+            status="termine",
+        )
+
+        response = self.client.get(reverse("appels_index"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(list(response.context["appels"]), [])
+        self.assertEqual(response.context["hidden_class_summary"]["hidden_class_count"], 1)
+        classe_progress = {item["classe"]: item for item in response.context["classe_progress"]}
+        self.assertEqual(classe_progress["CLA210"]["termines"], 1)
+        self.assertTrue(classe_progress["CLA210"]["reached"])
+
+    @patch("App_PADESCE.appels.views.build_padesce_source_index")
+    def test_appels_index_exposes_goal_summary_for_70_of_75_prestations(
+        self, mock_build_source_index
+    ):
+        classes = {}
+        prestations = {}
+        records = {}
+        for index in range(1, 76):
+            prestation_id = f"PRESTA{index:03d}"
+            classe_id = f"CLA{index:03d}"
+            classes[classe_id.lower()] = {
+                "classe_id": classe_id,
+                "prestation_id": prestation_id,
+                "statut_prestation": "TERMINE",
+            }
+            prestations[prestation_id.lower()] = {
+                "prestation_id": prestation_id,
+                "statut_prestation": "TERMINE",
+            }
+            records[f"r{index:03d}"] = {
+                "classe_id": classe_id,
+                "telephone1": f"690{index:06d}",
+                "telephone2": "",
+            }
+        mock_build_source_index.return_value = {
+            "source": {"label": "Fichier consolide", "modified_label": "27/03/2026 a 12:20"},
+            "counts": {"prestations": 75, "classes": 75, "apprenants": 75},
+            "classes": classes,
+            "prestations": prestations,
+            "records": records,
+        }
+
+        Appel.objects.create(
+            code="CLA001-A",
+            nom="Alpha",
+            classe_label="CLA001",
+            telephone1="690000001",
+            status="termine",
+        )
+
+        response = self.client.get(reverse("appels_index"))
+
+        self.assertEqual(response.status_code, 200)
+        summary = response.context["analysis_goal_summary"]
+        self.assertEqual(summary["total_prestations_count"], 75)
+        self.assertEqual(summary["analysis_prestations_count"], 1)
+        self.assertEqual(summary["minimum_target"], 70)
+        self.assertEqual(summary["remaining_to_minimum_target"], 69)
+        self.assertEqual(summary["actionable_prestations_count"], 74)
+        self.assertEqual(summary["blocked_prestations_count"], 0)
+        self.assertEqual(summary["max_reachable_prestations_count"], 75)
+        self.assertEqual(summary["minimum_target_gap"], 0)
 
     @patch("App_PADESCE.appels.views.build_padesce_source_index")
     def test_appels_index_recommends_last_class_to_finish_prestation(self, mock_build_source_index):
@@ -387,12 +663,48 @@ class AppelsIndexFilterTests(TestCase):
             },
         }
 
-        Appel.objects.create(code="CLA010-A", nom="A", classe_label="CLA010", telephone1="690100001", status="termine")
-        Appel.objects.create(code="CLA010-B", nom="B", classe_label="CLA010", telephone1="690100002", status="en_attente")
-        Appel.objects.create(code="CLA011-A", nom="C", classe_label="CLA011", telephone1="690110001", status="termine")
-        Appel.objects.create(code="CLA011-B", nom="D", classe_label="CLA011", telephone1="690110002", status="en_attente")
-        Appel.objects.create(code="CLA012-A", nom="E", classe_label="CLA012", telephone1="690120001", status="en_attente")
-        Appel.objects.create(code="CLA020-A", nom="F", classe_label="CLA020", telephone1="690200001", status="en_attente")
+        Appel.objects.create(
+            code="CLA010-A",
+            nom="A",
+            classe_label="CLA010",
+            telephone1="690100001",
+            status="formulaire_rempli",
+        )
+        Appel.objects.create(
+            code="CLA010-B",
+            nom="B",
+            classe_label="CLA010",
+            telephone1="690100002",
+            status="en_attente",
+        )
+        Appel.objects.create(
+            code="CLA011-A",
+            nom="C",
+            classe_label="CLA011",
+            telephone1="690110001",
+            status="formulaire_rempli",
+        )
+        Appel.objects.create(
+            code="CLA011-B",
+            nom="D",
+            classe_label="CLA011",
+            telephone1="690110002",
+            status="en_attente",
+        )
+        Appel.objects.create(
+            code="CLA012-A",
+            nom="E",
+            classe_label="CLA012",
+            telephone1="690120001",
+            status="en_attente",
+        )
+        Appel.objects.create(
+            code="CLA020-A",
+            nom="F",
+            classe_label="CLA020",
+            telephone1="690200001",
+            status="en_attente",
+        )
 
         response = self.client.get(reverse("appels_index"))
 
@@ -427,6 +739,23 @@ class AppelActionFlagTests(TestCase):
         self.assertEqual(response.status_code, 200)
         appel.refresh_from_db()
         self.assertTrue(appel.flag_pas_forme)
+
+    def test_appel_action_start_marks_call_in_progress(self):
+        appel = Appel.objects.create(
+            code="APP-FLAG-002",
+            nom="Apprenant En Cours",
+            status="en_attente",
+            is_active=True,
+        )
+
+        response = self.client.post(
+            reverse("appel_action", args=[appel.pk]),
+            {"action": "start"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        appel.refresh_from_db()
+        self.assertEqual(appel.status, "en_cours")
 
 
 class AppelFinalizeSaveTests(TestCase):
@@ -475,12 +804,41 @@ class AppelFinalizeSaveTests(TestCase):
 
         self.assertEqual(appel.status, "formulaire_rempli")
         self.assertEqual(payload["status"], "formulaire_rempli")
-        self.assertTrue(payload["satisfaction_saved"])
+        self.assertFalse(payload["satisfaction_saved"])
         self.assertEqual(answers.q1_clarte_exposes, 4)
         self.assertEqual(answers.q9_satisfaction_globale, 5)
         self.assertEqual(answers.commentaire, "Formulaire PADESCE bien renseigne")
         self.assertEqual(answers.recommandations, "Continuer comme cela")
-        self.assertTrue(SatisfactionApprenant.objects.filter(appel=appel).exists())
+        self.assertFalse(SatisfactionApprenant.objects.filter(appel=appel).exists())
         self.assertEqual(payload["class_progress"]["termines"], 1)
         self.assertEqual(payload["class_progress"]["target"], 1)
         self.assertTrue(payload["class_progress"]["reached"])
+
+    def test_finalize_without_questionnaire_answers_marks_call_successful(self):
+        appel = Appel.objects.create(
+            code="APP-FINAL-003",
+            nom="Apprenant Sans Formulaire",
+            classe_label="CLA-FINAL-2",
+            telephone1="690000003",
+            status="en_cours",
+            is_active=True,
+        )
+
+        response = self.client.post(
+            reverse("appel_finalize", args=[appel.pk]),
+            {
+                "action": "terminer",
+                "commentaire": "Pas de notes disponibles",
+                "recommandations": "",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+
+        appel.refresh_from_db()
+
+        self.assertEqual(appel.status, "appel_reussi")
+        self.assertEqual(payload["status"], "appel_reussi")
+        self.assertFalse(payload["satisfaction_saved"])
+        self.assertFalse(SatisfactionApprenant.objects.filter(appel=appel).exists())

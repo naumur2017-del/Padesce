@@ -33,6 +33,21 @@ app_urlpatterns = [
     ),
     path("dashboard/", lazy_view("App_PADESCE.core.views.home"), name="home"),
     path(
+        "suivi-utilisateurs/",
+        lazy_view("App_PADESCE.core.views.user_tracking_view"),
+        name="user_tracking",
+    ),
+    path(
+        "suivi-utilisateurs/live/",
+        lazy_view("App_PADESCE.core.views.user_tracking_live_api"),
+        name="user_tracking_live_api",
+    ),
+    path(
+        "api/activity/track/",
+        lazy_view("App_PADESCE.core.views.activity_track_api"),
+        name="activity_track_api",
+    ),
+    path(
         "deploiement/",
         lazy_view("App_PADESCE.core.deployment_views.deployment_dashboard"),
         name="deployment_dashboard",

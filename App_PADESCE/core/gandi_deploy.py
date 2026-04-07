@@ -98,6 +98,24 @@ APP_ENV_SYNC_KEYS = (
     "DJANGO_DEBUG",
     "DJANGO_ALLOWED_HOSTS",
     "DJANGO_CSRF_TRUSTED_ORIGINS",
+    "DATABASE_URL",
+    "DB_ENGINE",
+    "POSTGRES_HOST",
+    "POSTGRES_PORT",
+    "POSTGRES_DB",
+    "POSTGRES_USER",
+    "POSTGRES_PASSWORD",
+    "POSTGRES_SSLMODE",
+    "POSTGRES_CONN_MAX_AGE",
+    "PADESCE_CACHE_BACKEND",
+    "PADESCE_CACHE_LOCATION",
+    "PADESCE_CACHE_TIMEOUT",
+    "PADESCE_CACHE_MAX_ENTRIES",
+    "PADESCE_SOURCE_CACHE_TIMEOUT",
+    "PADESCE_ANALYSIS_CACHE_TIMEOUT",
+    "WEB_CONCURRENCY",
+    "WEB_TIMEOUT",
+    "WEB_KEEP_ALIVE",
     # Microsoft Graph / Teams
     "MICROSOFT_GRAPH_CLIENT_ID",
     "MICROSOFT_GRAPH_CLIENT_SECRET",
@@ -291,7 +309,9 @@ def process_exists(pid: int) -> bool:
             import ctypes
 
             PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
-            handle = ctypes.windll.kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
+            handle = ctypes.windll.kernel32.OpenProcess(
+                PROCESS_QUERY_LIMITED_INFORMATION, False, pid
+            )
             if not handle:
                 return False
             ctypes.windll.kernel32.CloseHandle(handle)
@@ -382,11 +402,12 @@ def deployment_config_from_env() -> tuple[DeploymentConfig | None, list[str]]:
     verify_url = _config_value("GANDI_DEPLOY_VERIFY_URL", "")
     include_paths_env = _config_value("GANDI_DEPLOY_INCLUDE_PATHS", "")
     port_value = _config_value("GANDI_SFTP_PORT", "22")
-    include_paths = tuple(
-        item.strip().replace("\\", "/")
-        for item in include_paths_env.split(",")
-        if item.strip()
-    ) or DEFAULT_INCLUDE_PATHS
+    include_paths = (
+        tuple(
+            item.strip().replace("\\", "/") for item in include_paths_env.split(",") if item.strip()
+        )
+        or DEFAULT_INCLUDE_PATHS
+    )
 
     errors: list[str] = []
     if not host:
@@ -434,21 +455,53 @@ def deployment_config_summary() -> dict[str, Any]:
     if config:
         username_value = config.masked_username
     else:
-        fallback_username = str(os.getenv("GANDI_SFTP_USERNAME", runtime_config.get("GANDI_SFTP_USERNAME", "")) or "").strip()
+        fallback_username = str(
+            os.getenv("GANDI_SFTP_USERNAME", runtime_config.get("GANDI_SFTP_USERNAME", "")) or ""
+        ).strip()
         if fallback_username:
-            username_value = f"{fallback_username[:6]}...{fallback_username[-4:]}" if len(fallback_username) > 10 else fallback_username
+            username_value = (
+                f"{fallback_username[:6]}...{fallback_username[-4:]}"
+                if len(fallback_username) > 10
+                else fallback_username
+            )
     return {
         "ready": not errors,
         "errors": errors,
-        "host": config.host if config else str(os.getenv("GANDI_SFTP_HOST", runtime_config.get("GANDI_SFTP_HOST", "sftp.sd3.gpaas.net"))),
-        "port": config.port if config else int(str(os.getenv("GANDI_SFTP_PORT", runtime_config.get("GANDI_SFTP_PORT", "22")) or "22")),
-        "domain": config.domain if config else str(os.getenv("GANDI_SFTP_DOMAIN", runtime_config.get("GANDI_SFTP_DOMAIN", "call.naumur.com"))),
-        "remote_path": config.remote_path if config else str(os.getenv("GANDI_SFTP_REMOTE_PATH", runtime_config.get("GANDI_SFTP_REMOTE_PATH", ""))),
-        "verify_url": config.verify_url if config else str(os.getenv("GANDI_DEPLOY_VERIFY_URL", runtime_config.get("GANDI_DEPLOY_VERIFY_URL", ""))),
+        "host": config.host
+        if config
+        else str(
+            os.getenv(
+                "GANDI_SFTP_HOST", runtime_config.get("GANDI_SFTP_HOST", "sftp.sd3.gpaas.net")
+            )
+        ),
+        "port": config.port
+        if config
+        else int(
+            str(os.getenv("GANDI_SFTP_PORT", runtime_config.get("GANDI_SFTP_PORT", "22")) or "22")
+        ),
+        "domain": config.domain
+        if config
+        else str(
+            os.getenv(
+                "GANDI_SFTP_DOMAIN", runtime_config.get("GANDI_SFTP_DOMAIN", "call.naumur.com")
+            )
+        ),
+        "remote_path": config.remote_path
+        if config
+        else str(
+            os.getenv("GANDI_SFTP_REMOTE_PATH", runtime_config.get("GANDI_SFTP_REMOTE_PATH", ""))
+        ),
+        "verify_url": config.verify_url
+        if config
+        else str(
+            os.getenv("GANDI_DEPLOY_VERIFY_URL", runtime_config.get("GANDI_DEPLOY_VERIFY_URL", ""))
+        ),
         "local_root": str(config.local_root if config else Path(settings.BASE_DIR)),
         "include_paths": list(config.include_paths if config else DEFAULT_INCLUDE_PATHS),
         "username_masked": username_value,
-        "token_present": bool(config.token) if config else bool(os.getenv("GANDI_SFTP_TOKEN", runtime_config.get("GANDI_SFTP_TOKEN", ""))),
+        "token_present": bool(config.token)
+        if config
+        else bool(os.getenv("GANDI_SFTP_TOKEN", runtime_config.get("GANDI_SFTP_TOKEN", ""))),
         "runtime_config_present": bool(runtime_config),
         "runtime_config_updated_at": runtime_config.get("updated_at", ""),
         "active_run": get_active_run(),
@@ -467,7 +520,11 @@ def should_ignore(relative_path: str) -> bool:
         return True
     if any(name.endswith(suffix) for suffix in IGNORE_FILE_SUFFIXES):
         return True
-    if normalized.startswith("logs/") or normalized.startswith("media/") or normalized.startswith("staticfiles/"):
+    if (
+        normalized.startswith("logs/")
+        or normalized.startswith("media/")
+        or normalized.startswith("staticfiles/")
+    ):
         return True
     return False
 
@@ -530,7 +587,9 @@ def local_manifest_entry(local_root: Path, relative_path: str) -> dict[str, Any]
     }
 
 
-def build_local_manifest(local_root: Path, include_paths: tuple[str, ...] = DEFAULT_INCLUDE_PATHS) -> dict[str, dict[str, Any]]:
+def build_local_manifest(
+    local_root: Path, include_paths: tuple[str, ...] = DEFAULT_INCLUDE_PATHS
+) -> dict[str, dict[str, Any]]:
     manifest: dict[str, dict[str, Any]] = {}
     local_root_resolved = local_root.resolve()
     for include in include_paths:
@@ -850,7 +909,9 @@ def confirm_python_refresh(
     refresh_request: dict[str, Any],
     state: "DeploymentRunState",
 ) -> dict[str, Any]:
-    live_url = str(refresh_request.get("live_status_url", "") or live_status_check_url(verify_url)).strip()
+    live_url = str(
+        refresh_request.get("live_status_url", "") or live_status_check_url(verify_url)
+    ).strip()
     if not refresh_request.get("required", True):
         refresh_request["reloaded"] = True
         refresh_request["message"] = (
@@ -859,7 +920,9 @@ def confirm_python_refresh(
         return refresh_request
 
     if not live_url:
-        refresh_request["message"] = "Le lien public de verification du serveur Python est indisponible."
+        refresh_request["message"] = (
+            "Le lien public de verification du serveur Python est indisponible."
+        )
         refresh_request["uwsgi_log_tail"] = read_remote_text_tail(sftp, REMOTE_UWSGI_LOG_PATH)
         return refresh_request
 
@@ -894,7 +957,9 @@ def confirm_python_refresh(
             app_booted_at = payload.get("app_booted_at")
             booted_at = parse_iso_datetime(app_booted_at)
             marker_seen = str(marker.get("run_id", "") or "") == run_id
-            reloaded = bool(marker_seen and requested_at and booted_at and booted_at >= requested_at)
+            reloaded = bool(
+                marker_seen and requested_at and booted_at and booted_at >= requested_at
+            )
             if reloaded:
                 refresh_request.update(
                     {
@@ -912,9 +977,7 @@ def confirm_python_refresh(
                 return refresh_request
             if marker_seen:
                 refresh_request["marker_seen"] = True
-            last_message = (
-                "La page de controle est joignable, mais le process Python n'a pas encore annonce son nouveau demarrage."
-            )
+            last_message = "La page de controle est joignable, mais le process Python n'a pas encore annonce son nouveau demarrage."
         time.sleep(LIVE_REFRESH_POLL_INTERVAL_SECONDS)
 
     refresh_request.update(
@@ -1270,7 +1333,9 @@ class DeploymentRunState:
         self.save(force=True)
 
 
-def _sftp_put_with_retry(sftp, local_path: str, remote_path: str, callback=None, retries: int = 3) -> None:
+def _sftp_put_with_retry(
+    sftp, local_path: str, remote_path: str, callback=None, retries: int = 3
+) -> None:
     """Upload a file over SFTP, retrying on 'size mismatch in put!' errors."""
     for attempt in range(1, retries + 1):
         try:
@@ -1322,8 +1387,7 @@ def _record_report_and_notification(state: DeploymentRunState) -> None:
         email_meta = report_meta.get("email", {}) or {}
         if email_meta.get("sent"):
             state.log(
-                "Notification email envoyee a "
-                + ", ".join(email_meta.get("recipients", []) or []),
+                "Notification email envoyee a " + ", ".join(email_meta.get("recipients", []) or []),
             )
         else:
             state.log(
@@ -1336,7 +1400,9 @@ def _record_report_and_notification(state: DeploymentRunState) -> None:
         state.data["report"] = {
             "email": {"sent": False, "error": str(exc)},
         }
-        state.log(f"Echec lors de l'enregistrement du rapport ou de l'envoi email: {exc}", level="error")
+        state.log(
+            f"Echec lors de l'enregistrement du rapport ou de l'envoi email: {exc}", level="error"
+        )
         state.log(traceback.format_exc(), level="error")
         state.save(force=True)
 
@@ -1384,7 +1450,9 @@ def run_deployment(*, run_id: str, mode: str = "deploy") -> dict[str, Any]:
         raw_remote_manifest = remote_read_json(sftp, remote_manifest_path)
         remote_manifest = None
         remote_scan = None
-        if isinstance(raw_remote_manifest, dict) and isinstance(raw_remote_manifest.get("files"), dict):
+        if isinstance(raw_remote_manifest, dict) and isinstance(
+            raw_remote_manifest.get("files"), dict
+        ):
             remote_manifest = raw_remote_manifest["files"]
             state.log(f"Manifeste distant charge ({len(remote_manifest)} fichiers suivis).")
         else:
@@ -1443,7 +1511,9 @@ def run_deployment(*, run_id: str, mode: str = "deploy") -> dict[str, Any]:
         for relative in transfer_paths:
             entry = local_manifest_entry(config.local_root, relative)
             if entry is None:
-                raise DeploymentError(f"Fichier local introuvable juste avant transfert: {relative}")
+                raise DeploymentError(
+                    f"Fichier local introuvable juste avant transfert: {relative}"
+                )
             if local_manifest.get(relative) != entry:
                 local_manifest[relative] = entry
                 refreshed_transfer_paths.append(relative)
@@ -1499,7 +1569,9 @@ def run_deployment(*, run_id: str, mode: str = "deploy") -> dict[str, Any]:
         }
         remote_write_json(sftp, remote_manifest_path, manifest_payload)
         state.data["summary"]["uploaded_files"] = len(uploaded_paths)
-        state.data["summary"]["uploaded_bytes"] = sum(int(local_manifest[path]["size"]) for path in uploaded_paths)
+        state.data["summary"]["uploaded_bytes"] = sum(
+            int(local_manifest[path]["size"]) for path in uploaded_paths
+        )
         state.data["summary"]["app_env_sync"] = app_env_sync
         state.complete_step(
             "upload",
@@ -1507,7 +1579,9 @@ def run_deployment(*, run_id: str, mode: str = "deploy") -> dict[str, Any]:
             progress=84,
         )
 
-        state.start_step("delete", message="Suppression des fichiers suivis supprimes localement", progress=86)
+        state.start_step(
+            "delete", message="Suppression des fichiers suivis supprimes localement", progress=86
+        )
         for index, relative in enumerate(deletions, start=1):
             remote_path = remote_join(remote_root, relative)
             sftp.remove(remote_path)
@@ -1542,7 +1616,9 @@ def run_deployment(*, run_id: str, mode: str = "deploy") -> dict[str, Any]:
                     break
                 time.sleep(2)
             if remote_stat is None:
-                verification_errors.append(f"Fichier distant introuvable apres transfert: {relative}")
+                verification_errors.append(
+                    f"Fichier distant introuvable apres transfert: {relative}"
+                )
                 continue
             if int(getattr(remote_stat, "st_size", 0) or 0) != expected_size:
                 verification_errors.append(f"Taille distante invalide: {relative}")
@@ -1588,7 +1664,9 @@ def run_deployment(*, run_id: str, mode: str = "deploy") -> dict[str, Any]:
 
         http_result = _http_check(config.verify_url)
         if not http_result.get("ok"):
-            verification_errors.append("Le site public n'a pas repondu correctement apres le deploiement.")
+            verification_errors.append(
+                "Le site public n'a pas repondu correctement apres le deploiement."
+            )
         verification_payload = {
             "uploaded_checked": len(uploaded_paths),
             "deleted_checked": len(deleted_paths),

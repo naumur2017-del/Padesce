@@ -1,0 +1,1188 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Suivi Utilisateurs PADESCE{% endblock %}
+{% block content %}
+<style>
+  .page-header {
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 22px;
+    background:
+      radial-gradient(circle at top right, rgba(16, 185, 129, 0.12), transparent 28%),
+      radial-gradient(circle at bottom left, rgba(124, 58, 237, 0.12), transparent 26%),
+      linear-gradient(135deg, #ffffff 0%, #f7fdfb 100%);
+    box-shadow: var(--shadow);
+  }
+  .page-header h1 { margin: 0 0 8px; color: var(--accent-strong); font-size: 1.9rem; }
+  .page-header p { margin: 0; color: var(--muted); }
+  .stats-grid {
+    margin-top: 18px;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 14px;
+  }
+  .stat-card, .panel {
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background: #fff;
+    box-shadow: var(--shadow);
+  }
+  .stat-card { padding: 18px; }
+  .stat-label { color: var(--muted); font-size: 0.92rem; }
+  .stat-value { margin-top: 8px; font-size: 1.7rem; font-weight: 800; color: var(--accent-strong); }
+  .panel { margin-top: 18px; padding: 16px; }
+  .panel-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 14px;
+  }
+  .panel h2 { margin: 0; color: var(--accent-strong); font-size: 1.1rem; }
+  .muted { color: var(--muted); }
+  .search-form { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .search-input {
+    min-width: 260px;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: #fff;
+    color: var(--text);
+  }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--accent);
+    background: var(--accent);
+    color: #fff;
+    border-radius: 10px;
+    padding: 10px 14px;
+    font-weight: 700;
+  }
+  .btn:hover { background: var(--accent-strong); border-color: var(--accent-strong); color: #fff; }
+  .btn-ghost { background: #fff; color: var(--accent-strong); }
+  .hero-grid {
+    display: grid;
+    grid-template-columns: minmax(320px, 1.4fr) minmax(280px, 1fr);
+    gap: 16px;
+  }
+  .globe-card {
+    position: relative;
+    overflow: hidden;
+    background:
+      radial-gradient(circle at 30% 25%, rgba(255,255,255,0.26), transparent 18%),
+      linear-gradient(180deg, #05293e 0%, #0e4561 100%);
+    min-height: 420px;
+  }
+  .globe-controls {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    display: flex;
+    gap: 8px;
+    z-index: 2;
+  }
+  .globe-tooltip {
+    position: absolute;
+    left: 16px;
+    top: 16px;
+    max-width: 220px;
+    padding: 8px 10px;
+    border-radius: 12px;
+    background: rgba(7, 28, 42, 0.78);
+    color: #f8fafc;
+    font-size: 0.88rem;
+    line-height: 1.35;
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    z-index: 2;
+    display: none;
+  }
+  .globe-btn {
+    width: 38px;
+    height: 38px;
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.12);
+    color: #ffffff;
+    font-size: 1.1rem;
+    font-weight: 800;
+    cursor: pointer;
+    backdrop-filter: blur(8px);
+  }
+  .globe-btn:hover {
+    background: rgba(255, 255, 255, 0.22);
+  }
+  .globe-wrap {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+  }
+  .globe-canvas {
+    width: min(100%, 440px);
+    aspect-ratio: 1 / 1;
+    border-radius: 50%;
+    box-shadow: inset -35px -20px 80px rgba(0, 0, 0, 0.35), 0 18px 50px rgba(0, 0, 0, 0.25);
+    cursor: grab;
+  }
+  .globe-canvas.dragging { cursor: grabbing; }
+  .globe-legend {
+    position: absolute;
+    left: 18px;
+    right: 18px;
+    bottom: 16px;
+    display: flex;
+    gap: 14px;
+    flex-wrap: wrap;
+    color: #e8f6ff;
+    font-size: 0.9rem;
+  }
+  .legend-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(8px);
+  }
+  .legend-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    display: inline-block;
+  }
+  .continent-swatch {
+    width: 16px;
+    height: 10px;
+    border-radius: 999px;
+    display: inline-block;
+    border: 1px solid rgba(255, 255, 255, 0.32);
+  }
+  .online-dot { background: #22c55e; box-shadow: 0 0 0 5px rgba(34, 197, 94, 0.18); }
+  .offline-dot { background: #94a3b8; }
+  .continent-africa { background: rgba(248, 196, 61, 0.9); }
+  .continent-europe { background: rgba(91, 143, 249, 0.9); }
+  .continent-asia { background: rgba(244, 114, 182, 0.9); }
+  .continent-oceania { background: rgba(45, 212, 191, 0.9); }
+  .continent-north-america { background: rgba(163, 230, 53, 0.9); }
+  .continent-south-america { background: rgba(251, 146, 60, 0.9); }
+  .continent-other { background: rgba(148, 163, 184, 0.9); }
+  .globe-focus-card {
+    position: absolute;
+    left: 18px;
+    top: 58px;
+    z-index: 2;
+    max-width: 260px;
+    padding: 12px 14px;
+    border-radius: 14px;
+    background: rgba(5, 20, 31, 0.62);
+    color: #f8fafc;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    backdrop-filter: blur(8px);
+  }
+  .globe-focus-card h3 {
+    margin: 0 0 6px;
+    font-size: 0.95rem;
+    color: #ffffff;
+  }
+  .globe-focus-card p {
+    margin: 4px 0;
+    font-size: 0.86rem;
+    color: #dbeafe;
+  }
+  .online-feed { display: grid; gap: 12px; align-content: start; }
+  .online-feed-header {
+    border: 1px solid rgba(34, 197, 94, 0.16);
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.82);
+    padding: 12px 14px;
+  }
+  .online-feed-header h3 {
+    margin: 0 0 4px;
+    color: var(--accent-strong);
+    font-size: 1rem;
+  }
+  .online-feed-header p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.9rem;
+  }
+  .online-card {
+    border: 1px solid rgba(34, 197, 94, 0.18);
+    border-radius: 14px;
+    background: linear-gradient(180deg, #f8fffb 0%, #ffffff 100%);
+    padding: 14px;
+  }
+  .online-card h3 { margin: 0 0 6px; color: #166534; font-size: 1rem; }
+  .online-card p { margin: 4px 0; color: var(--text); }
+  .table-wrap { overflow: auto; }
+  table { width: 100%; border-collapse: collapse; min-width: 1500px; }
+  th, td {
+    border: 1px solid var(--border);
+    padding: 9px 10px;
+    text-align: left;
+    vertical-align: top;
+    font-size: 0.92rem;
+  }
+  thead { background: #faf7ff; }
+  .status-pill {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 999px;
+    padding: 4px 10px;
+    border: 1px solid var(--border);
+    font-weight: 700;
+  }
+  .status-pill.online { color: #166534; background: #ecfdf5; border-color: #86efac; }
+  .status-pill.offline { color: #64748b; background: #f8fafc; border-color: #cbd5e1; }
+  .drill-link {
+    color: var(--accent-strong);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    font-weight: 600;
+  }
+  .location-block, .activity-block { line-height: 1.45; }
+  .history-trigger {
+    background: #f8fafc;
+    color: var(--accent-strong);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 8px 12px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .history-trigger:hover {
+    background: #eef6ff;
+    border-color: rgba(91, 143, 249, 0.35);
+  }
+  .history-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+  .history-card {
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: #fcfbff;
+    padding: 14px;
+  }
+  .history-card h3 { margin: 0 0 6px; color: var(--accent-strong); font-size: 1rem; }
+  .history-list { margin: 0; padding: 0; list-style: none; }
+  .history-list li + li {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(109, 77, 168, 0.12);
+  }
+  .history-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.56);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    z-index: 1200;
+  }
+  .history-modal.is-open { display: flex; }
+  .history-modal-dialog {
+    width: min(920px, 100%);
+    max-height: 85vh;
+    overflow: hidden;
+    border-radius: 18px;
+    background: #ffffff;
+    box-shadow: 0 30px 60px rgba(15, 23, 42, 0.28);
+    border: 1px solid rgba(148, 163, 184, 0.22);
+  }
+  .history-modal-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 18px 20px;
+    border-bottom: 1px solid var(--border);
+    background: linear-gradient(180deg, #f8fbff 0%, #ffffff 100%);
+  }
+  .history-modal-head h3 { margin: 0 0 4px; color: var(--accent-strong); }
+  .history-modal-head p { margin: 0; color: var(--muted); }
+  .history-modal-close {
+    border: 1px solid var(--border);
+    background: #fff;
+    border-radius: 12px;
+    width: 40px;
+    height: 40px;
+    font-size: 1.1rem;
+    cursor: pointer;
+  }
+  .history-modal-body {
+    padding: 18px 20px;
+    max-height: calc(85vh - 82px);
+    overflow: auto;
+  }
+  .history-modal-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  .history-modal-list li {
+    border: 1px solid rgba(148, 163, 184, 0.18);
+    border-radius: 14px;
+    padding: 12px 14px;
+    background: #fbfdff;
+  }
+  .history-modal-list li + li { margin-top: 10px; }
+  .history-empty {
+    color: var(--muted);
+    padding: 18px;
+    border: 1px dashed var(--border);
+    border-radius: 14px;
+    background: #fafcff;
+  }
+  @media (max-width: 1024px) {
+    .hero-grid { grid-template-columns: 1fr; }
+  }
+</style>
+
+<section class="page-header">
+  <h1>Suivi des utilisateurs PADESCE</h1>
+  <p>Lecture en temps reel des connexions, localisations, pages consultees et derniers clics effectues sur la plateforme.</p>
+</section>
+
+{% if not tracking_schema_ready %}
+  <section class="panel">
+    <div class="muted">
+      Certaines donnees de suivi avance sont temporairement indisponibles parce que la base n'est pas encore alignee sur le schema attendu.
+      La page reste consultable avec les informations disponibles.
+    </div>
+  </section>
+{% endif %}
+
+<section class="stats-grid">
+  <article class="stat-card">
+    <div class="stat-label">Total utilisateurs</div>
+    <div class="stat-value" id="total-users-value">{{ total_users }}</div>
+  </article>
+  <article class="stat-card">
+    <div class="stat-label">Utilisateurs en ligne</div>
+    <div class="stat-value" id="online-users-value">{{ online_count }}</div>
+  </article>
+  <article class="stat-card">
+    <div class="stat-label">Points affiches sur le globe</div>
+    <div class="stat-value" id="globe-points-value">{{ globe_points|length }}</div>
+  </article>
+  <article class="stat-card">
+    <div class="stat-label">Connexions recentes</div>
+    <div class="stat-value">{{ recent_login_logs|length }}</div>
+  </article>
+</section>
+
+<section class="panel">
+  <div class="panel-head">
+    <div>
+      <h2>Tableau principal</h2>
+      <div class="muted">Les agents en ligne remontent en premier, puis le classement se fait par volume de traitements termines.</div>
+    </div>
+    <form method="get" class="search-form">
+      <input
+        id="user-search"
+        class="search-input"
+        type="search"
+        name="user_search"
+        value="{{ user_search|default:'' }}"
+        placeholder="Rechercher un nom d'utilisateur"
+        aria-label="Rechercher un utilisateur PADESCE"
+      >
+      <button type="submit" class="btn">Rechercher</button>
+      {% if user_search %}
+        <a class="btn btn-ghost" href="{% url 'user_tracking' %}">Effacer</a>
+      {% endif %}
+    </form>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Utilisateur</th>
+          <th>Statut</th>
+          <th>Nombre d'appels</th>
+          <th>A rappeler</th>
+          <th>Formulaires remplis</th>
+          <th>Formulaires modifies</th>
+          <th>Termines</th>
+          <th>En cours</th>
+          <th>Appels en cours</th>
+          <th>Adresse IP</th>
+          <th>Localisation</th>
+          <th>Page actuelle</th>
+          <th>Derniere action</th>
+          <th>Historique recent</th>
+          <th>Derniere activite</th>
+          <th>Derniere connexion</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in user_activity_rows %}
+          <tr>
+            <td><a class="drill-link" href="{{ row.total_url }}">{{ row.username }}</a></td>
+            <td>
+              <span class="status-pill {% if row.is_online %}online{% else %}offline{% endif %}">
+                {% if row.is_online %}En ligne{% else %}Hors ligne{% endif %}
+              </span>
+            </td>
+            <td><a class="drill-link" href="{{ row.total_url }}">{{ row.total_appels }}</a></td>
+            <td><a class="drill-link" href="{{ row.rappel_url }}">{{ row.a_rappeler }}</a></td>
+            <td><a class="drill-link" href="{{ row.formulaires_url }}">{{ row.formulaires_remplis }}</a></td>
+            <td><a class="drill-link" href="{{ row.modifies_url }}">{{ row.formulaires_modifies }}</a></td>
+            <td><a class="drill-link" href="{{ row.termines_url }}">{{ row.termines }}</a></td>
+            <td><a class="drill-link" href="{{ row.en_cours_url }}">{{ row.en_cours }}</a></td>
+            <td>
+              {% for current_call in row.current_calls %}
+                <div><a class="drill-link" href="{{ current_call.url }}">{{ current_call.code }} - {{ current_call.nom }}</a></div>
+              {% empty %}
+                -
+              {% endfor %}
+            </td>
+            <td>{{ row.last_ip|default:"-" }}</td>
+            <td class="location-block">
+              <div>Ville: {{ row.last_city|default:"-" }}</div>
+              <div>Pays: {{ row.last_country|default:"-" }}</div>
+              <div>Latitude: {% if row.last_latitude is not None %}{{ row.last_latitude }}{% else %}-{% endif %}</div>
+              <div>Longitude: {% if row.last_longitude is not None %}{{ row.last_longitude }}{% else %}-{% endif %}</div>
+            </td>
+            <td class="activity-block">
+              <div>{{ row.current_page_title|default:row.current_page|default:"-" }}</div>
+              <div class="muted">{{ row.current_page|default:"" }}</div>
+            </td>
+            <td class="activity-block">
+              <div>{{ row.last_action_type|default:"-" }}</div>
+              <div>{{ row.last_action_label|default:"-" }}</div>
+              <div class="muted">{{ row.last_action_target|default:"" }}</div>
+              <div class="muted">{% if row.last_action_at %}{{ row.last_action_at|date:"d/m/Y H:i:s" }}{% else %}-{% endif %}</div>
+            </td>
+            <td>
+              {% if row.recent_events %}
+                <button type="button" class="history-trigger" data-history-user="{{ row.user_id }}" data-history-name="{{ row.username }}">
+                  Voir historique ({{ row.recent_events|length }})
+                </button>
+              {% else %}
+                -
+              {% endif %}
+            </td>
+            <td>{% if row.last_seen %}{{ row.last_seen|date:"d/m/Y H:i:s" }}{% else %}-{% endif %}</td>
+            <td>{% if row.last_login %}{{ row.last_login|date:"d/m/Y H:i:s" }}{% else %}-{% endif %}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="16">Aucun utilisateur trouve.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="panel">
+  <div class="panel-head">
+    <div>
+      <h2>Carte du globe et agents actifs</h2>
+      <div class="muted">Point vert = agent en ligne. Le panneau de droite resume ce qu'il fait maintenant.</div>
+    </div>
+  </div>
+  <div class="hero-grid">
+    <div class="globe-card">
+      <div class="globe-tooltip" id="globe-tooltip"></div>
+      <div class="globe-focus-card" id="globe-focus-card">
+        <h3 id="globe-focus-country">Carte mondiale</h3>
+        <p id="globe-focus-continent">Survole un pays ou zoome pour afficher davantage de noms.</p>
+      </div>
+      <div class="globe-controls">
+        <button type="button" class="globe-btn" id="globe-zoom-in" aria-label="Zoomer sur le globe">+</button>
+        <button type="button" class="globe-btn" id="globe-zoom-out" aria-label="Dezoomer sur le globe">-</button>
+      </div>
+      <div class="globe-wrap">
+        <canvas id="activity-globe" class="globe-canvas" width="560" height="560"></canvas>
+      </div>
+      <div class="globe-legend">
+        <span class="legend-chip"><span class="legend-dot online-dot"></span>En ligne</span>
+        <span class="legend-chip"><span class="legend-dot offline-dot"></span>Hors ligne</span>
+        <span class="legend-chip"><span class="continent-swatch continent-africa"></span>Afrique</span>
+        <span class="legend-chip"><span class="continent-swatch continent-europe"></span>Europe</span>
+        <span class="legend-chip"><span class="continent-swatch continent-asia"></span>Asie</span>
+        <span class="legend-chip"><span class="continent-swatch continent-north-america"></span>Amerique du Nord</span>
+        <span class="legend-chip"><span class="continent-swatch continent-south-america"></span>Amerique du Sud</span>
+        <span class="legend-chip"><span class="continent-swatch continent-oceania"></span>Oceanie</span>
+      </div>
+    </div>
+    <div class="online-feed">
+      <article class="online-feed-header">
+        <h3 id="country-users-title">Agents actifs sur la plateforme</h3>
+        <p id="country-users-subtitle">Clique sur un pays du globe pour voir les utilisateurs connectes dans ce pays et leur ville.</p>
+      </article>
+      <div id="online-feed-list">
+        {% for row in online_rows %}
+          <article class="online-card">
+            <h3>{{ row.username }}</h3>
+            <p><strong>Page:</strong> {{ row.current_page_title|default:row.current_page|default:"-" }}</p>
+            <p><strong>Derniere action:</strong> {{ row.last_action_type|default:"-" }}{% if row.last_action_label %} - {{ row.last_action_label }}{% endif %}</p>
+            <p><strong>Lieu:</strong> {{ row.last_city|default:"-" }}, {{ row.last_country|default:"-" }}</p>
+            <p><strong>Vu a:</strong> {% if row.last_seen %}{{ row.last_seen|date:"d/m/Y H:i:s" }}{% else %}-{% endif %}</p>
+          </article>
+        {% empty %}
+          <article class="online-card">
+            <h3>Aucun agent actif</h3>
+            <p>La liste se mettra a jour automatiquement des qu'un utilisateur sera detecte en ligne.</p>
+          </article>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="panel">
+  <div class="panel-head">
+    <div>
+      <h2>Dernieres connexions</h2>
+      <div class="muted">Historique recent des connexions detectees avec geolocalisation de l'IP.</div>
+    </div>
+  </div>
+  <div class="history-grid">
+    <article class="history-card">
+      <h3>50 dernieres connexions</h3>
+      <ul class="history-list">
+        {% for log in recent_login_logs %}
+          <li>
+            <strong>{{ log.user.get_username }}</strong><br>
+            {{ log.logged_at|date:"d/m/Y H:i:s" }}<br>
+            IP: {{ log.ip_address|default:"-" }}<br>
+            Ville: {{ log.city|default:"-" }}, Pays: {{ log.country|default:"-" }}<br>
+            Latitude: {% if log.latitude is not None %}{{ log.latitude|floatformat:4 }}{% else %}-{% endif %},
+            Longitude: {% if log.longitude is not None %}{{ log.longitude|floatformat:4 }}{% else %}-{% endif %}
+          </li>
+        {% empty %}
+          <li>Aucune connexion enregistree.</li>
+        {% endfor %}
+      </ul>
+    </article>
+  </div>
+</section>
+
+{{ globe_points|json_script:"globe-points-data" }}
+{{ online_rows|json_script:"online-rows-data" }}
+{{ activity_histories|json_script:"activity-histories-data" }}
+<div class="history-modal" id="history-modal" aria-hidden="true">
+  <div class="history-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="history-modal-title">
+    <div class="history-modal-head">
+      <div>
+        <h3 id="history-modal-title">Historique de navigation</h3>
+        <p id="history-modal-subtitle">Selectionne un utilisateur dans le tableau pour afficher toute sa navigation recente.</p>
+      </div>
+      <button type="button" class="history-modal-close" id="history-modal-close" aria-label="Fermer la fenetre">x</button>
+    </div>
+    <div class="history-modal-body">
+      <div id="history-modal-content" class="history-empty">Aucun historique selectionne.</div>
+    </div>
+  </div>
+</div>
+<script>
+  (function () {
+    const canvas = document.getElementById("activity-globe");
+    const statsOnline = document.getElementById("online-users-value");
+    const statsTotal = document.getElementById("total-users-value");
+    const statsPoints = document.getElementById("globe-points-value");
+    const onlineFeedList = document.getElementById("online-feed-list");
+    const liveApiUrl = "{% url 'user_tracking_live_api' %}";
+    const worldGeoJsonUrl = "{% static 'geojson/world-countries.geojson' %}";
+    const zoomInButton = document.getElementById("globe-zoom-in");
+    const zoomOutButton = document.getElementById("globe-zoom-out");
+    const globeTooltip = document.getElementById("globe-tooltip");
+    const globeFocusCountry = document.getElementById("globe-focus-country");
+    const globeFocusContinent = document.getElementById("globe-focus-continent");
+    const countryUsersTitle = document.getElementById("country-users-title");
+    const countryUsersSubtitle = document.getElementById("country-users-subtitle");
+    const historyModal = document.getElementById("history-modal");
+    const historyModalClose = document.getElementById("history-modal-close");
+    const historyModalTitle = document.getElementById("history-modal-title");
+    const historyModalSubtitle = document.getElementById("history-modal-subtitle");
+    const historyModalContent = document.getElementById("history-modal-content");
+    let points = JSON.parse(document.getElementById("globe-points-data").textContent || "[]");
+    let liveRows = JSON.parse(document.getElementById("online-rows-data").textContent || "[]");
+    const activityHistories = JSON.parse(document.getElementById("activity-histories-data").textContent || "{}");
+    let rotation = 15;
+    let globeTilt = 10;
+    let zoomLevel = 1;
+    let worldFeatures = [];
+    let hoverCountry = null;
+    let pinnedCountry = null;
+    let isDraggingGlobe = false;
+    let dragStartX = 0;
+    let dragStartY = 0;
+    let lastInteractionAt = Date.now();
+
+    const continentLabels = [
+      { name: "Amerique du Nord", lon: -102, lat: 53 },
+      { name: "Amerique du Sud", lon: -60, lat: -17 },
+      { name: "Europe", lon: 15, lat: 52 },
+      { name: "Afrique", lon: 18, lat: 6 },
+      { name: "Asie", lon: 92, lat: 38 },
+      { name: "Oceanie", lon: 136, lat: -25 },
+      { name: "Groenland", lon: -42, lat: 73 }
+    ];
+
+    const continentStyles = {
+      Africa: { fill: "rgba(248, 196, 61, 0.42)", stroke: "rgba(254, 240, 138, 0.9)" },
+      Europe: { fill: "rgba(91, 143, 249, 0.34)", stroke: "rgba(191, 219, 254, 0.88)" },
+      Asia: { fill: "rgba(244, 114, 182, 0.28)", stroke: "rgba(251, 207, 232, 0.82)" },
+      Oceania: { fill: "rgba(45, 212, 191, 0.34)", stroke: "rgba(153, 246, 228, 0.82)" },
+      "North America": { fill: "rgba(163, 230, 53, 0.32)", stroke: "rgba(217, 249, 157, 0.84)" },
+      "South America": { fill: "rgba(251, 146, 60, 0.30)", stroke: "rgba(254, 215, 170, 0.84)" },
+      default: { fill: "rgba(148, 163, 184, 0.24)", stroke: "rgba(226, 232, 240, 0.72)" }
+    };
+
+    function projectPoint(lat, lon, centerLon, centerLat, radius) {
+      const deg = Math.PI / 180;
+      const phi = lat * deg;
+      const lambda = lon * deg;
+      const lambda0 = centerLon * deg;
+      const phi0 = centerLat * deg;
+      const cosc = Math.sin(phi0) * Math.sin(phi) + Math.cos(phi0) * Math.cos(phi) * Math.cos(lambda - lambda0);
+      if (cosc <= 0) return null;
+      const x = radius * Math.cos(phi) * Math.sin(lambda - lambda0);
+      const y = radius * (Math.cos(phi0) * Math.sin(phi) - Math.sin(phi0) * Math.cos(phi) * Math.cos(lambda - lambda0));
+      return { x, y };
+    }
+
+    function drawLandmass(ctx, pointsList, rotationValue, radius, cx, cy, fillStyle, strokeStyle) {
+      ctx.beginPath();
+      var started = false;
+      for (var i = 0; i < pointsList.length; i += 1) {
+        var item = pointsList[i];
+        var projected = projectPoint(item[1], item[0], rotationValue, globeTilt, radius);
+        if (!projected) {
+          continue;
+        }
+        if (!started) {
+          ctx.moveTo(cx + projected.x, cy - projected.y);
+          started = true;
+        } else {
+          ctx.lineTo(cx + projected.x, cy - projected.y);
+        }
+      }
+      if (!started) return;
+      ctx.closePath();
+      ctx.fillStyle = fillStyle;
+      ctx.fill();
+      ctx.strokeStyle = strokeStyle;
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+    }
+
+    function extractLabelPoint(geometry) {
+      var coords = [];
+      if (!geometry) return null;
+      if (geometry.type === "Polygon") {
+        coords = geometry.coordinates && geometry.coordinates[0] ? geometry.coordinates[0] : [];
+      } else if (geometry.type === "MultiPolygon") {
+        coords = geometry.coordinates && geometry.coordinates[0] && geometry.coordinates[0][0]
+          ? geometry.coordinates[0][0]
+          : [];
+      }
+      if (!coords.length) return null;
+      var sumLon = 0;
+      var sumLat = 0;
+      for (var i = 0; i < coords.length; i += 1) {
+        sumLon += coords[i][0];
+        sumLat += coords[i][1];
+      }
+      return {
+        lon: sumLon / coords.length,
+        lat: sumLat / coords.length
+      };
+    }
+
+    function getContinentStyle(continent) {
+      return continentStyles[continent] || continentStyles.default;
+    }
+
+    function normalizeCountryName(value) {
+      return (value || "")
+        .toString()
+        .toLowerCase()
+        .replace(/[^\w\s]/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+    }
+
+    function getRowsForCountry(countryName) {
+      var target = normalizeCountryName(countryName);
+      if (!target) return [];
+      return liveRows.filter(function (row) {
+        var rowCountry = normalizeCountryName(row.country);
+        if (!rowCountry) return false;
+        return rowCountry === target || rowCountry.indexOf(target) !== -1 || target.indexOf(rowCountry) !== -1;
+      });
+    }
+
+    function renderCountryHeader(country, rows) {
+      if (!countryUsersTitle || !countryUsersSubtitle) return;
+      if (!country) {
+        countryUsersTitle.textContent = "Agents actifs sur la plateforme";
+        countryUsersSubtitle.textContent = "Clique sur un pays du globe pour voir les utilisateurs connectes dans ce pays et leur ville.";
+        return;
+      }
+      countryUsersTitle.textContent = country.name + " : " + rows.length + " utilisateur(s) connecte(s)";
+      countryUsersSubtitle.textContent = rows.length
+        ? "Villes detectees : " + rows.map(function (row) { return row.city || "Ville inconnue"; }).join(", ")
+        : "Aucun utilisateur en ligne detecte dans ce pays pour le moment.";
+    }
+
+    function drawPolygonRing(ctx, ring, rotationValue, radius, cx, cy) {
+      var started = false;
+      var visiblePoints = 0;
+      for (var i = 0; i < ring.length; i += 1) {
+        var projected = projectPoint(ring[i][1], ring[i][0], rotationValue, globeTilt, radius);
+        if (!projected) {
+          continue;
+        }
+        visiblePoints += 1;
+        if (!started) {
+          ctx.moveTo(cx + projected.x, cy - projected.y);
+          started = true;
+        } else {
+          ctx.lineTo(cx + projected.x, cy - projected.y);
+        }
+      }
+      return visiblePoints > 2;
+    }
+
+    function drawWorldCountries(ctx, rotationValue, radius, cx, cy) {
+      var visibleLabels = [];
+      for (var i = 0; i < worldFeatures.length; i += 1) {
+        var feature = worldFeatures[i];
+        var geometry = feature.geometry;
+        if (!geometry) continue;
+        var continentStyle = getContinentStyle(feature.continent);
+        ctx.beginPath();
+        var hasVisibleShape = false;
+        if (geometry.type === "Polygon") {
+          hasVisibleShape = drawPolygonRing(ctx, geometry.coordinates[0] || [], rotationValue, radius, cx, cy);
+        } else if (geometry.type === "MultiPolygon") {
+          for (var poly = 0; poly < geometry.coordinates.length; poly += 1) {
+            hasVisibleShape = drawPolygonRing(ctx, geometry.coordinates[poly][0] || [], rotationValue, radius, cx, cy) || hasVisibleShape;
+          }
+        }
+        if (!hasVisibleShape) continue;
+        ctx.fillStyle = continentStyle.fill;
+        ctx.strokeStyle = continentStyle.stroke;
+        ctx.lineWidth = 0.95;
+        ctx.fill();
+        ctx.stroke();
+
+        if (feature.labelPoint && zoomLevel >= 1.2 && feature.labelrank <= (zoomLevel >= 1.75 ? 6 : 3)) {
+          var labelProjection = projectPoint(feature.labelPoint.lat, feature.labelPoint.lon, rotationValue, globeTilt, radius);
+          if (labelProjection) {
+            visibleLabels.push({
+              x: cx + labelProjection.x,
+              y: cy - labelProjection.y,
+              name: feature.name,
+              continent: feature.continent,
+              highlighted: (pinnedCountry && pinnedCountry.name === feature.name) || (hoverCountry && hoverCountry.name === feature.name)
+            });
+          }
+        }
+      }
+
+      ctx.font = zoomLevel >= 1.8 ? "11px Segoe UI" : "10px Segoe UI";
+      for (var j = 0; j < visibleLabels.length; j += 1) {
+        ctx.fillStyle = visibleLabels[j].highlighted ? "#ffffff" : "rgba(244, 248, 252, 0.90)";
+        if (visibleLabels[j].highlighted) {
+          ctx.beginPath();
+          ctx.arc(visibleLabels[j].x, visibleLabels[j].y, 4, 0, Math.PI * 2);
+          ctx.fillStyle = "#ffffff";
+          ctx.fill();
+          ctx.fillStyle = "#ffffff";
+        }
+        ctx.fillText(visibleLabels[j].name, visibleLabels[j].x + 4, visibleLabels[j].y - 4);
+      }
+    }
+
+    function drawContinentLabels(ctx, rotationValue, radius, cx, cy) {
+      ctx.fillStyle = "rgba(255, 244, 214, 0.95)";
+      ctx.font = "bold 13px Segoe UI";
+      for (var i = 0; i < continentLabels.length; i += 1) {
+        var item = continentLabels[i];
+        var projected = projectPoint(item.lat, item.lon, rotationValue, globeTilt, radius);
+        if (!projected) continue;
+        ctx.fillText(item.name, cx + projected.x + 6, cy - projected.y + 2);
+      }
+    }
+
+    function drawGlobe() {
+      if (!canvas) return;
+      const ctx = canvas.getContext("2d");
+      const width = canvas.width;
+      const height = canvas.height;
+      const cx = width / 2;
+      const cy = height / 2;
+      const baseRadius = Math.min(width, height) * 0.39;
+      const radius = baseRadius * zoomLevel;
+      ctx.clearRect(0, 0, width, height);
+
+      const ocean = ctx.createRadialGradient(cx - radius * 0.25, cy - radius * 0.35, radius * 0.1, cx, cy, radius);
+      ocean.addColorStop(0, "#2aa4d6");
+      ocean.addColorStop(0.55, "#0d5d89");
+      ocean.addColorStop(1, "#07344e");
+      ctx.beginPath();
+      ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+      ctx.fillStyle = ocean;
+      ctx.fill();
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+      ctx.clip();
+
+      ctx.strokeStyle = "rgba(255,255,255,0.16)";
+      ctx.lineWidth = 1;
+      for (let lat = -60; lat <= 60; lat += 30) {
+        ctx.beginPath();
+        let started = false;
+        for (let lon = -180; lon <= 180; lon += 3) {
+          const p = projectPoint(lat, lon, rotation, globeTilt, radius);
+          if (!p) {
+            started = false;
+            continue;
+          }
+          if (!started) {
+            ctx.moveTo(cx + p.x, cy - p.y);
+            started = true;
+          } else {
+            ctx.lineTo(cx + p.x, cy - p.y);
+          }
+        }
+        ctx.stroke();
+      }
+      for (let lon = -150; lon <= 180; lon += 30) {
+        ctx.beginPath();
+        let started = false;
+        for (let lat = -89; lat <= 89; lat += 3) {
+          const p = projectPoint(lat, lon, rotation, globeTilt, radius);
+          if (!p) {
+            started = false;
+            continue;
+          }
+          if (!started) {
+            ctx.moveTo(cx + p.x, cy - p.y);
+            started = true;
+          } else {
+            ctx.lineTo(cx + p.x, cy - p.y);
+          }
+        }
+        ctx.stroke();
+      }
+
+      drawWorldCountries(ctx, rotation, radius, cx, cy);
+      drawContinentLabels(ctx, rotation, radius, cx, cy);
+
+      points.forEach((point) => {
+        const projected = projectPoint(point.latitude, point.longitude, rotation, globeTilt, radius);
+        if (!projected) return;
+        const px = cx + projected.x;
+        const py = cy - projected.y;
+        ctx.beginPath();
+        ctx.arc(px, py, point.online ? 6 : 4, 0, Math.PI * 2);
+        ctx.fillStyle = point.online ? "#22c55e" : "#94a3b8";
+        ctx.fill();
+        if (point.online) {
+          ctx.beginPath();
+          ctx.arc(px, py, 12, 0, Math.PI * 2);
+          ctx.strokeStyle = "rgba(34, 197, 94, 0.28)";
+          ctx.lineWidth = 3;
+          ctx.stroke();
+        }
+      });
+      ctx.restore();
+
+      ctx.beginPath();
+      ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+      ctx.strokeStyle = "rgba(255,255,255,0.22)";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+
+    function updateTooltip(event) {
+      if (!canvas || !globeTooltip || !worldFeatures.length) return;
+      var rect = canvas.getBoundingClientRect();
+      var localX = (event.clientX - rect.left) * (canvas.width / rect.width);
+      var localY = (event.clientY - rect.top) * (canvas.height / rect.height);
+      var width = canvas.width;
+      var height = canvas.height;
+      var cx = width / 2;
+      var cy = height / 2;
+      var radius = Math.min(width, height) * 0.39 * zoomLevel;
+      var best = null;
+      var bestDistance = Infinity;
+      for (var i = 0; i < worldFeatures.length; i += 1) {
+        var feature = worldFeatures[i];
+        if (!feature.labelPoint) continue;
+        var projected = projectPoint(feature.labelPoint.lat, feature.labelPoint.lon, rotation, globeTilt, radius);
+        if (!projected) continue;
+        var px = cx + projected.x;
+        var py = cy - projected.y;
+        var distance = Math.sqrt(Math.pow(px - localX, 2) + Math.pow(py - localY, 2));
+        if (distance < bestDistance) {
+          bestDistance = distance;
+          best = feature;
+        }
+      }
+      if (best && bestDistance < 18 * zoomLevel) {
+        hoverCountry = best;
+        globeTooltip.style.display = "block";
+        globeTooltip.innerHTML = "<strong>" + best.name + "</strong><br>" + (best.continent || "-");
+        if (!pinnedCountry) {
+          updateFocusCard(best);
+        }
+      } else {
+        hoverCountry = null;
+        globeTooltip.style.display = "none";
+        if (!pinnedCountry) {
+          updateFocusCard(null);
+        }
+      }
+    }
+
+    function updateFocusCard(country) {
+      if (!globeFocusCountry || !globeFocusContinent) return;
+      if (!country) {
+        globeFocusCountry.textContent = "Carte mondiale";
+        globeFocusContinent.textContent = "Survole un pays ou clique dessus pour l'epingler. Zoome pour afficher plus de noms.";
+        return;
+      }
+      globeFocusCountry.textContent = country.name || "Pays";
+      globeFocusContinent.textContent = (country.continent || "Continent inconnu") + " | Cliquez pour garder ce pays en focus";
+    }
+
+    function escapeHtml(value) {
+      return String(value || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+    }
+
+    function openHistoryModal(userId, username) {
+      if (!historyModal || !historyModalContent) return;
+      var items = activityHistories[String(userId)] || [];
+      if (historyModalTitle) historyModalTitle.textContent = "Historique de navigation - " + (username || "Utilisateur");
+      if (historyModalSubtitle) {
+        historyModalSubtitle.textContent = items.length
+          ? items.length + " evenement(s) recents enregistres sur la plateforme."
+          : "Aucune navigation enregistree pour cet utilisateur.";
+      }
+      if (!items.length) {
+        historyModalContent.className = "history-empty";
+        historyModalContent.textContent = "Aucun historique disponible.";
+      } else {
+        historyModalContent.className = "";
+        historyModalContent.innerHTML = "<ul class=\"history-modal-list\">" + items.map(function (event) {
+          var title = event.event_label || "Action";
+          var label = event.target_label ? " : " + escapeHtml(event.target_label) : "";
+          var path = event.target_path || event.page_path || "";
+          return "<li><strong>" + escapeHtml(title) + label + "</strong><div class=\"muted\">" + escapeHtml(event.occurred_at || "-") + "</div><div>" + escapeHtml(event.page_title || event.page_path || "-") + "</div><div class=\"muted\">" + escapeHtml(path) + "</div></li>";
+        }).join("") + "</ul>";
+      }
+      historyModal.classList.add("is-open");
+      historyModal.setAttribute("aria-hidden", "false");
+    }
+
+    function closeHistoryModal() {
+      if (!historyModal) return;
+      historyModal.classList.remove("is-open");
+      historyModal.setAttribute("aria-hidden", "true");
+    }
+
+    function loadWorldGeoJson() {
+      fetch(worldGeoJsonUrl, { headers: { Accept: "application/json" } })
+        .then(function (response) { return response.json(); })
+        .then(function (payload) {
+          var features = payload && payload.features ? payload.features : [];
+          worldFeatures = features.map(function (feature) {
+            var props = feature.properties || {};
+            return {
+              name: props.name || props.name_long || props.admin || "Pays",
+              continent: props.continent || "",
+              labelrank: props.labelrank || 6,
+              geometry: feature.geometry || null,
+              labelPoint: extractLabelPoint(feature.geometry || null)
+            };
+          });
+          drawGlobe();
+        })
+        .catch(function () {
+        });
+    }
+
+    function renderOnlineFeed(rows) {
+      if (!onlineFeedList) return;
+      if (!rows.length) {
+        onlineFeedList.innerHTML = "<article class=\"online-card\"><h3>Aucun agent actif</h3><p>La liste se mettra a jour automatiquement des qu'un utilisateur sera detecte en ligne.</p></article>";
+        return;
+      }
+      onlineFeedList.innerHTML = rows.map((row) => `
+        <article class="online-card">
+          <h3>${row.username}</h3>
+          <p><strong>Page:</strong> ${row.current_page_title || row.current_page || "-"}</p>
+          <p><strong>Derniere action:</strong> ${row.last_action_type || "-"}${row.last_action_label ? " - " + row.last_action_label : ""}</p>
+          <p><strong>Lieu:</strong> ${row.city || "-"}, ${row.country || "-"}</p>
+          <p><strong>Vu a:</strong> ${row.last_action_at || "-"}</p>
+        </article>
+      `).join("");
+    }
+
+    function renderSelectedCountryUsers(country) {
+      if (!country) {
+        renderCountryHeader(null, []);
+        renderOnlineFeed(liveRows);
+        return;
+      }
+      var rows = getRowsForCountry(country.name);
+      renderCountryHeader(country, rows);
+      if (!rows.length) {
+        renderOnlineFeed([]);
+        var cards = onlineFeedList ? onlineFeedList.querySelectorAll(".online-card") : [];
+        if (cards.length) {
+          cards[0].innerHTML = "<h3>Aucun utilisateur en ligne dans " + country.name + "</h3><p>Le pays est bien selectionne, mais aucune connexion active n'y est detectee pour l'instant.</p>";
+        }
+        return;
+      }
+      renderOnlineFeed(rows);
+    }
+
+    async function refreshLive() {
+      try {
+        const response = await fetch(liveApiUrl, { headers: { Accept: "application/json" }, credentials: "same-origin" });
+        if (!response.ok) return;
+        const payload = await response.json();
+        if (!payload.ok) return;
+        points = payload.globe_points || [];
+        liveRows = payload.online_rows || [];
+        if (statsOnline) statsOnline.textContent = typeof payload.online_count !== "undefined" && payload.online_count !== null ? payload.online_count : "0";
+        if (statsTotal) statsTotal.textContent = typeof payload.total_users !== "undefined" && payload.total_users !== null ? payload.total_users : "0";
+        if (statsPoints) statsPoints.textContent = points.length;
+        if (pinnedCountry) {
+          renderSelectedCountryUsers(pinnedCountry);
+        } else {
+          renderCountryHeader(null, []);
+          renderOnlineFeed(liveRows);
+        }
+      } catch (error) {
+      }
+    }
+
+    function animate() {
+      if (!isDraggingGlobe && Date.now() - lastInteractionAt > 4000) {
+        rotation = (rotation + 0.12) % 360;
+      }
+      drawGlobe();
+      window.requestAnimationFrame(animate);
+    }
+
+    function setZoom(nextZoom) {
+      if (!canvas) return;
+      zoomLevel = Math.max(0.8, Math.min(2.4, nextZoom));
+      drawGlobe();
+    }
+
+    drawGlobe();
+    if (zoomInButton) {
+      zoomInButton.addEventListener("click", function () {
+        lastInteractionAt = Date.now();
+        setZoom(zoomLevel + 0.2);
+      });
+    }
+    if (zoomOutButton) {
+      zoomOutButton.addEventListener("click", function () {
+        lastInteractionAt = Date.now();
+        setZoom(zoomLevel - 0.2);
+      });
+    }
+    document.querySelectorAll("[data-history-user]").forEach(function (button) {
+      button.addEventListener("click", function () {
+        openHistoryModal(button.getAttribute("data-history-user"), button.getAttribute("data-history-name"));
+      });
+    });
+    if (historyModalClose) {
+      historyModalClose.addEventListener("click", closeHistoryModal);
+    }
+    if (historyModal) {
+      historyModal.addEventListener("click", function (event) {
+        if (event.target === historyModal) {
+          closeHistoryModal();
+        }
+      });
+    }
+    document.addEventListener("keydown", function (event) {
+      if (event.key === "Escape") {
+        closeHistoryModal();
+      }
+    });
+    if (canvas) {
+      canvas.addEventListener("mousedown", function (event) {
+        isDraggingGlobe = true;
+        dragStartX = event.clientX;
+        dragStartY = event.clientY;
+        lastInteractionAt = Date.now();
+        canvas.classList.add("dragging");
+      });
+      window.addEventListener("mouseup", function () {
+        isDraggingGlobe = false;
+        if (canvas) canvas.classList.remove("dragging");
+      });
+      window.addEventListener("mousemove", function (event) {
+        if (!isDraggingGlobe) return;
+        var deltaX = event.clientX - dragStartX;
+        var deltaY = event.clientY - dragStartY;
+        dragStartX = event.clientX;
+        dragStartY = event.clientY;
+        rotation = (rotation - deltaX * 0.45) % 360;
+        globeTilt = Math.max(-65, Math.min(65, globeTilt + deltaY * 0.2));
+        lastInteractionAt = Date.now();
+        drawGlobe();
+      });
+      canvas.addEventListener("wheel", function (event) {
+        event.preventDefault();
+        var delta = event.deltaY < 0 ? 0.12 : -0.12;
+        lastInteractionAt = Date.now();
+        setZoom(zoomLevel + delta);
+      }, { passive: false });
+      canvas.addEventListener("mousemove", updateTooltip);
+      canvas.addEventListener("click", function () {
+        if (hoverCountry) {
+          pinnedCountry = hoverCountry;
+          updateFocusCard(pinnedCountry);
+          renderSelectedCountryUsers(pinnedCountry);
+          drawGlobe();
+          return;
+        }
+        pinnedCountry = null;
+        updateFocusCard(null);
+        renderSelectedCountryUsers(null);
+        drawGlobe();
+      });
+      canvas.addEventListener("mouseleave", function () {
+        if (globeTooltip) globeTooltip.style.display = "none";
+        hoverCountry = null;
+        if (!pinnedCountry) {
+          updateFocusCard(null);
+        }
+      });
+    }
+    loadWorldGeoJson();
+    animate();
+    refreshLive();
+    window.setInterval(refreshLive, 5000);
+  })();
+</script>
+{% endblock %}

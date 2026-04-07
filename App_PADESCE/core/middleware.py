@@ -1,14 +1,13 @@
 import logging
 import threading
 from urllib.parse import urlsplit
-from typing import Optional
 
 from django.conf import settings
 from django.contrib.auth import authenticate, login
 from django.contrib.auth.views import redirect_to_login
 from django.core.exceptions import PermissionDenied, SuspiciousOperation
-from django.http import Http404
-from django.http import HttpRequest, HttpResponseRedirect
+from django.db import OperationalError, ProgrammingError
+from django.http import Http404, HttpRequest, HttpResponseRedirect
 from django.shortcuts import resolve_url
 from django.urls import get_script_prefix, reverse, set_script_prefix
 from django.utils import timezone
@@ -111,7 +110,9 @@ class PathPrefixMiddleware:
 
     def __call__(self, request: HttpRequest):
         original_prefix = get_script_prefix()
-        matched_prefix = detect_path_prefix(getattr(request, "path_info", "") or getattr(request, "path", ""))
+        matched_prefix = detect_path_prefix(
+            getattr(request, "path_info", "") or getattr(request, "path", "")
+        )
         request.url_mount_prefix = matched_prefix
         if matched_prefix:
             set_script_prefix(f"{matched_prefix}/")
@@ -219,7 +220,9 @@ class LoginRequiredMiddleware:
                     _normalize_prefix(getattr(settings, "STATIC_URL", "")),
                     _normalize_prefix(getattr(settings, "MEDIA_URL", "")),
                 ]
-                if path != "/dashboard/" and not any(path.startswith(p) for p in allowed_prefixes if p):
+                if path != "/dashboard/" and not any(
+                    path.startswith(p) for p in allowed_prefixes if p
+                ):
                     return HttpResponseRedirect(reverse("home"))
             return self.get_response(request)
 
@@ -248,9 +251,75 @@ class LoginRequiredMiddleware:
         return redirect_to_login(request.get_full_path(), login_url)
 
 
+def _get_client_ip(request: HttpRequest) -> str:
+    """Retourne l'IP réelle du client (supporte les proxys)."""
+    x_forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR")
+    if x_forwarded_for:
+        return x_forwarded_for.split(",")[0].strip()
+    return request.META.get("REMOTE_ADDR") or ""
+
+
+def _fetch_ip_geolocation(ip: str) -> dict:
+    """Appel synchrone à ip-api.com. Retourne un dict avec lat/lon/city/country."""
+    import json as _json
+    import urllib.request
+
+    if not ip or ip in ("127.0.0.1", "::1") or ip.startswith("192.168.") or ip.startswith("10."):
+        return {"lat": None, "lon": None, "city": "Local", "country": "Local"}
+    try:
+        url = f"http://ip-api.com/json/{ip}?fields=status,lat,lon,city,country"
+        with urllib.request.urlopen(url, timeout=3) as resp:
+            data = _json.loads(resp.read().decode())
+        if data.get("status") == "success":
+            return {
+                "lat": data.get("lat"),
+                "lon": data.get("lon"),
+                "city": data.get("city", ""),
+                "country": data.get("country", ""),
+            }
+    except Exception:
+        pass
+    return {"lat": None, "lon": None, "city": "", "country": ""}
+
+
+def _update_activity_with_geo(user_id: int, ip: str, now):
+    """Mise à jour en arrière-plan : géolocalisation + sauvegarde."""
+    try:
+        geo = _fetch_ip_geolocation(ip)
+        activity = UserActivity.objects.filter(user_id=user_id).first()
+        if not activity:
+            return
+        next_lat = geo["lat"] if geo["lat"] is not None else activity.last_latitude
+        next_lon = geo["lon"] if geo["lon"] is not None else activity.last_longitude
+        next_city = (geo["city"] or "").strip() or activity.last_city
+        next_country = (geo["country"] or "").strip() or activity.last_country
+        UserActivity.objects.filter(user_id=user_id).update(
+            last_seen=now,
+            last_ip=ip or None,
+            last_latitude=next_lat,
+            last_longitude=next_lon,
+            last_city=next_city,
+            last_country=next_country,
+        )
+        # Enregistrer dans l'historique des connexions
+        from App_PADESCE.core.models import UserLoginLog
+
+        UserLoginLog.objects.create(
+            user_id=user_id,
+            ip_address=ip or None,
+            latitude=next_lat,
+            longitude=next_lon,
+            city=next_city,
+            country=next_country,
+        )
+    except Exception:
+        pass
+
+
 class UserActivityMiddleware:
     """
     Met a jour la derniere activite d'un utilisateur connecte.
+    Capture également l'adresse IP et la géolocalisation (lat/lon).
     """
 
     def __init__(self, get_response):
@@ -259,12 +328,33 @@ class UserActivityMiddleware:
     def __call__(self, request: HttpRequest):
         user = getattr(request, "user", None)
         if user and user.is_authenticated:
-            now = timezone.now()
-            activity = UserActivity.objects.filter(user=user).first()
-            if activity:
-                if (now - activity.last_seen).total_seconds() > 60:
-                    UserActivity.objects.filter(user=user).update(last_seen=now)
-            else:
-                UserActivity.objects.create(user=user, last_seen=now)
+            try:
+                now = timezone.now()
+                ip = _get_client_ip(request)
+                activity = UserActivity.objects.filter(user=user).first()
+                if activity:
+                    delta = (now - activity.last_seen).total_seconds()
+                    if delta > 60:
+                        # Mise à jour rapide de last_seen, géo en arrière-plan
+                        UserActivity.objects.filter(user=user).update(last_seen=now)
+                        t = threading.Thread(
+                            target=_update_activity_with_geo,
+                            args=(user.pk, ip, now),
+                            daemon=True,
+                        )
+                        t.start()
+                else:
+                    UserActivity.objects.create(user=user, last_seen=now, last_ip=ip or None)
+                    t = threading.Thread(
+                        target=_update_activity_with_geo,
+                        args=(user.pk, ip, now),
+                        daemon=True,
+                    )
+                    t.start()
+            except (OperationalError, ProgrammingError):
+                logger.warning(
+                    "UserActivity tracking skipped because the database schema is not up to date.",
+                    exc_info=True,
+                )
         response = self.get_response(request)
         return response

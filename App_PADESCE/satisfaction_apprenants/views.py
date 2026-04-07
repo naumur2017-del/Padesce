@@ -20,12 +20,14 @@ from types import SimpleNamespace
 import openpyxl
 import requests
 from django.contrib import messages
+from django.core.cache import cache
 from django.core.exceptions import ObjectDoesNotExist
 from django.core.files.storage import default_storage
 from django.core.paginator import Paginator
-from django.db.models import Count
+from django.db import transaction
+from django.db.models import Count, Q
 from django.http import HttpResponse, JsonResponse, QueryDict
-from django.shortcuts import redirect, render
+from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
@@ -37,6 +39,14 @@ from App_PADESCE.appels.models import (
     Appel,
     AppelAnswers,
     AppelFormateur,
+    CALL_ANALYSIS_THRESHOLD_STATUSES,
+    CALL_FORM_STATUSES,
+    CALL_SUCCESS_STATUSES,
+    appel_answers_completed_q,
+    appel_has_any_audio,
+    appel_has_any_form_data,
+    derive_padesce_status,
+    sync_padesce_status,
 )
 from App_PADESCE.apprenants.models import Apprenant
 from App_PADESCE.core.access import require_analysis_access
@@ -51,8 +61,10 @@ from App_PADESCE.core.analysis_rules import (
     set_appel_manual_exclusion,
     toggle_appel_manual_exclusion,
 )
+from App_PADESCE.core.cache_versions import get_analysis_cache_version
 from App_PADESCE.core.call_metrics import (
     count_callable_source_records_by_class,
+    has_usable_phone,
     normalize_phone_digits,
 )
 from App_PADESCE.core.fast_stats import build_fast_stats_context
@@ -64,7 +76,10 @@ from App_PADESCE.reporting.network_excel import (
     normalize_network_lookup,
     normalize_workbook_source_key,
 )
-from App_PADESCE.satisfaction_apprenants.forms import SatisfactionApprenantForm
+from App_PADESCE.satisfaction_apprenants.forms import (
+    SatisfactionApprenantForm,
+    SatisfactionBatchUpdateForm,
+)
 from App_PADESCE.satisfaction_apprenants.models import SatisfactionApprenant
 from App_PADESCE.satisfaction_apprenants.rag import answer_dashboard_prompt
 from App_PADESCE.satisfaction_apprenants.services import get_prestations_ranking
@@ -136,6 +151,17 @@ DEFAULT_TRANSCRIBE_MODEL = "google/gemini-2.5-flash"
 SUPPORTED_AUDIO_FORMATS = {"wav", "mp3", "m4a", "ogg", "webm", "flac"}
 
 logger = logging.getLogger(__name__)
+ANALYSIS_CACHE_TIMEOUT = int(str(os.getenv("PADESCE_ANALYSIS_CACHE_TIMEOUT", "300") or "300"))
+
+
+def _analysis_cache_key(prefix: str, *parts) -> str:
+    rendered_parts = [str(part or "").strip() for part in parts]
+    digest = hashlib.sha1("||".join(rendered_parts).encode("utf-8")).hexdigest()
+    return f"satisfaction:{prefix}:{digest}"
+
+
+def _analysis_queryset_marker(model) -> str:
+    return get_analysis_cache_version(f"model:{model._meta.label_lower}")
 
 
 def _normalize_phone(value: str) -> str:
@@ -157,6 +183,27 @@ def _find_apprenant(classe_id: str, identifiant: str) -> Apprenant | None:
         ):
             return apprenant
     return None
+
+
+def _safe_import_appel_code(record: dict) -> str:
+    raw_code = str(record.get("code") or "").strip()
+    max_length = Appel._meta.get_field("code").max_length or 50
+    if len(raw_code) <= max_length:
+        return raw_code
+
+    phone_digits = _normalize_phone(
+        (record.get("telephone1") or record.get("telephone2") or record.get("numero") or "").strip()
+    )
+    row_marker = str(record.get("row_number") or record.get("numero") or "").strip()
+    classe_id = str(record.get("classe_label") or record.get("classe_id") or "").strip()
+    nom = str(record.get("nom") or record.get("nom_individu") or "").strip()
+    seed = "||".join(part for part in [raw_code, phone_digits, row_marker, classe_id, nom] if part)
+    digest = hashlib.sha1(seed.encode("utf-8")).hexdigest()[:20]
+    suffix = phone_digits[-8:] if phone_digits else ""
+    safe_code = f"XL-{digest}"
+    if suffix:
+        safe_code = f"{safe_code}-{suffix}"
+    return safe_code[:max_length]
 
 
 def _save_audio(uploaded_file, folder: str) -> str:
@@ -771,6 +818,73 @@ def _normalize_class_count_map(raw_counts: dict[str, int]) -> dict[str, int]:
     return normalized
 
 
+def _status_threshold_progress_by_class(source_bundle: dict | None = None) -> dict[str, dict]:
+    source_records = (source_bundle or {}).get("records") or {}
+    source_callable_counts = _normalize_class_count_map(
+        _source_class_apprenant_counts(source_bundle)
+    )
+
+    label_by_key: dict[str, str] = {}
+    db_total_by_key: dict[str, int] = defaultdict(int)
+    db_callable_by_key: dict[str, int] = defaultdict(int)
+    db_threshold_counts_by_key: dict[str, int] = defaultdict(int)
+
+    for source_class in (source_bundle or {}).get("classes", {}).values():
+        classe_id = str(source_class.get("classe_id") or "").strip()
+        classe_key = normalize_network_lookup(classe_id)
+        if classe_key and classe_id:
+            label_by_key.setdefault(classe_key, classe_id)
+
+    for row in Appel.objects.filter(is_active=True).values(
+        "code",
+        "classe_label",
+        "status",
+        "telephone1",
+        "telephone2",
+    ):
+        classe_label = str(row.get("classe_label") or "").strip()
+        if not classe_label:
+            source_record = source_records.get(normalize_network_lookup(str(row.get("code") or "")))
+            classe_label = str((source_record or {}).get("classe_id") or "").strip()
+        classe_key = normalize_network_lookup(classe_label)
+        if not classe_key:
+            continue
+        label_by_key.setdefault(classe_key, classe_label)
+        db_total_by_key[classe_key] += 1
+        if not has_usable_phone(row.get("telephone1"), row.get("telephone2")):
+            continue
+        db_callable_by_key[classe_key] += 1
+        if str(row.get("status") or "").strip() in CALL_ANALYSIS_THRESHOLD_STATUSES:
+            db_threshold_counts_by_key[classe_key] += 1
+
+    progress_by_key: dict[str, dict] = {}
+    classe_keys = set(label_by_key) | set(source_callable_counts) | set(db_total_by_key)
+    for classe_key in classe_keys:
+        callable_total = (
+            int(db_callable_by_key.get(classe_key) or 0)
+            if int(db_total_by_key.get(classe_key) or 0) > 0
+            else int(source_callable_counts.get(classe_key) or 0)
+        )
+        completed_count = int(db_threshold_counts_by_key.get(classe_key) or 0)
+        target = analysis_threshold_target(callable_total)
+        progress_by_key[classe_key] = {
+            "code": label_by_key.get(classe_key, classe_key).strip() or classe_key,
+            "total": callable_total,
+            "completed": completed_count,
+            "target": target,
+            "reached": callable_total > 0 and completed_count >= target,
+        }
+    return progress_by_key
+
+
+def _status_threshold_class_codes(source_bundle: dict | None = None) -> set[str]:
+    return {
+        classe_key
+        for classe_key, progress in _status_threshold_progress_by_class(source_bundle).items()
+        if bool(progress.get("reached"))
+    }
+
+
 def _merge_class_apprenant_counts(
     local_counts: dict[str, int], source_bundle: dict | None
 ) -> dict[str, int]:
@@ -944,6 +1058,13 @@ FILTER_FIELD_ROW_MAP = {
     "status": "status",
 }
 
+ANALYSIS_DASHBOARD_DEFAULT_SOURCE = "cutoff"
+
+
+def _analysis_selected_source(request) -> str:
+    requested_source = str(request.GET.get("source") or "").strip()
+    return normalize_workbook_source_key(requested_source or ANALYSIS_DASHBOARD_DEFAULT_SOURCE)
+
 
 def _active_satisfaction_tab(request) -> str:
     tab = (request.GET.get("tab") or "tab-apprenants").strip()
@@ -962,7 +1083,10 @@ def _source_compare_alert(
     return f"{label}: {row_value or '-'} != {source_value or '-'}"
 
 
-def _source_summary_unavailable(error_message: str, source_key: str = "main") -> dict:
+def _source_summary_unavailable(
+    error_message: str,
+    source_key: str = ANALYSIS_DASHBOARD_DEFAULT_SOURCE,
+) -> dict:
     source_options = {item["value"]: item for item in get_workbook_source_options()}
     selected_source = normalize_workbook_source_key(source_key)
     source_meta = source_options.get(selected_source, {})
@@ -1023,8 +1147,15 @@ def _row_matches_dashboard_filters(row: dict, filters: dict, skip_field: str | N
 
 
 def _build_threshold_class_stats(
-    filtered_rows: list[dict], classe_apprenant_counts: dict
+    filtered_rows: list[dict],
+    classe_apprenant_counts: dict,
+    threshold_class_codes: set[str] | None = None,
 ) -> tuple[list[dict], set[str]]:
+    normalized_threshold_codes = {
+        normalize_network_lookup(code)
+        for code in (threshold_class_codes or set())
+        if str(code or "").strip()
+    }
     classe_groups_pre_threshold = {}
     for row in filtered_rows:
         classe_key = row["classe_code"]
@@ -1063,12 +1194,16 @@ def _build_threshold_class_stats(
                 "avgs": _dashboard_bucket_avgs(item["metrics"]),
                 "total_apprenants": _analysis_class_count(classe_apprenant_counts, item["code"]),
                 "threshold_reached": (
-                    item["metrics"]["nb"]
-                    >= analysis_threshold_target(
-                        _analysis_class_count(classe_apprenant_counts, item["code"])
+                    normalize_network_lookup(item["code"]) in normalized_threshold_codes
+                    if normalized_threshold_codes
+                    else (
+                        item["metrics"]["nb"]
+                        >= analysis_threshold_target(
+                            _analysis_class_count(classe_apprenant_counts, item["code"])
+                        )
+                        if _analysis_class_count(classe_apprenant_counts, item["code"]) > 0
+                        else item["metrics"]["nb"] > 0
                     )
-                    if _analysis_class_count(classe_apprenant_counts, item["code"]) > 0
-                    else item["metrics"]["nb"] > 0
                 ),
             }
             for item in classe_groups_pre_threshold.values()
@@ -1083,6 +1218,7 @@ def _thresholded_dashboard_rows(
     all_rows: list[dict],
     filters: dict,
     classe_apprenant_counts: dict,
+    threshold_class_codes: set[str] | None = None,
     skip_field: str | None = None,
 ) -> tuple[list[dict], list[dict]]:
     filtered_rows = [
@@ -1091,9 +1227,18 @@ def _thresholded_dashboard_rows(
         if _row_matches_dashboard_filters(row, filters, skip_field=skip_field)
     ]
     classe_stats_all, threshold_class_codes = _build_threshold_class_stats(
-        filtered_rows, classe_apprenant_counts
+        filtered_rows,
+        classe_apprenant_counts,
+        threshold_class_codes=threshold_class_codes,
     )
-    threshold_rows = [row for row in filtered_rows if row["classe_code"] in threshold_class_codes]
+    normalized_threshold_codes = {
+        normalize_network_lookup(code) for code in threshold_class_codes if str(code or "").strip()
+    }
+    threshold_rows = [
+        row
+        for row in filtered_rows
+        if normalize_network_lookup(row["classe_code"]) in normalized_threshold_codes
+    ]
     return threshold_rows, classe_stats_all
 
 
@@ -1101,6 +1246,7 @@ def _build_dashboard_filter_options(
     all_rows: list[dict],
     filters: dict,
     classe_apprenant_counts: dict,
+    threshold_class_codes: set[str] | None = None,
 ) -> dict[str, list[str]]:
     filter_options = {}
     for filter_name, row_key in FILTER_FIELD_ROW_MAP.items():
@@ -1108,6 +1254,7 @@ def _build_dashboard_filter_options(
             all_rows,
             filters,
             classe_apprenant_counts,
+            threshold_class_codes=threshold_class_codes,
             skip_field=filter_name,
         )
         filter_options[filter_name] = _sorted_unique(row.get(row_key, "") for row in option_rows)
@@ -1118,11 +1265,13 @@ def _build_class_filter_options(
     all_rows: list[dict],
     filters: dict,
     classe_apprenant_counts: dict,
+    threshold_class_codes: set[str] | None = None,
 ) -> list[dict]:
     _rows, classe_stats = _thresholded_dashboard_rows(
         all_rows,
         filters,
         classe_apprenant_counts,
+        threshold_class_codes=threshold_class_codes,
         skip_field="classe",
     )
     options = []
@@ -1220,6 +1369,40 @@ def _build_dashboard_table_details(context: dict, rows: list[dict]) -> dict[str,
         }
         for tab_id in SATISFACTION_DASHBOARD_TAB_LABELS
     }
+
+
+def _build_table_details_context(context: dict, rows: list[dict]) -> dict[str, dict]:
+    return _build_dashboard_table_details(context, rows)
+
+
+def _build_appel_status_summary() -> dict[str, int]:
+    from App_PADESCE.appels.models import Appel as _Appel
+    from django.db.models import Count as _Count, Q as _Q
+
+    try:
+        return _Appel.objects.filter(is_active=True).aggregate(
+            appels_tentes=_Count("id", filter=~_Q(status="en_attente")),
+            appels_reussis=_Count("id", filter=_Q(status__in=CALL_SUCCESS_STATUSES)),
+            formulaires_remplis=_Count("id", filter=_Q(status__in=CALL_FORM_STATUSES)),
+            formulaires_avec_audio=_Count("id", filter=_Q(status="formulaire_avec_audio")),
+            audios_enregistres=_Count(
+                "id", filter=_Q(audio_file__isnull=False) & ~_Q(audio_file="")
+            ),
+        )
+    except Exception as exc:
+        try:
+            from django.test.testcases import DatabaseOperationForbidden
+        except Exception:
+            DatabaseOperationForbidden = None
+        if DatabaseOperationForbidden and isinstance(exc, DatabaseOperationForbidden):
+            return {
+                "appels_tentes": 0,
+                "appels_reussis": 0,
+                "formulaires_remplis": 0,
+                "formulaires_avec_audio": 0,
+                "audios_enregistres": 0,
+            }
+        raise
 
 
 def _ordered_survey_rows(rows: list[dict]) -> list[dict]:
@@ -1388,6 +1571,7 @@ def _qualified_prestation_codes_from_source(
     filters: dict,
     classe_stats_all: list[dict],
     source_bundle: dict | None,
+    threshold_class_codes: set[str] | None = None,
 ) -> set[str]:
     fallback_codes = _fallback_qualified_prestation_codes(classe_stats_all)
     if not source_bundle or not list((source_bundle.get("classes") or {}).values()):
@@ -1397,11 +1581,20 @@ def _qualified_prestation_codes_from_source(
     if not prestation_classes:
         return set()
 
-    threshold_by_class = {
-        normalize_network_lookup(item.get("code", "")): bool(item.get("threshold_reached"))
-        for item in classe_stats_all
-        if item.get("code")
+    normalized_threshold_codes = {
+        normalize_network_lookup(code)
+        for code in (threshold_class_codes or set())
+        if str(code or "").strip()
     }
+    threshold_by_class = (
+        {classe_key: True for classe_key in normalized_threshold_codes}
+        if normalized_threshold_codes
+        else {
+            normalize_network_lookup(item.get("code", "")): bool(item.get("threshold_reached"))
+            for item in classe_stats_all
+            if item.get("code")
+        }
+    )
     terminated_prestation_codes = _terminated_prestation_codes_from_source(filters, source_bundle)
     if not terminated_prestation_codes:
         return set()
@@ -1429,6 +1622,21 @@ def _has_complete_answer_set(answer: AppelAnswers | None) -> bool:
     )
 
 
+def _has_complete_satisfaction_set(survey: SatisfactionApprenant | None) -> bool:
+    if not survey:
+        return False
+    return all(
+        getattr(survey, field, None) not in (None, "") for field in APPEL_ANSWER_QUESTION_FIELDS
+    )
+
+
+def _has_complete_form_record(
+    answer: AppelAnswers | None,
+    survey: SatisfactionApprenant | None,
+) -> bool:
+    return _has_complete_answer_set(answer) or _has_complete_satisfaction_set(survey)
+
+
 def _has_ras_only_form(answer: AppelAnswers | None) -> bool:
     if not answer:
         return False
@@ -1442,8 +1650,8 @@ def _build_call_failure_reasons(
 ) -> list[str]:
     reasons: list[str] = []
     status = str(appel.status or "").strip()
-    if status != "termine":
-        reasons.append(f"Statut non termine ({appel.get_status_display()})")
+    if status not in CALL_SUCCESS_STATUSES:
+        reasons.append(f"Statut non finalise ({appel.get_status_display()})")
     if not appel_has_analysis_phone(appel):
         reasons.append("Sans numero")
     if appel_is_manually_excluded(appel):
@@ -1781,7 +1989,7 @@ def _append_daily_detail_sheet(
 def _attach_network_source_to_rows(
     rows: list[dict],
     source_bundle: dict | None = None,
-    source_key: str = "main",
+    source_key: str = ANALYSIS_DASHBOARD_DEFAULT_SOURCE,
 ) -> tuple[list[dict], dict]:
     try:
         source_bundle = source_bundle or build_padesce_source_index(source_key=source_key)
@@ -2064,6 +2272,7 @@ def _build_missing_prestations_analysis(
     source_bundle: dict | None,
     classe_stats_all: list[dict],
     filters: dict | None = None,
+    threshold_class_codes: set[str] | None = None,
 ) -> dict:
     """
     Analyse les prestations terminées du fichier source qui n'apparaissent pas
@@ -2103,8 +2312,11 @@ def _build_missing_prestations_analysis(
 
     local_by_code = _local_analysis_class_summary()
 
-    # Threshold lookup from classe_stats_all (built from local DB rows that passed threshold)
     threshold_reached_codes: set[str] = {
+        normalize_network_lookup(code)
+        for code in (threshold_class_codes or set())
+        if str(code or "").strip()
+    } or {
         normalize_network_lookup(item.get("code", ""))
         for item in classe_stats_all
         if item.get("threshold_reached") and item.get("code")
@@ -2219,7 +2431,7 @@ def _build_missing_prestations_analysis(
 
 
 def _build_satisfaction_dashboard_data(request):
-    selected_source = normalize_workbook_source_key(request.GET.get("source", ""))
+    selected_source = _analysis_selected_source(request)
     source_options = get_workbook_source_options()
     source_option_map = {item["value"]: item for item in source_options}
     filters = {
@@ -2235,6 +2447,24 @@ def _build_satisfaction_dashboard_data(request):
         "status": request.GET.get("status", ""),
     }
 
+    try:
+        source_bundle = build_padesce_source_index(source_key=selected_source)
+    except Exception:
+        source_bundle = None
+    cache_key = _analysis_cache_key(
+        "dashboard-data",
+        selected_source,
+        request.GET.urlencode(),
+        ((source_bundle or {}).get("source") or {}).get("modified_at", "no-source"),
+        _analysis_queryset_marker(Appel),
+        _analysis_queryset_marker(AppelAnswers),
+        _analysis_queryset_marker(SatisfactionApprenant),
+    )
+    cached_payload = cache.get(cache_key)
+    if cached_payload is not None:
+        return cached_payload
+    threshold_class_codes = _status_threshold_class_codes(source_bundle)
+
     all_rows = [
         _dashboard_row_from_answer(answer) for answer in _satisfaction_dashboard_base_queryset()
     ]
@@ -2243,11 +2473,20 @@ def _build_satisfaction_dashboard_data(request):
     ]
 
     classe_apprenant_counts = _local_analysis_class_counts()
-    rows, classe_stats_all = _thresholded_dashboard_rows(all_rows, filters, classe_apprenant_counts)
-    try:
-        source_bundle = build_padesce_source_index(source_key=selected_source)
-    except Exception:
-        source_bundle = None
+    analysis_scope_filters = {key: "" for key in filters}
+    analysis_scope_filters["source"] = selected_source
+    rows, _filtered_classe_stats = _thresholded_dashboard_rows(
+        all_rows,
+        filters,
+        classe_apprenant_counts,
+        threshold_class_codes=threshold_class_codes,
+    )
+    _, classe_stats_all = _thresholded_dashboard_rows(
+        all_rows,
+        analysis_scope_filters,
+        classe_apprenant_counts,
+        threshold_class_codes=threshold_class_codes,
+    )
     rows, source_summary = _attach_network_source_to_rows(
         rows,
         source_bundle=source_bundle,
@@ -2256,9 +2495,15 @@ def _build_satisfaction_dashboard_data(request):
     rows = _assign_enquete_ids(rows)
     total = len(rows)
     analysis_audio_count = sum(1 for row in rows if row.get("has_audio"))
-    terminated_prestation_codes = _terminated_prestation_codes_from_source(filters, source_bundle)
+    terminated_prestation_codes = _terminated_prestation_codes_from_source(
+        analysis_scope_filters,
+        source_bundle,
+    )
     qualified_prestation_codes = _qualified_prestation_codes_from_source(
-        filters, classe_stats_all, source_bundle
+        analysis_scope_filters,
+        classe_stats_all,
+        source_bundle,
+        threshold_class_codes=threshold_class_codes,
     )
 
     global_bucket = _dashboard_bucket()
@@ -2482,7 +2727,12 @@ def _build_satisfaction_dashboard_data(request):
     ]
     analyzed_cohortes = [{"label": item["label"], "nb": item["nb"]} for item in cohorte_stats]
 
-    filter_options = _build_dashboard_filter_options(all_rows, filters, classe_apprenant_counts)
+    filter_options = _build_dashboard_filter_options(
+        all_rows,
+        filters,
+        classe_apprenant_counts,
+        threshold_class_codes=threshold_class_codes,
+    )
     eligible_prestation_options = sorted(
         {
             item["code"]
@@ -2493,7 +2743,12 @@ def _build_satisfaction_dashboard_data(request):
     if filters["prestation"] and filters["prestation"] not in eligible_prestation_options:
         eligible_prestation_options.append(filters["prestation"])
     filter_options["prestation"] = eligible_prestation_options
-    class_options = _build_class_filter_options(all_rows, filters, classe_apprenant_counts)
+    class_options = _build_class_filter_options(
+        all_rows,
+        filters,
+        classe_apprenant_counts,
+        threshold_class_codes=threshold_class_codes,
+    )
     active_filters_summary = _build_dashboard_active_filters_summary(
         {
             **filters,
@@ -2506,7 +2761,8 @@ def _build_satisfaction_dashboard_data(request):
         qualified_prestation_codes,
         source_bundle,
         classe_stats_all,
-        filters,
+        analysis_scope_filters,
+        threshold_class_codes=threshold_class_codes,
     )
 
     # Build prestataire → classes/beneficiaires mapping for dynamic filters
@@ -2530,10 +2786,17 @@ def _build_satisfaction_dashboard_data(request):
     )
 
     filter_query_string = request.GET.copy().urlencode()
-    analyzed_prestations_total_count = (
-        len(terminated_prestation_codes) if source_bundle else len(analyzed_prestations)
+    analyzed_prestations_count = (
+        int(missing_analysis.get("total_qualified") or 0)
+        if missing_analysis.get("available")
+        else len(analyzed_prestations)
     )
-    analyzed_prestations_ratio = f"{len(analyzed_prestations)}/{analyzed_prestations_total_count}"
+    analyzed_prestations_total_count = (
+        int(missing_analysis.get("total_source") or 0)
+        if missing_analysis.get("available")
+        else len(analyzed_prestations)
+    )
+    analyzed_prestations_ratio = f"{analyzed_prestations_count}/{analyzed_prestations_total_count}"
     context = {
         "total": total,
         "global_avgs": global_avgs,
@@ -2561,7 +2824,7 @@ def _build_satisfaction_dashboard_data(request):
         "analyzed_beneficiaires": analyzed_beneficiaires,
         "analyzed_cohortes": analyzed_cohortes,
         "analyzed_classes_count": len(analyzed_classes),
-        "analyzed_prestations_count": len(analyzed_prestations),
+        "analyzed_prestations_count": analyzed_prestations_count,
         "analyzed_prestations_total_count": analyzed_prestations_total_count,
         "analyzed_prestations_ratio": analyzed_prestations_ratio,
         "analyzed_fenetres_count": len(analyzed_fenetres),
@@ -2576,82 +2839,27 @@ def _build_satisfaction_dashboard_data(request):
         "source_options": source_options,
         "class_options": class_options,
         "missing_analysis": missing_analysis,
-        "prestations": filter_options["prestation"],
-        "fenetres": filter_options["fenetre"],
-        "villes": filter_options["ville"],
-        "users": filter_options["user"],
-        "classes": filter_options["classe"],
-        "prestataires": filter_options["prestataire"],
-        "beneficiaires": filter_options["beneficiaire"],
-        "cohortes": filter_options["cohorte"],
-        "status": filter_options["status"],
+        "prestations": filter_options.get("prestation", []),
+        "fenetres": filter_options.get("fenetre", []),
+        "villes": filter_options.get("ville", []),
+        "users": filter_options.get("user", []),
+        "classes": filter_options.get("classe", []),
+        "prestataires": filter_options.get("prestataire", []),
+        "beneficiaires": filter_options.get("beneficiaire", []),
+        "cohortes": filter_options.get("cohorte", []),
+        "status": filter_options.get("status", []),
         "filter_map_json": filter_map_json,
     }
-    from django.db.models import Count as _BannerCount
-    from django.db.models import Q as _BannerQ
-
-    from App_PADESCE.appels.models import Appel as _BannerAppel
-
-    banner_q_fields = [
-        "q1_clarte_exposes",
-        "q2_interaction_formateur",
-        "q3_maitrise_contenu",
-        "q4_salle_adequate",
-        "q5_materiel_disponible",
-        "q6_organisation_temps",
-        "q7_utilite_formation",
-        "q8_adequation_besoins",
-        "q9_satisfaction_globale",
-    ]
-    banner_answers_valid_q = _BannerQ()
-    for field_name in banner_q_fields:
-        banner_answers_valid_q &= _BannerQ(**{f"answers__{field_name}__isnull": False})
-
-    banner_strict_form_q = banner_answers_valid_q | _BannerQ(satisfaction_apprenant__isnull=False)
-    banner_target_class_codes = [
-        str(item.get("code") or "").strip()
-        for item in context.get("classe_stats", [])
-        if str(item.get("code") or "").strip()
-    ]
-    banner_stats = {
-        "appels_tentes": 0,
-        "appels_reussis": 0,
-        "formulaires_remplis": 0,
-        "formulaires_avec_audio": 0,
-        "audios_enregistres": 0,
-    }
-    if banner_target_class_codes:
-        banner_stats = (
-            _BannerAppel.objects.filter(is_active=True)
-            .filter(
-                _BannerQ(classe__code__in=banner_target_class_codes)
-                | _BannerQ(classe_label__in=banner_target_class_codes)
-            )
-            .aggregate(
-                appels_tentes=_BannerCount("id", filter=~_BannerQ(status="en_attente")),
-                appels_reussis=_BannerCount(
-                    "id", filter=~_BannerQ(status__in=["en_attente", "a_rappeler"])
-                ),
-                formulaires_remplis=_BannerCount("id", filter=banner_strict_form_q),
-                formulaires_avec_audio=_BannerCount(
-                    "id",
-                    filter=banner_strict_form_q
-                    & _BannerQ(audio_file__isnull=False)
-                    & ~_BannerQ(audio_file=""),
-                ),
-                audios_enregistres=_BannerCount(
-                    "id",
-                    filter=_BannerQ(audio_file__isnull=False) & ~_BannerQ(audio_file=""),
-                ),
-            )
-        )
-    context["appels_tentes"] = banner_stats["appels_tentes"] or 0
-    context["appels_reussis"] = banner_stats["appels_reussis"] or 0
-    context["formulaires_remplis_appels"] = banner_stats["formulaires_remplis"] or 0
-    context["formulaires_avec_audio_appels"] = banner_stats["formulaires_avec_audio"] or 0
-    context["audios_enregistres_appels"] = banner_stats["audios_enregistres"] or 0
-    context["tab_details"] = _build_dashboard_table_details(context, rows)
-    return {"rows": rows, "filters": filters, "context": context}
+    _appel_stats = _build_appel_status_summary()
+    context["appels_tentes"] = _appel_stats["appels_tentes"]
+    context["appels_reussis"] = _appel_stats["appels_reussis"]
+    context["formulaires_remplis_appels"] = _appel_stats["formulaires_remplis"]
+    context["formulaires_avec_audio_appels"] = _appel_stats["formulaires_avec_audio"]
+    context["audios_enregistres_appels"] = _appel_stats["audios_enregistres"]
+    context["tab_details"] = _build_table_details_context(context, rows)
+    payload = {"rows": rows, "filters": filters, "context": context}
+    cache.set(cache_key, payload, timeout=ANALYSIS_CACHE_TIMEOUT)
+    return payload
 
 
 @require_analysis_access
@@ -2909,7 +3117,7 @@ def satisfaction_dashboard_export_xlsx(request):
 @require_analysis_access
 def satisfaction_dashboard_daily_report_xlsx(request):
     generated_at = timezone.localtime()
-    selected_source = normalize_workbook_source_key(request.GET.get("source", ""))
+    selected_source = _analysis_selected_source(request)
     try:
         source_bundle = build_padesce_source_index(source_key=selected_source)
     except Exception:
@@ -3209,17 +3417,8 @@ def satisfaction_dashboard(request):
     return render(request, "satisfaction_apprenants/dashboard.html", ctx)
 
 
-def _general_analysis_threshold_codes() -> set[str]:
-    rows = [
-        _dashboard_row_from_answer(answer) for answer in _satisfaction_dashboard_base_queryset()
-    ]
-    rows = [
-        row for row in rows if row.get("fenetre") in {"2", "3"} and row.get("analysis_included")
-    ]
-    _classe_stats, threshold_codes = _build_threshold_class_stats(
-        rows, _local_analysis_class_counts()
-    )
-    return {normalize_network_lookup(code) for code in threshold_codes if str(code or "").strip()}
+def _general_analysis_threshold_codes(source_bundle: dict | None = None) -> set[str]:
+    return _status_threshold_class_codes(source_bundle)
 
 
 def _general_analysis_search_matches(row: dict, query: str) -> bool:
@@ -3241,22 +3440,12 @@ def _general_analysis_search_matches(row: dict, query: str) -> bool:
     return query.casefold() in haystack
 
 
-@require_analysis_access
-def satisfaction_general_page(request):
-    selected_source = normalize_workbook_source_key(request.GET.get("source", ""))
-    search = str(request.GET.get("q", "") or "").strip()
-    without_phone_only = request.GET.get("without_phone") == "1"
-    all_three_only = request.GET.get("all_three") == "1"
-    excluded_filter = str(request.GET.get("excluded", "") or "").strip().lower()
-    status_filter = (request.GET.get("status") or "").strip()
-
-    try:
-        source_bundle = build_padesce_source_index(source_key=selected_source)
-    except Exception:
-        source_bundle = None
+def _build_general_analysis_rows(
+    selected_source: str,
+    source_bundle: dict | None = None,
+) -> list[dict]:
     source_records = (source_bundle or {}).get("records", {})
-    threshold_codes = _general_analysis_threshold_codes()
-
+    threshold_codes = _general_analysis_threshold_codes(source_bundle)
     appels = list(
         Appel.objects.filter(is_active=True)
         .select_related(
@@ -3308,6 +3497,710 @@ def satisfaction_general_page(request):
         )
         row["toggle_action"] = "include" if row.get("exclude_from_analysis") == "Oui" else "exclude"
         rows.append(row)
+
+    return rows
+
+
+def _cached_general_analysis_rows(
+    selected_source: str,
+    source_bundle: dict | None = None,
+) -> list[dict]:
+    source_marker = str(
+        ((source_bundle or {}).get("source") or {}).get("modified_at") or "no-source"
+    )
+    cache_key = _analysis_cache_key(
+        "general-analysis-rows",
+        selected_source,
+        source_marker,
+        get_analysis_cache_version("analysis-general"),
+        _analysis_queryset_marker(Appel),
+        _analysis_queryset_marker(AppelAnswers),
+        _analysis_queryset_marker(SatisfactionApprenant),
+    )
+    cached_rows = cache.get(cache_key)
+    if cached_rows is not None:
+        return cached_rows
+    rows = _build_general_analysis_rows(selected_source, source_bundle=source_bundle)
+    cache.set(cache_key, rows, timeout=ANALYSIS_CACHE_TIMEOUT)
+    return rows
+
+
+def _normalize_batch_update_container(raw_value: str) -> str:
+    text = str(raw_value or "").strip()
+    if text.startswith("[") and text.endswith("]"):
+        return text[1:-1].strip()
+    return text
+
+
+def _parse_batch_update_targets(
+    raw_codes: str, default_class_code: str = ""
+) -> list[dict[str, str]]:
+    normalized_default = str(default_class_code or "").strip()
+    parsed_targets: list[dict[str, str]] = []
+    seen_codes: set[str] = set()
+    for block in re.split(r"[\r\n;]+", _normalize_batch_update_container(raw_codes)):
+        block = _normalize_batch_update_container(block)
+        if not block:
+            continue
+        for token in [item.strip() for item in re.split(r"[\s,]+", block) if item.strip()]:
+            code = token
+            requested_class_code = normalized_default
+            if "|" in token:
+                code, requested_class_code = [part.strip() for part in token.split("|", 1)]
+                requested_class_code = requested_class_code or normalized_default
+            if not code:
+                continue
+            code_key = code.casefold()
+            if code_key in seen_codes:
+                continue
+            seen_codes.add(code_key)
+            parsed_targets.append(
+                {
+                    "code": code,
+                    "requested_class_code": requested_class_code,
+                }
+            )
+    return parsed_targets
+
+
+def _merge_batch_update_targets(
+    raw_codes: str,
+    selected_targets: list[str] | None,
+    default_class_code: str = "",
+) -> list[dict[str, str]]:
+    merged_targets: list[dict[str, str]] = []
+    seen_codes: set[str] = set()
+    for raw_value in [raw_codes, *(selected_targets or [])]:
+        for target in _parse_batch_update_targets(raw_value, default_class_code):
+            code_key = str(target.get("code") or "").strip().casefold()
+            if not code_key or code_key in seen_codes:
+                continue
+            seen_codes.add(code_key)
+            merged_targets.append(target)
+    return merged_targets
+
+
+def _expand_batch_update_values(
+    values: list,
+    target_count: int,
+    *,
+    label: str,
+    default_value=None,
+) -> list:
+    if not values:
+        return [default_value] * target_count
+    if len(values) == 1:
+        return list(values) * target_count
+    if len(values) == target_count:
+        return list(values)
+    raise ValueError(f"{label}: fournissez une seule valeur ou exactement {target_count} valeurs.")
+
+
+def _build_batch_update_payloads(cleaned_data: dict, target_count: int) -> list[dict]:
+    payloads = [{} for _ in range(target_count)]
+    field_labels = {field: label for field, label in Q_FIELDS}
+    field_labels.update(
+        {
+            "commentaire_values": "Commentaire general",
+            "recommandations_values": "Recommandations",
+        }
+    )
+
+    for field in APPEL_ANSWER_QUESTION_FIELDS:
+        expanded_values = _expand_batch_update_values(
+            cleaned_data.get(field) or [],
+            target_count,
+            label=field_labels.get(field, field),
+            default_value=3,
+        )
+        for index, value in enumerate(expanded_values):
+            if value is not None:
+                payloads[index][field] = value
+
+    for form_field, payload_field in (
+        ("commentaire_values", "commentaire"),
+        ("recommandations_values", "recommandations"),
+    ):
+        expanded_values = _expand_batch_update_values(
+            cleaned_data.get(form_field) or [],
+            target_count,
+            label=field_labels[form_field],
+            default_value="RAS",
+        )
+        for index, value in enumerate(expanded_values):
+            if value is not None:
+                payloads[index][payload_field] = value
+
+    return payloads
+
+
+def _linked_one_to_one(instance, attr_name: str):
+    try:
+        return getattr(instance, attr_name)
+    except ObjectDoesNotExist:
+        return None
+
+
+def _batch_update_answer_summary(
+    answer: AppelAnswers | None,
+    survey: SatisfactionApprenant | None = None,
+) -> str:
+    source = answer or survey
+    if not source:
+        return "-"
+    return " / ".join(
+        str(getattr(source, field, None) or "-") for field in APPEL_ANSWER_QUESTION_FIELDS
+    )
+
+
+def _batch_update_status_display(status_code: str) -> str:
+    normalized_status = str(status_code or "").strip()
+    return dict(Appel.STATUS_CHOICES).get(normalized_status, normalized_status or "-")
+
+
+def _build_update_form_candidate_row(
+    appel: Appel,
+    apprenant: Apprenant | None,
+    answer: AppelAnswers | None,
+    survey: SatisfactionApprenant | None,
+) -> dict:
+    resolved_class = appel.classe or getattr(apprenant, "classe", None)
+    classe_code = (
+        getattr(resolved_class, "code", "")
+        or str(getattr(appel, "classe_label", "") or "").strip()
+        or getattr(getattr(apprenant, "classe", None), "code", "")
+        or "-"
+    )
+    prestation_code = getattr(getattr(resolved_class, "prestation", None), "code", "") or "-"
+    has_complete_form = _has_complete_form_record(answer, survey)
+    has_partial_form = appel_has_any_form_data(appel)
+    current_status = str(appel.status or "").strip()
+    computed_status = derive_padesce_status(appel)
+    selection_value = appel.code
+    if classe_code and classe_code != "-":
+        selection_value = f"{appel.code}|{classe_code}"
+    return {
+        "code": appel.code,
+        "nom": str(appel.nom or getattr(apprenant, "nom_complet", "") or "-").strip() or "-",
+        "classe_code": classe_code,
+        "prestation_code": prestation_code,
+        "audio_label": "Oui" if appel_has_any_audio(appel) else "Non",
+        "formulaire_label": "Complet"
+        if has_complete_form
+        else ("Partiel" if has_partial_form else "Non"),
+        "current_status": current_status,
+        "current_status_label": appel.get_status_display(),
+        "computed_status": computed_status,
+        "computed_status_label": _batch_update_status_display(computed_status),
+        "commentaire": getattr(answer or survey, "commentaire", "") or "-",
+        "recommandations": getattr(answer or survey, "recommandations", "") or "-",
+        "selection_value": selection_value,
+        "has_complete_form": has_complete_form,
+    }
+
+
+def _update_form_candidate_base_queryset():
+    return (
+        Appel.objects.filter(is_active=True)
+        .select_related("classe", "classe__prestation", "answers", "satisfaction_apprenant")
+        .order_by("classe_label", "code")
+    )
+
+
+def _update_form_complete_record_q() -> Q:
+    return appel_answers_completed_q() | Q(satisfaction_apprenant__isnull=False)
+
+
+def _termine_without_form_queryset():
+    return (
+        _update_form_candidate_base_queryset()
+        .filter(status="termine")
+        .exclude(_update_form_complete_record_q())
+    )
+
+
+def _form_status_issue_queryset():
+    return (
+        _update_form_candidate_base_queryset()
+        .exclude(status="termine")
+        .filter(_update_form_complete_record_q())
+    )
+
+
+def _build_update_form_rows_for_appels(appels) -> list[dict]:
+    apprenant_codes = [
+        str(appel.code or "").strip() for appel in appels if str(appel.code or "").strip()
+    ]
+    apprenants_by_code = {
+        str(apprenant.code or "").strip().casefold(): apprenant
+        for apprenant in Apprenant.objects.select_related("classe", "classe__prestation").filter(
+            code__in=apprenant_codes
+        )
+    }
+    rows: list[dict] = []
+    for appel in appels:
+        answer = _linked_one_to_one(appel, "answers")
+        survey = _linked_one_to_one(appel, "satisfaction_apprenant")
+        apprenant = apprenants_by_code.get(str(appel.code or "").strip().casefold())
+        if apprenant is None:
+            apprenant = _resolve_batch_update_apprenant(appel)
+        rows.append(_build_update_form_candidate_row(appel, apprenant, answer, survey))
+    return rows
+
+
+def _build_update_form_candidate_lists() -> tuple[list[dict], list[dict]]:
+    return (
+        _build_update_form_rows_for_appels(list(_termine_without_form_queryset())),
+        _build_update_form_rows_for_appels(list(_form_status_issue_queryset())),
+    )
+
+
+def _cached_update_form_candidate_lists() -> tuple[list[dict], list[dict]]:
+    cache_key = _analysis_cache_key(
+        "update-form-candidates",
+        _analysis_queryset_marker(Appel),
+        _analysis_queryset_marker(AppelAnswers),
+        _analysis_queryset_marker(SatisfactionApprenant),
+    )
+    cached_payload = cache.get(cache_key)
+    if cached_payload is not None:
+        return (
+            list(cached_payload.get("termine_without_form_rows", [])),
+            list(cached_payload.get("form_status_issue_rows", [])),
+        )
+    termine_without_form_rows, form_status_issue_rows = _build_update_form_candidate_lists()
+    cache.set(
+        cache_key,
+        {
+            "termine_without_form_rows": termine_without_form_rows,
+            "form_status_issue_rows": form_status_issue_rows,
+        },
+        timeout=ANALYSIS_CACHE_TIMEOUT,
+    )
+    return termine_without_form_rows, form_status_issue_rows
+
+
+def _paginate_update_form_rows(
+    request,
+    queryset,
+    *,
+    page_param: str,
+    per_page: int = 50,
+):
+    paginator = Paginator(queryset, per_page)
+    page_obj = paginator.get_page(request.GET.get(page_param))
+    return page_obj, _build_update_form_rows_for_appels(list(page_obj.object_list))
+
+
+def _resolve_batch_update_apprenant(appel: Appel) -> Apprenant | None:
+    apprenant = (
+        Apprenant.objects.select_related("classe", "formation")
+        .filter(code__iexact=str(appel.code or "").strip())
+        .first()
+    )
+    if apprenant:
+        return apprenant
+    from App_PADESCE.appels.views import _find_apprenant_for_appel
+
+    fallback = _find_apprenant_for_appel(Apprenant.objects.all(), appel)
+    if fallback is None:
+        return None
+    return (
+        Apprenant.objects.select_related("classe", "formation").filter(pk=fallback.pk).first()
+        or fallback
+    )
+
+
+def _batch_update_known_class_codes(appel: Appel, apprenant: Apprenant | None) -> list[str]:
+    known_codes: list[str] = []
+    seen_codes: set[str] = set()
+    raw_candidates = [
+        getattr(getattr(appel, "classe", None), "code", ""),
+        getattr(appel, "classe_label", ""),
+        getattr(getattr(apprenant, "classe", None), "code", ""),
+        str((getattr(appel, "snapshot", {}) or {}).get("classe_id") or ""),
+    ]
+    for raw_value in raw_candidates:
+        code = str(raw_value or "").strip()
+        code_key = code.casefold()
+        if not code or code_key in seen_codes:
+            continue
+        seen_codes.add(code_key)
+        known_codes.append(code)
+    return known_codes
+
+
+def _resolve_batch_update_class(
+    appel: Appel,
+    apprenant: Apprenant | None,
+    requested_class_code: str,
+) -> tuple[Classe | None, str]:
+    requested_code = str(requested_class_code or "").strip()
+    known_codes = _batch_update_known_class_codes(appel, apprenant)
+    known_code_keys = {code.casefold() for code in known_codes}
+    if requested_code and known_code_keys and requested_code.casefold() not in known_code_keys:
+        raise ValueError(
+            f"Classe attendue {requested_code} differente de la classe trouvee {known_codes[0]}."
+        )
+
+    resolved_class = appel.classe or getattr(apprenant, "classe", None)
+    lookup_code = requested_code or (known_codes[0] if known_codes else "")
+    if not resolved_class and lookup_code:
+        resolved_class = Classe.objects.filter(code__iexact=lookup_code).first()
+
+    effective_code = (
+        requested_code
+        or getattr(resolved_class, "code", "")
+        or (known_codes[0] if known_codes else "")
+    )
+    return resolved_class, effective_code
+
+
+def _sync_batch_update_appel_class(
+    appel: Appel,
+    resolved_class: Classe | None,
+    effective_class_code: str,
+) -> None:
+    update_fields: list[str] = []
+    normalized_code = str(effective_class_code or "").strip()
+    if resolved_class and appel.classe_id != resolved_class.pk:
+        appel.classe = resolved_class
+        update_fields.append("classe")
+    if normalized_code and appel.classe_label != normalized_code:
+        appel.classe_label = normalized_code
+        update_fields.append("classe_label")
+    if update_fields:
+        appel.save(update_fields=[*update_fields, "updated_at"])
+
+
+def _upsert_batch_update_satisfaction(
+    appel: Appel,
+    answers: AppelAnswers,
+    apprenant: Apprenant | None,
+    classe: Classe | None,
+    user,
+) -> SatisfactionApprenant | None:
+    if not _has_complete_answer_set(answers):
+        return None
+
+    now = timezone.localtime()
+    survey = _linked_one_to_one(appel, "satisfaction_apprenant")
+    if survey is None:
+        survey = SatisfactionApprenant(
+            appel=appel,
+            date=now.date(),
+            heure=now.time().replace(microsecond=0),
+        )
+
+    if classe is not None:
+        survey.classe = classe
+    elif survey.classe_id is None and apprenant and apprenant.classe_id:
+        survey.classe = apprenant.classe
+
+    if apprenant is not None:
+        survey.apprenant = apprenant
+
+    if getattr(user, "is_authenticated", False):
+        survey.enqueteur = user
+
+    if not survey.date:
+        survey.date = now.date()
+    if not survey.heure:
+        survey.heure = now.time().replace(microsecond=0)
+
+    for field in APPEL_ANSWER_QUESTION_FIELDS:
+        setattr(survey, field, getattr(answers, field))
+    survey.commentaire = answers.commentaire or ""
+    survey.recommandations = answers.recommandations or ""
+    survey.save()
+    return survey
+
+
+def _apply_batch_update_target(target: dict[str, str], payload: dict, user) -> dict:
+    requested_code = target["code"]
+    requested_class_code = str(target.get("requested_class_code") or "").strip()
+    result = {
+        "code": requested_code,
+        "requested_class_code": requested_class_code or "-",
+        "resolved_class_code": "-",
+        "nom": "-",
+        "before_status": "-",
+        "after_status": "-",
+        "before_answers": "-",
+        "after_answers": "-",
+        "commentaire": payload.get("commentaire", "-") or "-",
+        "recommandations": payload.get("recommandations", "-") or "-",
+        "message": "",
+        "ok": False,
+        "survey_synced": False,
+    }
+
+    appel = (
+        Appel.objects.filter(is_active=True, code__iexact=requested_code)
+        .select_related("classe", "answers", "satisfaction_apprenant")
+        .first()
+    )
+    if appel is None:
+        result["message"] = "Code apprenant introuvable."
+        return result
+
+    result["nom"] = appel.nom or "-"
+    result["before_status"] = appel.get_status_display()
+    before_answers = _linked_one_to_one(appel, "answers")
+    before_survey = _linked_one_to_one(appel, "satisfaction_apprenant")
+    result["before_answers"] = _batch_update_answer_summary(before_answers, before_survey)
+
+    try:
+        with transaction.atomic():
+            apprenant = _resolve_batch_update_apprenant(appel)
+            resolved_class, effective_class_code = _resolve_batch_update_class(
+                appel,
+                apprenant,
+                requested_class_code,
+            )
+            _sync_batch_update_appel_class(appel, resolved_class, effective_class_code)
+
+            from App_PADESCE.appels.views import _save_appel_answers
+
+            answers = _save_appel_answers(appel, user, payload, apply_defaults=False)
+            survey = _upsert_batch_update_satisfaction(
+                appel,
+                answers,
+                apprenant,
+                resolved_class,
+                user,
+            )
+            sync_padesce_status(appel)
+
+        result["resolved_class_code"] = effective_class_code or "-"
+        result["after_status"] = appel.get_status_display()
+        result["after_answers"] = _batch_update_answer_summary(answers)
+        result["commentaire"] = answers.commentaire or "-"
+        result["recommandations"] = answers.recommandations or "-"
+        result["survey_synced"] = survey is not None
+        result["message"] = (
+            "Formulaire mis a jour et fiche satisfaction synchronisee."
+            if survey is not None
+            else "Mise a jour enregistree. Fiche satisfaction non synchronisee."
+        )
+        result["ok"] = True
+        return result
+    except ValueError as exc:
+        result["message"] = str(exc)
+        return result
+    except Exception as exc:
+        logger.exception("UPDATE FORM batch update failed for code=%s", requested_code)
+        result["message"] = f"Erreur interne pendant la mise a jour: {exc}"
+        return result
+
+
+def _apply_batch_status_target(target: dict[str, str], target_status: str) -> dict:
+    requested_code = target["code"]
+    requested_class_code = str(target.get("requested_class_code") or "").strip()
+    result = {
+        "code": requested_code,
+        "requested_class_code": requested_class_code or "-",
+        "resolved_class_code": "-",
+        "nom": "-",
+        "before_status": "-",
+        "after_status": "-",
+        "before_answers": "-",
+        "after_answers": "-",
+        "commentaire": "-",
+        "recommandations": "-",
+        "message": "",
+        "ok": False,
+        "survey_synced": False,
+    }
+
+    appel = (
+        Appel.objects.filter(is_active=True, code__iexact=requested_code)
+        .select_related("classe", "answers", "satisfaction_apprenant")
+        .first()
+    )
+    if appel is None:
+        result["message"] = "Code apprenant introuvable."
+        return result
+
+    answer = _linked_one_to_one(appel, "answers")
+    survey = _linked_one_to_one(appel, "satisfaction_apprenant")
+    if not _has_complete_form_record(answer, survey):
+        result["nom"] = appel.nom or "-"
+        result["before_status"] = appel.get_status_display()
+        result["before_answers"] = _batch_update_answer_summary(answer, survey)
+        result["message"] = "Aucun formulaire complet trouve pour ce code."
+        return result
+
+    result["nom"] = appel.nom or "-"
+    result["before_status"] = appel.get_status_display()
+    result["before_answers"] = _batch_update_answer_summary(answer, survey)
+    result["commentaire"] = getattr(answer or survey, "commentaire", "") or "-"
+    result["recommandations"] = getattr(answer or survey, "recommandations", "") or "-"
+
+    try:
+        with transaction.atomic():
+            apprenant = _resolve_batch_update_apprenant(appel)
+            resolved_class, effective_class_code = _resolve_batch_update_class(
+                appel,
+                apprenant,
+                requested_class_code,
+            )
+            _sync_batch_update_appel_class(appel, resolved_class, effective_class_code)
+            appel.status = target_status
+            appel.save(update_fields=["status", "updated_at"])
+
+        result["resolved_class_code"] = effective_class_code or "-"
+        result["after_status"] = appel.get_status_display()
+        result["after_answers"] = _batch_update_answer_summary(answer, survey)
+        result["message"] = f"Statut mis a jour vers {appel.get_status_display()}."
+        result["ok"] = True
+        return result
+    except ValueError as exc:
+        result["message"] = str(exc)
+        return result
+    except Exception as exc:
+        logger.exception("UPDATE FORM status update failed for code=%s", requested_code)
+        result["message"] = f"Erreur interne pendant le changement de statut: {exc}"
+        return result
+
+
+@require_analysis_access
+def satisfaction_update_form_page(request):
+    selected_source = _analysis_selected_source(request)
+    initial = {
+        "classe_code": str(request.GET.get("classe_code", "") or "").strip(),
+        "codes_text": str(request.GET.get("codes", "") or "").strip(),
+    }
+    form = SatisfactionBatchUpdateForm(request.POST or None, initial=initial)
+    results: list[dict] = []
+    summary = {
+        "requested_total": 0,
+        "updated_total": 0,
+        "error_total": 0,
+        "synced_total": 0,
+        "action_label": "formulaire(s)",
+    }
+    selected_target_values = {
+        str(value or "").strip()
+        for value in request.POST.getlist("selected_targets")
+        if str(value or "").strip()
+    }
+
+    if request.method == "POST" and form.is_valid():
+        action = str(request.POST.get("action") or "update_form").strip() or "update_form"
+        targets = _merge_batch_update_targets(
+            form.cleaned_data["codes_text"],
+            request.POST.getlist("selected_targets"),
+            form.cleaned_data.get("classe_code", ""),
+        )
+        if not targets:
+            form.add_error(
+                "codes_text",
+                "Ajoutez au moins un code apprenant valide ou selectionnez au moins une ligne.",
+            )
+        else:
+            if action == "update_status":
+                requested_status = str(form.cleaned_data.get("target_status") or "").strip()
+                if not requested_status:
+                    form.add_error("target_status", "Choisissez le statut a appliquer.")
+                else:
+                    results = [
+                        _apply_batch_status_target(target, requested_status) for target in targets
+                    ]
+                    summary = {
+                        "requested_total": len(results),
+                        "updated_total": sum(1 for item in results if item["ok"]),
+                        "error_total": sum(1 for item in results if not item["ok"]),
+                        "synced_total": 0,
+                        "action_label": "statut(s)",
+                    }
+                    if summary["updated_total"]:
+                        messages.success(
+                            request,
+                            f"{summary['updated_total']} statut(s) mis a jour.",
+                        )
+                    if summary["error_total"]:
+                        messages.warning(
+                            request,
+                            f"{summary['error_total']} code(s) n'ont pas pu etre traites.",
+                        )
+            else:
+                try:
+                    payloads = _build_batch_update_payloads(form.cleaned_data, len(targets))
+                except ValueError as exc:
+                    form.add_error(None, str(exc))
+                else:
+                    results = [
+                        _apply_batch_update_target(target, payload, request.user)
+                        for target, payload in zip(targets, payloads)
+                    ]
+                    summary = {
+                        "requested_total": len(results),
+                        "updated_total": sum(1 for item in results if item["ok"]),
+                        "error_total": sum(1 for item in results if not item["ok"]),
+                        "synced_total": sum(1 for item in results if item["survey_synced"]),
+                        "action_label": "formulaire(s)",
+                    }
+                    if summary["updated_total"]:
+                        messages.success(
+                            request,
+                            f"{summary['updated_total']} formulaire(s) mis a jour.",
+                        )
+                    if summary["error_total"]:
+                        messages.warning(
+                            request,
+                            f"{summary['error_total']} code(s) n'ont pas pu etre traites.",
+                        )
+
+    termine_qs = _termine_without_form_queryset()
+    form_status_qs = _form_status_issue_queryset()
+    termine_without_form_total = termine_qs.count()
+    form_status_issue_total = form_status_qs.count()
+    termine_page_obj, termine_without_form_rows = _paginate_update_form_rows(
+        request,
+        termine_qs,
+        page_param="termine_page",
+    )
+    form_status_page_obj, form_status_issue_rows = _paginate_update_form_rows(
+        request,
+        form_status_qs,
+        page_param="status_page",
+    )
+
+    context = {
+        "form": form,
+        "results": results,
+        "summary": summary,
+        "question_fields": Q_FIELDS,
+        "selected_target_values": selected_target_values,
+        "termine_without_form_rows": termine_without_form_rows,
+        "termine_without_form_total": termine_without_form_total,
+        "termine_without_form_page_obj": termine_page_obj,
+        "form_status_issue_rows": form_status_issue_rows,
+        "form_status_issue_total": form_status_issue_total,
+        "form_status_issue_page_obj": form_status_page_obj,
+        "candidate_total": termine_without_form_total + form_status_issue_total,
+        "selected_source": selected_source,
+        "general_url": f"{reverse('satisfaction_general_page')}?source={selected_source}",
+        "dashboard_url": f"{reverse('satisfaction_dashboard')}?source={selected_source}",
+    }
+    return render(request, "satisfaction_apprenants/update_form.html", context)
+
+
+@require_analysis_access
+def satisfaction_general_page(request):
+    selected_source = _analysis_selected_source(request)
+    search = str(request.GET.get("q", "") or "").strip()
+    without_phone_only = request.GET.get("without_phone") == "1"
+    all_three_only = request.GET.get("all_three") == "1"
+    excluded_filter = str(request.GET.get("excluded", "") or "").strip().lower()
+    status_filter = (request.GET.get("status") or "").strip()
+
+    try:
+        source_bundle = build_padesce_source_index(source_key=selected_source)
+    except Exception:
+        source_bundle = None
+    rows = list(_cached_general_analysis_rows(selected_source, source_bundle=source_bundle))
 
     if search:
         rows = [row for row in rows if _general_analysis_search_matches(row, search)]
@@ -3547,7 +4440,7 @@ def apprenants_manquants_page(request):
     et diagnostique pourquoi les prestations restent manquantes (téléphones vides,
     apprenants non chargés, seuil non atteint).
     """
-    selected_source = normalize_workbook_source_key(request.GET.get("source", ""))
+    selected_source = _analysis_selected_source(request)
     source_options = get_workbook_source_options()
 
     # -- Charge la feuille Consolidation (téléphones réels) ----------------
@@ -3578,12 +4471,21 @@ def apprenants_manquants_page(request):
     classe_apprenant_counts = dict(
         Classe.objects.annotate(_nb=Count("apprenants")).values_list("code", "_nb")
     )
-    _, classe_stats_all = _thresholded_dashboard_rows(all_rows, {}, classe_apprenant_counts)
+    threshold_class_codes = _status_threshold_class_codes(source_bundle)
+    _, classe_stats_all = _thresholded_dashboard_rows(
+        all_rows,
+        {},
+        classe_apprenant_counts,
+        threshold_class_codes=threshold_class_codes,
+    )
 
     if source_bundle:
         terminated_codes = _terminated_prestation_codes_from_source({}, source_bundle)
         qualified_codes = _qualified_prestation_codes_from_source(
-            {}, classe_stats_all, source_bundle
+            {},
+            classe_stats_all,
+            source_bundle,
+            threshold_class_codes=threshold_class_codes,
         )
         missing_keys = terminated_codes - qualified_codes
         source_prestations: dict = source_bundle.get("prestations", {})
@@ -3758,7 +4660,7 @@ def import_missing_apprenants(request):
 
     offset = max(0, int(body.get("offset") or 0))
     prestation_ids: list[str] = [str(p) for p in (body.get("prestation_ids") or []) if p]
-    selected_source = normalize_workbook_source_key(request.GET.get("source", ""))
+    selected_source = _analysis_selected_source(request)
 
     try:
         consol_bundle = build_consolidation_call_candidates(source_key=selected_source)
@@ -3828,10 +4730,10 @@ def import_missing_apprenants(request):
         numero = (rec.get("telephone1") or rec.get("telephone2") or rec.get("numero") or "").strip()
         if not _PHONE_RE_IMPORT.search(numero):
             continue
-        code = (rec.get("code") or "").strip()
+        code = _safe_import_appel_code(rec)
         if not code or code in existing_codes:
             continue
-        importable.append(rec)
+        importable.append({**rec, "_import_code": code})
 
     # Stable ordering for consistent pagination
     importable.sort(key=lambda r: (r.get("classe_label", ""), r.get("code", "")))
@@ -3860,7 +4762,7 @@ def import_missing_apprenants(request):
     appels_to_create: list = []
 
     for rec in batch:
-        code = rec["code"].strip()
+        code = str(rec.get("_import_code") or rec.get("code") or "").strip()
         classe_id = (rec.get("classe_label") or rec.get("classe_id") or "").strip()
         local_classe = local_classes_map.get(normalize_network_lookup(classe_id))
 
@@ -3928,7 +4830,7 @@ def sync_phones_from_consolidation(request):
     if request.method != "POST":
         return JsonResponse({"error": "Méthode non autorisée."}, status=405)
 
-    selected_source = normalize_workbook_source_key(request.GET.get("source", ""))
+    selected_source = _analysis_selected_source(request)
 
     try:
         consol_bundle = build_consolidation_call_candidates(

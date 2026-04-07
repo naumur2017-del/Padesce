@@ -1,0 +1,448 @@
+{% extends "base.html" %}
+{% block title %}UPDATE FORM{% endblock %}
+{% block content %}
+<style>
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 16px; padding: 18px; box-shadow: var(--shadow); margin-bottom: 16px; }
+  .header { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap; margin-bottom:16px; }
+  .header h1 { margin:0 0 6px; color:var(--accent-strong); }
+  .header p { margin:0; color:var(--muted); max-width:820px; }
+  .actions { display:flex; gap:8px; flex-wrap:wrap; }
+  .btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; padding:10px 14px; border-radius:12px; font-weight:700; border:1px solid transparent; cursor:pointer; text-decoration:none; }
+  .btn-primary { background:var(--accent); color:#fff; }
+  .btn-ghost { background:#fff; color:var(--accent-strong); border-color:var(--border); }
+  .btn-warning { background:#fff7ed; color:#9a3412; border-color:#fdba74; }
+  .btn-subtle { background:#f8fafc; color:var(--accent-strong); border-color:var(--border); }
+  .grid { display:grid; gap:12px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+  .field { display:flex; flex-direction:column; gap:6px; }
+  .field label { font-size:0.84rem; font-weight:700; color:var(--muted); }
+  .field input, .field textarea, .field select { width:100%; padding:10px 12px; border-radius:12px; border:1px solid var(--border); background:#fff; color:var(--text); box-sizing:border-box; font:inherit; }
+  .field small { color:var(--muted); line-height:1.45; }
+  .help-list { margin:0; padding-left:18px; color:var(--text); line-height:1.55; }
+  .error-list { margin:0 0 12px; padding-left:18px; color:#991b1b; }
+  .stats { display:grid; gap:12px; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); margin-bottom:16px; }
+  .card { border:1px solid var(--border); border-radius:14px; background:#fff; padding:14px; box-shadow:var(--shadow); }
+  .card .label { color:var(--muted); font-size:0.82rem; text-transform:uppercase; letter-spacing:.04em; }
+  .card .value { margin-top:8px; font-size:1.6rem; font-weight:800; color:var(--accent-strong); }
+  .table-wrap { overflow:auto; border-radius:14px; border:1px solid var(--border); }
+  table { width:100%; border-collapse:collapse; min-width:1320px; }
+  th, td { padding:10px; border:1px solid var(--border); text-align:left; vertical-align:top; }
+  thead { background:rgba(111,60,195,0.06); }
+  th { color:var(--accent-strong); font-size:0.78rem; text-transform:uppercase; letter-spacing:.04em; }
+  .pill { display:inline-flex; align-items:center; padding:5px 10px; border-radius:999px; font-size:0.78rem; font-weight:700; border:1px solid var(--border); }
+  .pill-ok { background:rgba(34,197,94,0.14); color:#166534; border-color:rgba(34,197,94,0.24); }
+  .pill-no { background:rgba(239,68,68,0.12); color:#991b1b; border-color:rgba(239,68,68,0.22); }
+  .pill-soft { background:#eff6ff; color:#1d4ed8; border-color:#bfdbfe; }
+  .muted { color:var(--muted); font-size:0.84rem; }
+  .full-width { grid-column:1 / -1; }
+  .section-title { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap; margin-bottom:12px; }
+  .section-title h2 { margin:0 0 4px; font-size:1.02rem; color:var(--accent-strong); }
+  .section-title p { margin:0; color:var(--muted); }
+  .checkbox-cell { width:48px; text-align:center; }
+  .checkbox-cell input { width:18px; height:18px; }
+  .empty { padding:14px; border:1px dashed var(--border); border-radius:14px; color:var(--muted); background:#fff; }
+  .batch-actions { display:flex; gap:10px; flex-wrap:wrap; margin-top:16px; }
+  .pager { display:flex; align-items:center; justify-content:flex-end; gap:8px; flex-wrap:wrap; margin-top:12px; }
+  .pager .meta { color:var(--muted); font-size:0.84rem; }
+  @media (max-width: 900px) {
+    .header { align-items:stretch; }
+    .actions { width:100%; }
+  }
+</style>
+
+<div class="header">
+  <div>
+    <h1>UPDATE FORM</h1>
+    <p>Edition batch des formulaires et des statuts apprenants a partir des codes ou des lignes cochees. Une seule page regroupe maintenant les apprenants <strong>Termine sans formulaire</strong> et ceux avec <strong>formulaire present mais statut non termine</strong>.</p>
+  </div>
+  <div class="actions">
+    <a class="btn btn-ghost" href="{{ dashboard_url }}">Retour dashboard</a>
+    <a class="btn btn-ghost" href="{{ general_url }}">Retour general</a>
+  </div>
+</div>
+
+<section class="panel">
+  <div class="section-title">
+    <div>
+      <h2>Mode d'emploi</h2>
+      <p>Les valeurs saisies s'appliquent aux codes saisis et aux lignes cochees, dans l'ordre de traitement.</p>
+    </div>
+  </div>
+  <ul class="help-list">
+    <li>Codes acceptes : <code>[APP100, APP101]</code>, <code>APP100</code> ou <code>APP100|CLA001</code>.</li>
+    <li>Vous pouvez laisser <code>Codes apprenants</code> vide et selectionner directement les lignes plus bas.</li>
+    <li>Une note unique s'applique a tout le lot. Une liste entre crochets doit avoir exactement le meme nombre de valeurs que le lot cible.</li>
+    <li>Si une question est vide, la valeur par defaut appliquee est <code>3</code>. Si commentaire ou recommandations sont vides, la valeur par defaut est <code>RAS</code>.</li>
+    <li>Le bouton <strong>Mettre a jour le formulaire</strong> ecrit les reponses, commentaires et recommandations. Le bouton <strong>Changer le statut</strong> ne modifie pas les reponses.</li>
+  </ul>
+</section>
+
+<section class="stats">
+  <article class="card">
+    <div class="label">Termine Sans Formulaire</div>
+    <div class="value">{{ termine_without_form_total }}</div>
+  </article>
+  <article class="card">
+    <div class="label">Formulaire Present / Statut Non Termine</div>
+    <div class="value">{{ form_status_issue_total }}</div>
+  </article>
+  <article class="card">
+    <div class="label">Cibles Totales Affichees</div>
+    <div class="value">{{ candidate_total }}</div>
+  </article>
+</section>
+
+<section class="panel">
+  {% if form.non_field_errors %}
+    <ul class="error-list">
+      {% for error in form.non_field_errors %}
+        <li>{{ error }}</li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+  {% for field in form %}
+    {% if field.errors %}
+      <ul class="error-list">
+        {% for error in field.errors %}
+          <li>{{ field.label }}: {{ error }}</li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+  {% endfor %}
+
+  <form method="post">
+    {% csrf_token %}
+    <div class="grid">
+      <div class="field full-width">
+        <label for="{{ form.codes_text.id_for_label }}">{{ form.codes_text.label }}</label>
+        {{ form.codes_text }}
+        <small>{{ form.codes_text.help_text }}</small>
+      </div>
+
+      <div class="field">
+        <label for="{{ form.classe_code.id_for_label }}">{{ form.classe_code.label }}</label>
+        {{ form.classe_code }}
+        <small>{{ form.classe_code.help_text }}</small>
+      </div>
+
+      <div class="field">
+        <label for="{{ form.target_status.id_for_label }}">{{ form.target_status.label }}</label>
+        {{ form.target_status }}
+        <small>{{ form.target_status.help_text }}</small>
+      </div>
+
+      <div class="field">
+        <label for="{{ form.q1_clarte_exposes.id_for_label }}">{{ form.q1_clarte_exposes.label }}</label>
+        {{ form.q1_clarte_exposes }}
+        <small>{{ form.q1_clarte_exposes.help_text }}</small>
+      </div>
+      <div class="field">
+        <label for="{{ form.q2_interaction_formateur.id_for_label }}">{{ form.q2_interaction_formateur.label }}</label>
+        {{ form.q2_interaction_formateur }}
+        <small>{{ form.q2_interaction_formateur.help_text }}</small>
+      </div>
+      <div class="field">
+        <label for="{{ form.q3_maitrise_contenu.id_for_label }}">{{ form.q3_maitrise_contenu.label }}</label>
+        {{ form.q3_maitrise_contenu }}
+        <small>{{ form.q3_maitrise_contenu.help_text }}</small>
+      </div>
+      <div class="field">
+        <label for="{{ form.q4_salle_adequate.id_for_label }}">{{ form.q4_salle_adequate.label }}</label>
+        {{ form.q4_salle_adequate }}
+        <small>{{ form.q4_salle_adequate.help_text }}</small>
+      </div>
+      <div class="field">
+        <label for="{{ form.q5_materiel_disponible.id_for_label }}">{{ form.q5_materiel_disponible.label }}</label>
+        {{ form.q5_materiel_disponible }}
+        <small>{{ form.q5_materiel_disponible.help_text }}</small>
+      </div>
+      <div class="field">
+        <label for="{{ form.q6_organisation_temps.id_for_label }}">{{ form.q6_organisation_temps.label }}</label>
+        {{ form.q6_organisation_temps }}
+        <small>{{ form.q6_organisation_temps.help_text }}</small>
+      </div>
+      <div class="field">
+        <label for="{{ form.q7_utilite_formation.id_for_label }}">{{ form.q7_utilite_formation.label }}</label>
+        {{ form.q7_utilite_formation }}
+        <small>{{ form.q7_utilite_formation.help_text }}</small>
+      </div>
+      <div class="field">
+        <label for="{{ form.q8_adequation_besoins.id_for_label }}">{{ form.q8_adequation_besoins.label }}</label>
+        {{ form.q8_adequation_besoins }}
+        <small>{{ form.q8_adequation_besoins.help_text }}</small>
+      </div>
+      <div class="field">
+        <label for="{{ form.q9_satisfaction_globale.id_for_label }}">{{ form.q9_satisfaction_globale.label }}</label>
+        {{ form.q9_satisfaction_globale }}
+        <small>{{ form.q9_satisfaction_globale.help_text }}</small>
+      </div>
+
+      <div class="field full-width">
+        <label for="{{ form.commentaire_values.id_for_label }}">{{ form.commentaire_values.label }}</label>
+        {{ form.commentaire_values }}
+        <small>{{ form.commentaire_values.help_text }}</small>
+      </div>
+
+      <div class="field full-width">
+        <label for="{{ form.recommandations_values.id_for_label }}">{{ form.recommandations_values.label }}</label>
+        {{ form.recommandations_values }}
+        <small>{{ form.recommandations_values.help_text }}</small>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-top:16px;">
+      <div class="section-title">
+        <div>
+          <h2>Termine Sans Formulaire</h2>
+          <p>Ces apprenants ont le statut <code>Termine</code> mais aucun formulaire complet. Cochez-les puis utilisez <strong>Mettre a jour le formulaire</strong>.</p>
+        </div>
+        <button class="btn btn-subtle" type="button" data-select-all="termine-without-form">Tout selectionner</button>
+      </div>
+      {% if termine_without_form_rows %}
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th class="checkbox-cell">
+                  <input type="checkbox" data-master-checkbox="termine-without-form" aria-label="Selectionner tous les apprenants termines sans formulaire">
+                </th>
+                <th>Code</th>
+                <th>Nom</th>
+                <th>Classe</th>
+                <th>Prestation</th>
+                <th>Statut actuel</th>
+                <th>Statut calcule</th>
+                <th>Audio</th>
+                <th>Formulaire</th>
+                <th>Commentaire</th>
+                <th>Recommandations</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in termine_without_form_rows %}
+                <tr>
+                  <td class="checkbox-cell">
+                    <input
+                      type="checkbox"
+                      name="selected_targets"
+                      value="{{ row.selection_value }}"
+                      data-checkbox-group="termine-without-form"
+                      {% if row.selection_value in selected_target_values %}checked{% endif %}
+                      aria-label="Selectionner {{ row.code }}"
+                    >
+                  </td>
+                  <td><strong>{{ row.code }}</strong></td>
+                  <td>{{ row.nom }}</td>
+                  <td>{{ row.classe_code }}</td>
+                  <td>{{ row.prestation_code }}</td>
+                  <td><span class="pill pill-no">{{ row.current_status_label }}</span></td>
+                  <td><span class="pill pill-soft">{{ row.computed_status_label }}</span></td>
+                  <td>{{ row.audio_label }}</td>
+                  <td>{{ row.formulaire_label }}</td>
+                  <td>{{ row.commentaire }}</td>
+                  <td>{{ row.recommandations }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% if termine_without_form_page_obj.paginator.num_pages > 1 %}
+          <div class="pager">
+            <div class="meta">Page {{ termine_without_form_page_obj.number }} / {{ termine_without_form_page_obj.paginator.num_pages }}</div>
+            {% if termine_without_form_page_obj.has_previous %}
+              <a class="btn btn-ghost" href="?source={{ selected_source }}&termine_page={{ termine_without_form_page_obj.previous_page_number }}&status_page={{ form_status_issue_page_obj.number }}">Precedent</a>
+            {% endif %}
+            {% if termine_without_form_page_obj.has_next %}
+              <a class="btn btn-ghost" href="?source={{ selected_source }}&termine_page={{ termine_without_form_page_obj.next_page_number }}&status_page={{ form_status_issue_page_obj.number }}">Suivant</a>
+            {% endif %}
+          </div>
+        {% endif %}
+      {% else %}
+        <div class="empty">Aucun apprenant actif avec statut <code>Termine</code> sans formulaire complet.</div>
+      {% endif %}
+    </div>
+
+    <div class="panel" style="margin-top:16px;">
+      <div class="section-title">
+        <div>
+          <h2>Formulaire Present / Statut Non Termine</h2>
+          <p>Ces apprenants ont un formulaire complet mais leur statut n'est pas <code>Termine</code>. Cochez-les puis utilisez <strong>Changer le statut</strong>.</p>
+        </div>
+        <button class="btn btn-subtle" type="button" data-select-all="form-status-issue">Tout selectionner</button>
+      </div>
+      {% if form_status_issue_rows %}
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th class="checkbox-cell">
+                  <input type="checkbox" data-master-checkbox="form-status-issue" aria-label="Selectionner tous les apprenants avec formulaire present et statut non termine">
+                </th>
+                <th>Code</th>
+                <th>Nom</th>
+                <th>Classe</th>
+                <th>Prestation</th>
+                <th>Statut actuel</th>
+                <th>Statut calcule</th>
+                <th>Audio</th>
+                <th>Formulaire</th>
+                <th>Commentaire</th>
+                <th>Recommandations</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in form_status_issue_rows %}
+                <tr>
+                  <td class="checkbox-cell">
+                    <input
+                      type="checkbox"
+                      name="selected_targets"
+                      value="{{ row.selection_value }}"
+                      data-checkbox-group="form-status-issue"
+                      {% if row.selection_value in selected_target_values %}checked{% endif %}
+                      aria-label="Selectionner {{ row.code }}"
+                    >
+                  </td>
+                  <td><strong>{{ row.code }}</strong></td>
+                  <td>{{ row.nom }}</td>
+                  <td>{{ row.classe_code }}</td>
+                  <td>{{ row.prestation_code }}</td>
+                  <td><span class="pill pill-no">{{ row.current_status_label }}</span></td>
+                  <td><span class="pill pill-soft">{{ row.computed_status_label }}</span></td>
+                  <td>{{ row.audio_label }}</td>
+                  <td>{{ row.formulaire_label }}</td>
+                  <td>{{ row.commentaire }}</td>
+                  <td>{{ row.recommandations }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% if form_status_issue_page_obj.paginator.num_pages > 1 %}
+          <div class="pager">
+            <div class="meta">Page {{ form_status_issue_page_obj.number }} / {{ form_status_issue_page_obj.paginator.num_pages }}</div>
+            {% if form_status_issue_page_obj.has_previous %}
+              <a class="btn btn-ghost" href="?source={{ selected_source }}&termine_page={{ termine_without_form_page_obj.number }}&status_page={{ form_status_issue_page_obj.previous_page_number }}">Precedent</a>
+            {% endif %}
+            {% if form_status_issue_page_obj.has_next %}
+              <a class="btn btn-ghost" href="?source={{ selected_source }}&termine_page={{ termine_without_form_page_obj.number }}&status_page={{ form_status_issue_page_obj.next_page_number }}">Suivant</a>
+            {% endif %}
+          </div>
+        {% endif %}
+      {% else %}
+        <div class="empty">Aucun apprenant actif avec formulaire complet et statut non termine.</div>
+      {% endif %}
+    </div>
+
+    <div class="batch-actions">
+      <button class="btn btn-primary" type="submit" name="action" value="update_form">Mettre a jour le formulaire</button>
+      <button class="btn btn-warning" type="submit" name="action" value="update_status">Changer le statut</button>
+    </div>
+  </form>
+</section>
+
+{% if summary.requested_total %}
+  <section class="stats">
+    <article class="card">
+      <div class="label">Demandes Traitees</div>
+      <div class="value">{{ summary.requested_total }}</div>
+    </article>
+    <article class="card">
+      <div class="label">{{ summary.action_label|capfirst }} Mis A Jour</div>
+      <div class="value">{{ summary.updated_total }}</div>
+    </article>
+    <article class="card">
+      <div class="label">Fiches Synchronisees</div>
+      <div class="value">{{ summary.synced_total }}</div>
+    </article>
+    <article class="card">
+      <div class="label">Erreurs</div>
+      <div class="value">{{ summary.error_total }}</div>
+    </article>
+  </section>
+{% endif %}
+
+{% if results %}
+  <section class="panel">
+    <div class="section-title">
+      <div>
+        <h2>Resultats du lot</h2>
+        <p>Chaque ligne affiche le code traite, la classe retenue, le statut avant/apres et le resume du formulaire.</p>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Code</th>
+            <th>Nom</th>
+            <th>Classe demandee</th>
+            <th>Classe retenue</th>
+            <th>Statut</th>
+            <th>Avant</th>
+            <th>Apres</th>
+            <th>Commentaire</th>
+            <th>Recommandations</th>
+            <th>Message</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in results %}
+            <tr>
+              <td><strong>{{ row.code }}</strong></td>
+              <td>{{ row.nom }}</td>
+              <td>{{ row.requested_class_code }}</td>
+              <td>{{ row.resolved_class_code }}</td>
+              <td>
+                {% if row.ok %}
+                  <span class="pill pill-ok">{{ row.after_status }}</span>
+                  <div class="muted" style="margin-top:6px;">Avant: {{ row.before_status }}</div>
+                {% else %}
+                  <span class="pill pill-no">Erreur</span>
+                  <div class="muted" style="margin-top:6px;">Avant: {{ row.before_status }}</div>
+                {% endif %}
+              </td>
+              <td>{{ row.before_answers }}</td>
+              <td>{{ row.after_answers }}</td>
+              <td>{{ row.commentaire }}</td>
+              <td>{{ row.recommandations }}</td>
+              <td>{{ row.message }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+{% endif %}
+
+<script>
+  (function () {
+    function syncGroup(groupName, checked) {
+      document.querySelectorAll('[data-checkbox-group="' + groupName + '"]').forEach(function (checkbox) {
+        checkbox.checked = checked;
+      });
+      var master = document.querySelector('[data-master-checkbox="' + groupName + '"]');
+      if (master) {
+        master.checked = checked;
+      }
+    }
+
+    document.querySelectorAll('[data-select-all]').forEach(function (button) {
+      button.addEventListener('click', function () {
+        var groupName = button.getAttribute('data-select-all');
+        var boxes = Array.prototype.slice.call(document.querySelectorAll('[data-checkbox-group="' + groupName + '"]'));
+        if (!boxes.length) {
+          return;
+        }
+        var shouldCheck = boxes.some(function (checkbox) { return !checkbox.checked; });
+        syncGroup(groupName, shouldCheck);
+      });
+    });
+
+    document.querySelectorAll('[data-master-checkbox]').forEach(function (master) {
+      master.addEventListener('change', function () {
+        syncGroup(master.getAttribute('data-master-checkbox'), master.checked);
+      });
+    });
+  }());
+</script>
+{% endblock %}

@@ -10,7 +10,7 @@ from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.table import Table, TableStyleInfo
 
-from App_PADESCE.appels.models import Appel, AppelAnswers
+from App_PADESCE.appels.models import Appel, AppelAnswers, CALL_SUCCESS_STATUSES
 
 
 QUESTION_FIELDS = (
@@ -135,7 +135,9 @@ def _is_ras_or_blank(value) -> bool:
 
 
 def _answer_complete(answer: AppelAnswers | None) -> bool:
-    return bool(answer) and all(getattr(answer, field, None) is not None for field in QUESTION_FIELDS)
+    return bool(answer) and all(
+        getattr(answer, field, None) is not None for field in QUESTION_FIELDS
+    )
 
 
 def _answer_values(answer: AppelAnswers | None) -> list[int | None]:
@@ -152,7 +154,11 @@ def _average_score(answer: AppelAnswers | None) -> float | None:
 
 
 def _is_form_ras(answer: AppelAnswers | None) -> bool:
-    return bool(answer) and _is_ras_or_blank(answer.commentaire) and _is_ras_or_blank(answer.recommandations)
+    return (
+        bool(answer)
+        and _is_ras_or_blank(answer.commentaire)
+        and _is_ras_or_blank(answer.recommandations)
+    )
 
 
 def _comment_without_answers(answer: AppelAnswers | None) -> bool:
@@ -172,7 +178,7 @@ def _failure_reasons(appel: Appel, answer: AppelAnswers | None) -> list[str]:
         reasons.append(f"Faux nom / vrai nom: {vrai_nom}" if vrai_nom else "Faux nom")
     if appel.flag_numero_double:
         reasons.append("Numero double")
-    if appel.status != "termine":
+    if appel.status not in CALL_SUCCESS_STATUSES:
         reasons.append(f"Statut {appel.get_status_display()}")
     if not answer:
         reasons.append("Formulaire absent")
@@ -188,11 +194,16 @@ def _failure_reasons(appel: Appel, answer: AppelAnswers | None) -> list[str]:
 
 
 def _is_success(appel: Appel, answer: AppelAnswers | None) -> bool:
-    if appel.status != "termine":
+    if appel.status not in CALL_SUCCESS_STATUSES:
         return False
     if not _answer_complete(answer):
         return False
-    if appel.deja_forme or appel.flag_pas_forme or appel.flag_faux_nom or _clean_text(appel.flag_vrai_nom):
+    if (
+        appel.deja_forme
+        or appel.flag_pas_forme
+        or appel.flag_faux_nom
+        or _clean_text(appel.flag_vrai_nom)
+    ):
         return False
     if appel.flag_numero_double:
         return False
@@ -425,7 +436,9 @@ def _build_dashboard(
     ws["A20"] = (
         "Reussi = appel termine + formulaire complet exploitable + sans deja forme / faux nom / numero double / RAS."
     )
-    ws["A21"] = "Echoue = tous les autres cas, avec le ou les motifs detailles dans la feuille Appels echoues."
+    ws["A21"] = (
+        "Echoue = tous les autres cas, avec le ou les motifs detailles dans la feuille Appels echoues."
+    )
     ws["A19"].font = Font(bold=True)
     ws["A20"].alignment = Alignment(wrap_text=True)
     ws["A21"].alignment = Alignment(wrap_text=True)
@@ -464,7 +477,9 @@ def _fill_success_sheet(ws, rows: list[list]) -> None:
 
 
 def _fill_failure_sheet(ws, rows: list[list]) -> None:
-    _sheet_title(ws, "Appels PADESCE echoues", "Tous les appels classes en echec avec motifs detailes.")
+    _sheet_title(
+        ws, "Appels PADESCE echoues", "Tous les appels classes en echec avec motifs detailes."
+    )
     ws.append([])
     ws.append(list(FAILURE_HEADERS))
     header_row = 4
@@ -514,16 +529,13 @@ def build_padesce_calls_report(output_path: str | Path) -> dict:
     active_calls = 0
     audio_calls = 0
 
-    queryset = (
-        Appel.objects.select_related(
-            "answers",
-            "answers__modified_by",
-            "satisfaction_apprenant",
-            "satisfaction_apprenant__enqueteur",
-            "locked_by",
-        )
-        .order_by("created_at", "id")
-    )
+    queryset = Appel.objects.select_related(
+        "answers",
+        "answers__modified_by",
+        "satisfaction_apprenant",
+        "satisfaction_apprenant__enqueteur",
+        "locked_by",
+    ).order_by("created_at", "id")
 
     for appel in queryset.iterator(chunk_size=500):
         answer = _safe_related(appel, "answers")
@@ -531,7 +543,7 @@ def build_padesce_calls_report(output_path: str | Path) -> dict:
         transcription = _clean_text(getattr(satisfaction, "transcription", ""))
         answer_values = _answer_values(answer)
         avg_score = _average_score(answer)
-        if appel.status == "termine":
+        if appel.status in CALL_SUCCESS_STATUSES:
             finished_calls += 1
         if appel.is_active:
             active_calls += 1
@@ -591,8 +603,12 @@ def build_padesce_calls_report(output_path: str | Path) -> dict:
                 appel.type_formation_declaree,
                 appel.get_status_display(),
                 "Oui" if appel.is_active else "Non",
-                timezone.localtime(appel.created_at).strftime("%Y-%m-%d %H:%M") if appel.created_at else "",
-                timezone.localtime(appel.updated_at).strftime("%Y-%m-%d %H:%M") if appel.updated_at else "",
+                timezone.localtime(appel.created_at).strftime("%Y-%m-%d %H:%M")
+                if appel.created_at
+                else "",
+                timezone.localtime(appel.updated_at).strftime("%Y-%m-%d %H:%M")
+                if appel.updated_at
+                else "",
                 _clean_text(appel.flag_vrai_nom),
                 "Oui" if appel.deja_forme else "Non",
                 "Oui" if appel.flag_pas_forme else "Non",

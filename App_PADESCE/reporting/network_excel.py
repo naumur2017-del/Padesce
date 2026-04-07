@@ -15,6 +15,7 @@ from typing import Iterator
 from urllib.parse import parse_qs, unquote, urlparse
 
 from django.conf import settings
+from django.core.cache import cache
 from django.http import JsonResponse
 from django.shortcuts import render
 from openpyxl import load_workbook
@@ -43,6 +44,7 @@ LEGACY_BUNDLED_CUTOFF_WORKBOOK_COPY = (
 )
 DEFAULT_DESCENTE_WORKBOOK_GLOB = "DESCENTES CLASSES*.xlsx"
 DESCENTE_CHANNEL_SNAPSHOT = Path(settings.BASE_DIR) / "data" / "teams_channel_links.json"
+SOURCE_CACHE_TIMEOUT = int(str(os.getenv("PADESCE_SOURCE_CACHE_TIMEOUT", "900") or "900"))
 
 
 @dataclass(frozen=True)
@@ -276,7 +278,9 @@ def _sheet_get(row: tuple | list | None, header_lookup: dict[str, int], *headers
     return ""
 
 
-def _sheet_get_first(row: tuple | list | None, raw_header: tuple | list | None, *headers: str) -> str:
+def _sheet_get_first(
+    row: tuple | list | None, raw_header: tuple | list | None, *headers: str
+) -> str:
     cells = list(row or [])
     normalized_targets = {_normalize_lookup(header) for header in headers if header}
     for index, header_value in enumerate(list(raw_header or [])):
@@ -846,9 +850,21 @@ def build_padesce_source_index(
         source.size,
         source.modified_at.isoformat(),
     )
+    shared_cache_key = (
+        "padesce-source-index:"
+        f"{normalized_source_key}:{source.size}:{source.modified_at.isoformat()}"
+    )
     if force_refresh:
         _build_padesce_source_index_cached.cache_clear()
-    return _build_padesce_source_index_cached(cache_key)
+        cache.delete(shared_cache_key)
+
+    cached_payload = cache.get(shared_cache_key)
+    if cached_payload is not None:
+        return cached_payload
+
+    payload = _build_padesce_source_index_cached(cache_key)
+    cache.set(shared_cache_key, payload, timeout=SOURCE_CACHE_TIMEOUT)
+    return payload
 
 
 @lru_cache(maxsize=8)
@@ -919,8 +935,14 @@ def _build_consolidation_call_candidates_cached(cache_key: tuple[str, int, str, 
                     "1er No tél 0 Tel No\nApprenant",
                     "1er No tel 0 Tel No Apprenant",
                     "1er No tel 0 Tel No\nApprenant",
-                    "Téléphone", "Telephone", "Tel", "Tél",
-                    "N° Tél", "N° Tel", "N°Tél", "N°Tel",
+                    "Téléphone",
+                    "Telephone",
+                    "Tel",
+                    "Tél",
+                    "N° Tél",
+                    "N° Tel",
+                    "N°Tél",
+                    "N°Tel",
                 ),
                 "telephone2": _sheet_get(
                     row,
@@ -933,7 +955,10 @@ def _build_consolidation_call_candidates_cached(cache_key: tuple[str, int, str, 
                     "2e No tél 0 Tel No\nApprenant (si disponible)",
                     "2e No tel 0 Tel No Apprenant (si disponible)",
                     "2e No tel 0 Tel No\nApprenant (si disponible)",
-                    "Téléphone 2", "Telephone 2", "Tel 2", "Tél 2",
+                    "Téléphone 2",
+                    "Telephone 2",
+                    "Tel 2",
+                    "Tél 2",
                 ),
                 "cohorte": _sheet_get(row, header_lookup, "cohorte", "Cohorte"),
                 "statut_prestation": _sheet_get(
@@ -981,9 +1006,21 @@ def build_consolidation_call_candidates(
         source.size,
         source.modified_at.isoformat(),
     )
+    shared_cache_key = (
+        "padesce-consolidation-candidates:"
+        f"{normalized_source_key}:{source.size}:{source.modified_at.isoformat()}"
+    )
     if force_refresh:
         _build_consolidation_call_candidates_cached.cache_clear()
-    return _build_consolidation_call_candidates_cached(cache_key)
+        cache.delete(shared_cache_key)
+
+    cached_payload = cache.get(shared_cache_key)
+    if cached_payload is not None:
+        return cached_payload
+
+    payload = _build_consolidation_call_candidates_cached(cache_key)
+    cache.set(shared_cache_key, payload, timeout=SOURCE_CACHE_TIMEOUT)
+    return payload
 
 
 def build_network_excel_payload(

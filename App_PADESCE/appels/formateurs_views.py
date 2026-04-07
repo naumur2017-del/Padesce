@@ -1,4 +1,4 @@
-﻿import csv
+import csv
 import datetime
 import io
 import re
@@ -17,33 +17,38 @@ from django.utils import timezone
 from django.utils.text import slugify
 from django.views.decorators.http import require_POST
 
-from App_PADESCE.appels.models import AppelFormateur, CALL_COMPLETED_STATUSES
-from App_PADESCE.formations.models import Classe
-from App_PADESCE.satisfaction_formateurs.models import SatisfactionFormateur
+from App_PADESCE.appels.models import (
+    CALL_COMPLETED_STATUSES,
+    CALL_FORM_STATUSES,
+    CALL_SUCCESS_STATUSES,
+    AppelFormateur,
+    sync_formateur_status,
+)
 from App_PADESCE.appels.views import (
     _bind_audio_state,
-    _check_other_active_calls,
     _cleanup_stale_locks,
-    _handle_lock_conflict,
-    _build_progress_metrics,
     _deactivate_duplicate_rows,
     _formateur_duplicate_key,
     _has_audio_file,
     _safe_audio_url,
 )
-
+from App_PADESCE.formations.models import Classe
+from App_PADESCE.satisfaction_formateurs.models import SatisfactionFormateur
 
 FORMATEUR_THRESHOLD_PERCENT = 50
 
+
 def _build_formateur_progress_metrics(queryset):
-    from django.db.models import Count, Q
-    completed_q = Q(status__in=CALL_COMPLETED_STATUSES)
+    from django.db.models import Q
+
+    completed_q = Q(status__in=CALL_SUCCESS_STATUSES)
+    threshold_q = Q(status__in=CALL_FORM_STATUSES)
     stats = queryset.aggregate(
         total=Count("id"),
-        termines=Count("id", filter=completed_q),
+        termines=Count("id", filter=threshold_q),
         appels_tentes=Count("id", filter=~Q(status="en_attente")),
-        appels_reussis=Count("id", filter=~Q(status__in=["en_attente", "a_rappeler"])),
-        formulaires_remplis=Count("id", filter=Q(status__in=["formulaire_rempli", "formulaire_avec_audio"])),
+        appels_reussis=Count("id", filter=completed_q),
+        formulaires_remplis=Count("id", filter=Q(status__in=CALL_FORM_STATUSES)),
         formulaires_avec_audio=Count("id", filter=Q(status="formulaire_avec_audio")),
         audios=Count("id", filter=Q(audio_file__isnull=False) | Q(status="formulaire_avec_audio")),
     )
@@ -52,24 +57,26 @@ def _build_formateur_progress_metrics(queryset):
     threshold_target = max(1, int(total * FORMATEUR_THRESHOLD_PERCENT / 100)) if total else 0
     threshold_reached = total > 0 and termines >= threshold_target
     threshold_remaining = max(threshold_target - termines, 0)
-    stats.update({
-        "remaining": max(total - termines, 0),
-        "completion_rate": round((termines / total) * 100, 1) if total else 0.0,
-        "completion_label": f"{termines} / {total}" if total else "0 / 0",
-        "threshold_target": threshold_target,
-        "threshold_remaining": threshold_remaining,
-        "threshold_reached": threshold_reached,
-        "threshold_message": (
-            f"Seuil de {FORMATEUR_THRESHOLD_PERCENT}% atteint. Vous pouvez passer a autre chose."
-            if threshold_reached
-            else (
-                f"Encore {threshold_remaining} appel(s) pour atteindre {FORMATEUR_THRESHOLD_PERCENT}%."
-                if total
-                else "Aucun appel dans ce filtre."
-            )
-        ),
-        "threshold_label": f"{FORMATEUR_THRESHOLD_PERCENT}%",
-    })
+    stats.update(
+        {
+            "remaining": max(total - termines, 0),
+            "completion_rate": round((termines / total) * 100, 1) if total else 0.0,
+            "completion_label": f"{termines} / {total}" if total else "0 / 0",
+            "threshold_target": threshold_target,
+            "threshold_remaining": threshold_remaining,
+            "threshold_reached": threshold_reached,
+            "threshold_message": (
+                f"Seuil de {FORMATEUR_THRESHOLD_PERCENT}% atteint. Vous pouvez passer a autre chose."
+                if threshold_reached
+                else (
+                    f"Encore {threshold_remaining} appel(s) pour atteindre {FORMATEUR_THRESHOLD_PERCENT}%."
+                    if total
+                    else "Aucun appel dans ce filtre."
+                )
+            ),
+            "threshold_label": f"{FORMATEUR_THRESHOLD_PERCENT}%",
+        }
+    )
     return stats
 
 
@@ -154,7 +161,13 @@ def _extract_phone_numbers(value):
         return numbers
 
     # Fallback for slash-delimited cells and spreadsheet artifacts such as '$699...$'.
-    cleaned = raw.replace("$", " ").replace("\\", "/").replace("|", "/").replace(";", "/").replace(",", "/")
+    cleaned = (
+        raw.replace("$", " ")
+        .replace("\\", "/")
+        .replace("|", "/")
+        .replace(";", "/")
+        .replace(",", "/")
+    )
     chunks = re.split(r"[/\n\r]+", cleaned)
     for chunk in chunks:
         number = _normalize_phone_number(chunk)
@@ -197,7 +210,11 @@ def _parse_french_date(value):
 
 
 def _build_reference_code(item):
-    date_part = item["session_date"].isoformat() if item.get("session_date") else slugify(item.get("date_label") or "date")
+    date_part = (
+        item["session_date"].isoformat()
+        if item.get("session_date")
+        else slugify(item.get("date_label") or "date")
+    )
     start_part = slugify(item.get("heure_debut") or "debut")
     phone_part = item.get("telephone") or "sans-telephone"
     return (
@@ -333,10 +350,18 @@ def _build_filtered_formateurs_queryset(request):
         "date_to": date_to_str,
         "q": search,
         "prestataires": sorted(
-            {v.strip() for v in qs.exclude(prestataire="").values_list("prestataire", flat=True) if v}
+            {
+                v.strip()
+                for v in qs.exclude(prestataire="").values_list("prestataire", flat=True)
+                if v
+            }
         ),
         "beneficiaires": sorted(
-            {v.strip() for v in qs.exclude(beneficiaire="").values_list("beneficiaire", flat=True) if v}
+            {
+                v.strip()
+                for v in qs.exclude(beneficiaire="").values_list("beneficiaire", flat=True)
+                if v
+            }
         ),
         "formations": sorted(
             {v.strip() for v in qs.exclude(formation="").values_list("formation", flat=True) if v}
@@ -352,11 +377,16 @@ def _build_filtered_formateurs_queryset(request):
             .order_by("session_date")
         ],
         "agents": sorted(
-            {u.strip() for u in qs.exclude(locked_by__isnull=True).values_list("locked_by__username", flat=True) if u}
+            {
+                u.strip()
+                for u in qs.exclude(locked_by__isnull=True).values_list(
+                    "locked_by__username", flat=True
+                )
+                if u
+            }
         ),
     }
     return qs, filters
-
 
 
 def _parse_note_1_5(value):
@@ -427,7 +457,11 @@ def _resolve_classe_for_formateur_row(row: AppelFormateur):
 
 
 def _sync_satisfaction_from_formateur_row(row: AppelFormateur, user):
-    if not (row.q1_prerequis_apprenants and row.q2_interaction_apprenants and row.q3_competences_acquises):
+    if not (
+        row.q1_prerequis_apprenants
+        and row.q2_interaction_apprenants
+        and row.q3_competences_acquises
+    ):
         return False
 
     classe = _resolve_classe_for_formateur_row(row)
@@ -500,6 +534,7 @@ def _collect_formateur_survey_updates(request, row: AppelFormateur) -> tuple[dic
 
     return updates, survey_posted
 
+
 @login_required
 def formateurs_export_xlsx(request):
     wb = openpyxl.Workbook()
@@ -538,7 +573,9 @@ def formateurs_export_xlsx(request):
             "Updated at",
         ]
     )
-    for row in AppelFormateur.objects.select_related("locked_by").order_by("session_date", "numero_seance", "telephone"):
+    for row in AppelFormateur.objects.select_related("locked_by").order_by(
+        "session_date", "numero_seance", "telephone"
+    ):
         ws.append(
             [
                 row.reference_code,
@@ -572,7 +609,9 @@ def formateurs_export_xlsx(request):
                 row.updated_at.isoformat() if getattr(row, "updated_at", None) else "",
             ]
         )
-    response = HttpResponse(content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    response = HttpResponse(
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
     response["Content-Disposition"] = 'attachment; filename="appels-formateurs-export.xlsx"'
     wb.save(response)
     return response
@@ -616,7 +655,9 @@ def formateurs_export_filtered_csv(request):
             "Updated at",
         ]
     )
-    for row in qs.order_by("status", "session_date", "numero_seance", "telephone").iterator(chunk_size=2000):
+    for row in qs.order_by("status", "session_date", "numero_seance", "telephone").iterator(
+        chunk_size=2000
+    ):
         writer.writerow(
             [
                 row.reference_code,
@@ -750,14 +791,19 @@ def formateurs_index(request):
             if skipped_count or removed_duplicates or files_without_numbers:
                 warning_parts = []
                 if rows_without_numbers:
-                    warning_parts.append(f"{rows_without_numbers} ligne(s) sans numero exploitable ignoree(s)")
+                    warning_parts.append(
+                        f"{rows_without_numbers} ligne(s) sans numero exploitable ignoree(s)"
+                    )
                 if duplicate_refs:
                     warning_parts.append(f"{duplicate_refs} doublon(s) detecte(s) pendant l'upload")
                 if removed_duplicates:
-                    warning_parts.append(f"{removed_duplicates} doublon(s) supplementaire(s) desactive(s) apres import")
+                    warning_parts.append(
+                        f"{removed_duplicates} doublon(s) supplementaire(s) desactive(s) apres import"
+                    )
                 if files_without_numbers:
                     warning_parts.append(
-                        "fichier(s) sans contact exploitable: " + ", ".join(files_without_numbers[:5])
+                        "fichier(s) sans contact exploitable: "
+                        + ", ".join(files_without_numbers[:5])
                     )
                 messages.warning(request, "Import formateurs: " + " ; ".join(warning_parts) + ".")
             if raw_count == 0:
@@ -778,7 +824,9 @@ def formateurs_index(request):
     except ValueError:
         page_size = PAGE_SIZE_DEFAULT
     page_size = max(25, min(page_size, PAGE_SIZE_MAX))
-    paginator = Paginator(qs.order_by("status", "session_date", "numero_seance", "telephone"), page_size)
+    paginator = Paginator(
+        qs.order_by("status", "session_date", "numero_seance", "telephone"), page_size
+    )
     page_obj = paginator.get_page(request.GET.get("page"))
     rows = _bind_audio_state(list(page_obj.object_list))
     page_obj.object_list = rows
@@ -807,8 +855,10 @@ def formateurs_delete_missing_phones(request):
     if not request.user.is_superuser:
         messages.error(request, "Seul un superadmin peut supprimer les lignes sans telephone.")
         return redirect(request.META.get("HTTP_REFERER") or "/appels-formateurs/")
-    deleted = AppelFormateur.objects.filter(is_active=True).filter(Q(telephone="") | Q(telephone__isnull=True)).update(
-        is_active=False
+    deleted = (
+        AppelFormateur.objects.filter(is_active=True)
+        .filter(Q(telephone="") | Q(telephone__isnull=True))
+        .update(is_active=False)
     )
     messages.success(request, f"{deleted} ligne(s) sans numero de telephone ont ete desactivees.")
     return redirect(request.META.get("HTTP_REFERER") or "/appels-formateurs/")
@@ -887,6 +937,7 @@ def formateur_action(request, pk: int):
         return JsonResponse({"ok": False, "error": "Action inconnue."}, status=400)
 
     row.save(update_fields=list(dict.fromkeys(update_fields)))
+    sync_formateur_status(row)
 
     if survey_saved and (
         action in ("terminer", "rappeler")
@@ -912,6 +963,8 @@ def formateur_action(request, pk: int):
             "synced_to_padesce": synced_to_padesce,
         }
     )
+
+
 @login_required
 @require_POST
 def formateur_upload_audio(request, pk: int):
@@ -921,7 +974,15 @@ def formateur_upload_audio(request, pk: int):
         return JsonResponse({"ok": False, "error": "Aucun fichier audio."}, status=400)
     row.audio_file = file_obj
     row.save(update_fields=["audio_file", "updated_at"])
-    return JsonResponse({"ok": True, "audio_url": _safe_audio_url(row)})
+    sync_formateur_status(row)
+    return JsonResponse(
+        {
+            "ok": True,
+            "audio_url": _safe_audio_url(row),
+            "status": row.status,
+            "status_label": row.get_status_display(),
+        }
+    )
 
 
 @login_required
@@ -936,10 +997,14 @@ def download_formateur_audios(request):
         return JsonResponse({"ok": False, "error": "Identifiants invalides."}, status=400)
 
     rows = list(
-        AppelFormateur.objects.filter(pk__in=ids, audio_file__isnull=False).order_by("session_date", "numero_seance", "telephone")
+        AppelFormateur.objects.filter(pk__in=ids, audio_file__isnull=False).order_by(
+            "session_date", "numero_seance", "telephone"
+        )
     )
     if not rows:
-        return JsonResponse({"ok": False, "error": "Aucun audio disponible pour la selection."}, status=404)
+        return JsonResponse(
+            {"ok": False, "error": "Aucun audio disponible pour la selection."}, status=404
+        )
 
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_DEFLATED) as archive:
@@ -973,7 +1038,9 @@ def formateur_transcription_detail(request, pk: int):
     row = get_object_or_404(AppelFormateur, pk=pk)
     try:
         obj, generated = _ensure_formateur_transcription(row)
-        return JsonResponse({"ok": True, "generated": generated, "transcription": _transcription_to_payload(obj)})
+        return JsonResponse(
+            {"ok": True, "generated": generated, "transcription": _transcription_to_payload(obj)}
+        )
     except Exception as exc:
         return JsonResponse({"ok": False, "error": str(exc)}, status=400)
 
@@ -1007,7 +1074,12 @@ def start_filtered_formateurs_transcription(request):
 
 @login_required
 def filtered_formateurs_transcription_status(request):
-    return JsonResponse({"ok": True, "status": _transcription_status_response(FORMATEURS_FILTERED_TRANSCRIPTION_TASK_KEY)})
+    return JsonResponse(
+        {
+            "ok": True,
+            "status": _transcription_status_response(FORMATEURS_FILTERED_TRANSCRIPTION_TASK_KEY),
+        }
+    )
 
 
 @login_required
@@ -1015,13 +1087,3 @@ def filtered_formateurs_transcription_status(request):
 def stop_filtered_formateurs_transcription(request):
     ok, payload, status_code = _stop_transcription_task(FORMATEURS_FILTERED_TRANSCRIPTION_TASK_KEY)
     return JsonResponse(payload, status=status_code)
-
-
-
-
-
-
-
-
-
-

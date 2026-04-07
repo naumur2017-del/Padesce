@@ -5,7 +5,10 @@
   .hero { border:1px solid var(--border); border-radius:18px; padding:18px; background:linear-gradient(135deg,#faf7ff,#fff); box-shadow:var(--shadow); margin-bottom:16px; }
   .hero h1 { margin:0 0 6px; color:var(--accent-strong); }
   .hero p { margin:0; color:var(--muted); }
-  .cards { display:grid; grid-template-columns: repeat(auto-fit,minmax(220px,1fr)); gap:12px; margin:16px 0; }
+  .cards { display:flex; flex-direction:column; gap:12px; margin:16px 0; }
+  .cards-row { display:grid; gap:12px; }
+  .cards-row.top { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .cards-row.bottom { grid-template-columns: repeat(7, minmax(0, 1fr)); }
   .card { border:1px solid var(--border); border-radius:16px; background:#fff; padding:16px; box-shadow:var(--shadow); }
   .card .value { font-size:1.6rem; font-weight:800; color:var(--accent-strong); }
   .card .label { color:var(--muted); font-weight:600; }
@@ -35,6 +38,9 @@
   .card[data-filter] { cursor:pointer; border:2px solid transparent; transition:border-color .2s ease; }
   .card[data-filter]:hover { border-color:var(--accent); }
   .card[data-filter].active { border-color:var(--accent); box-shadow:0 0 0 4px rgba(124,58,237,0.12); }
+  @media (max-width:1200px) {
+    .cards-row.top, .cards-row.bottom { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+  }
 </style>
 
 <section class="hero">
@@ -42,49 +48,64 @@
   <p>Padesce</p>
 </section>
 
-<section class="cards" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));">
-  <article class="card">
-    <div class="value">{{ card_prestations_count }}</div>
-    <div class="label">Prestations analysées</div>
-  </article>
-  <article class="card">
-    <div class="value">{{ card_classes_count }}</div>
-    <div class="label">
-      Classes analysées
-      {% if card_fenetres %}
-      <div style="font-size:0.75rem; color:var(--muted); font-weight:normal;">Fenêtre: {{ card_fenetres|join:", " }}</div>
-      {% endif %}
-    </div>
-  </article>
-  <article class="card">
-    <div class="value">{{ card_prestataires_count }}</div>
-    <div class="label">Prestataires</div>
-  </article>
-  <article class="card">
-    <div class="value">{{ card_beneficiaires_count }}</div>
-    <div class="label">Bénéficiaires</div>
-  </article>
-  
-  <article class="card" style="border-top: 3px solid #f59e0b;" data-filter="tente">
-    <div class="value">{{ summary_tentes }}</div>
-    <div class="label">Appels tentés</div>
-  </article>
-  <article class="card" style="border-top: 3px solid #10b981;" data-filter="reussi">
-    <div class="value">{{ summary_reussis }}</div>
-    <div class="label">Appels réussis</div>
-  </article>
-  <article class="card" style="border-top: 3px solid #6366f1;" data-filter="form">
-    <div class="value">{{ summary_form_remplis }}</div>
-    <div class="label">Formulaires remplis</div>
-  </article>
-  <article class="card" style="border-top: 3px solid #8b5cf6;" data-filter="form-audio">
-    <div class="value">{{ summary_form_audio }}</div>
-    <div class="label">Formulaires avec audio</div>
-  </article>
-  <article class="card" style="border-top: 3px solid #14b8a6;" data-filter="audio">
-    <div class="value">{{ summary_audios }}</div>
-    <div class="label">Audios enregistrés</div>
-  </article>
+<section class="cards">
+  <div class="cards-row top">
+    <article class="card">
+      <div class="value">{{ card_prestations_count }}</div>
+      <div class="label">Prestations analysees</div>
+    </article>
+    <article class="card">
+      <div class="value">{{ card_classes_count }}</div>
+      <div class="label">
+        Classes analysees
+        {% if card_fenetres %}
+        <div style="font-size:0.75rem; color:var(--muted); font-weight:normal;">Fenetre: {{ card_fenetres|join:", " }}</div>
+        {% endif %}
+      </div>
+    </article>
+    <article class="card">
+      <div class="value">{{ card_prestataires_count }}</div>
+      <div class="label">Prestataires analyses</div>
+    </article>
+    <article class="card">
+      <div class="value">{{ card_beneficiaires_count }}</div>
+      <div class="label">Beneficiaires analyses</div>
+    </article>
+    <article class="card">
+      <div class="value">{{ card_apprenants_count }}</div>
+      <div class="label">Apprenants analyses</div>
+    </article>
+  </div>
+  <div class="cards-row bottom">
+    <article class="card" style="border-top: 3px solid #0f766e;">
+      <div class="value">{{ summary_appels_cibles }}</div>
+      <div class="label">Appels cibles</div>
+    </article>
+    <article class="card" style="border-top: 3px solid #f59e0b;" data-filter="tente">
+      <div class="value">{{ summary_tentes }}</div>
+      <div class="label">Appels inities</div>
+    </article>
+    <article class="card" style="border-top: 3px solid #10b981;" data-filter="reussi">
+      <div class="value">{{ summary_reussis }}</div>
+      <div class="label">Appels reussis</div>
+    </article>
+    <article class="card" style="border-top: 3px solid #6366f1;" data-filter="form">
+      <div class="value">{{ summary_form_remplis }}</div>
+      <div class="label">Formulaires remplis</div>
+    </article>
+    <article class="card" style="border-top: 3px solid #2563eb;">
+      <div class="value">{{ summary_form_sans_audio }}</div>
+      <div class="label">Formulaires remplis sans audios</div>
+    </article>
+    <article class="card" style="border-top: 3px solid #8b5cf6;" data-filter="form-audio">
+      <div class="value">{{ summary_form_audio }}</div>
+      <div class="label">Formulaires remplis avec audios</div>
+    </article>
+    <article class="card" style="border-top: 3px solid #14b8a6;" data-filter="audio">
+      <div class="value">{{ summary_audios }}</div>
+      <div class="label">Audios enregistres</div>
+    </article>
+  </div>
 </section>
 
 <section class="panel">

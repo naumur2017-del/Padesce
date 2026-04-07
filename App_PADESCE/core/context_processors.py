@@ -14,6 +14,7 @@ PAGE_TITLE_BY_PREFIX: tuple[tuple[str, str], ...] = (
     ("/satisfaction-formateurs/analyse/", "Analyse Enquete Formateur"),
     ("/satisfaction-formateurs/", "Enquete Formateur"),
     ("/reporting/", "Rapport"),
+    ("/suivi-utilisateurs/", "Suivi Utilisateurs"),
     ("/deploiement/", "Deploiement Gandi"),
     ("/cga/", "CGA"),
     ("/consultant/", "Espace PADESCE"),
@@ -101,9 +102,12 @@ def _build_menu_items(user, path: str, consultant_only: bool) -> list[dict[str, 
                 "/reporting/",
             )
             add_item("Espace Padesce", _safe_reverse("consultant_dashboard"), "/consultant/")
-            add_item("Excel Source", _safe_reverse("reporting_network_excel"), "/reporting/excel-reseau/")
+            add_item(
+                "Excel Source", _safe_reverse("reporting_network_excel"), "/reporting/excel-reseau/"
+            )
 
     if superadmin_access:
+        add_item("Suivi Utilisateurs", _safe_reverse("user_tracking"), "/suivi-utilisateurs/")
         add_item("Deploiement Gandi", _safe_reverse("deployment_dashboard"), "/deploiement/")
 
     if not consultant_only:
