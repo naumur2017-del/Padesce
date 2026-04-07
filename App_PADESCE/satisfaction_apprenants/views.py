@@ -1380,6 +1380,13 @@ def _build_appel_status_summary(
                 queryset = queryset.none()
 
         form_filter = strict_form_q if strict_form_q is not None else _Q(status__in=CALL_FORM_STATUSES)
+        success_filter = (
+            ~_Q(status__in=["en_attente", "a_rappeler"])
+            | _Q(deja_forme=True)
+            | _Q(flag_numero_double=True)
+            | _Q(flag_pas_forme=True)
+            | _Q(flag_faux_nom=True)
+        )
         forms_with_audio_filter = (
             form_filter & _Q(audio_file__isnull=False) & ~_Q(audio_file="")
             if strict_form_q is not None
@@ -1390,7 +1397,7 @@ def _build_appel_status_summary(
         return queryset.aggregate(
             appels_cibles=_Count("id"),
             appels_tentes=_Count("id", filter=~_Q(status="en_attente")),
-            appels_reussis=_Count("id", filter=~_Q(status__in=["en_attente", "a_rappeler", "en_pause", "pause"])),
+            appels_reussis=_Count("id", filter=success_filter),
             formulaires_remplis=_Count("id", filter=form_filter),
             formulaires_remplis_sans_audio=_Count("id", filter=forms_without_audio_filter),
             formulaires_avec_audio=_Count("id", filter=forms_with_audio_filter),
