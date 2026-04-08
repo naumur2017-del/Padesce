@@ -52,12 +52,12 @@
   <div class="cards-row top">
     <article class="card">
       <div class="value">{{ card_prestations_count }}</div>
-      <div class="label">Prestations analysees</div>
+      <div class="label">Prestations analysées</div>
     </article>
     <article class="card">
       <div class="value">{{ card_classes_count }}</div>
       <div class="label">
-        Classes analysees
+        Classes analysées
         {% if card_fenetres %}
         <div style="font-size:0.75rem; color:var(--muted); font-weight:normal;">Fenetre: {{ card_fenetres|join:", " }}</div>
         {% endif %}
@@ -65,15 +65,15 @@
     </article>
     <article class="card">
       <div class="value">{{ card_prestataires_count }}</div>
-      <div class="label">Prestataires analyses</div>
+      <div class="label">Prestataires analysés</div>
     </article>
     <article class="card">
       <div class="value">{{ card_beneficiaires_count }}</div>
-      <div class="label">Beneficiaires analyses</div>
+      <div class="label">Bénéficiaires analysés</div>
     </article>
     <article class="card">
       <div class="value">{{ card_apprenants_count }}</div>
-      <div class="label">Apprenants analyses</div>
+      <div class="label">Apprenants analysés</div>
     </article>
   </div>
   <div class="cards-row bottom">
@@ -83,15 +83,15 @@
     </article>
     <article class="card" style="border-top: 3px solid #f59e0b;" data-filter="tente">
       <div class="value">{{ summary_tentes }}</div>
-      <div class="label">Appels inities</div>
+      <div class="label">Appels tentés</div>
     </article>
     <article class="card" style="border-top: 3px solid #10b981;" data-filter="reussi">
       <div class="value">{{ summary_reussis }}</div>
-      <div class="label">Appels reussis</div>
+      <div class="label">Appels réussis</div>
     </article>
     <article class="card" style="border-top: 3px solid #6366f1;" data-filter="form">
       <div class="value">{{ summary_form_remplis }}</div>
-      <div class="label">Formulaires remplis</div>
+      <div class="label">Formulaires remplis : Total</div>
     </article>
     <article class="card" style="border-top: 3px solid #2563eb;">
       <div class="value">{{ summary_form_sans_audio }}</div>
@@ -103,7 +103,7 @@
     </article>
     <article class="card" style="border-top: 3px solid #14b8a6;" data-filter="audio">
       <div class="value">{{ summary_audios }}</div>
-      <div class="label">Audios enregistres</div>
+      <div class="label">Audios enregistrés</div>
     </article>
   </div>
 </section>
@@ -142,9 +142,6 @@
         <option value="{{ item }}" {% if filters.fenetre == item %}selected{% endif %}>{{ item }}</option>
       {% endfor %}
     </select>
-    <select class="input" name="status" id="f-status" form="consultant-filter-form">
-      <option value="">Statut</option>
-    </select>
     <form id="consultant-filter-form" method="get"></form>
     <button class="btn btn-primary" type="submit" form="consultant-filter-form">Filtrer</button>
     <a class="btn" href="{% url 'consultant_dashboard' %}">Reset</a>
@@ -158,16 +155,14 @@
       prestataire:  "{{ filters.prestation|default:""|escapejs }}",
       classe:       "{{ filters.classe|default:""|escapejs }}",
       fenetre:      "{{ filters.fenetre|default:""|escapejs }}",
-      status:       "{{ filters.status|default:""|escapejs }}",
     };
     const SELECTS = {
       beneficiaire: document.getElementById('f-beneficiaire'),
       prestataire:  document.getElementById('f-prestataire'),
       classe:       document.getElementById('f-classe'),
       fenetre:      document.getElementById('f-fenetre'),
-      status:       document.getElementById('f-status'),
     };
-    const LABELS = {beneficiaire:'Bénéficiaire', prestataire:'Prestataire', classe:'Classe', fenetre:'Fenêtre', status:'Statut'};
+    const LABELS = {beneficiaire:'Bénéficiaire', prestataire:'Prestataire', classe:'Classe', fenetre:'Fenêtre'};
 
     function filteredRows(skipField) {
       return FILTER_DATA.filter(r => {
@@ -188,7 +183,7 @@
       const opts = [];
       rows.forEach(r => {
         const val = field === 'classe' ? r.classe_value : field === 'prestataire' ? r.prestataire : r[field];
-        const lbl = field === 'classe' ? r.classe_label : field === 'status' ? r.status_label : val;
+        const lbl = field === 'classe' ? r.classe_label : val;
         if (val && !seen.has(val)) { seen.add(val); opts.push({val, lbl}); }
       });
       opts.sort((a, b) => a.lbl.localeCompare(b.lbl));
@@ -225,7 +220,6 @@
           <th>Prestataire</th>
           <th>Beneficiaire</th>
           <th>Telephone</th>
-          <th>Statut</th>
         </tr>
       </thead>
       <tbody>
@@ -248,10 +242,9 @@
             <td>{{ row.prestataire|default:"-" }}</td>
             <td>{{ row.beneficiaire|default:"-" }}</td>
             <td>{{ row.telephone1|default:row.telephone2|default:"-" }}</td>
-            <td>{{ row.consultant_status_display }}</td>
           </tr>
         {% empty %}
-          <tr><td colspan="7">Aucun appel termine a consulter.</td></tr>
+          <tr><td colspan="6">Aucun appel termine a consulter.</td></tr>
         {% endfor %}
       </tbody>
     </table>
