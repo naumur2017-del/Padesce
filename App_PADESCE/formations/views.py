@@ -1,5 +1,6 @@
 import re
 import unicodedata
+from pathlib import Path
 from types import SimpleNamespace
 from urllib.parse import quote
 
@@ -1015,7 +1016,12 @@ def class_analysis_detail(request, code: str):
     channel_link = ""
     try:
         import pandas as pd
-        excel_path = r"\data\class_lien\class_lien_cannaux.xlsx"
+        excel_path = (
+            Path(__file__).resolve().parents[2]
+            / "data"
+            / "class_lien"
+            / "class_lien_cannaux.xlsx"
+        )
         df = pd.read_excel(excel_path)
         for _, row in df.iterrows():
             if str(row.iloc[1]).strip() == str(code).strip():
