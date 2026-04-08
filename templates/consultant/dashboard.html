@@ -142,9 +142,6 @@
         <option value="{{ item }}" {% if filters.fenetre == item %}selected{% endif %}>{{ item }}</option>
       {% endfor %}
     </select>
-    <select class="input" name="status" id="f-status" form="consultant-filter-form">
-      <option value="">Statut</option>
-    </select>
     <form id="consultant-filter-form" method="get"></form>
     <button class="btn btn-primary" type="submit" form="consultant-filter-form">Filtrer</button>
     <a class="btn" href="{% url 'consultant_dashboard' %}">Reset</a>
@@ -158,16 +155,14 @@
       prestataire:  "{{ filters.prestation|default:""|escapejs }}",
       classe:       "{{ filters.classe|default:""|escapejs }}",
       fenetre:      "{{ filters.fenetre|default:""|escapejs }}",
-      status:       "{{ filters.status|default:""|escapejs }}",
     };
     const SELECTS = {
       beneficiaire: document.getElementById('f-beneficiaire'),
       prestataire:  document.getElementById('f-prestataire'),
       classe:       document.getElementById('f-classe'),
       fenetre:      document.getElementById('f-fenetre'),
-      status:       document.getElementById('f-status'),
     };
-    const LABELS = {beneficiaire:'Bénéficiaire', prestataire:'Prestataire', classe:'Classe', fenetre:'Fenêtre', status:'Statut'};
+    const LABELS = {beneficiaire:'Bénéficiaire', prestataire:'Prestataire', classe:'Classe', fenetre:'Fenêtre'};
 
     function filteredRows(skipField) {
       return FILTER_DATA.filter(r => {
@@ -188,7 +183,7 @@
       const opts = [];
       rows.forEach(r => {
         const val = field === 'classe' ? r.classe_value : field === 'prestataire' ? r.prestataire : r[field];
-        const lbl = field === 'classe' ? r.classe_label : field === 'status' ? r.status_label : val;
+        const lbl = field === 'classe' ? r.classe_label : val;
         if (val && !seen.has(val)) { seen.add(val); opts.push({val, lbl}); }
       });
       opts.sort((a, b) => a.lbl.localeCompare(b.lbl));
@@ -225,7 +220,6 @@
           <th>Prestataire</th>
           <th>Beneficiaire</th>
           <th>Telephone</th>
-          <th>Statut</th>
         </tr>
       </thead>
       <tbody>
@@ -248,10 +242,9 @@
             <td>{{ row.prestataire|default:"-" }}</td>
             <td>{{ row.beneficiaire|default:"-" }}</td>
             <td>{{ row.telephone1|default:row.telephone2|default:"-" }}</td>
-            <td>{{ row.consultant_status_display }}</td>
           </tr>
         {% empty %}
-          <tr><td colspan="7">Aucun appel termine a consulter.</td></tr>
+          <tr><td colspan="6">Aucun appel termine a consulter.</td></tr>
         {% endfor %}
       </tbody>
     </table>
