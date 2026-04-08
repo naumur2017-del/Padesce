@@ -1009,6 +1009,20 @@ def class_analysis_detail(request, code: str):
     summary = _entity_summary(apprenant_rows, formateur_rows)
     class_chapeau = _build_class_chapeau(classe.code, apprenant_appels, source_bundle=source_bundle)
 
+    channel_link = ""
+    try:
+        import pandas as pd
+        excel_path = r"C:\Users\Ultra Tech\Desktop\NAUMUR\apps\doss\Padesce\data\class_lien\class_lien_cannaux.xlsx"
+        df = pd.read_excel(excel_path)
+        for _, row in df.iterrows():
+            if str(row.iloc[1]).strip() == str(code).strip():
+                link = str(row.iloc[0]).strip()
+                if link and link.startswith("http"):
+                    channel_link = link
+                break
+    except Exception:
+        pass
+
     return render(
         request,
         "formations/analysis_entity_detail.html",
@@ -1028,6 +1042,7 @@ def class_analysis_detail(request, code: str):
             "matching_note": "Rattachement formateurs via prestataire, beneficiaire, cohorte et formation.",
             "prestation_detail_url": prestation_detail_url,
             "reference_warning": reference_warning,
+            "channel_link": channel_link,
         },
     )
 

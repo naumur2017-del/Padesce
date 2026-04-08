@@ -298,8 +298,13 @@
   <div class="hero-top">
     <div>
       <p class="hero-subtitle">{{ entity_type|title }} analyse</p>
-      <h1>{{ entity_title }}</h1>
-      <p class="hero-subtitle">{{ entity_subtitle|default:"Informations de suivi et de consultation." }}</p>
+      <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 4px;">
+        <h1 style="margin: 0;">{{ entity_title }}</h1>
+        {% if channel_link %}
+          <a href="{{ channel_link }}" target="_blank" class="badge badge-ok" style="background: rgba(15, 139, 141, 0.1); color: #0f5f61; border-color: rgba(15, 139, 141, 0.28); text-decoration: none; padding: 6px 12px; cursor: pointer; transition: background 0.2s;" onmouseover="this.style.background='rgba(15, 139, 141, 0.2)'" onmouseout="this.style.background='rgba(15, 139, 141, 0.1)'">Ouvrir lien du canal</a>
+        {% endif %}
+      </div>
+      <p class="hero-subtitle" style="margin: 0;">{{ entity_subtitle|default:"Informations de suivi et de consultation." }}</p>
     </div>
     {% if summary.has_analysis %}
       <span class="badge badge-ok">Analyse disponible</span>
