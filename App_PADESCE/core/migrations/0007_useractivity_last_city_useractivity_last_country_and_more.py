@@ -6,53 +6,68 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('core', '0006_public_analysis_auto_login_user'),
+        ("core", "0006_public_analysis_auto_login_user"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='useractivity',
-            name='last_city',
-            field=models.CharField(blank=True, default='', max_length=100),
+            model_name="useractivity",
+            name="last_city",
+            field=models.CharField(blank=True, default="", max_length=100),
         ),
         migrations.AddField(
-            model_name='useractivity',
-            name='last_country',
-            field=models.CharField(blank=True, default='', max_length=100),
+            model_name="useractivity",
+            name="last_country",
+            field=models.CharField(blank=True, default="", max_length=100),
         ),
         migrations.AddField(
-            model_name='useractivity',
-            name='last_ip',
+            model_name="useractivity",
+            name="last_ip",
             field=models.GenericIPAddressField(blank=True, null=True),
         ),
         migrations.AddField(
-            model_name='useractivity',
-            name='last_latitude',
+            model_name="useractivity",
+            name="last_latitude",
             field=models.FloatField(blank=True, null=True),
         ),
         migrations.AddField(
-            model_name='useractivity',
-            name='last_longitude',
+            model_name="useractivity",
+            name="last_longitude",
             field=models.FloatField(blank=True, null=True),
         ),
         migrations.CreateModel(
-            name='UserLoginLog',
+            name="UserLoginLog",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('logged_at', models.DateTimeField(auto_now_add=True)),
-                ('ip_address', models.GenericIPAddressField(blank=True, null=True)),
-                ('latitude', models.FloatField(blank=True, null=True)),
-                ('longitude', models.FloatField(blank=True, null=True)),
-                ('city', models.CharField(blank=True, default='', max_length=100)),
-                ('country', models.CharField(blank=True, default='', max_length=100)),
-                ('user', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='login_logs', to=settings.AUTH_USER_MODEL)),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True, primary_key=True, serialize=False, verbose_name="ID"
+                    ),
+                ),
+                ("logged_at", models.DateTimeField(auto_now_add=True)),
+                ("ip_address", models.GenericIPAddressField(blank=True, null=True)),
+                ("latitude", models.FloatField(blank=True, null=True)),
+                ("longitude", models.FloatField(blank=True, null=True)),
+                ("city", models.CharField(blank=True, default="", max_length=100)),
+                ("country", models.CharField(blank=True, default="", max_length=100)),
+                (
+                    "user",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="login_logs",
+                        to=settings.AUTH_USER_MODEL,
+                    ),
+                ),
             ],
             options={
-                'ordering': ['-logged_at'],
-                'indexes': [models.Index(fields=['user', '-logged_at'], name='core_userlo_user_id_9c1632_idx')],
+                "ordering": ["-logged_at"],
+                "indexes": [
+                    models.Index(
+                        fields=["user", "-logged_at"], name="core_userlo_user_id_9c1632_idx"
+                    )
+                ],
             },
         ),
     ]

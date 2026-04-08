@@ -54,6 +54,7 @@
     <p>Vue complete des apprenants PADESCE avec statut d'analyse, actions, reponses, recommandations et commentaires.</p>
   </div>
   <div class="actions">
+    <a class="btn btn-primary btn-sm" href="{% url 'satisfaction_update_form_page' %}?source={{ filters.source|urlencode }}">UPDATE FORM</a>
     <a class="btn btn-ghost btn-sm" href="{% url 'satisfaction_dashboard' %}{% if request.GET.urlencode %}?{{ request.GET.urlencode }}{% endif %}">Retour aux analyses</a>
   </div>
 </div>

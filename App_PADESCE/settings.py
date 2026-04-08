@@ -172,39 +172,65 @@ if HAS_CHANNELS:
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
 
+def _postgres_sslmode_for_host(host: str) -> str:
+    sslmode = str(os.getenv("POSTGRES_SSLMODE", "") or "").strip().lower()
+    normalized_host = str(host or "").strip().lower()
+    if sslmode == "require" and normalized_host in {"localhost", "127.0.0.1", "::1"}:
+        return "prefer"
+    return sslmode
+
+
 def _database_settings_from_env() -> dict:
     database_url = str(os.getenv("DATABASE_URL", "") or "").strip()
     if database_url:
         parsed = urlparse(database_url)
         if parsed.scheme in {"postgres", "postgresql"}:
-            return {
+            host = parsed.hostname or os.getenv("POSTGRES_HOST", "") or "localhost"
+            config = {
                 "ENGINE": "django.db.backends.postgresql",
                 "NAME": unquote(parsed.path.lstrip("/"))
                 or str(os.getenv("POSTGRES_DB", "") or "postgres"),
                 "USER": unquote(parsed.username or os.getenv("POSTGRES_USER", "") or ""),
                 "PASSWORD": unquote(parsed.password or os.getenv("POSTGRES_PASSWORD", "") or ""),
-                "HOST": parsed.hostname or os.getenv("POSTGRES_HOST", "") or "localhost",
+                "HOST": host,
                 "PORT": str(parsed.port or os.getenv("POSTGRES_PORT", "") or "5432"),
             }
+            sslmode = _postgres_sslmode_for_host(host)
+            if sslmode:
+                config["OPTIONS"] = {"sslmode": sslmode}
+            return config
 
     engine = str(os.getenv("DB_ENGINE", "") or "").strip().lower()
     if engine in {"postgres", "postgresql", "pgsql"}:
-        return {
+        host = str(os.getenv("POSTGRES_HOST", "") or "localhost")
+        config = {
             "ENGINE": "django.db.backends.postgresql",
             "NAME": str(os.getenv("POSTGRES_DB", "") or "postgres"),
             "USER": str(os.getenv("POSTGRES_USER", "") or ""),
             "PASSWORD": str(os.getenv("POSTGRES_PASSWORD", "") or ""),
-            "HOST": str(os.getenv("POSTGRES_HOST", "") or "localhost"),
+            "HOST": host,
             "PORT": str(os.getenv("POSTGRES_PORT", "") or "5432"),
         }
+        sslmode = _postgres_sslmode_for_host(host)
+        if sslmode:
+            config["OPTIONS"] = {"sslmode": sslmode}
+        return config
 
     return {
         "ENGINE": "django.db.backends.sqlite3",
         "NAME": BASE_DIR / "db.sqlite3",
+        "OPTIONS": {
+            "timeout": int(str(os.getenv("SQLITE_TIMEOUT_SECONDS", "20") or "20")),
+        },
     }
 
 
 DATABASES = {"default": _database_settings_from_env()}
+if DATABASES["default"]["ENGINE"] == "django.db.backends.postgresql":
+    DATABASES["default"]["CONN_MAX_AGE"] = int(
+        str(os.getenv("POSTGRES_CONN_MAX_AGE", "60") or "60")
+    )
+    DATABASES["default"]["CONN_HEALTH_CHECKS"] = True
 
 # Token secret pour le déclenchement automatique des backups (GitHub Actions)
 BACKUP_TRIGGER_TOKEN = os.getenv("BACKUP_TRIGGER_TOKEN", "")
@@ -283,20 +309,68 @@ LOGIN_REDIRECT_URL = "home"
 LOGOUT_REDIRECT_URL = "login"
 CSRF_FAILURE_VIEW = "App_PADESCE.core.error_views.csrf_failure"
 
-# ---------------------------------------------------------------------------
-# Cache — In-process memory cache (fast, no external service needed).
-# For multi-server deployments replace with Redis or Memcached.
-# ---------------------------------------------------------------------------
-CACHES = {
-    "default": {
-        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
-        "LOCATION": "padesce-session-cache",
-        "TIMEOUT": 28800,  # 8 heures en secondes
-        "OPTIONS": {
-            "MAX_ENTRIES": 5000,  # nombre max d'entrées en mémoire
-        },
+
+def _cache_settings_from_env() -> dict:
+    backend_key = str(os.getenv("PADESCE_CACHE_BACKEND", "locmem") or "").strip().lower()
+    timeout = int(str(os.getenv("PADESCE_CACHE_TIMEOUT", "28800") or "28800"))
+    max_entries = int(str(os.getenv("PADESCE_CACHE_MAX_ENTRIES", "5000") or "5000"))
+
+    if backend_key in {"file", "filebased", "file_based"}:
+        requested_location = str(os.getenv("PADESCE_CACHE_LOCATION", "") or "").strip()
+        location_candidates = [
+            Path(requested_location) if requested_location else None,
+            BASE_DIR / "data" / "django_cache",
+            Path(tempfile.gettempdir()) / "padesce-cache",
+            BASE_DIR / ".django_cache",
+        ]
+        location_path = None
+        seen_locations: set[str] = set()
+        for candidate in location_candidates:
+            if candidate is None:
+                continue
+            candidate_key = str(candidate)
+            if candidate_key in seen_locations:
+                continue
+            seen_locations.add(candidate_key)
+            try:
+                candidate.mkdir(parents=True, exist_ok=True)
+            except OSError:
+                continue
+            location_path = candidate
+            break
+        if location_path is None:
+            raise RuntimeError("Impossible d'initialiser un dossier de cache Django ecrivable.")
+        return {
+            "default": {
+                "BACKEND": "django.core.cache.backends.filebased.FileBasedCache",
+                "LOCATION": str(location_path),
+                "TIMEOUT": timeout,
+                "OPTIONS": {
+                    "MAX_ENTRIES": max_entries,
+                },
+            }
+        }
+
+    if backend_key in {"dummy", "none"}:
+        return {
+            "default": {
+                "BACKEND": "django.core.cache.backends.dummy.DummyCache",
+            }
+        }
+
+    return {
+        "default": {
+            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+            "LOCATION": "padesce-session-cache",
+            "TIMEOUT": timeout,
+            "OPTIONS": {
+                "MAX_ENTRIES": max_entries,
+            },
+        }
     }
-}
+
+
+CACHES = _cache_settings_from_env()
 
 # ---------------------------------------------------------------------------
 # Sessions — cached_db : lecture ultra-rapide depuis le cache,

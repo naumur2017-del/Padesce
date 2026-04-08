@@ -718,6 +718,7 @@ def _save_related_from_payload(payload: list[dict]):
     seen_prest = {}
     seen_form = {}
     seen_lieu = {}
+    seen_prestation = {}
     seen_classe = {}
     created_apprenants = 0
 

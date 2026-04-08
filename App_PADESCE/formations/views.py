@@ -445,7 +445,10 @@ def _analysis_source_class_links(
 
 
 def _analysis_reference_warning() -> str:
-    return "Fiche reconstituee depuis la source d'analyse car cette reference n'est pas encore synchronisee dans PADESCE."
+    return (
+        "Fiche reconstituee depuis la source d'analyse "
+        "car cette reference n'est pas encore synchronisee dans PADESCE."
+    )
 
 
 def _analysis_source_record_for_appel(source_bundle: dict | None, appel: Appel) -> dict:
@@ -1039,7 +1042,10 @@ def class_analysis_detail(request, code: str):
             "active_tab": active_tab,
             "class_links": [],
             "class_chapeau": class_chapeau,
-            "matching_note": "Rattachement formateurs via prestataire, beneficiaire, cohorte et formation.",
+            "matching_note": (
+                "Rattachement formateurs via prestataire, "
+                "beneficiaire, cohorte et formation."
+            ),
             "prestation_detail_url": prestation_detail_url,
             "reference_warning": reference_warning,
             "channel_link": channel_link,

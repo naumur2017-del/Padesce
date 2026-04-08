@@ -23,14 +23,24 @@ class CoreConfig(AppConfig):
         post_migrate.connect(ensure_roles, sender=self)
 
         # One-off DB update for Audio Transcription Priorities
-        marker_path = os.path.join(settings.BASE_DIR, ".db_priority_updated_v1")
+        marker_path = os.path.join(settings.BASE_DIR, ".db_priority_updated_v2")
         if not os.path.exists(marker_path):
             try:
-                from update_db_priorities import run_db_priority_update
+                import sys
 
-                run_db_priority_update()
-                with open(marker_path, "w") as f:
-                    f.write("done")
+                base_dir_str = str(settings.BASE_DIR)
+                _inserted = base_dir_str not in sys.path
+                if _inserted:
+                    sys.path.insert(0, base_dir_str)
+                try:
+                    from update_db_priorities import run_db_priority_update
+
+                    run_db_priority_update()
+                    with open(marker_path, "w") as f:
+                        f.write("done")
+                finally:
+                    if _inserted and base_dir_str in sys.path:
+                        sys.path.remove(base_dir_str)
             except Exception as e:
                 print(f"Error during startup DB priority update: {str(e)}")
 

@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
 
 from django.conf import settings
+from django.core.cache import caches
+from django.db import connection
 from django.http import JsonResponse
 from django.shortcuts import render
 from django.views.decorators.http import require_GET, require_POST
@@ -22,6 +25,40 @@ from App_PADESCE.core.gandi_deploy import (
     save_runtime_config,
 )
 from App_PADESCE.core.models import AuditLog
+
+
+def _runtime_diagnostics() -> dict:
+    default_db = settings.DATABASES.get("default", {})
+    default_cache = settings.CACHES.get("default", {})
+    try:
+        db_vendor = connection.vendor
+    except Exception:
+        db_vendor = "inconnu"
+
+    db_name = str(default_db.get("NAME", "") or "").strip()
+    db_name_label = db_name
+    if db_vendor == "sqlite" and db_name:
+        db_name_label = Path(db_name).name
+
+    cache_backend = str(default_cache.get("BACKEND", "") or "").strip()
+    cache_location = str(default_cache.get("LOCATION", "") or "").strip()
+    cache_alias = caches["default"].__class__.__name__
+
+    return {
+        "db_vendor": db_vendor,
+        "db_engine": str(default_db.get("ENGINE", "") or "").strip(),
+        "db_name": db_name_label or "Non renseigne",
+        "db_host": str(default_db.get("HOST", "") or "").strip() or "-",
+        "database_url_present": bool(str(os.getenv("DATABASE_URL", "") or "").strip()),
+        "cache_backend": cache_backend or "Non renseigne",
+        "cache_alias": cache_alias,
+        "cache_location": cache_location or "-",
+        "session_engine": getattr(settings, "SESSION_ENGINE", ""),
+        "web_concurrency": str(os.getenv("WEB_CONCURRENCY", "") or "1"),
+        "web_timeout": str(os.getenv("WEB_TIMEOUT", "") or "180"),
+        "source_cache_timeout": str(os.getenv("PADESCE_SOURCE_CACHE_TIMEOUT", "") or "900"),
+        "analysis_cache_timeout": str(os.getenv("PADESCE_ANALYSIS_CACHE_TIMEOUT", "") or "300"),
+    }
 
 
 def _start_pipeline(mode: str) -> tuple[str, subprocess.Popen[bytes]]:
@@ -181,6 +218,7 @@ def deployment_dashboard(request):
     initial_run = active_run or (recent_runs[0] if recent_runs else None)
     context = {
         "config": config,
+        "runtime": _runtime_diagnostics(),
         "active_run": active_run,
         "recent_runs": recent_runs,
         "initial_run_json": json.dumps(initial_run or {}, ensure_ascii=True),

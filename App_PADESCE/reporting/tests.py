@@ -11,7 +11,9 @@ from django.urls import reverse
 from openpyxl import Workbook
 
 from App_PADESCE.appels.models import Appel
+from App_PADESCE.formations.models import Prestation
 from App_PADESCE.reporting import app_report, network_excel
+from App_PADESCE.reporting import views as reporting_views
 
 
 class NetworkWorkbookResolutionTests(SimpleTestCase):
@@ -546,3 +548,71 @@ class ReportAnomalyRowsTests(TestCase):
             next(row for row in duplicate_rows if row["call_id"] == duplicate.id)["apprenant_id"],
             "",
         )
+
+
+class ConsolidationImportCachingTests(TestCase):
+    def test_save_related_from_payload_reuses_prestation_lookup_for_duplicate_rows(self):
+        payload = [
+            {
+                "beneficiaire": "Beneficiaire Nord",
+                "prestataire": "Prestataire Alpha",
+                "intitule_formation_dispensee": "Formation X",
+                "fenetre": "2",
+                "lieu_formation": "Site A",
+                "classe_id": "CLA001",
+                "cohorte": "1",
+                "region": "Nord",
+                "departement": "Departement A",
+                "arrondissement": "Arrondissement A",
+                "ville_formation": "Garoua",
+                "longitude": "",
+                "latitude": "",
+                "precision_lieu": "",
+                "nom_complet": "Apprenant 1",
+                "code": "APP001",
+                "telephone1": "690000001",
+                "telephone2": "",
+                "age": "24",
+                "fonction": "Commercant",
+                "qualification": "Niveau 1",
+                "nb_annees_experience": "2",
+                "ville_residence": "Garoua",
+                "genre": "F",
+            },
+            {
+                "beneficiaire": "Beneficiaire Nord",
+                "prestataire": "Prestataire Alpha",
+                "intitule_formation_dispensee": "Formation X",
+                "fenetre": "2",
+                "lieu_formation": "Site A",
+                "classe_id": "CLA001",
+                "cohorte": "1",
+                "region": "Nord",
+                "departement": "Departement A",
+                "arrondissement": "Arrondissement A",
+                "ville_formation": "Garoua",
+                "longitude": "",
+                "latitude": "",
+                "precision_lieu": "",
+                "nom_complet": "Apprenant 2",
+                "code": "APP002",
+                "telephone1": "690000002",
+                "telephone2": "",
+                "age": "29",
+                "fonction": "Agriculteur",
+                "qualification": "Niveau 2",
+                "nb_annees_experience": "4",
+                "ville_residence": "Garoua",
+                "genre": "M",
+            },
+        ]
+
+        with patch(
+            "App_PADESCE.reporting.views._ensure_prestation",
+            wraps=reporting_views._ensure_prestation,
+        ) as mock_ensure_prestation:
+            created_count = reporting_views._save_related_from_payload(payload)
+
+        self.assertEqual(created_count, 2)
+        self.assertEqual(mock_ensure_prestation.call_count, 1)
+        self.assertEqual(Prestation.objects.count(), 1)

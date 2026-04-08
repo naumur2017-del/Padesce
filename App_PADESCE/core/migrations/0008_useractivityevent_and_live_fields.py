@@ -6,7 +6,6 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ("core", "0007_useractivity_last_city_useractivity_last_country_and_more"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
@@ -46,20 +45,46 @@ class Migration(migrations.Migration):
         migrations.CreateModel(
             name="UserActivityEvent",
             fields=[
-                ("id", models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),
-                ("event_type", models.CharField(choices=[("page_view", "Page view"), ("button_click", "Button click"), ("link_click", "Link click")], max_length=30)),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True, primary_key=True, serialize=False, verbose_name="ID"
+                    ),
+                ),
+                (
+                    "event_type",
+                    models.CharField(
+                        choices=[
+                            ("page_view", "Page view"),
+                            ("button_click", "Button click"),
+                            ("link_click", "Link click"),
+                        ],
+                        max_length=30,
+                    ),
+                ),
                 ("page_path", models.CharField(blank=True, default="", max_length=255)),
                 ("page_title", models.CharField(blank=True, default="", max_length=255)),
                 ("target_label", models.CharField(blank=True, default="", max_length=255)),
                 ("target_path", models.CharField(blank=True, default="", max_length=255)),
                 ("occurred_at", models.DateTimeField(auto_now_add=True)),
-                ("user", models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name="activity_events", to=settings.AUTH_USER_MODEL)),
+                (
+                    "user",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="activity_events",
+                        to=settings.AUTH_USER_MODEL,
+                    ),
+                ),
             ],
             options={
                 "ordering": ["-occurred_at"],
                 "indexes": [
-                    models.Index(fields=["user", "-occurred_at"], name="core_userac_user_id_aa8d99_idx"),
-                    models.Index(fields=["event_type", "-occurred_at"], name="core_userac_event_t_5a6ed8_idx"),
+                    models.Index(
+                        fields=["user", "-occurred_at"], name="core_userac_user_id_aa8d99_idx"
+                    ),
+                    models.Index(
+                        fields=["event_type", "-occurred_at"], name="core_userac_event_t_5a6ed8_idx"
+                    ),
                 ],
             },
         ),
