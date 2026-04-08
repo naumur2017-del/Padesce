@@ -52,12 +52,12 @@
   <div class="cards-row top">
     <article class="card">
       <div class="value">{{ card_prestations_count }}</div>
-      <div class="label">Prestations analysees</div>
+      <div class="label">Prestations analysées</div>
     </article>
     <article class="card">
       <div class="value">{{ card_classes_count }}</div>
       <div class="label">
-        Classes analysees
+        Classes analysées
         {% if card_fenetres %}
         <div style="font-size:0.75rem; color:var(--muted); font-weight:normal;">Fenetre: {{ card_fenetres|join:", " }}</div>
         {% endif %}
@@ -65,15 +65,15 @@
     </article>
     <article class="card">
       <div class="value">{{ card_prestataires_count }}</div>
-      <div class="label">Prestataires analyses</div>
+      <div class="label">Prestataires analysés</div>
     </article>
     <article class="card">
       <div class="value">{{ card_beneficiaires_count }}</div>
-      <div class="label">Beneficiaires analyses</div>
+      <div class="label">Bénéficiaires analysés</div>
     </article>
     <article class="card">
       <div class="value">{{ card_apprenants_count }}</div>
-      <div class="label">Apprenants analyses</div>
+      <div class="label">Apprenants analysés</div>
     </article>
   </div>
   <div class="cards-row bottom">
@@ -83,15 +83,15 @@
     </article>
     <article class="card" style="border-top: 3px solid #f59e0b;" data-filter="tente">
       <div class="value">{{ summary_tentes }}</div>
-      <div class="label">Appels inities</div>
+      <div class="label">Appels tentés</div>
     </article>
     <article class="card" style="border-top: 3px solid #10b981;" data-filter="reussi">
       <div class="value">{{ summary_reussis }}</div>
-      <div class="label">Appels reussis</div>
+      <div class="label">Appels réussis</div>
     </article>
     <article class="card" style="border-top: 3px solid #6366f1;" data-filter="form">
       <div class="value">{{ summary_form_remplis }}</div>
-      <div class="label">Formulaires remplis</div>
+      <div class="label">Formulaires remplis : Total</div>
     </article>
     <article class="card" style="border-top: 3px solid #2563eb;">
       <div class="value">{{ summary_form_sans_audio }}</div>
@@ -103,7 +103,7 @@
     </article>
     <article class="card" style="border-top: 3px solid #14b8a6;" data-filter="audio">
       <div class="value">{{ summary_audios }}</div>
-      <div class="label">Audios enregistres</div>
+      <div class="label">Audios enregistrés</div>
     </article>
   </div>
 </section>
