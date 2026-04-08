@@ -1016,11 +1016,9 @@ def class_analysis_detail(request, code: str):
     channel_link = ""
     try:
         import pandas as pd
+
         excel_path = (
-            Path(__file__).resolve().parents[2]
-            / "data"
-            / "class_lien"
-            / "class_lien_cannaux.xlsx"
+            Path(__file__).resolve().parents[2] / "data" / "class_lien" / "class_lien_cannaux.xlsx"
         )
         df = pd.read_excel(excel_path)
         for _, row in df.iterrows():
@@ -1049,8 +1047,7 @@ def class_analysis_detail(request, code: str):
             "class_links": [],
             "class_chapeau": class_chapeau,
             "matching_note": (
-                "Rattachement formateurs via prestataire, "
-                "beneficiaire, cohorte et formation."
+                "Rattachement formateurs via prestataire, " "beneficiaire, cohorte et formation."
             ),
             "prestation_detail_url": prestation_detail_url,
             "reference_warning": reference_warning,
