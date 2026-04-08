@@ -1378,6 +1378,8 @@ def _build_table_details_context(context: dict, rows: list[dict]) -> dict[str, d
 def _build_appel_status_summary(
     *,
     target_class_codes: list[str] | None = None,
+    strict_form_q=None,
+    appels_cibles_override: int = 0,
 ) -> dict[str, int]:
     from django.db.models import Count as _Count
     from django.db.models import Q as _Q
@@ -1403,16 +1405,26 @@ def _build_appel_status_summary(
             | _Q(flag_pas_forme=True)
             | _Q(flag_faux_nom=True)
         )
+        form_filter = strict_form_q if strict_form_q is not None else _Q(status__in=CALL_FORM_STATUSES)
+        forms_with_audio_filter = (
+            form_filter & _Q(audio_file__isnull=False) & ~_Q(audio_file="")
+            if strict_form_q is not None
+            else _Q(status="formulaire_avec_audio")
+        )
+        forms_without_audio_filter = form_filter & (_Q(audio_file__isnull=True) | _Q(audio_file=""))
 
-        return queryset.aggregate(
+        summary = queryset.aggregate(
             appels_tentes=_Count("id", filter=~_Q(status="en_attente")),
             appels_reussis=_Count("id", filter=success_q),
-            formulaires_remplis=_Count("id", filter=_Q(status__in=CALL_FORM_STATUSES)),
-            formulaires_avec_audio=_Count("id", filter=_Q(status="formulaire_avec_audio")),
+            formulaires_remplis=_Count("id", filter=form_filter),
+            formulaires_remplis_sans_audio=_Count("id", filter=forms_without_audio_filter),
+            formulaires_avec_audio=_Count("id", filter=forms_with_audio_filter),
             audios_enregistres=_Count(
                 "id", filter=_Q(audio_file__isnull=False) & ~_Q(audio_file="")
             ),
         )
+        summary["appels_cibles"] = int(appels_cibles_override or 0) or queryset.count()
+        return summary
     except Exception as exc:
         try:
             from django.test.testcases import DatabaseOperationForbidden
@@ -1420,9 +1432,11 @@ def _build_appel_status_summary(
             DatabaseOperationForbidden = None
         if DatabaseOperationForbidden and isinstance(exc, DatabaseOperationForbidden):
             return {
+                "appels_cibles": 0,
                 "appels_tentes": 0,
                 "appels_reussis": 0,
                 "formulaires_remplis": 0,
+                "formulaires_remplis_sans_audio": 0,
                 "formulaires_avec_audio": 0,
                 "audios_enregistres": 0,
             }
@@ -2874,15 +2888,68 @@ def _build_satisfaction_dashboard_data(request):
         "status": filter_options.get("status", []),
         "filter_map_json": filter_map_json,
     }
+    counter_source_bundle = source_bundle
+    counter_source_summary = source_summary
+    counter_filters = dict(filters)
+    counter_filters["source"] = ANALYSIS_DASHBOARD_DEFAULT_SOURCE
+    counter_threshold_class_codes = threshold_class_codes
+    if selected_source != ANALYSIS_DASHBOARD_DEFAULT_SOURCE:
+        try:
+            counter_source_bundle = build_padesce_source_index(
+                source_key=ANALYSIS_DASHBOARD_DEFAULT_SOURCE
+            )
+            counter_threshold_class_codes = _status_threshold_class_codes(counter_source_bundle)
+            _counter_rows, counter_source_summary = _attach_network_source_to_rows(
+                [],
+                source_bundle=counter_source_bundle,
+                source_key=ANALYSIS_DASHBOARD_DEFAULT_SOURCE,
+            )
+        except Exception:
+            counter_source_bundle = source_bundle
+            counter_source_summary = source_summary
+            counter_threshold_class_codes = threshold_class_codes
+
+    _counter_rows, counter_classe_stats_seuil = _thresholded_dashboard_rows(
+        all_rows,
+        counter_filters,
+        classe_apprenant_counts,
+        threshold_class_codes=counter_threshold_class_codes,
+    )
     target_class_codes = [
         str(item.get("code") or "").strip()
-        for item in classe_stats_seuil
-        if str(item.get("code") or "").strip()
+        for item in counter_classe_stats_seuil
+        if str(item.get("code") or "").strip() and item.get("threshold_reached")
     ]
-    _appel_stats = _build_appel_status_summary(target_class_codes=target_class_codes)
+    q_fields = [
+        "q1_clarte_exposes",
+        "q2_interaction_formateur",
+        "q3_maitrise_contenu",
+        "q4_salle_adequate",
+        "q5_materiel_disponible",
+        "q6_organisation_temps",
+        "q7_utilite_formation",
+        "q8_adequation_besoins",
+        "q9_satisfaction_globale",
+    ]
+    answers_valid_q = Q()
+    for field_name in q_fields:
+        answers_valid_q &= Q(**{f"answers__{field_name}__isnull": False})
+
+    survey_valid_q = Q(satisfaction_apprenant__isnull=False)
+    strict_form_q = answers_valid_q | survey_valid_q
+    appels_cibles_override = int(counter_source_summary.get("source_apprenant_count") or 0)
+    _appel_stats = _build_appel_status_summary(
+        target_class_codes=target_class_codes,
+        strict_form_q=strict_form_q,
+        appels_cibles_override=appels_cibles_override,
+    )
+    context["appels_cibles"] = _appel_stats["appels_cibles"]
     context["appels_tentes"] = _appel_stats["appels_tentes"]
     context["appels_reussis"] = _appel_stats["appels_reussis"]
     context["formulaires_remplis_appels"] = _appel_stats["formulaires_remplis"]
+    context["formulaires_remplis_sans_audio_appels"] = _appel_stats[
+        "formulaires_remplis_sans_audio"
+    ]
     context["formulaires_avec_audio_appels"] = _appel_stats["formulaires_avec_audio"]
     context["audios_enregistres_appels"] = _appel_stats["audios_enregistres"]
     context["tab_details"] = _build_table_details_context(context, rows)

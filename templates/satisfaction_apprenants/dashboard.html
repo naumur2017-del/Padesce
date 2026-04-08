@@ -44,12 +44,6 @@
   .analysis-list { max-height:220px; overflow:auto; display:flex; flex-direction:column; gap:8px; }
   .analysis-item { display:flex; justify-content:space-between; gap:8px; font-size:0.84rem; padding:8px 10px; border-radius:10px; background:rgba(111,60,195,0.05); }
   .analysis-item strong { color:var(--accent-strong); }
-  .source-grid { display:grid; gap:12px; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); margin-bottom:14px; }
-  .source-card { border:1px solid var(--border); border-radius:12px; background:rgba(111,60,195,0.04); padding:14px; }
-  .source-card .label { font-size:0.8rem; color:var(--muted); text-transform:uppercase; letter-spacing:0.04em; }
-  .source-card .value { margin-top:8px; font-size:1.4rem; font-weight:800; color:var(--accent-strong); }
-  .source-card .meta { margin-top:6px; font-size:0.82rem; color:var(--muted); line-height:1.45; }
-  .source-note { margin-bottom:14px; padding:12px 14px; border-radius:12px; border:1px solid var(--border); background:rgba(111,60,195,0.05); color:var(--text); }
   .source-pill { display:inline-flex; align-items:center; padding:6px 10px; border-radius:999px; font-size:0.75rem; font-weight:700; white-space:nowrap; }
   .source-pill-success { background:rgba(34,197,94,0.14); color:#166534; }
   .source-pill-warning { background:rgba(245,158,11,0.16); color:#92400e; }
@@ -830,57 +824,6 @@
       <a class="btn btn-ghost btn-sm" href="{% url 'satisfaction_dashboard_export_chapeau' %}{% if request.GET.urlencode %}?{{ request.GET.urlencode }}{% endif %}">Exporter le chapeau (DOCX)</a>
     </div>
   </div>
-  {% if source_summary.available %}
-  <div class="source-grid">
-    <div class="source-card">
-      <div class="label">Source réseau</div>
-      <div class="value">{{ source_summary.name }}</div>
-      <div class="meta">Mise à jour {{ source_summary.modified_label }}</div>
-    </div>
-    <div class="source-card">
-      <div class="label">ApprenantID trouvés</div>
-      <div class="value">{{ source_summary.apprenant_id_count }}</div>
-      <div class="meta">{{ source_summary.matched_count }} ligne(s) reliée(s) au classeur source</div>
-    </div>
-    <div class="source-card">
-      <div class="label">Cohérentes</div>
-      <div class="value">{{ source_summary.consistent_count }}</div>
-      <div class="meta">Lignes sans écart détecté</div>
-    </div>
-    <div class="source-card">
-      <div class="label">À vérifier</div>
-      <div class="value">{{ source_summary.mismatch_count }}</div>
-      <div class="meta">Écart sur le nom, la classe, le prestataire ou le bénéficiaire</div>
-    </div>
-    <div class="source-card">
-      <div class="label">Absentes de la source</div>
-      <div class="value">{{ source_summary.missing_count }}</div>
-      <div class="meta">Codes d'appels introuvables dans la feuille Apprenants</div>
-    </div>
-    <div class="source-card">
-      <div class="label">Apprenants joignables source</div>
-      <div class="value">{{ source_summary.source_apprenant_count }}</div>
-      <div class="meta">{{ source_summary.duplicate_code_count }} doublon(s) détecté(s) dans le classeur, hors lignes sans numéro</div>
-    </div>
-  </div>
-  {% if source_summary.mismatch_rows %}
-  <div class="source-note">
-    <strong>Contrôle de cohérence :</strong> voici les premières lignes à vérifier entre le classeur réseau et la table des appels PADESCE.
-    <div class="analysis-list" style="margin-top:10px; max-height:180px;">
-      {% for item in source_summary.mismatch_rows %}
-      <div class="analysis-item" title="{{ item.alerts_label }}">
-        <span>{{ item.code }} | {{ item.apprenant_id|default:"-" }} | {{ item.nom }}</span>
-        <strong>À vérifier</strong>
-      </div>
-      {% endfor %}
-    </div>
-  </div>
-  {% endif %}
-  {% else %}
-  <div class="source-note">
-    <strong>Source réseau indisponible :</strong> {{ source_summary.message }}
-  </div>
-  {% endif %}
   <div class="tab-bar">
     <button class="tab-btn {% if active_tab == 'tab-apprenants' %}active{% endif %}" data-tab="tab-apprenants" type="button">Liste enquêtes</button>
     <button class="tab-btn {% if active_tab == 'tab-classe' %}active{% endif %}" data-tab="tab-classe" type="button">Par classe</button>
