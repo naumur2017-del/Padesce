@@ -2888,6 +2888,14 @@ def _build_satisfaction_dashboard_data(request):
         "status": filter_options.get("status", []),
         "filter_map_json": filter_map_json,
     }
+    appels_cibles_class_codes = [
+        str(item.get("code") or "").strip()
+        for item in classe_stats_seuil
+        if str(item.get("code") or "").strip() and item.get("threshold_reached")
+    ]
+    appels_cibles_stats = _build_appel_status_summary(
+        target_class_codes=appels_cibles_class_codes,
+    )
     counter_source_bundle = source_bundle
     counter_source_summary = source_summary
     counter_filters = dict(filters)
@@ -2937,13 +2945,11 @@ def _build_satisfaction_dashboard_data(request):
 
     survey_valid_q = Q(satisfaction_apprenant__isnull=False)
     strict_form_q = answers_valid_q | survey_valid_q
-    appels_cibles_override = int(counter_source_summary.get("source_apprenant_count") or 0)
     _appel_stats = _build_appel_status_summary(
         target_class_codes=target_class_codes,
         strict_form_q=strict_form_q,
-        appels_cibles_override=appels_cibles_override,
     )
-    context["appels_cibles"] = _appel_stats["appels_cibles"]
+    context["appels_cibles"] = appels_cibles_stats["appels_cibles"]
     context["appels_tentes"] = _appel_stats["appels_tentes"]
     context["appels_reussis"] = _appel_stats["appels_reussis"]
     context["formulaires_remplis_appels"] = _appel_stats["formulaires_remplis"]
