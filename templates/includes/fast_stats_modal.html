@@ -35,6 +35,7 @@
     aria-labelledby="js-fast-stats-title"
     data-api-url="{% url 'fast_stats_api' %}"
     data-export-url="{% url 'fast_stats_export_xlsx' %}"
+    data-class-base-url="{% url 'class_analysis_detail' 'PLACEHOLDER' %}"
     data-default-mode="{{ fast_stats_default_mode }}"
   >
     <div class="fast-stats-topbar">
@@ -71,6 +72,7 @@
 
     const apiUrl = modalCard.dataset.apiUrl;
     const exportUrl = modalCard.dataset.exportUrl;
+    const classBaseUrl = modalCard.dataset.classBaseUrl;
     let activeMode = modalCard.dataset.defaultMode || "apprenant";
     let bundle = null;
     let lastQueryKey = "";
@@ -107,7 +109,7 @@
         <tr>
           <td class="num">${displayValue(row.index)}</td>
           <td>${displayValue(row.prestation_id)}</td>
-          <td>${displayValue(row.classe_id)}</td>
+          <td><a class="fast-stats-link" href="${classBaseUrl ? classBaseUrl.replace('PLACEHOLDER', encodeURIComponent(row.classe_id)) : '#'}" target="_blank" rel="noreferrer">${displayValue(row.classe_id)}</a></td>
           <td class="num">${displayValue(row.apprenant_count)}</td>
           <td class="num">${displayValue(row.calls_effectues)}</td>
           <td class="num">${displayValue(row.calls_termines)}</td>
@@ -137,7 +139,7 @@
         <tr>
           <td class="num">${displayValue(row.index)}</td>
           <td>${displayValue(row.prestation_id)}</td>
-          <td>${displayValue(row.classe_id)}</td>
+          <td><a class="fast-stats-link" href="${classBaseUrl ? classBaseUrl.replace('PLACEHOLDER', encodeURIComponent(row.classe_id)) : '#'}" target="_blank" rel="noreferrer">${displayValue(row.classe_id)}</a></td>
           <td>${row.class_link_url ? `<a class="fast-stats-link" href="${escapeHtml(row.class_link_url)}" target="_blank" rel="noreferrer">${displayValue(row.class_link_label)}</a>` : "—"}</td>
           <td>${displayValue(row.beneficiaire_name)}</td>
           <td>${displayValue(row.prestataire_name)}</td>
