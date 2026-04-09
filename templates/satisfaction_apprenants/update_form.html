@@ -58,7 +58,7 @@
 <div class="header">
   <div>
     <h1>UPDATE FORM</h1>
-    <p>Edition batch des formulaires et des statuts apprenants a partir des codes ou des lignes cochees. Une seule page regroupe maintenant les apprenants <strong>Termine sans formulaire</strong> et ceux avec <strong>formulaire present mais statut non termine</strong>.</p>
+    <p>Edition batch des formulaires et des statuts apprenants a partir des codes ou des lignes cochees. La page regroupe les apprenants <strong>Termine sans formulaire</strong>, ceux avec <strong>formulaire present mais statut non termine</strong>, ainsi qu'une vue complete des apprenants actifs avec leurs statuts.</p>
   </div>
   <div class="actions">
     <a class="btn btn-ghost" href="{{ dashboard_url }}">Retour dashboard</a>
@@ -100,8 +100,12 @@
     <div class="value">{{ form_status_issue_total }}</div>
   </article>
   <article class="card">
-    <div class="label">Cibles Totales Affichees</div>
+    <div class="label">Lignes A Corriger</div>
     <div class="value">{{ candidate_total }}</div>
+  </article>
+  <article class="card">
+    <div class="label">Tous Les Apprenants Actifs</div>
+    <div class="value">{{ all_apprenants_total }}</div>
   </article>
 </section>
 
@@ -220,6 +224,7 @@
                   <input type="checkbox" data-master-checkbox="termine-without-form" aria-label="Selectionner tous les apprenants termines sans formulaire">
                 </th>
                 <th>Code</th>
+                <th>Apprenant ID</th>
                 <th>Nom</th>
                 <th>Classe</th>
                 <th>Prestation</th>
@@ -245,6 +250,12 @@
                     >
                   </td>
                   <td><strong>{{ row.code }}</strong></td>
+                  <td>
+                    <strong>{{ row.apprenant_id|default:"-" }}</strong>
+                    {% if row.apprenant_db_label %}
+                      <div class="muted">{{ row.apprenant_db_label }}</div>
+                    {% endif %}
+                  </td>
                   <td>{{ row.nom }}</td>
                   <td>{{ row.classe_code }}</td>
                   <td>{{ row.prestation_code }}</td>
@@ -263,10 +274,10 @@
           <div class="pager">
             <div class="meta">Page {{ termine_without_form_page_obj.number }} / {{ termine_without_form_page_obj.paginator.num_pages }}</div>
             {% if termine_without_form_page_obj.has_previous %}
-              <a class="btn btn-ghost" href="?source={{ selected_source }}&termine_page={{ termine_without_form_page_obj.previous_page_number }}&status_page={{ form_status_issue_page_obj.number }}">Precedent</a>
+              <a class="btn btn-ghost" href="?source={{ selected_source }}&termine_page={{ termine_without_form_page_obj.previous_page_number }}&status_page={{ form_status_issue_page_obj.number }}&all_page={{ all_apprenants_page_obj.number }}">Precedent</a>
             {% endif %}
             {% if termine_without_form_page_obj.has_next %}
-              <a class="btn btn-ghost" href="?source={{ selected_source }}&termine_page={{ termine_without_form_page_obj.next_page_number }}&status_page={{ form_status_issue_page_obj.number }}">Suivant</a>
+              <a class="btn btn-ghost" href="?source={{ selected_source }}&termine_page={{ termine_without_form_page_obj.next_page_number }}&status_page={{ form_status_issue_page_obj.number }}&all_page={{ all_apprenants_page_obj.number }}">Suivant</a>
             {% endif %}
           </div>
         {% endif %}
@@ -292,6 +303,7 @@
                   <input type="checkbox" data-master-checkbox="form-status-issue" aria-label="Selectionner tous les apprenants avec formulaire present et statut non termine">
                 </th>
                 <th>Code</th>
+                <th>Apprenant ID</th>
                 <th>Nom</th>
                 <th>Classe</th>
                 <th>Prestation</th>
@@ -317,6 +329,12 @@
                     >
                   </td>
                   <td><strong>{{ row.code }}</strong></td>
+                  <td>
+                    <strong>{{ row.apprenant_id|default:"-" }}</strong>
+                    {% if row.apprenant_db_label %}
+                      <div class="muted">{{ row.apprenant_db_label }}</div>
+                    {% endif %}
+                  </td>
                   <td>{{ row.nom }}</td>
                   <td>{{ row.classe_code }}</td>
                   <td>{{ row.prestation_code }}</td>
@@ -335,15 +353,80 @@
           <div class="pager">
             <div class="meta">Page {{ form_status_issue_page_obj.number }} / {{ form_status_issue_page_obj.paginator.num_pages }}</div>
             {% if form_status_issue_page_obj.has_previous %}
-              <a class="btn btn-ghost" href="?source={{ selected_source }}&termine_page={{ termine_without_form_page_obj.number }}&status_page={{ form_status_issue_page_obj.previous_page_number }}">Precedent</a>
+              <a class="btn btn-ghost" href="?source={{ selected_source }}&termine_page={{ termine_without_form_page_obj.number }}&status_page={{ form_status_issue_page_obj.previous_page_number }}&all_page={{ all_apprenants_page_obj.number }}">Precedent</a>
             {% endif %}
             {% if form_status_issue_page_obj.has_next %}
-              <a class="btn btn-ghost" href="?source={{ selected_source }}&termine_page={{ termine_without_form_page_obj.number }}&status_page={{ form_status_issue_page_obj.next_page_number }}">Suivant</a>
+              <a class="btn btn-ghost" href="?source={{ selected_source }}&termine_page={{ termine_without_form_page_obj.number }}&status_page={{ form_status_issue_page_obj.next_page_number }}&all_page={{ all_apprenants_page_obj.number }}">Suivant</a>
             {% endif %}
           </div>
         {% endif %}
       {% else %}
         <div class="empty">Aucun apprenant actif avec formulaire complet et statut non termine.</div>
+      {% endif %}
+    </div>
+
+    <div class="panel" style="margin-top:16px;">
+      <div class="section-title">
+        <div>
+          <h2>Tous Les Apprenants Actifs</h2>
+          <p>Vue complete de tous les apprenants actuellement presents dans le flux d'appels, avec leur statut courant et leur statut calcule.</p>
+        </div>
+      </div>
+      {% if all_apprenants_rows %}
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Code</th>
+                <th>Apprenant ID</th>
+                <th>Nom</th>
+                <th>Classe</th>
+                <th>Prestation</th>
+                <th>Statut actuel</th>
+                <th>Statut calcule</th>
+                <th>Audio</th>
+                <th>Formulaire</th>
+                <th>Commentaire</th>
+                <th>Recommandations</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in all_apprenants_rows %}
+                <tr>
+                  <td><strong>{{ row.code }}</strong></td>
+                  <td>
+                    <strong>{{ row.apprenant_id|default:"-" }}</strong>
+                    {% if row.apprenant_db_label %}
+                      <div class="muted">{{ row.apprenant_db_label }}</div>
+                    {% endif %}
+                  </td>
+                  <td>{{ row.nom }}</td>
+                  <td>{{ row.classe_code }}</td>
+                  <td>{{ row.prestation_code }}</td>
+                  <td><span class="pill pill-no">{{ row.current_status_label }}</span></td>
+                  <td><span class="pill pill-soft">{{ row.computed_status_label }}</span></td>
+                  <td>{{ row.audio_label }}</td>
+                  <td>{{ row.formulaire_label }}</td>
+                  <td>{{ row.commentaire }}</td>
+                  <td>{{ row.recommandations }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% if all_apprenants_page_obj.paginator.num_pages > 1 %}
+          <div class="pager">
+            <div class="meta">Page {{ all_apprenants_page_obj.number }} / {{ all_apprenants_page_obj.paginator.num_pages }}</div>
+            {% if all_apprenants_page_obj.has_previous %}
+              <a class="btn btn-ghost" href="?source={{ selected_source }}&termine_page={{ termine_without_form_page_obj.number }}&status_page={{ form_status_issue_page_obj.number }}&all_page={{ all_apprenants_page_obj.previous_page_number }}">Precedent</a>
+            {% endif %}
+            {% if all_apprenants_page_obj.has_next %}
+              <a class="btn btn-ghost" href="?source={{ selected_source }}&termine_page={{ termine_without_form_page_obj.number }}&status_page={{ form_status_issue_page_obj.number }}&all_page={{ all_apprenants_page_obj.next_page_number }}">Suivant</a>
+            {% endif %}
+          </div>
+        {% endif %}
+      {% else %}
+        <div class="empty">Aucun apprenant actif disponible.</div>
       {% endif %}
     </div>
 

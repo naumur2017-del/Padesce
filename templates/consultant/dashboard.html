@@ -227,7 +227,12 @@
               data-has-form="{{ row.consultant_has_form|yesno:'1,0' }}"
               data-has-audio="{{ row.consultant_has_audio|yesno:'1,0' }}">
             <td>{{ row.nom }}</td>
-            <td>{{ row.apprenant_id|default:"-" }}</td>
+            <td>
+              <strong>{{ row.apprenant_id|default:"-" }}</strong>
+              {% if row.apprenant_db_label %}
+                <div class="row-meta">{{ row.apprenant_db_label }}</div>
+              {% endif %}
+            </td>
             <td>
               {% if row.classe %}
                 <a href="{% url 'class_detail' row.classe.id %}" style="text-decoration:underline;">{{ row.consultant_class_display|default:row.classe_label|default:"-" }}</a>

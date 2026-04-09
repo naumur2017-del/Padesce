@@ -23,7 +23,11 @@ from App_PADESCE.appels.models import (
 from App_PADESCE.apprenants.models import Apprenant
 from App_PADESCE.core.access import require_analysis_access
 from App_PADESCE.core.analysis_rules import appel_is_analysis_eligible
-from App_PADESCE.core.apprenant_id_registry import get_apprenant_id_from_presence_report
+from App_PADESCE.core.apprenant_lookup import (
+    get_local_apprenant_db_label,
+    get_local_apprenant_identifier,
+    match_apprenants_to_appels,
+)
 from App_PADESCE.environnement.models import EnqueteEnvironnement
 from App_PADESCE.formations.forms import ClasseCreateForm
 from App_PADESCE.formations.models import Classe, Lieu, Prestation
@@ -566,17 +570,9 @@ def _resolve_classe_for_formateur_analysis(row: AppelFormateur):
     return candidates[0] if candidates else None
 
 
-def _get_apprenant_id_for_appel(appel: Appel) -> str:
-    """Returns APP ID strictly from rapport presence workbook."""
-    classe_code = str(
-        getattr(getattr(appel, "classe", None), "code", "")
-        or getattr(appel, "classe_label", "")
-        or ""
-    ).strip()
-    return get_apprenant_id_from_presence_report(str(appel.nom or "").strip(), classe_code)
-
-
 def _build_apprenant_rows(appels, *, back_url: str):
+    appels = list(appels)
+    matched_apprenants = match_apprenants_to_appels(appels)
     rows = []
     for appel in appels:
         answers = _appel_answers_or_none(appel)
@@ -588,12 +584,13 @@ def _build_apprenant_rows(appels, *, back_url: str):
         has_audio, audio_url = _resolve_apprenant_audio(appel, satisfaction)
         call_count = _apprenant_call_count(appel, form_state["has_form"], has_audio)
         detail_url = _detail_url("analysis_apprenant_call_detail", appel.pk, back_url)
-        apprenant_id = _get_apprenant_id_for_appel(appel)
+        apprenant = matched_apprenants.get(appel.pk)
         rows.append(
             {
                 "id": appel.pk,
                 "code": appel.code,
-                "apprenant_id": apprenant_id,
+                "apprenant_id": get_local_apprenant_identifier(apprenant),
+                "apprenant_db_label": get_local_apprenant_db_label(apprenant),
                 "nom": appel.nom,
                 "telephone": appel.telephone1 or appel.telephone2 or "",
                 "statut": appel.status,
@@ -801,9 +798,8 @@ def class_detail(request, pk: int):
     apprenants_qs = getattr(classe, "apprenants", None)
     apprenants = list(apprenants_qs.all()) if apprenants_qs is not None else []
     for apprenant in apprenants:
-        apprenant.apprenant_id = get_apprenant_id_from_presence_report(
-            apprenant.nom_complet, getattr(classe, "code", "")
-        )
+        apprenant.apprenant_id = get_local_apprenant_identifier(apprenant)
+        apprenant.apprenant_db_label = get_local_apprenant_db_label(apprenant)
     return render(
         request,
         "formations/class_detail.html",

@@ -61,12 +61,17 @@ from App_PADESCE.core.analysis_rules import (
     set_appel_manual_exclusion,
     toggle_appel_manual_exclusion,
 )
-from App_PADESCE.core.apprenant_id_registry import get_apprenant_id_from_presence_report
 from App_PADESCE.core.cache_versions import get_analysis_cache_version
 from App_PADESCE.core.call_metrics import (
     count_callable_source_records_by_class,
     has_usable_phone,
     normalize_phone_digits,
+)
+from App_PADESCE.core.apprenant_lookup import (
+    get_local_apprenant_db_label,
+    get_local_apprenant_identifier,
+    match_apprenants_to_appels,
+    resolve_apprenant_for_appel,
 )
 from App_PADESCE.core.fast_stats import build_fast_stats_context
 from App_PADESCE.formations.models import Classe
@@ -670,7 +675,7 @@ def _autosize_worksheet(worksheet, max_width: int = 40):
         )
 
 
-def _dashboard_row_from_answer(answer_or_appel) -> dict:
+def _dashboard_row_from_answer(answer_or_appel, *, matched_apprenant: Apprenant | None = None) -> dict:
     if hasattr(answer_or_appel, "appel"):
         answer = answer_or_appel
         appel = answer.appel
@@ -725,15 +730,14 @@ def _dashboard_row_from_answer(answer_or_appel) -> dict:
         val = getattr(answer, field, None) if answer else None
         if val is None and survey:
             val = getattr(survey, field, None)
-        if val not in (None, ""):
-            q_filled_count += 1
+    if val not in (None, ""):
+        q_filled_count += 1
     has_form = q_filled_count >= 9
 
+    apprenant = matched_apprenant or resolve_apprenant_for_appel(appel)
     classe_code = getattr(classe, "code", "") or appel.classe_label or ""
-    apprenant_code = appel.code or ""
-    apprenant_id = get_apprenant_id_from_presence_report(
-        str(appel.nom or "").strip(), str(classe_code)
-    )
+    apprenant_code = getattr(apprenant, "code", "") or appel.code or ""
+    apprenant_id = get_local_apprenant_identifier(apprenant)
 
     return {
         "id": getattr(answer, "id", None),
@@ -756,7 +760,8 @@ def _dashboard_row_from_answer(answer_or_appel) -> dict:
         "ville": ville,
         "apprenant_code": apprenant_code,
         "apprenant_id": apprenant_id,
-        "apprenant_nom": appel.nom or "",
+        "apprenant_db_label": get_local_apprenant_db_label(apprenant),
+        "apprenant_nom": getattr(apprenant, "nom_complet", "") or appel.nom or "",
         "telephone1": appel.telephone1 or "",
         "telephone2": appel.telephone2 or "",
         "has_phone": has_phone,
@@ -767,8 +772,10 @@ def _dashboard_row_from_answer(answer_or_appel) -> dict:
             if answer
             else "Non renseigné"
         ),
-        "commentaire": getattr(answer, "commentaire", "") if answer else "",
-        "recommandations": getattr(answer, "recommandations", "") if answer else "",
+        "commentaire": getattr(answer or survey, "commentaire", "") if (answer or survey) else "",
+        "recommandations": (
+            getattr(answer or survey, "recommandations", "") if (answer or survey) else ""
+        ),
         "analysis_scope": analysis_scope,
         "analysis_eligible": analysis_eligible,
         "analysis_included": has_form and analysis_eligible,
@@ -2513,8 +2520,18 @@ def _build_satisfaction_dashboard_data(request):
         return cached_payload
     threshold_class_codes = _status_threshold_class_codes(source_bundle)
 
+    answers = list(_satisfaction_dashboard_base_queryset())
+    matched_apprenants = match_apprenants_to_appels(
+        [answer.appel if hasattr(answer, "appel") else answer for answer in answers]
+    )
     all_rows = [
-        _dashboard_row_from_answer(answer) for answer in _satisfaction_dashboard_base_queryset()
+        _dashboard_row_from_answer(
+            answer,
+            matched_apprenant=matched_apprenants.get(
+                getattr(getattr(answer, "appel", answer), "pk", None)
+            ),
+        )
+        for answer in answers
     ]
     all_rows = [
         row for row in all_rows if row["fenetre"] in {"2", "3"} and row.get("analysis_included")
@@ -3793,6 +3810,8 @@ def _build_update_form_candidate_row(
         selection_value = f"{appel.code}|{classe_code}"
     return {
         "code": appel.code,
+        "apprenant_id": get_local_apprenant_identifier(apprenant),
+        "apprenant_db_label": get_local_apprenant_db_label(apprenant),
         "nom": str(appel.nom or getattr(apprenant, "nom_complet", "") or "-").strip() or "-",
         "classe_code": classe_code,
         "prestation_code": prestation_code,
@@ -3840,22 +3859,13 @@ def _form_status_issue_queryset():
 
 
 def _build_update_form_rows_for_appels(appels) -> list[dict]:
-    apprenant_codes = [
-        str(appel.code or "").strip() for appel in appels if str(appel.code or "").strip()
-    ]
-    apprenants_by_code = {
-        str(apprenant.code or "").strip().casefold(): apprenant
-        for apprenant in Apprenant.objects.select_related("classe", "classe__prestation").filter(
-            code__in=apprenant_codes
-        )
-    }
+    appels = list(appels)
+    apprenants_by_appel = match_apprenants_to_appels(appels)
     rows: list[dict] = []
     for appel in appels:
         answer = _linked_one_to_one(appel, "answers")
         survey = _linked_one_to_one(appel, "satisfaction_apprenant")
-        apprenant = apprenants_by_code.get(str(appel.code or "").strip().casefold())
-        if apprenant is None:
-            apprenant = _resolve_batch_update_apprenant(appel)
+        apprenant = apprenants_by_appel.get(appel.pk)
         rows.append(_build_update_form_candidate_row(appel, apprenant, answer, survey))
     return rows
 
@@ -3905,23 +3915,7 @@ def _paginate_update_form_rows(
 
 
 def _resolve_batch_update_apprenant(appel: Appel) -> Apprenant | None:
-    apprenant = (
-        Apprenant.objects.select_related("classe", "formation")
-        .filter(code__iexact=str(appel.code or "").strip())
-        .first()
-    )
-    if apprenant:
-        return apprenant
-    # Temporarily disable expensive fallback search to prevent 500 errors
-    # from App_PADESCE.appels.views import _find_apprenant_for_appel
-    # fallback = _find_apprenant_for_appel(Apprenant.objects.all(), appel)
-    # if fallback is None:
-    #     return None
-    # return (
-    #     Apprenant.objects.select_related("classe", "formation").filter(pk=fallback.pk).first()
-    #     or fallback
-    # )
-    return None
+    return resolve_apprenant_for_appel(appel)
 
 
 def _batch_update_known_class_codes(appel: Appel, apprenant: Apprenant | None) -> list[str]:
@@ -4267,8 +4261,10 @@ def satisfaction_update_form_page(request):
 
     termine_qs = _termine_without_form_queryset()
     form_status_qs = _form_status_issue_queryset()
+    all_apprenants_qs = _update_form_candidate_base_queryset()
     termine_without_form_total = termine_qs.count()
     form_status_issue_total = form_status_qs.count()
+    all_apprenants_total = all_apprenants_qs.count()
     termine_page_obj, termine_without_form_rows = _paginate_update_form_rows(
         request,
         termine_qs,
@@ -4278,6 +4274,11 @@ def satisfaction_update_form_page(request):
         request,
         form_status_qs,
         page_param="status_page",
+    )
+    all_apprenants_page_obj, all_apprenants_rows = _paginate_update_form_rows(
+        request,
+        all_apprenants_qs,
+        page_param="all_page",
     )
 
     context = {
@@ -4292,6 +4293,9 @@ def satisfaction_update_form_page(request):
         "form_status_issue_rows": form_status_issue_rows,
         "form_status_issue_total": form_status_issue_total,
         "form_status_issue_page_obj": form_status_page_obj,
+        "all_apprenants_rows": all_apprenants_rows,
+        "all_apprenants_total": all_apprenants_total,
+        "all_apprenants_page_obj": all_apprenants_page_obj,
         "candidate_total": termine_without_form_total + form_status_issue_total,
         "selected_source": selected_source,
         "general_url": f"{reverse('satisfaction_general_page')}?source={selected_source}",
@@ -4577,8 +4581,18 @@ def apprenants_manquants_page(request):
         source_bundle = None
 
     # -- Calcul des prestations manquantes ---------------------------------
+    answers = list(_satisfaction_dashboard_base_queryset())
+    matched_apprenants = match_apprenants_to_appels(
+        [answer.appel if hasattr(answer, "appel") else answer for answer in answers]
+    )
     all_rows = [
-        _dashboard_row_from_answer(answer) for answer in _satisfaction_dashboard_base_queryset()
+        _dashboard_row_from_answer(
+            answer,
+            matched_apprenant=matched_apprenants.get(
+                getattr(getattr(answer, "appel", answer), "pk", None)
+            ),
+        )
+        for answer in answers
     ]
     all_rows = [row for row in all_rows if row["fenetre"] in {"2", "3"}]
     classe_apprenant_counts = dict(
