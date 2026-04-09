@@ -4,8 +4,7 @@
 pandas>=2.0.0
 openpyxl>=3.1.0
 
-# LangChain
-langchain>=0.2.0
+# LangChain runtime
 langchain-anthropic>=0.1.0
 langgraph>=0.1.0
 
