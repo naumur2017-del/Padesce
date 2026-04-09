@@ -18,4 +18,11 @@ urlpatterns = [
         lazy_view("App_PADESCE.satisfaction_formateurs.views.satisfaction_formateurs_dashboard"),
         name="satisfaction_formateurs_dashboard",
     ),
+    path(
+        "analyse/update-form/",
+        lazy_view(
+            "App_PADESCE.satisfaction_formateurs.views.satisfaction_formateurs_update_form_page"
+        ),
+        name="satisfaction_formateurs_update_form_page",
+    ),
 ]

@@ -1,11 +1,11 @@
 {% extends "base.html" %}
-{% block title %}UPDATE FORM{% endblock %}
+{% block title %}UPDATE FORM FORMATEURS{% endblock %}
 {% block content %}
 <style>
   .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 16px; padding: 18px; box-shadow: var(--shadow); margin-bottom: 16px; }
   .header { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap; margin-bottom:16px; }
   .header h1 { margin:0 0 6px; color:var(--accent-strong); }
-  .header p { margin:0; color:var(--muted); max-width:820px; }
+  .header p { margin:0; color:var(--muted); max-width:840px; }
   .actions { display:flex; gap:8px; flex-wrap:wrap; }
   .btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; padding:10px 14px; border-radius:12px; font-weight:700; border:1px solid transparent; cursor:pointer; text-decoration:none; }
   .btn-primary { background:var(--accent); color:#fff; }
@@ -24,7 +24,7 @@
   .card .label { color:var(--muted); font-size:0.82rem; text-transform:uppercase; letter-spacing:.04em; }
   .card .value { margin-top:8px; font-size:1.6rem; font-weight:800; color:var(--accent-strong); }
   .table-wrap { overflow:auto; border-radius:14px; border:1px solid var(--border); }
-  table { width:100%; border-collapse:collapse; min-width:1320px; }
+  table { width:100%; border-collapse:collapse; min-width:1500px; }
   th, td { padding:10px; border:1px solid var(--border); text-align:left; vertical-align:top; }
   thead { background:rgba(111,60,195,0.06); }
   th { color:var(--accent-strong); font-size:0.78rem; text-transform:uppercase; letter-spacing:.04em; }
@@ -57,19 +57,19 @@
 
 <div class="header">
   <div>
-    <h1>UPDATE FORM</h1>
-    <p>Edition batch des formulaires et des statuts apprenants a partir des codes ou des lignes cochees. Une seule page regroupe maintenant les apprenants <strong>Termine sans formulaire</strong> et ceux avec <strong>formulaire present mais statut non termine</strong>.</p>
+    <h1>UPDATE FORM FORMATEURS</h1>
+    <p>Edition batch des formulaires et des statuts formateurs a partir des references ou des lignes cochees. La page regroupe les appels <strong>Termine sans formulaire</strong> et ceux avec <strong>formulaire present mais statut non termine</strong>.</p>
   </div>
   <div class="actions">
     <a class="btn btn-ghost" href="{{ dashboard_url }}">Retour dashboard</a>
-    <a class="btn btn-ghost" href="{{ general_url }}">Retour general</a>
+    <a class="btn btn-ghost" href="{{ index_url }}">Retour enquetes</a>
   </div>
 </div>
 
 <div class="scope-switch">
   <div class="scope-tabs" role="tablist" aria-label="Navigation UPDATE FORM">
-    <a class="scope-tab active" href="{% url 'satisfaction_update_form_page' %}?source={{ selected_source|urlencode }}" aria-current="page">Apprenant</a>
-    <a class="scope-tab" href="{% url 'satisfaction_formateurs_update_form_page' %}">Formateur</a>
+    <a class="scope-tab" href="{% url 'satisfaction_update_form_page' %}">Apprenant</a>
+    <a class="scope-tab active" href="{% url 'satisfaction_formateurs_update_form_page' %}" aria-current="page">Formateur</a>
   </div>
   <div class="scope-note">Basculer entre les ecrans batch apprenants et formateurs.</div>
 </div>
@@ -78,15 +78,15 @@
   <div class="section-title">
     <div>
       <h2>Mode d'emploi</h2>
-      <p>Les valeurs saisies s'appliquent aux codes saisis et aux lignes cochees, dans l'ordre de traitement.</p>
+      <p>Les valeurs saisies s'appliquent aux references saisies et aux lignes cochees, dans l'ordre de traitement.</p>
     </div>
   </div>
   <ul class="help-list">
-    <li>Codes acceptes : <code>[APP100, APP101]</code>, <code>APP100</code> ou <code>APP100|CLA001</code>.</li>
-    <li>Vous pouvez laisser <code>Codes apprenants</code> vide et selectionner directement les lignes plus bas.</li>
-    <li>Une note unique s'applique a tout le lot. Une liste entre crochets doit avoir exactement le meme nombre de valeurs que le lot cible.</li>
-    <li>Si une question est vide, la valeur par defaut appliquee est <code>3</code>. Si commentaire ou recommandations sont vides, la valeur par defaut est <code>RAS</code>.</li>
-    <li>Le bouton <strong>Mettre a jour le formulaire</strong> ecrit les reponses, commentaires et recommandations. Le bouton <strong>Changer le statut</strong> ne modifie pas les reponses.</li>
+    <li>References acceptees : <code>[FORM-001, FORM-002]</code> ou <code>FORM-001</code>.</li>
+    <li>Vous pouvez laisser <code>References d'appel formateur</code> vide et selectionner directement les lignes plus bas.</li>
+    <li>Une valeur unique s'applique a tout le lot. Une liste entre crochets doit avoir exactement le meme nombre de valeurs que le lot cible.</li>
+    <li>Si Q1-Q3 sont vides, la valeur par defaut appliquee est <code>3</code>. Si Q4-Q6, commentaires ou recommandations sont vides, la valeur par defaut est <code>RAS</code>.</li>
+    <li>Le bouton <strong>Mettre a jour le formulaire</strong> ecrit les reponses ouvertes, les scores et les commentaires. Le bouton <strong>Changer le statut</strong> ne modifie pas les reponses.</li>
   </ul>
 </section>
 
@@ -127,15 +127,9 @@
     {% csrf_token %}
     <div class="grid">
       <div class="field full-width">
-        <label for="{{ form.codes_text.id_for_label }}">{{ form.codes_text.label }}</label>
-        {{ form.codes_text }}
-        <small>{{ form.codes_text.help_text }}</small>
-      </div>
-
-      <div class="field">
-        <label for="{{ form.classe_code.id_for_label }}">{{ form.classe_code.label }}</label>
-        {{ form.classe_code }}
-        <small>{{ form.classe_code.help_text }}</small>
+        <label for="{{ form.reference_codes_text.id_for_label }}">{{ form.reference_codes_text.label }}</label>
+        {{ form.reference_codes_text }}
+        <small>{{ form.reference_codes_text.help_text }}</small>
       </div>
 
       <div class="field">
@@ -145,55 +139,43 @@
       </div>
 
       <div class="field">
-        <label for="{{ form.q1_clarte_exposes.id_for_label }}">{{ form.q1_clarte_exposes.label }}</label>
-        {{ form.q1_clarte_exposes }}
-        <small>{{ form.q1_clarte_exposes.help_text }}</small>
+        <label for="{{ form.q1_prerequis_apprenants.id_for_label }}">{{ form.q1_prerequis_apprenants.label }}</label>
+        {{ form.q1_prerequis_apprenants }}
+        <small>{{ form.q1_prerequis_apprenants.help_text }}</small>
       </div>
       <div class="field">
-        <label for="{{ form.q2_interaction_formateur.id_for_label }}">{{ form.q2_interaction_formateur.label }}</label>
-        {{ form.q2_interaction_formateur }}
-        <small>{{ form.q2_interaction_formateur.help_text }}</small>
+        <label for="{{ form.q2_interaction_apprenants.id_for_label }}">{{ form.q2_interaction_apprenants.label }}</label>
+        {{ form.q2_interaction_apprenants }}
+        <small>{{ form.q2_interaction_apprenants.help_text }}</small>
       </div>
       <div class="field">
-        <label for="{{ form.q3_maitrise_contenu.id_for_label }}">{{ form.q3_maitrise_contenu.label }}</label>
-        {{ form.q3_maitrise_contenu }}
-        <small>{{ form.q3_maitrise_contenu.help_text }}</small>
-      </div>
-      <div class="field">
-        <label for="{{ form.q4_salle_adequate.id_for_label }}">{{ form.q4_salle_adequate.label }}</label>
-        {{ form.q4_salle_adequate }}
-        <small>{{ form.q4_salle_adequate.help_text }}</small>
-      </div>
-      <div class="field">
-        <label for="{{ form.q5_materiel_disponible.id_for_label }}">{{ form.q5_materiel_disponible.label }}</label>
-        {{ form.q5_materiel_disponible }}
-        <small>{{ form.q5_materiel_disponible.help_text }}</small>
-      </div>
-      <div class="field">
-        <label for="{{ form.q6_organisation_temps.id_for_label }}">{{ form.q6_organisation_temps.label }}</label>
-        {{ form.q6_organisation_temps }}
-        <small>{{ form.q6_organisation_temps.help_text }}</small>
-      </div>
-      <div class="field">
-        <label for="{{ form.q7_utilite_formation.id_for_label }}">{{ form.q7_utilite_formation.label }}</label>
-        {{ form.q7_utilite_formation }}
-        <small>{{ form.q7_utilite_formation.help_text }}</small>
-      </div>
-      <div class="field">
-        <label for="{{ form.q8_adequation_besoins.id_for_label }}">{{ form.q8_adequation_besoins.label }}</label>
-        {{ form.q8_adequation_besoins }}
-        <small>{{ form.q8_adequation_besoins.help_text }}</small>
-      </div>
-      <div class="field">
-        <label for="{{ form.q9_satisfaction_globale.id_for_label }}">{{ form.q9_satisfaction_globale.label }}</label>
-        {{ form.q9_satisfaction_globale }}
-        <small>{{ form.q9_satisfaction_globale.help_text }}</small>
+        <label for="{{ form.q3_competences_acquises.id_for_label }}">{{ form.q3_competences_acquises.label }}</label>
+        {{ form.q3_competences_acquises }}
+        <small>{{ form.q3_competences_acquises.help_text }}</small>
       </div>
 
       <div class="field full-width">
-        <label for="{{ form.commentaire_values.id_for_label }}">{{ form.commentaire_values.label }}</label>
-        {{ form.commentaire_values }}
-        <small>{{ form.commentaire_values.help_text }}</small>
+        <label for="{{ form.q4_gestion_administrative.id_for_label }}">{{ form.q4_gestion_administrative.label }}</label>
+        {{ form.q4_gestion_administrative }}
+        <small>{{ form.q4_gestion_administrative.help_text }}</small>
+      </div>
+
+      <div class="field full-width">
+        <label for="{{ form.q5_gestion_financiere.id_for_label }}">{{ form.q5_gestion_financiere.label }}</label>
+        {{ form.q5_gestion_financiere }}
+        <small>{{ form.q5_gestion_financiere.help_text }}</small>
+      </div>
+
+      <div class="field full-width">
+        <label for="{{ form.q6_communication.id_for_label }}">{{ form.q6_communication.label }}</label>
+        {{ form.q6_communication }}
+        <small>{{ form.q6_communication.help_text }}</small>
+      </div>
+
+      <div class="field full-width">
+        <label for="{{ form.commentaires_values.id_for_label }}">{{ form.commentaires_values.label }}</label>
+        {{ form.commentaires_values }}
+        <small>{{ form.commentaires_values.help_text }}</small>
       </div>
 
       <div class="field full-width">
@@ -207,7 +189,7 @@
       <div class="section-title">
         <div>
           <h2>Termine Sans Formulaire</h2>
-          <p>Ces apprenants ont le statut <code>Termine</code> mais aucun formulaire complet. Cochez-les puis utilisez <strong>Mettre a jour le formulaire</strong>.</p>
+          <p>Ces appels formateurs ont le statut <code>Termine</code> mais aucun formulaire complet. Cochez-les puis utilisez <strong>Mettre a jour le formulaire</strong>.</p>
         </div>
         <button class="btn btn-subtle" type="button" data-select-all="termine-without-form">Tout selectionner</button>
       </div>
@@ -217,17 +199,21 @@
             <thead>
               <tr>
                 <th class="checkbox-cell">
-                  <input type="checkbox" data-master-checkbox="termine-without-form" aria-label="Selectionner tous les apprenants termines sans formulaire">
+                  <input type="checkbox" data-master-checkbox="termine-without-form" aria-label="Selectionner tous les formateurs termines sans formulaire">
                 </th>
-                <th>Code</th>
-                <th>Nom</th>
+                <th>Reference</th>
                 <th>Classe</th>
-                <th>Prestation</th>
+                <th>Formateur</th>
+                <th>Prestataire</th>
+                <th>Beneficiaire</th>
+                <th>Formation</th>
+                <th>Cohorte</th>
+                <th>Telephone</th>
                 <th>Statut actuel</th>
                 <th>Statut calcule</th>
                 <th>Audio</th>
                 <th>Formulaire</th>
-                <th>Commentaire</th>
+                <th>Commentaires</th>
                 <th>Recommandations</th>
               </tr>
             </thead>
@@ -241,18 +227,22 @@
                       value="{{ row.selection_value }}"
                       data-checkbox-group="termine-without-form"
                       {% if row.selection_value in selected_target_values %}checked{% endif %}
-                      aria-label="Selectionner {{ row.code }}"
+                      aria-label="Selectionner {{ row.reference_code }}"
                     >
                   </td>
-                  <td><strong>{{ row.code }}</strong></td>
-                  <td>{{ row.nom }}</td>
+                  <td><strong>{{ row.reference_code }}</strong></td>
                   <td>{{ row.classe_code }}</td>
-                  <td>{{ row.prestation_code }}</td>
+                  <td>{{ row.formateur_label }}</td>
+                  <td>{{ row.prestataire }}</td>
+                  <td>{{ row.beneficiaire }}</td>
+                  <td>{{ row.formation }}</td>
+                  <td>{{ row.cohorte }}</td>
+                  <td>{{ row.telephone }}</td>
                   <td><span class="pill pill-no">{{ row.current_status_label }}</span></td>
                   <td><span class="pill pill-soft">{{ row.computed_status_label }}</span></td>
                   <td>{{ row.audio_label }}</td>
                   <td>{{ row.formulaire_label }}</td>
-                  <td>{{ row.commentaire }}</td>
+                  <td>{{ row.commentaires }}</td>
                   <td>{{ row.recommandations }}</td>
                 </tr>
               {% endfor %}
@@ -263,15 +253,15 @@
           <div class="pager">
             <div class="meta">Page {{ termine_without_form_page_obj.number }} / {{ termine_without_form_page_obj.paginator.num_pages }}</div>
             {% if termine_without_form_page_obj.has_previous %}
-              <a class="btn btn-ghost" href="?source={{ selected_source }}&termine_page={{ termine_without_form_page_obj.previous_page_number }}&status_page={{ form_status_issue_page_obj.number }}">Precedent</a>
+              <a class="btn btn-ghost" href="?termine_page={{ termine_without_form_page_obj.previous_page_number }}&status_page={{ form_status_issue_page_obj.number }}">Precedent</a>
             {% endif %}
             {% if termine_without_form_page_obj.has_next %}
-              <a class="btn btn-ghost" href="?source={{ selected_source }}&termine_page={{ termine_without_form_page_obj.next_page_number }}&status_page={{ form_status_issue_page_obj.number }}">Suivant</a>
+              <a class="btn btn-ghost" href="?termine_page={{ termine_without_form_page_obj.next_page_number }}&status_page={{ form_status_issue_page_obj.number }}">Suivant</a>
             {% endif %}
           </div>
         {% endif %}
       {% else %}
-        <div class="empty">Aucun apprenant actif avec statut <code>Termine</code> sans formulaire complet.</div>
+        <div class="empty">Aucun appel formateur actif avec statut <code>Termine</code> sans formulaire complet.</div>
       {% endif %}
     </div>
 
@@ -279,7 +269,7 @@
       <div class="section-title">
         <div>
           <h2>Formulaire Present / Statut Non Termine</h2>
-          <p>Ces apprenants ont un formulaire complet mais leur statut n'est pas <code>Termine</code>. Cochez-les puis utilisez <strong>Changer le statut</strong>.</p>
+          <p>Ces appels formateurs ont un formulaire complet mais leur statut n'est pas <code>Termine</code>. Cochez-les puis utilisez <strong>Changer le statut</strong>.</p>
         </div>
         <button class="btn btn-subtle" type="button" data-select-all="form-status-issue">Tout selectionner</button>
       </div>
@@ -289,17 +279,21 @@
             <thead>
               <tr>
                 <th class="checkbox-cell">
-                  <input type="checkbox" data-master-checkbox="form-status-issue" aria-label="Selectionner tous les apprenants avec formulaire present et statut non termine">
+                  <input type="checkbox" data-master-checkbox="form-status-issue" aria-label="Selectionner tous les formateurs avec formulaire present et statut non termine">
                 </th>
-                <th>Code</th>
-                <th>Nom</th>
+                <th>Reference</th>
                 <th>Classe</th>
-                <th>Prestation</th>
+                <th>Formateur</th>
+                <th>Prestataire</th>
+                <th>Beneficiaire</th>
+                <th>Formation</th>
+                <th>Cohorte</th>
+                <th>Telephone</th>
                 <th>Statut actuel</th>
                 <th>Statut calcule</th>
                 <th>Audio</th>
                 <th>Formulaire</th>
-                <th>Commentaire</th>
+                <th>Commentaires</th>
                 <th>Recommandations</th>
               </tr>
             </thead>
@@ -313,18 +307,22 @@
                       value="{{ row.selection_value }}"
                       data-checkbox-group="form-status-issue"
                       {% if row.selection_value in selected_target_values %}checked{% endif %}
-                      aria-label="Selectionner {{ row.code }}"
+                      aria-label="Selectionner {{ row.reference_code }}"
                     >
                   </td>
-                  <td><strong>{{ row.code }}</strong></td>
-                  <td>{{ row.nom }}</td>
+                  <td><strong>{{ row.reference_code }}</strong></td>
                   <td>{{ row.classe_code }}</td>
-                  <td>{{ row.prestation_code }}</td>
+                  <td>{{ row.formateur_label }}</td>
+                  <td>{{ row.prestataire }}</td>
+                  <td>{{ row.beneficiaire }}</td>
+                  <td>{{ row.formation }}</td>
+                  <td>{{ row.cohorte }}</td>
+                  <td>{{ row.telephone }}</td>
                   <td><span class="pill pill-no">{{ row.current_status_label }}</span></td>
                   <td><span class="pill pill-soft">{{ row.computed_status_label }}</span></td>
                   <td>{{ row.audio_label }}</td>
                   <td>{{ row.formulaire_label }}</td>
-                  <td>{{ row.commentaire }}</td>
+                  <td>{{ row.commentaires }}</td>
                   <td>{{ row.recommandations }}</td>
                 </tr>
               {% endfor %}
@@ -335,15 +333,15 @@
           <div class="pager">
             <div class="meta">Page {{ form_status_issue_page_obj.number }} / {{ form_status_issue_page_obj.paginator.num_pages }}</div>
             {% if form_status_issue_page_obj.has_previous %}
-              <a class="btn btn-ghost" href="?source={{ selected_source }}&termine_page={{ termine_without_form_page_obj.number }}&status_page={{ form_status_issue_page_obj.previous_page_number }}">Precedent</a>
+              <a class="btn btn-ghost" href="?termine_page={{ termine_without_form_page_obj.number }}&status_page={{ form_status_issue_page_obj.previous_page_number }}">Precedent</a>
             {% endif %}
             {% if form_status_issue_page_obj.has_next %}
-              <a class="btn btn-ghost" href="?source={{ selected_source }}&termine_page={{ termine_without_form_page_obj.number }}&status_page={{ form_status_issue_page_obj.next_page_number }}">Suivant</a>
+              <a class="btn btn-ghost" href="?termine_page={{ termine_without_form_page_obj.number }}&status_page={{ form_status_issue_page_obj.next_page_number }}">Suivant</a>
             {% endif %}
           </div>
         {% endif %}
       {% else %}
-        <div class="empty">Aucun apprenant actif avec formulaire complet et statut non termine.</div>
+        <div class="empty">Aucun appel formateur actif avec formulaire complet et statut non termine.</div>
       {% endif %}
     </div>
 
@@ -380,21 +378,20 @@
     <div class="section-title">
       <div>
         <h2>Resultats du lot</h2>
-        <p>Chaque ligne affiche le code traite, la classe retenue, le statut avant/apres et le resume du formulaire.</p>
+        <p>Chaque ligne affiche la reference traitee, la classe retenue, le statut avant/apres et le resume des scores Q1-Q3.</p>
       </div>
     </div>
     <div class="table-wrap">
       <table>
         <thead>
           <tr>
-            <th>Code</th>
-            <th>Nom</th>
-            <th>Classe demandee</th>
-            <th>Classe retenue</th>
+            <th>Reference</th>
+            <th>Classe</th>
+            <th>Formateur</th>
             <th>Statut</th>
             <th>Avant</th>
             <th>Apres</th>
-            <th>Commentaire</th>
+            <th>Commentaires</th>
             <th>Recommandations</th>
             <th>Message</th>
           </tr>
@@ -402,10 +399,9 @@
         <tbody>
           {% for row in results %}
             <tr>
-              <td><strong>{{ row.code }}</strong></td>
-              <td>{{ row.nom }}</td>
-              <td>{{ row.requested_class_code }}</td>
-              <td>{{ row.resolved_class_code }}</td>
+              <td><strong>{{ row.reference_code }}</strong></td>
+              <td>{{ row.classe_code }}</td>
+              <td>{{ row.formateur_label }}</td>
               <td>
                 {% if row.ok %}
                   <span class="pill pill-ok">{{ row.after_status }}</span>
@@ -417,7 +413,7 @@
               </td>
               <td>{{ row.before_answers }}</td>
               <td>{{ row.after_answers }}</td>
-              <td>{{ row.commentaire }}</td>
+              <td>{{ row.commentaires }}</td>
               <td>{{ row.recommandations }}</td>
               <td>{{ row.message }}</td>
             </tr>
