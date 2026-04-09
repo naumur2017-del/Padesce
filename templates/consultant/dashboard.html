@@ -231,7 +231,7 @@
               data-has-form="{{ row.consultant_has_form|yesno:'1,0' }}"
               data-has-audio="{{ row.consultant_has_audio|yesno:'1,0' }}">
             <td>{{ row.nom }}</td>
-            <td>{{ row.code }}</td>
+            <td>{{ row.apprenant_id|default:"-" }}</td>
             <td>
               {% if row.classe %}
                 <a href="{% url 'class_detail' row.classe.id %}" style="text-decoration:underline;">{{ row.consultant_class_display|default:row.classe_label|default:"-" }}</a>

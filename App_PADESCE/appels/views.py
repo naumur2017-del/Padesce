@@ -40,6 +40,7 @@ from App_PADESCE.appels.models import (
 )
 from App_PADESCE.apprenants.models import Apprenant
 from App_PADESCE.core.analysis_rules import analysis_threshold_label, analysis_threshold_target
+from App_PADESCE.core.apprenant_id_registry import get_apprenant_id_from_presence_report
 from App_PADESCE.core.cache_versions import get_analysis_cache_version
 from App_PADESCE.core.call_metrics import (
     count_callable_source_records_by_class,
@@ -1433,6 +1434,13 @@ def appels_index(request):
         page_obj = paginator.page(1)
 
     appels = _bind_audio_state(list(page_obj.object_list))
+    for appel in appels:
+        classe_code = str(
+            getattr(getattr(appel, "classe", None), "code", "") or appel.classe_label or ""
+        ).strip()
+        appel.apprenant_id = get_apprenant_id_from_presence_report(
+            str(appel.nom or "").strip(), classe_code
+        )
     page_obj.object_list = appels
 
     # ── per-class threshold enrichment ──

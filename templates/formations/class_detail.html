@@ -70,12 +70,12 @@
             <th class="checkbox-col">
               B? <input type="checkbox" id="appartenance-all" />
             </th>
-            <th>Nom et prénom</th><th>Genre</th><th>Âge</th><th>Fonction</th><th>Qualification</th><th>Années exp.</th><th>Ville</th><th>Téléphone</th><th>Statut SMS</th>
+            <th>Apprenant ID</th><th>Nom et prénom</th><th>Genre</th><th>Âge</th><th>Fonction</th><th>Qualification</th><th>Années exp.</th><th>Ville</th><th>Téléphone</th><th>Statut SMS</th>
           </tr>
         </thead>
         <tbody id="apprenants-body">
           {% if apprenants %}
-            {% for apprenant in apprenants.all %}
+            {% for apprenant in apprenants %}
               <tr data-apprenant-id="{{ apprenant.id }}">
                 <td class="checkbox-col">
                   <input type="checkbox" class="row-check" data-apprenant-id="{{ apprenant.id }}" />
@@ -88,6 +88,7 @@
                     {% if apprenant.appartenance_beneficiaire %}checked{% endif %}
                   />
                 </td>
+                <td><strong>{{ apprenant.apprenant_id|default:"-" }}</strong></td>
                 <td>{{ apprenant.nom_complet }}</td>
                 <td>{{ apprenant.genre }}</td>
                 <td>{{ apprenant.age }}</td>
@@ -100,7 +101,7 @@
               </tr>
             {% endfor %}
           {% else %}
-            <tr><td colspan="11" style="text-align:center; color: var(--muted);">Aucun apprenant</td></tr>
+            <tr><td colspan="12" style="text-align:center; color: var(--muted);">Aucun apprenant</td></tr>
           {% endif %}
         </tbody>
       </table>

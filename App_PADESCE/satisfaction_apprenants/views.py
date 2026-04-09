@@ -61,6 +61,7 @@ from App_PADESCE.core.analysis_rules import (
     set_appel_manual_exclusion,
     toggle_appel_manual_exclusion,
 )
+from App_PADESCE.core.apprenant_id_registry import get_apprenant_id_from_presence_report
 from App_PADESCE.core.cache_versions import get_analysis_cache_version
 from App_PADESCE.core.call_metrics import (
     count_callable_source_records_by_class,
@@ -728,6 +729,12 @@ def _dashboard_row_from_answer(answer_or_appel) -> dict:
             q_filled_count += 1
     has_form = q_filled_count >= 9
 
+    classe_code = getattr(classe, "code", "") or appel.classe_label or ""
+    apprenant_code = appel.code or ""
+    apprenant_id = get_apprenant_id_from_presence_report(
+        str(appel.nom or "").strip(), str(classe_code)
+    )
+
     return {
         "id": getattr(answer, "id", None),
         "appel_id": getattr(appel, "pk", None),
@@ -738,7 +745,7 @@ def _dashboard_row_from_answer(answer_or_appel) -> dict:
         "survey_time": survey_time,
         "inspecteur_code": getattr(inspecteur, "code", "") or "",
         "inspecteur_nom": getattr(inspecteur, "nom_complet", "") or "",
-        "classe_code": getattr(classe, "code", "") or appel.classe_label or "Non renseignée",
+        "classe_code": classe_code or "Non renseignée",
         "classe_intitule": getattr(classe, "intitule_formation", "") or "-",
         "formation_intitule": getattr(classe, "intitule_formation", "") or "-",
         "prestation_code": getattr(prestation, "code", "") or "-",
@@ -747,7 +754,8 @@ def _dashboard_row_from_answer(answer_or_appel) -> dict:
         "fenetre": fenetre,
         "cohorte": cohorte,
         "ville": ville,
-        "apprenant_code": appel.code or "",
+        "apprenant_code": apprenant_code,
+        "apprenant_id": apprenant_id,
         "apprenant_nom": appel.nom or "",
         "telephone1": appel.telephone1 or "",
         "telephone2": appel.telephone2 or "",
@@ -1405,7 +1413,9 @@ def _build_appel_status_summary(
             | _Q(flag_pas_forme=True)
             | _Q(flag_faux_nom=True)
         )
-        form_filter = strict_form_q if strict_form_q is not None else _Q(status__in=CALL_FORM_STATUSES)
+        form_filter = (
+            strict_form_q if strict_form_q is not None else _Q(status__in=CALL_FORM_STATUSES)
+        )
         forms_with_audio_filter = (
             form_filter & _Q(audio_file__isnull=False) & ~_Q(audio_file="")
             if strict_form_q is not None

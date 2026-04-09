@@ -839,7 +839,7 @@
         <thead>
           <tr>
             <th>ApprenantID réseau</th>
-            <th>Code</th>
+            <th>Apprenant ID</th>
             <th>Apprenant</th>
             <th>Source</th>
             <th>Classe</th>
@@ -855,7 +855,7 @@
           {% for row in rows %}
           <tr>
             <td title="Classe source : {{ row.source_classe_id|default:'-' }} | Prestation source : {{ row.source_prestation_id|default:'-' }} | Fenêtre source : {{ row.source_fenetre|default:'-' }}">{{ row.source_apprenant_id|default:"-" }}</td>
-            <td>{{ row.apprenant_code }}</td>
+            <td>{{ row.apprenant_id|default:"-" }}</td>
             <td>{{ row.apprenant_nom }}</td>
             <td>
               <span class="source-pill source-pill-{{ row.source_status_tone }}" title="{{ row.source_alerts_label }}">{{ row.source_status_label }}</span>

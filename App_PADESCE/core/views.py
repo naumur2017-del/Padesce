@@ -43,6 +43,7 @@ from App_PADESCE.core.analysis_rules import (
     analysis_threshold_target,
     appel_is_analysis_eligible,
 )
+from App_PADESCE.core.apprenant_id_registry import get_apprenant_id_from_presence_report
 from App_PADESCE.core.call_metrics import has_usable_phone
 from App_PADESCE.core.fast_stats import (
     build_fast_stats_api_response,
@@ -943,6 +944,10 @@ def consultant_dashboard(request):
         app.consultant_has_audio = has_audio
         app.consultant_audio_duration = audio_duration or 0
         app.consultant_has_form = answers_complete
+        app.apprenant_id = get_apprenant_id_from_presence_report(
+            app.nom,
+            str(getattr(getattr(app, "classe", None), "code", "") or app.classe_label or ""),
+        )
         app.consultant_priority = bool(
             has_audio and answers_complete and (audio_duration or 0) >= 60
         )
