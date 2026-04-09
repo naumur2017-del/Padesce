@@ -162,6 +162,37 @@
       </div>
 
       <div class="field">
+        <label for="{{ form.class_codes_values.id_for_label }}">{{ form.class_codes_values.label }}</label>
+        {{ form.class_codes_values }}
+        <small>{{ form.class_codes_values.help_text }}</small>
+      </div>
+      <div class="field">
+        <label for="{{ form.prestation_codes_values.id_for_label }}">{{ form.prestation_codes_values.label }}</label>
+        {{ form.prestation_codes_values }}
+        <small>{{ form.prestation_codes_values.help_text }}</small>
+      </div>
+      <div class="field full-width">
+        <label for="{{ form.prestataire_values.id_for_label }}">{{ form.prestataire_values.label }}</label>
+        {{ form.prestataire_values }}
+        <small>{{ form.prestataire_values.help_text }}</small>
+      </div>
+      <div class="field full-width">
+        <label for="{{ form.beneficiaire_values.id_for_label }}">{{ form.beneficiaire_values.label }}</label>
+        {{ form.beneficiaire_values }}
+        <small>{{ form.beneficiaire_values.help_text }}</small>
+      </div>
+      <div class="field full-width">
+        <label for="{{ form.formation_values.id_for_label }}">{{ form.formation_values.label }}</label>
+        {{ form.formation_values }}
+        <small>{{ form.formation_values.help_text }}</small>
+      </div>
+      <div class="field">
+        <label for="{{ form.cohorte_values.id_for_label }}">{{ form.cohorte_values.label }}</label>
+        {{ form.cohorte_values }}
+        <small>{{ form.cohorte_values.help_text }}</small>
+      </div>
+
+      <div class="field">
         <label for="{{ form.q1_prerequis_apprenants.id_for_label }}">{{ form.q1_prerequis_apprenants.label }}</label>
         {{ form.q1_prerequis_apprenants }}
         <small>{{ form.q1_prerequis_apprenants.help_text }}</small>
@@ -226,6 +257,7 @@
                 </th>
                 <th>Reference</th>
                 <th>Classe</th>
+                <th>Prestation ID</th>
                 <th>Formateur</th>
                 <th>Prestataire</th>
                 <th>Beneficiaire</th>
@@ -255,6 +287,7 @@
                   </td>
                   <td><strong>{{ row.reference_code }}</strong></td>
                   <td>{{ row.classe_code }}</td>
+                  <td>{{ row.prestation_code }}</td>
                   <td>{{ row.formateur_label }}</td>
                   <td>{{ row.prestataire }}</td>
                   <td>{{ row.beneficiaire }}</td>
@@ -306,6 +339,7 @@
                 </th>
                 <th>Reference</th>
                 <th>Classe</th>
+                <th>Prestation ID</th>
                 <th>Formateur</th>
                 <th>Prestataire</th>
                 <th>Beneficiaire</th>
@@ -335,6 +369,7 @@
                   </td>
                   <td><strong>{{ row.reference_code }}</strong></td>
                   <td>{{ row.classe_code }}</td>
+                  <td>{{ row.prestation_code }}</td>
                   <td>{{ row.formateur_label }}</td>
                   <td>{{ row.prestataire }}</td>
                   <td>{{ row.beneficiaire }}</td>
@@ -389,6 +424,7 @@
                 </th>
                 <th>Reference</th>
                 <th>Classe</th>
+                <th>Prestation ID</th>
                 <th>Formateur</th>
                 <th>Prestataire</th>
                 <th>Beneficiaire</th>
@@ -418,6 +454,7 @@
                   </td>
                   <td><strong>{{ row.reference_code }}</strong></td>
                   <td>{{ row.classe_code }}</td>
+                  <td>{{ row.prestation_code }}</td>
                   <td>{{ row.formateur_label }}</td>
                   <td>{{ row.prestataire }}</td>
                   <td>{{ row.beneficiaire }}</td>
@@ -453,6 +490,7 @@
 
     <div class="batch-actions">
       <button class="btn btn-primary" type="submit" name="action" value="update_form">Mettre a jour le formulaire</button>
+      <button class="btn btn-subtle" type="submit" name="action" value="update_class_data">Mettre a jour les donnees classe</button>
       <button class="btn btn-warning" type="submit" name="action" value="update_status">Changer le statut</button>
     </div>
   </form>

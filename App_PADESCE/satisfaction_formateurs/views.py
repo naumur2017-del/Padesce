@@ -32,7 +32,7 @@ from App_PADESCE.appels.models import (
 )
 from App_PADESCE.core.access import require_analysis_access
 from App_PADESCE.core.fast_stats import build_fast_stats_context
-from App_PADESCE.formations.models import Classe, Formateur
+from App_PADESCE.formations.models import Classe, Formateur, Prestation
 from App_PADESCE.satisfaction_formateurs.forms import (
     SatisfactionFormateurBatchUpdateForm,
     SatisfactionFormateurForm,
@@ -530,6 +530,29 @@ def _build_formateur_batch_payloads(cleaned_data: dict, target_count: int) -> li
     return payloads
 
 
+def _build_formateur_batch_class_payloads(cleaned_data: dict, target_count: int) -> list[dict]:
+    payloads = [{} for _ in range(target_count)]
+    class_fields = (
+        ("class_codes_values", "class_code", "Code classe"),
+        ("prestation_codes_values", "prestation_code", "Prestation ID"),
+        ("prestataire_values", "prestataire", "Prestataire"),
+        ("beneficiaire_values", "beneficiaire", "Beneficiaire"),
+        ("formation_values", "formation", "Titre de formation"),
+        ("cohorte_values", "cohorte", "Cohorte"),
+    )
+    for form_field, payload_field, label in class_fields:
+        expanded_values = _expand_formateur_batch_values(
+            cleaned_data.get(form_field) or [],
+            target_count,
+            label=label,
+            default_value=None,
+        )
+        for index, value in enumerate(expanded_values):
+            value_text = str(value or "").strip()
+            payloads[index][payload_field] = value_text or None
+    return payloads
+
+
 def _formateur_batch_status_display(status_code: str) -> str:
     normalized_status = str(status_code or "").strip()
     return dict(AppelFormateur.STATUS_CHOICES).get(normalized_status, normalized_status or "-")
@@ -574,12 +597,14 @@ def _sync_batch_update_formateur_satisfaction(row: AppelFormateur, user) -> bool
 
 def _build_formateur_candidate_row(row: AppelFormateur) -> dict:
     classe = _resolve_batch_update_formateur_classe(row)
+    prestation = getattr(classe, "prestation", None)
     formateur = getattr(classe, "formateur", None)
     has_complete_form = _has_complete_formateur_form(row)
     has_partial_form = formateur_has_any_form_data(row)
     return {
         "reference_code": row.reference_code,
         "classe_code": getattr(classe, "code", "") or "-",
+        "prestation_code": getattr(prestation, "code", "") or "-",
         "formateur_label": str(formateur or "-"),
         "prestataire": row.prestataire or "-",
         "beneficiaire": row.beneficiaire or "-",
@@ -746,6 +771,124 @@ def _apply_formateur_batch_status_target(reference_code: str, target_status: str
         return result
 
 
+def _apply_formateur_batch_class_target(reference_code: str, payload: dict, user) -> dict:
+    result = {
+        "reference_code": reference_code,
+        "classe_code": "-",
+        "formateur_label": "-",
+        "before_status": "-",
+        "after_status": "-",
+        "before_answers": "-",
+        "after_answers": "-",
+        "commentaires": "-",
+        "recommandations": "-",
+        "message": "",
+        "ok": False,
+        "survey_synced": False,
+    }
+    row = AppelFormateur.objects.filter(
+        is_active=True, reference_code__iexact=reference_code
+    ).first()
+    if row is None:
+        result["message"] = "Reference formateur introuvable."
+        return result
+
+    classe = _resolve_batch_update_formateur_classe(row)
+    formateur = getattr(classe, "formateur", None)
+    result["classe_code"] = getattr(classe, "code", "") or "-"
+    result["formateur_label"] = str(formateur or "-")
+    result["before_status"] = row.get_status_display()
+    result["after_status"] = row.get_status_display()
+    result["before_answers"] = _formateur_answer_summary(row)
+    result["after_answers"] = _formateur_answer_summary(row)
+    result["commentaires"] = row.commentaires or "-"
+    result["recommandations"] = row.recommandations or "-"
+
+    try:
+        update_fields = ["updated_at"]
+        class_code = payload.get("class_code")
+        prestation_code = payload.get("prestation_code")
+        prestataire = payload.get("prestataire")
+        beneficiaire = payload.get("beneficiaire")
+        formation = payload.get("formation")
+        cohorte = payload.get("cohorte")
+
+        if class_code:
+            class_obj = (
+                Classe.objects.select_related(
+                    "prestation__prestataire",
+                    "prestation__beneficiaire",
+                    "formation",
+                )
+                .filter(code__iexact=class_code)
+                .first()
+            )
+            if class_obj is None:
+                result["message"] = f"Classe {class_code} introuvable."
+                return result
+            prestation_obj = getattr(class_obj, "prestation", None)
+            if prestation_obj and not prestation_code:
+                prestation_code = prestation_obj.code
+            if prestation_obj and not prestataire:
+                prestataire = getattr(getattr(prestation_obj, "prestataire", None), "raison_sociale", "") or None
+            if prestation_obj and not beneficiaire:
+                beneficiaire = getattr(getattr(prestation_obj, "beneficiaire", None), "nom_structure", "") or None
+            if not formation:
+                formation = (
+                    getattr(class_obj, "intitule_formation", "")
+                    or getattr(getattr(class_obj, "formation", None), "nom", "")
+                    or None
+                )
+            if not cohorte and getattr(class_obj, "cohorte", None) is not None:
+                cohorte = str(class_obj.cohorte)
+
+        if prestation_code:
+            prestation_obj = (
+                Prestation.objects.select_related("prestataire", "beneficiaire", "formation")
+                .filter(code__iexact=prestation_code)
+                .first()
+            )
+            if prestation_obj:
+                if not prestataire:
+                    prestataire = prestation_obj.prestataire.raison_sociale
+                if not beneficiaire:
+                    beneficiaire = (
+                        getattr(prestation_obj.beneficiaire, "nom_structure", "") or None
+                    )
+                if not formation:
+                    formation = getattr(prestation_obj.formation, "nom", "") or None
+
+        if prestataire:
+            row.prestataire = prestataire
+            update_fields.append("prestataire")
+        if beneficiaire:
+            row.beneficiaire = beneficiaire
+            update_fields.append("beneficiaire")
+        if formation:
+            row.formation = formation
+            update_fields.append("formation")
+        if cohorte:
+            row.cohorte = cohorte
+            update_fields.append("cohorte")
+
+        if len(update_fields) == 1:
+            result["message"] = "Aucune donnee de classe renseignee pour mise a jour."
+            return result
+
+        row.save(update_fields=update_fields)
+        synced = _sync_batch_update_formateur_satisfaction(row, user)
+        result["survey_synced"] = synced
+        result["message"] = "Donnees de classe mises a jour."
+        result["ok"] = True
+        return result
+    except Exception as exc:
+        logger.exception(
+            "UPDATE FORM formateurs class-data update failed for reference=%s", reference_code
+        )
+        result["message"] = f"Erreur interne pendant la mise a jour des donnees de classe: {exc}"
+        return result
+
+
 @require_analysis_access
 def satisfaction_formateurs_update_form_page(request):
     all_status_filter = str(request.GET.get("all_status", "") or "").strip()
@@ -800,6 +943,33 @@ def satisfaction_formateurs_update_form_page(request):
                     messages.success(
                         request,
                         f"{summary['updated_total']} statut(s) mis a jour.",
+                    )
+                if summary["error_total"]:
+                    messages.warning(
+                        request,
+                        f"{summary['error_total']} reference(s) n'ont pas pu etre traitees.",
+                    )
+        elif action == "update_class_data":
+            try:
+                payloads = _build_formateur_batch_class_payloads(form.cleaned_data, len(targets))
+            except ValueError as exc:
+                form.add_error(None, str(exc))
+            else:
+                results = [
+                    _apply_formateur_batch_class_target(reference_code, payload, request.user)
+                    for reference_code, payload in zip(targets, payloads)
+                ]
+                summary = {
+                    "requested_total": len(results),
+                    "updated_total": sum(1 for item in results if item["ok"]),
+                    "error_total": sum(1 for item in results if not item["ok"]),
+                    "synced_total": sum(1 for item in results if item["survey_synced"]),
+                    "action_label": "donnee(s) de classe",
+                }
+                if summary["updated_total"]:
+                    messages.success(
+                        request,
+                        f"{summary['updated_total']} ligne(s) de donnees classe mises a jour.",
                     )
                 if summary["error_total"]:
                     messages.warning(

@@ -144,6 +144,57 @@ class SatisfactionFormateurBatchUpdateForm(forms.Form):
             }
         ),
     )
+    class_codes_values = forms.CharField(
+        required=False,
+        label="Code classe",
+        help_text="Valeur unique ou liste ordonnee entre crochets. Exemple: CLA001 ou [CLA001, CLA002].",
+        widget=forms.TextInput(
+            attrs={
+                "placeholder": "CLA001 ou [CLA001, CLA002]",
+                "autocomplete": "off",
+            }
+        ),
+    )
+    prestation_codes_values = forms.CharField(
+        required=False,
+        label="Prestation ID",
+        help_text="Valeur unique ou liste ordonnee entre crochets. Exemple: PRE001 ou [PRE001, PRE002].",
+        widget=forms.TextInput(
+            attrs={
+                "placeholder": "PRE001 ou [PRE001, PRE002]",
+                "autocomplete": "off",
+            }
+        ),
+    )
+    prestataire_values = forms.CharField(
+        required=False,
+        label="Prestataire",
+        help_text="Valeur unique ou liste ordonnee entre crochets.",
+        widget=forms.Textarea(attrs={"rows": 2, "placeholder": "Nom prestataire"}),
+    )
+    beneficiaire_values = forms.CharField(
+        required=False,
+        label="Beneficiaire",
+        help_text="Valeur unique ou liste ordonnee entre crochets.",
+        widget=forms.Textarea(attrs={"rows": 2, "placeholder": "Nom beneficiaire"}),
+    )
+    formation_values = forms.CharField(
+        required=False,
+        label="Titre de formation",
+        help_text="Valeur unique ou liste ordonnee entre crochets.",
+        widget=forms.Textarea(attrs={"rows": 2, "placeholder": "Titre de formation"}),
+    )
+    cohorte_values = forms.CharField(
+        required=False,
+        label="Cohorte",
+        help_text="Valeur unique ou liste ordonnee entre crochets.",
+        widget=forms.TextInput(
+            attrs={
+                "placeholder": "1 ou [1, 2]",
+                "autocomplete": "off",
+            }
+        ),
+    )
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -210,3 +261,21 @@ class SatisfactionFormateurBatchUpdateForm(forms.Form):
 
     def clean_recommandations_values(self) -> list[str]:
         return self._split_segments(self.cleaned_data.get("recommandations_values", ""))
+
+    def clean_class_codes_values(self) -> list[str]:
+        return self._split_segments(self.cleaned_data.get("class_codes_values", ""))
+
+    def clean_prestation_codes_values(self) -> list[str]:
+        return self._split_segments(self.cleaned_data.get("prestation_codes_values", ""))
+
+    def clean_prestataire_values(self) -> list[str]:
+        return self._split_segments(self.cleaned_data.get("prestataire_values", ""))
+
+    def clean_beneficiaire_values(self) -> list[str]:
+        return self._split_segments(self.cleaned_data.get("beneficiaire_values", ""))
+
+    def clean_formation_values(self) -> list[str]:
+        return self._split_segments(self.cleaned_data.get("formation_values", ""))
+
+    def clean_cohorte_values(self) -> list[str]:
+        return self._split_segments(self.cleaned_data.get("cohorte_values", ""))
