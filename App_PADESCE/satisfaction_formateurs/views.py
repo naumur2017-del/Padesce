@@ -34,7 +34,7 @@ from App_PADESCE.appels.models import (
 from App_PADESCE.core.access import require_analysis_access
 from App_PADESCE.core.analysis_rules import analysis_threshold_label, analysis_threshold_target
 from App_PADESCE.core.fast_stats import build_fast_stats_context
-from App_PADESCE.formations.models import Classe, Formateur, Prestation
+from App_PADESCE.formations.models import Beneficiaire, Classe, Formation, Formateur, Prestataire, Prestation
 from App_PADESCE.satisfaction_formateurs.forms import (
     SatisfactionFormateurBatchUpdateForm,
     SatisfactionFormateurForm,
@@ -1021,10 +1021,17 @@ def _apply_classes_batch_update_target(class_code: str, payload: dict, user) -> 
             if not prestation_code:
                 result["message"] = f"Classe {class_code} introuvable et aucune prestation fournie pour creation."
                 return result
-            
-            prestation = Prestation.objects.select_related("formation").filter(code__iexact=prestation_code).first()
+
+            prestation, prestation_error = _resolve_or_create_prestation(
+                prestation_code=prestation_code,
+                prestataire_name=prestataire or "",
+                beneficiaire_name=beneficiaire or "",
+                formation_title=formation_title or "",
+            )
             if prestation is None:
-                result["message"] = f"Prestation {prestation_code} introuvable pour creation de classe."
+                result["message"] = (
+                    prestation_error or f"Prestation {prestation_code} introuvable pour creation de classe."
+                )
                 return result
             
             # Préparer les données pour la création
@@ -1084,12 +1091,20 @@ def _apply_classes_batch_update_target(class_code: str, payload: dict, user) -> 
         # Sinon, mettre à jour la classe existante
         update_fields = ["updated_at"]
         if prestation_code:
-            prestation = Prestation.objects.filter(code__iexact=prestation_code).first()
+            prestation, prestation_error = _resolve_or_create_prestation(
+                prestation_code=prestation_code,
+                prestataire_name=prestataire or "",
+                beneficiaire_name=beneficiaire or "",
+                formation_title=formation_title or "",
+            )
             if prestation is None:
-                result["message"] = f"Prestation {prestation_code} introuvable."
+                result["message"] = prestation_error or f"Prestation {prestation_code} introuvable."
                 return result
             classe.prestation = prestation
             update_fields.append("prestation")
+            if getattr(classe, "formation_id", None) != getattr(prestation, "formation_id", None):
+                classe.formation = prestation.formation
+                update_fields.append("formation")
             if not formation_title:
                 formation_title = getattr(prestation.formation, "nom", "") or formation_title
             if not prestataire:
@@ -1167,6 +1182,79 @@ def _pick_excel_value(data: dict, aliases: tuple[str, ...]) -> str:
         if value:
             return value
     return ""
+
+
+def _make_unique_model_code(model, preferred: str, *, prefix: str, max_length: int = 50) -> str:
+    base = re.sub(r"[^A-Z0-9]", "", str(preferred or "").upper())[: max_length - 4]
+    if not base:
+        base = prefix
+    candidate = base[:max_length]
+    if not model.objects.filter(code__iexact=candidate).exists():
+        return candidate
+    for index in range(1, 1000):
+        suffix = f"{index:03d}"
+        candidate = f"{base[: max_length - len(suffix)]}{suffix}"
+        if not model.objects.filter(code__iexact=candidate).exists():
+            return candidate
+    return f"{prefix}{uuid.uuid4().hex[:6].upper()}"[:max_length]
+
+
+def _resolve_or_create_prestation(
+    *,
+    prestation_code: str,
+    prestataire_name: str,
+    beneficiaire_name: str,
+    formation_title: str,
+) -> tuple[Prestation | None, str | None]:
+    code = str(prestation_code or "").strip()
+    if not code:
+        return None, "Prestation ID manquant."
+
+    existing = Prestation.objects.select_related("prestataire", "beneficiaire", "formation").filter(
+        code__iexact=code
+    ).first()
+    if existing:
+        return existing, None
+
+    prestataire_label = str(prestataire_name or "").strip() or "PRESTATAIRE A COMPLETER"
+    formation_label = str(formation_title or "").strip() or f"Formation {code}"
+    beneficiaire_label = str(beneficiaire_name or "").strip()
+
+    prestataire = Prestataire.objects.filter(raison_sociale__iexact=prestataire_label).first()
+    if prestataire is None:
+        prestataire = Prestataire.objects.create(
+            code=_make_unique_model_code(Prestataire, prestataire_label, prefix="PREST"),
+            raison_sociale=prestataire_label,
+            actif=True,
+        )
+
+    formation = Formation.objects.filter(nom__iexact=formation_label).first()
+    if formation is None:
+        formation = Formation.objects.create(
+            code=_make_unique_model_code(Formation, f"FORM{code}", prefix="FORM"),
+            nom=formation_label,
+            nom_harmonise=formation_label,
+            statut="non_demarre",
+            actif=True,
+        )
+
+    beneficiaire_obj = None
+    if beneficiaire_label:
+        beneficiaire_obj = Beneficiaire.objects.filter(nom_structure__iexact=beneficiaire_label).first()
+        if beneficiaire_obj is None:
+            beneficiaire_obj = Beneficiaire.objects.create(
+                nom_structure=beneficiaire_label,
+                actif=True,
+            )
+
+    created = Prestation.objects.create(
+        code=code,
+        prestataire=prestataire,
+        formation=formation,
+        beneficiaire=beneficiaire_obj,
+        actif=True,
+    )
+    return created, None
 
 
 def _upload_classes_from_excel(uploaded_file, user) -> dict:
