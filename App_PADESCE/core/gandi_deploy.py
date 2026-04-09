@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 from typing import Any
-from urllib.parse import urlsplit, urlunsplit
+from urllib.parse import urlencode, urlsplit, urlunsplit
 
 import requests
 from django.conf import settings
@@ -31,9 +31,21 @@ RUN_FILE_PREFIX = "run-"
 RUN_FILE_SUFFIX = ".json"
 LOCK_FILENAME = "active.lock"
 RUNTIME_CONFIG_FILENAME = "runtime-config.json"
-HTTP_TIMEOUT_SECONDS = 15
-LIVE_REFRESH_TIMEOUT_SECONDS = 180
-LIVE_REFRESH_POLL_INTERVAL_SECONDS = 5
+
+
+def _int_env(name: str, default: int, *, minimum: int = 1) -> int:
+    try:
+        value = int(str(os.getenv(name, str(default)) or str(default)))
+    except (TypeError, ValueError):
+        return default
+    return max(minimum, value)
+
+
+HTTP_TIMEOUT_SECONDS = _int_env("GANDI_HTTP_TIMEOUT_SECONDS", 15)
+LIVE_REFRESH_TIMEOUT_SECONDS = _int_env("GANDI_LIVE_REFRESH_TIMEOUT_SECONDS", 300)
+LIVE_REFRESH_POLL_INTERVAL_SECONDS = _int_env("GANDI_LIVE_REFRESH_POLL_INTERVAL_SECONDS", 5)
+PUBLIC_HTTP_CHECK_ATTEMPTS = _int_env("GANDI_PUBLIC_HTTP_CHECK_ATTEMPTS", 6)
+PUBLIC_HTTP_CHECK_RETRY_DELAY_SECONDS = _int_env("GANDI_PUBLIC_HTTP_CHECK_RETRY_DELAY_SECONDS", 10)
 MAX_HISTORY_ITEMS = 10
 MAX_LOG_LINES = 400
 REMOTE_UWSGI_LOG_PATH = "/lamp0/var/log/www/uwsgi.log"
@@ -778,6 +790,20 @@ def live_status_check_url(url: str) -> str:
     return f"{base_url}/deploiement/live/" if base_url else ""
 
 
+def _cache_busted_url(url: str, *, run_id: str, attempt: int) -> str:
+    if not url:
+        return url
+    parsed = urlsplit(url)
+    extra_query = urlencode(
+        {
+            "_deploy_run": str(run_id or "").strip(),
+            "_deploy_attempt": str(attempt),
+        }
+    )
+    query = f"{parsed.query}&{extra_query}" if parsed.query else extra_query
+    return urlunsplit((parsed.scheme, parsed.netloc, parsed.path, query, parsed.fragment))
+
+
 def requires_python_refresh(paths: list[str]) -> bool:
     return any(not path.startswith("static/") for path in paths)
 
@@ -791,7 +817,11 @@ def _http_json_check(url: str) -> dict[str, Any]:
             url,
             timeout=HTTP_TIMEOUT_SECONDS,
             allow_redirects=True,
-            headers={"Accept": "application/json", "Cache-Control": "no-cache"},
+            headers={
+                "Accept": "application/json",
+                "Cache-Control": "no-cache",
+                "Pragma": "no-cache",
+            },
         )
         payload: dict[str, Any] | None = None
         try:
@@ -955,6 +985,7 @@ def confirm_python_refresh(
     attempts = 0
     last_status_code: int | None = None
     last_message = ""
+    last_final_url = live_url
     last_payload: dict[str, Any] | None = None
 
     while (time.monotonic() - started_monotonic) < LIVE_REFRESH_TIMEOUT_SECONDS:
@@ -966,8 +997,9 @@ def confirm_python_refresh(
             message=f"Attente du rechargement Python ({attempts})",
             progress=progress,
         )
-        response = _http_json_check(live_url)
+        response = _http_json_check(_cache_busted_url(live_url, run_id=run_id, attempt=attempts))
         last_status_code = response.get("status_code")
+        last_final_url = response.get("final_url", last_final_url) or last_final_url
         if response.get("message"):
             last_message = str(response["message"])
         payload = response.get("payload")
@@ -1003,7 +1035,7 @@ def confirm_python_refresh(
     refresh_request.update(
         {
             "reloaded": False,
-            "checked_url": live_url,
+            "checked_url": last_final_url,
             "status_code": last_status_code,
             "attempts": attempts,
             "marker_seen": bool(refresh_request.get("marker_seen")),
@@ -1386,7 +1418,16 @@ def _http_check(url: str) -> dict[str, Any]:
         return {"ok": False, "message": "URL de verification absente"}
 
     try:
-        response = requests.get(url, timeout=HTTP_TIMEOUT_SECONDS, allow_redirects=True)
+        response = requests.get(
+            url,
+            timeout=HTTP_TIMEOUT_SECONDS,
+            allow_redirects=True,
+            headers={
+                "Accept": "text/html,*/*",
+                "Cache-Control": "no-cache",
+                "Pragma": "no-cache",
+            },
+        )
         return {
             "ok": 200 <= response.status_code < 400,
             "status_code": response.status_code,
@@ -1397,6 +1438,60 @@ def _http_check(url: str) -> dict[str, Any]:
             "ok": False,
             "message": str(exc),
         }
+
+
+def _http_check_with_retries(
+    url: str,
+    *,
+    attempts: int = PUBLIC_HTTP_CHECK_ATTEMPTS,
+    delay_seconds: int = PUBLIC_HTTP_CHECK_RETRY_DELAY_SECONDS,
+) -> dict[str, Any]:
+    total_attempts = max(1, attempts)
+    last_result: dict[str, Any] = {}
+    for attempt in range(1, total_attempts + 1):
+        last_result = _http_check(url)
+        last_result["attempts"] = attempt
+        if last_result.get("ok"):
+            return last_result
+        if attempt < total_attempts:
+            time.sleep(max(0, delay_seconds))
+    return last_result
+
+
+def _live_refresh_error_message(live_refresh: dict[str, Any]) -> str:
+    parts = ["Le serveur Python n'a pas confirme son rechargement."]
+    message = str(live_refresh.get("message", "") or "").strip()
+    if message:
+        parts.append(message)
+    status_code = live_refresh.get("status_code")
+    if status_code:
+        parts.append(f"Dernier statut live: HTTP {status_code}.")
+    if live_refresh.get("marker_seen"):
+        parts.append("Le marqueur du run a ete vu.")
+    app_booted_at = str(live_refresh.get("app_booted_at", "") or "").strip()
+    if app_booted_at:
+        parts.append(f"Dernier demarrage observe: {app_booted_at}.")
+    checked_url = str(live_refresh.get("checked_url", "") or "").strip()
+    if checked_url:
+        parts.append(f"URL controlee: {checked_url}.")
+    return " ".join(parts)
+
+
+def _http_check_error_message(http_result: dict[str, Any]) -> str:
+    parts = ["Le site public n'a pas repondu correctement apres le deploiement."]
+    attempts = http_result.get("attempts")
+    if attempts:
+        parts.append(f"Tentatives: {attempts}.")
+    status_code = http_result.get("status_code")
+    if status_code:
+        parts.append(f"Dernier statut HTTP: {status_code}.")
+    message = str(http_result.get("message", "") or "").strip()
+    if message:
+        parts.append(message)
+    final_url = str(http_result.get("final_url", "") or "").strip()
+    if final_url:
+        parts.append(f"URL controlee: {final_url}.")
+    return " ".join(parts)
 
 
 def _record_report_and_notification(state: DeploymentRunState) -> None:
@@ -1670,7 +1765,7 @@ def run_deployment(*, run_id: str, mode: str = "deploy") -> dict[str, Any]:
             )
             state.log(live_refresh.get("message", "Verification du rechargement Python terminee."))
             if not live_refresh.get("reloaded"):
-                verification_errors.append("Le serveur Python n'a pas confirme son rechargement.")
+                verification_errors.append(_live_refresh_error_message(live_refresh))
         else:
             live_refresh = {
                 "required": False,
@@ -1682,11 +1777,9 @@ def run_deployment(*, run_id: str, mode: str = "deploy") -> dict[str, Any]:
             }
             state.log(live_refresh["message"])
 
-        http_result = _http_check(config.verify_url)
+        http_result = _http_check_with_retries(config.verify_url)
         if not http_result.get("ok"):
-            verification_errors.append(
-                "Le site public n'a pas repondu correctement apres le deploiement."
-            )
+            verification_errors.append(_http_check_error_message(http_result))
         verification_payload = {
             "uploaded_checked": len(uploaded_paths),
             "deleted_checked": len(deleted_paths),

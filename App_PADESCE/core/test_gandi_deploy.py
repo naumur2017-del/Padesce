@@ -12,6 +12,8 @@ from django.urls import reverse
 
 from App_PADESCE.core.deployment_live import LIVE_MARKER_FILENAME
 from App_PADESCE.core.gandi_deploy import (
+    _cache_busted_url,
+    _http_check_with_retries,
     _merge_env_content,
     build_local_manifest,
     compute_diff,
@@ -135,6 +137,40 @@ class GandiDeployHelpersTests(SimpleTestCase):
         self.assertIn("MICROSOFT_GRAPH_TENANT_ID=tenant-001", merged)
         self.assertIn("# keep comment", merged)
         self.assertIn("EMAIL_HOST=smtp.gmail.com", merged)
+
+    def test_cache_busted_url_preserves_existing_query(self) -> None:
+        url = _cache_busted_url(
+            "https://call.naumur.com/deploiement/live/?format=json",
+            run_id="run-123",
+            attempt=2,
+        )
+
+        self.assertTrue(url.startswith("https://call.naumur.com/deploiement/live/?"))
+        self.assertIn("format=json", url)
+        self.assertIn("_deploy_run=run-123", url)
+        self.assertIn("_deploy_attempt=2", url)
+
+    def test_http_check_with_retries_allows_transient_public_failure(self) -> None:
+        with (
+            patch(
+                "App_PADESCE.core.gandi_deploy._http_check",
+                side_effect=[
+                    {"ok": False, "message": "timeout"},
+                    {"ok": True, "status_code": 200, "final_url": "https://call.naumur.com/"},
+                ],
+            ) as check_mock,
+            patch("App_PADESCE.core.gandi_deploy.time.sleep") as sleep_mock,
+        ):
+            result = _http_check_with_retries(
+                "https://call.naumur.com",
+                attempts=2,
+                delay_seconds=0,
+            )
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["attempts"], 2)
+        self.assertEqual(check_mock.call_count, 2)
+        sleep_mock.assert_called_once_with(0)
 
 
 class DeploymentViewsTests(TestCase):
