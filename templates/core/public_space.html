@@ -62,15 +62,56 @@
     color: #fff;
   }
   .public-switches {
-    display: flex;
-    gap: 12px;
-    flex-wrap: wrap;
+    display: grid;
+    gap: 10px;
     margin-bottom: 16px;
   }
+  .public-switch-label {
+    font-size: 0.8rem;
+    color: var(--muted);
+    font-weight: 700;
+    margin-bottom: 4px;
+    letter-spacing: 0.02em;
+  }
   .public-switch-group {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .segment-control {
     display: inline-flex;
-    gap: 8px;
-    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    padding: 6px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: rgba(124, 58, 237, 0.08);
+    width: fit-content;
+    max-width: 100%;
+    overflow-x: auto;
+    scrollbar-width: thin;
+  }
+  .segment-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 38px;
+    padding: 8px 16px;
+    border-radius: 999px;
+    border: 1px solid transparent;
+    color: var(--accent-strong);
+    font-weight: 700;
+    text-decoration: none;
+    white-space: nowrap;
+    transition: background .18s ease, color .18s ease, box-shadow .18s ease;
+  }
+  .segment-link:hover {
+    background: rgba(124, 58, 237, 0.12);
+  }
+  .segment-link.active {
+    background: var(--accent);
+    color: #fff;
+    box-shadow: 0 6px 18px rgba(76, 29, 149, 0.22);
   }
   .public-grid {
     display: grid;
@@ -218,15 +259,22 @@
 </section>
 
 <div class="public-switches">
-  <div class="public-switch-group" role="tablist" aria-label="Choix du profil">
+  <div class="public-switch-group">
+    <div class="public-switch-label">Glissement entre les tables</div>
+    <div class="segment-control" role="tablist" aria-label="Choix de la section">
+      {% for item in page_tabs %}
+        <a class="segment-link{% if item.active %} active{% endif %}" href="{{ item.url }}">{{ item.label }}</a>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="public-switch-group">
+    <div class="public-switch-label">Mode d'affichage</div>
+    <div class="segment-control" role="tablist" aria-label="Choix du profil">
     {% for item in scope_tabs %}
-      <a class="public-scope{% if item.active %} active{% endif %}" href="{{ item.url }}">{{ item.label }}</a>
+      <a class="segment-link{% if item.active %} active{% endif %}" href="{{ item.url }}">{{ item.label }}</a>
     {% endfor %}
   </div>
-  <div class="public-switch-group" role="tablist" aria-label="Choix de la section">
-    {% for item in page_tabs %}
-      <a class="public-tab{% if item.active %} active{% endif %}" href="{{ item.url }}">{{ item.label }}</a>
-    {% endfor %}
   </div>
 </div>
 

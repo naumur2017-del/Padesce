@@ -748,6 +748,7 @@ def _apply_formateur_batch_status_target(reference_code: str, target_status: str
 
 @require_analysis_access
 def satisfaction_formateurs_update_form_page(request):
+    all_status_filter = str(request.GET.get("all_status", "") or "").strip()
     initial = {
         "reference_codes_text": str(request.GET.get("codes", "") or "").strip(),
     }
@@ -835,8 +836,16 @@ def satisfaction_formateurs_update_form_page(request):
 
     termine_qs = _formateur_termine_without_form_queryset()
     form_status_qs = _formateur_form_status_issue_queryset()
+    all_formateurs_base_qs = AppelFormateur.objects.filter(is_active=True).order_by(
+        "session_date", "numero_seance", "reference_code"
+    )
+    all_formateurs_qs = all_formateurs_base_qs
+    if all_status_filter:
+        all_formateurs_qs = all_formateurs_qs.filter(status=all_status_filter)
     termine_without_form_total = termine_qs.count()
     form_status_issue_total = form_status_qs.count()
+    all_formateurs_total = all_formateurs_base_qs.count()
+    all_formateurs_filtered_total = all_formateurs_qs.count()
     termine_page_obj, termine_without_form_rows = _paginate_formateur_update_form_rows(
         request,
         termine_qs,
@@ -847,6 +856,15 @@ def satisfaction_formateurs_update_form_page(request):
         form_status_qs,
         page_param="status_page",
     )
+    all_formateurs_page_obj, all_formateurs_rows = _paginate_formateur_update_form_rows(
+        request,
+        all_formateurs_qs,
+        page_param="all_page",
+    )
+    all_status_choices = [(value, label) for value, label in AppelFormateur.STATUS_CHOICES if value]
+    known_status_values = {value for value, _label in all_status_choices}
+    if all_status_filter and all_status_filter not in known_status_values:
+        all_status_choices.append((all_status_filter, all_status_filter))
 
     context = {
         "form": form,
@@ -859,6 +877,12 @@ def satisfaction_formateurs_update_form_page(request):
         "form_status_issue_rows": form_status_issue_rows,
         "form_status_issue_total": form_status_issue_total,
         "form_status_issue_page_obj": form_status_page_obj,
+        "all_formateurs_rows": all_formateurs_rows,
+        "all_formateurs_total": all_formateurs_total,
+        "all_formateurs_filtered_total": all_formateurs_filtered_total,
+        "all_formateurs_page_obj": all_formateurs_page_obj,
+        "all_status_choices": all_status_choices,
+        "all_status_filter": all_status_filter,
         "candidate_total": termine_without_form_total + form_status_issue_total,
         "dashboard_url": reverse("satisfaction_formateurs_dashboard"),
         "index_url": reverse("satisfaction_formateurs_index"),
