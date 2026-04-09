@@ -884,8 +884,7 @@ def fast_stats_api(request):
     return build_fast_stats_api_response(request)
 
 
-@require_consultant_access
-def consultant_dashboard(request):
+def _build_consultant_dashboard_context(request):
     search = (request.GET.get("q") or "").strip()
     classe_filter = (request.GET.get("classe") or "").strip()
     prestation_filter = (request.GET.get("prestation") or "").strip()
@@ -1106,45 +1105,50 @@ def consultant_dashboard(request):
     except (PageNotAnInteger, EmptyPage):
         page_obj = paginator.page(1)
 
+    return {
+        "rows": list(page_obj.object_list),
+        "page_obj": page_obj,
+        "paginator": paginator,
+        "filters": {
+            "q": search,
+            "classe": classe_filter,
+            "prestation": prestation_filter,
+            "beneficiaire": beneficiaire_filter,
+            "fenetre": fenetre_filter,
+            "status": status_filter,
+            "classes": analysis_snapshot["class_options"],
+            "prestataires": analysis_snapshot["prestataire_options"],
+            "beneficiaires": analysis_snapshot.get("beneficiaire_options", []),
+            "fenetres": analysis_snapshot.get("fenetre_options", []),
+        },
+        "filter_map_json": filter_map_json,
+        "total_rows": len(rows),
+        "card_prestations_count": card_snapshot["counts"].get("analyzed_prestations_count", 0),
+        "card_classes_count": card_snapshot["counts"].get("analyzed_classes_count", 0),
+        "card_prestataires_count": card_snapshot["counts"].get(
+            "analyzed_prestataires_count", 0
+        ),
+        "card_beneficiaires_count": card_snapshot["counts"].get(
+            "analyzed_beneficiaires_count", 0
+        ),
+        "card_apprenants_count": card_snapshot["counts"].get("analyzed_learners_count", 0),
+        "card_fenetres": card_snapshot["fenetre_options"],
+        "summary_appels_cibles": appels_cibles,
+        "summary_tentes": tentes,
+        "summary_reussis": reussis,
+        "summary_form_remplis": form_remplis,
+        "summary_form_sans_audio": form_sans_audio,
+        "summary_form_audio": form_audio,
+        "summary_audios": audios_enregistres,
+    }
+
+
+@require_consultant_access
+def consultant_dashboard(request):
     return render(
         request,
         "consultant/dashboard.html",
-        {
-            "rows": list(page_obj.object_list),
-            "page_obj": page_obj,
-            "paginator": paginator,
-            "filters": {
-                "q": search,
-                "classe": classe_filter,
-                "prestation": prestation_filter,
-                "beneficiaire": beneficiaire_filter,
-                "fenetre": fenetre_filter,
-                "status": status_filter,
-                "classes": analysis_snapshot["class_options"],
-                "prestataires": analysis_snapshot["prestataire_options"],
-                "beneficiaires": analysis_snapshot.get("beneficiaire_options", []),
-                "fenetres": analysis_snapshot.get("fenetre_options", []),
-            },
-            "filter_map_json": filter_map_json,
-            "total_rows": len(rows),
-            "card_prestations_count": card_snapshot["counts"].get("analyzed_prestations_count", 0),
-            "card_classes_count": card_snapshot["counts"].get("analyzed_classes_count", 0),
-            "card_prestataires_count": card_snapshot["counts"].get(
-                "analyzed_prestataires_count", 0
-            ),
-            "card_beneficiaires_count": card_snapshot["counts"].get(
-                "analyzed_beneficiaires_count", 0
-            ),
-            "card_apprenants_count": card_snapshot["counts"].get("analyzed_learners_count", 0),
-            "card_fenetres": card_snapshot["fenetre_options"],
-            "summary_appels_cibles": appels_cibles,
-            "summary_tentes": tentes,
-            "summary_reussis": reussis,
-            "summary_form_remplis": form_remplis,
-            "summary_form_sans_audio": form_sans_audio,
-            "summary_form_audio": form_audio,
-            "summary_audios": audios_enregistres,
-        },
+        _build_consultant_dashboard_context(request),
     )
 
 
