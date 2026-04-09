@@ -912,24 +912,40 @@ def _build_classes_tab_rows():
         "formation",
         "formateur",
     ).order_by("code")
-    call_counts = {
+    call_counts_by_id = {
         row["classe_id"]: {
             "total": int(row["total"] or 0),
             "threshold_done": int(row["threshold_done"] or 0),
         }
-        for row in Appel.objects.filter(is_active=True)
+        for row in Appel.objects.filter(is_active=True, classe_id__isnull=False)
         .values("classe_id")
         .annotate(
             total=Count("id"),
             threshold_done=Count("id", filter=Q(status__in=CALL_ANALYSIS_THRESHOLD_STATUSES)),
         )
     }
+    orphan_counts_by_code = {
+        str(row["classe_label"] or "").strip(): {
+            "total": int(row["total"] or 0),
+            "threshold_done": int(row["threshold_done"] or 0),
+        }
+        for row in Appel.objects.filter(is_active=True, classe_id__isnull=True)
+        .exclude(classe_label="")
+        .values("classe_label")
+        .annotate(
+            total=Count("id"),
+            threshold_done=Count("id", filter=Q(status__in=CALL_ANALYSIS_THRESHOLD_STATUSES)),
+        )
+        if str(row["classe_label"] or "").strip()
+    }
     rows = []
+    known_codes: set[str] = set()
     for classe in classes_qs:
-        counts = call_counts.get(classe.pk, {"total": 0, "threshold_done": 0})
+        counts = call_counts_by_id.get(classe.pk, {"total": 0, "threshold_done": 0})
         total = counts["total"]
         done = counts["threshold_done"]
         target = analysis_threshold_target(total)
+        known_codes.add(str(classe.code or "").strip().casefold())
         rows.append(
             {
                 "selection_value": classe.code,
@@ -945,6 +961,30 @@ def _build_classes_tab_rows():
                 "threshold_reached": bool(total and done >= target),
             }
         )
+    # Ajoute les classes presentes dans les appels mais absentes du referentiel Classe.
+    for class_code, counts in orphan_counts_by_code.items():
+        code_key = class_code.casefold()
+        if code_key in known_codes:
+            continue
+        total = counts["total"]
+        done = counts["threshold_done"]
+        target = analysis_threshold_target(total)
+        rows.append(
+            {
+                "selection_value": class_code,
+                "classe_code": class_code,
+                "prestation_code": "-",
+                "prestataire": "-",
+                "beneficiaire": "-",
+                "formation_title": "-",
+                "cohorte": "-",
+                "appels_total": total,
+                "threshold_done": done,
+                "threshold_target": target,
+                "threshold_reached": bool(total and done >= target),
+            }
+        )
+    rows.sort(key=lambda item: str(item.get("classe_code") or ""))
     return rows
 
 
