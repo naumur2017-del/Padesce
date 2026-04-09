@@ -5,7 +5,14 @@ from django.test import TestCase
 from django.urls import reverse
 
 from App_PADESCE.appels.models import AppelFormateur
-from App_PADESCE.formations.models import Beneficiaire, Classe, Formateur, Formation, Prestataire, Prestation
+from App_PADESCE.formations.models import (
+    Beneficiaire,
+    Classe,
+    Formateur,
+    Formation,
+    Prestataire,
+    Prestation,
+)
 from App_PADESCE.satisfaction_formateurs.models import SatisfactionFormateur
 
 

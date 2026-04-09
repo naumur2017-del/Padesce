@@ -599,7 +599,9 @@ def _build_formateur_candidate_row(row: AppelFormateur) -> dict:
 
 
 def _formateur_answer_summary(row: AppelFormateur) -> str:
-    return " / ".join(str(getattr(row, field_name, None) or "-") for field_name in FORMATEUR_SCORE_FIELDS)
+    return " / ".join(
+        str(getattr(row, field_name, None) or "-") for field_name in FORMATEUR_SCORE_FIELDS
+    )
 
 
 def _paginate_formateur_update_form_rows(
@@ -630,7 +632,9 @@ def _apply_formateur_batch_update_target(reference_code: str, payload: dict, use
         "survey_synced": False,
     }
 
-    row = AppelFormateur.objects.filter(is_active=True, reference_code__iexact=reference_code).first()
+    row = AppelFormateur.objects.filter(
+        is_active=True, reference_code__iexact=reference_code
+    ).first()
     if row is None:
         result["message"] = "Reference formateur introuvable."
         return result
@@ -666,7 +670,9 @@ def _apply_formateur_batch_update_target(reference_code: str, payload: dict, use
         result["ok"] = True
         return result
     except Exception as exc:
-        logger.exception("UPDATE FORM formateurs batch update failed for reference=%s", reference_code)
+        logger.exception(
+            "UPDATE FORM formateurs batch update failed for reference=%s", reference_code
+        )
         result["message"] = f"Erreur interne pendant la mise a jour: {exc}"
         return result
 
@@ -687,7 +693,9 @@ def _apply_formateur_batch_status_target(reference_code: str, target_status: str
         "survey_synced": False,
     }
 
-    row = AppelFormateur.objects.filter(is_active=True, reference_code__iexact=reference_code).first()
+    row = AppelFormateur.objects.filter(
+        is_active=True, reference_code__iexact=reference_code
+    ).first()
     if row is None:
         result["message"] = "Reference formateur introuvable."
         return result
@@ -728,7 +736,9 @@ def _apply_formateur_batch_status_target(reference_code: str, target_status: str
         result["ok"] = True
         return result
     except Exception as exc:
-        logger.exception("UPDATE FORM formateurs status update failed for reference=%s", reference_code)
+        logger.exception(
+            "UPDATE FORM formateurs status update failed for reference=%s", reference_code
+        )
         result["message"] = f"Erreur interne pendant le changement de statut: {exc}"
         return result
 
@@ -770,7 +780,9 @@ def satisfaction_formateurs_update_form_page(request):
                 form.add_error("target_status", "Choisissez le statut a appliquer.")
             else:
                 results = [
-                    _apply_formateur_batch_status_target(reference_code, requested_status, request.user)
+                    _apply_formateur_batch_status_target(
+                        reference_code, requested_status, request.user
+                    )
                     for reference_code in targets
                 ]
                 summary = {
