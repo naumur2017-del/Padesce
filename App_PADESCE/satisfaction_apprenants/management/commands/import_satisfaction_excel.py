@@ -10,7 +10,8 @@ from difflib import SequenceMatcher
 from pathlib import Path
 
 from django.core.management.base import BaseCommand, CommandError
-from django.db import transaction
+from django.db import connection, transaction
+from django.db.models import Max
 from django.utils import timezone
 from openpyxl import load_workbook
 
@@ -286,6 +287,23 @@ def _entity_code(prefix: str, *parts: str, max_length: int = 20) -> str:
     return f"{prefix}-{digest}"
 
 
+def _next_primary_key(model) -> int:
+    pk_name = model._meta.pk.attname
+    current_max = model.objects.exclude(**{f"{pk_name}__isnull": True}).aggregate(
+        max_pk=Max(pk_name)
+    )["max_pk"]
+    return int(current_max or 0) + 1
+
+
+def _purge_corrupt_code_rows(model, code_value: str) -> None:
+    raw_code = _clean_text(code_value)
+    if not raw_code:
+        return
+    table_name = connection.ops.quote_name(model._meta.db_table)
+    with connection.cursor() as cursor:
+        cursor.execute(f"DELETE FROM {table_name} WHERE code = %s AND id IS NULL", [raw_code])
+
+
 def _cohorte_value(value) -> int:
     text = _clean_text(value)
     digits = "".join(ch for ch in text if ch.isdigit())
@@ -357,6 +375,8 @@ def _sync_source_models(
         formation.actif = True
         if formation.pk is None:
             formation.statut = _local_classe_status(source_record.get("statut_prestation"))
+        if formation.pk is None and getattr(formation, "id", None) is None:
+            formation.id = _next_primary_key(Formation)
         formation.save()
         cache["formations"][formation_key] = formation
 
@@ -374,6 +394,8 @@ def _sync_source_models(
             prestataire = Prestataire(code=prestataire_code)
         prestataire.raison_sociale = prestataire_name
         prestataire.actif = True
+        if prestataire.pk is None and getattr(prestataire, "id", None) is None:
+            prestataire.id = _next_primary_key(Prestataire)
         prestataire.save()
         cache["prestataires"][prestataire_key] = prestataire
 
@@ -388,6 +410,8 @@ def _sync_source_models(
         beneficiaire.region = _clean_text(source_record.get("region") or "")
         beneficiaire.ville = _clean_text(source_record.get("ville") or "")
         beneficiaire.actif = True
+        if beneficiaire.pk is None and getattr(beneficiaire, "id", None) is None:
+            beneficiaire.id = _next_primary_key(Beneficiaire)
         beneficiaire.save()
         cache["beneficiaires"][beneficiaire_key] = beneficiaire
 
@@ -405,6 +429,8 @@ def _sync_source_models(
         lieu.region = _clean_text(source_record.get("region") or "")
         lieu.ville = _clean_text(source_record.get("ville") or "")
         lieu.actif = True
+        if lieu.pk is None and getattr(lieu, "id", None) is None:
+            lieu.id = _next_primary_key(Lieu)
         lieu.save()
         cache["lieux"][lieu_key] = lieu
 
@@ -414,21 +440,35 @@ def _sync_source_models(
         prestation = cache["prestations"].get(prestation_code)
         if prestation is None:
             prestation = Prestation.objects.filter(code=prestation_code).first()
+        if prestation is not None and prestation.pk is None:
+            _purge_corrupt_code_rows(Prestation, prestation_code)
+            prestation = None
         if prestation is None:
             prestation = Prestation(code=prestation_code)
         prestation.prestataire = prestataire
         prestation.formation = formation
         prestation.beneficiaire = beneficiaire
         prestation.actif = True
+        if prestation.pk is None and getattr(prestation, "id", None) is None:
+            prestation.id = _next_primary_key(Prestation)
         prestation.save()
         cache["prestations"][prestation_code] = prestation
 
     classe = None
     classe_code = _clean_text(source_record.get("classe_id") or "")
     if classe_code and prestation and formation:
+        if prestation.pk is None:
+            prestation.save()
+        if formation.pk is None:
+            formation.save()
+        if lieu is not None and lieu.pk is None:
+            lieu.save()
         classe = cache["classes"].get(classe_code)
         if classe is None:
             classe = Classe.objects.filter(code=classe_code).first()
+        if classe is not None and classe.pk is None:
+            _purge_corrupt_code_rows(Classe, classe_code)
+            classe = None
         if classe is None:
             classe = Classe(code=classe_code)
         classe.prestation = prestation
@@ -441,6 +481,8 @@ def _sync_source_models(
         classe.cohorte = _cohorte_value(source_record.get("cohorte"))
         classe.statut = _local_classe_status(source_record.get("statut_prestation"))
         classe.actif = True
+        if classe.pk is None and getattr(classe, "id", None) is None:
+            classe.id = _next_primary_key(Classe)
         classe.save()
         cache["classes"][classe_code] = classe
 
@@ -449,24 +491,31 @@ def _sync_source_models(
     if inspecteur_code:
         inspecteur = cache["inspecteurs"].get(inspecteur_code)
         if inspecteur is None:
-            inspecteur, _created = Inspecteur.objects.update_or_create(
-                code=inspecteur_code,
-                defaults={
-                    "nom_complet": _clean_text(
-                        source_record.get("inspecteur_label") or inspecteur_code
-                    ),
-                    "actif": True,
-                },
-            )
+            inspecteur = Inspecteur.objects.filter(code=inspecteur_code).first()
+        if inspecteur is None:
+            inspecteur = Inspecteur(code=inspecteur_code)
+        inspecteur.nom_complet = _clean_text(source_record.get("inspecteur_label") or inspecteur_code)
+        inspecteur.actif = True
+        if inspecteur.pk is None and getattr(inspecteur, "id", None) is None:
+            inspecteur.id = _next_primary_key(Inspecteur)
+        inspecteur.save()
+        if inspecteur is not None:
             cache["inspecteurs"][inspecteur_code] = inspecteur
 
     apprenant = None
     apprenant_code = _clean_text(source_record.get("apprenant_id") or "")
     apprenant_name = _clean_text(source_record.get("nom_individu") or "")
     if apprenant_code and classe and formation:
+        if classe.pk is None:
+            classe.save()
+        if formation.pk is None:
+            formation.save()
         apprenant = cache["apprenants"].get(apprenant_code)
         if apprenant is None:
             apprenant = Apprenant.objects.filter(code=apprenant_code).first()
+        if apprenant is not None and apprenant.pk is None:
+            _purge_corrupt_code_rows(Apprenant, apprenant_code)
+            apprenant = None
         if apprenant is None and apprenant_name:
             apprenant = Apprenant.objects.filter(
                 classe=classe, nom_complet__iexact=apprenant_name
@@ -491,6 +540,8 @@ def _sync_source_models(
         apprenant.telephone1 = None
         apprenant.telephone2 = None
         apprenant.actif = _statut_actif(source_record.get("statut_apprenant"))
+        if apprenant.pk is None and getattr(apprenant, "id", None) is None:
+            apprenant.id = _next_primary_key(Apprenant)
         apprenant.save()
         cache["apprenants"][apprenant_code] = apprenant
 

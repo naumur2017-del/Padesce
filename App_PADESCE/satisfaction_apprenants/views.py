@@ -683,7 +683,8 @@ def _dashboard_row_from_answer(answer_or_appel, *, matched_apprenant: Apprenant 
         answer = None
         appel = answer_or_appel
 
-    classe = appel.classe
+    apprenant = matched_apprenant or resolve_apprenant_for_appel(appel)
+    classe = appel.classe or getattr(apprenant, "classe", None)
     prestation = getattr(classe, "prestation", None) if classe else None
     survey = getattr(appel, "satisfaction_apprenant", None)
     prestataire = (
@@ -730,11 +731,10 @@ def _dashboard_row_from_answer(answer_or_appel, *, matched_apprenant: Apprenant 
         val = getattr(answer, field, None) if answer else None
         if val is None and survey:
             val = getattr(survey, field, None)
-    if val not in (None, ""):
-        q_filled_count += 1
+        if val not in (None, ""):
+            q_filled_count += 1
     has_form = q_filled_count >= 9
 
-    apprenant = matched_apprenant or resolve_apprenant_for_appel(appel)
     classe_code = getattr(classe, "code", "") or appel.classe_label or ""
     apprenant_code = getattr(apprenant, "code", "") or appel.code or ""
     apprenant_id = get_local_apprenant_identifier(apprenant)
@@ -4174,6 +4174,7 @@ def _apply_batch_status_target(target: dict[str, str], target_status: str) -> di
 @require_analysis_access
 def satisfaction_update_form_page(request):
     selected_source = _analysis_selected_source(request)
+    all_status_filter = str(request.GET.get("all_status", "") or "").strip()
     initial = {
         "classe_code": str(request.GET.get("classe_code", "") or "").strip(),
         "codes_text": str(request.GET.get("codes", "") or "").strip(),
@@ -4261,10 +4262,14 @@ def satisfaction_update_form_page(request):
 
     termine_qs = _termine_without_form_queryset()
     form_status_qs = _form_status_issue_queryset()
-    all_apprenants_qs = _update_form_candidate_base_queryset()
+    all_apprenants_base_qs = _update_form_candidate_base_queryset()
+    all_apprenants_qs = all_apprenants_base_qs
+    if all_status_filter:
+        all_apprenants_qs = all_apprenants_qs.filter(status=all_status_filter)
     termine_without_form_total = termine_qs.count()
     form_status_issue_total = form_status_qs.count()
-    all_apprenants_total = all_apprenants_qs.count()
+    all_apprenants_total = all_apprenants_base_qs.count()
+    all_apprenants_filtered_total = all_apprenants_qs.count()
     termine_page_obj, termine_without_form_rows = _paginate_update_form_rows(
         request,
         termine_qs,
@@ -4280,6 +4285,10 @@ def satisfaction_update_form_page(request):
         all_apprenants_qs,
         page_param="all_page",
     )
+    all_status_choices = [(value, label) for value, label in Appel.STATUS_CHOICES if value]
+    known_status_values = {value for value, _label in all_status_choices}
+    if all_status_filter and all_status_filter not in known_status_values:
+        all_status_choices.append((all_status_filter, all_status_filter))
 
     context = {
         "form": form,
@@ -4295,7 +4304,10 @@ def satisfaction_update_form_page(request):
         "form_status_issue_page_obj": form_status_page_obj,
         "all_apprenants_rows": all_apprenants_rows,
         "all_apprenants_total": all_apprenants_total,
+        "all_apprenants_filtered_total": all_apprenants_filtered_total,
         "all_apprenants_page_obj": all_apprenants_page_obj,
+        "all_status_choices": all_status_choices,
+        "all_status_filter": all_status_filter,
         "candidate_total": termine_without_form_total + form_status_issue_total,
         "selected_source": selected_source,
         "general_url": f"{reverse('satisfaction_general_page')}?source={selected_source}",

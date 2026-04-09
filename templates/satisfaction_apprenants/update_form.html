@@ -43,6 +43,8 @@
   .batch-actions { display:flex; gap:10px; flex-wrap:wrap; margin-top:16px; }
   .pager { display:flex; align-items:center; justify-content:flex-end; gap:8px; flex-wrap:wrap; margin-top:12px; }
   .pager .meta { color:var(--muted); font-size:0.84rem; }
+  .inline-filter-bar { display:flex; gap:10px; flex-wrap:wrap; align-items:end; margin:0 0 16px; }
+  .inline-filter-bar .field { min-width:220px; flex:1; }
   .scope-switch { display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:18px; }
   .scope-tabs { display:inline-flex; align-items:center; gap:6px; padding:6px; border-radius:999px; border:1px solid var(--border); background:rgba(111,60,195,0.05); }
   .scope-tab { display:inline-flex; align-items:center; justify-content:center; min-width:120px; padding:9px 18px; border-radius:999px; font-size:0.85rem; font-weight:700; color:var(--muted); text-decoration:none; transition:background .15s, color .15s, box-shadow .15s; }
@@ -83,7 +85,7 @@
   </div>
   <ul class="help-list">
     <li>Codes acceptes : <code>[APP100, APP101]</code>, <code>APP100</code> ou <code>APP100|CLA001</code>.</li>
-    <li>Vous pouvez laisser <code>Codes apprenants</code> vide et selectionner directement les lignes plus bas.</li>
+    <li>Vous pouvez laisser <code>Codes apprenants</code> vide et selectionner directement les lignes plus bas, y compris dans <strong>Tous Les Apprenants Actifs</strong>.</li>
     <li>Une note unique s'applique a tout le lot. Une liste entre crochets doit avoir exactement le meme nombre de valeurs que le lot cible.</li>
     <li>Si une question est vide, la valeur par defaut appliquee est <code>3</code>. Si commentaire ou recommandations sont vides, la valeur par defaut est <code>RAS</code>.</li>
     <li>Le bouton <strong>Mettre a jour le formulaire</strong> ecrit les reponses, commentaires et recommandations. Le bouton <strong>Changer le statut</strong> ne modifie pas les reponses.</li>
@@ -126,6 +128,24 @@
       </ul>
     {% endif %}
   {% endfor %}
+
+  <form method="get" class="inline-filter-bar">
+    <input type="hidden" name="source" value="{{ selected_source }}">
+    <div class="field">
+      <label for="all-status-filter">Filtrer Tous Les Apprenants Actifs par statut actuel</label>
+      <select id="all-status-filter" name="all_status">
+        <option value="">Tous les statuts</option>
+        {% for value, label in all_status_choices %}
+          <option value="{{ value }}" {% if all_status_filter == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+      <small>Ce filtre agit uniquement sur la table complete des apprenants actifs.</small>
+    </div>
+    <div class="actions">
+      <button class="btn btn-ghost" type="submit">Filtrer</button>
+      <a class="btn btn-subtle" href="{% url 'satisfaction_update_form_page' %}?source={{ selected_source|urlencode }}">Reinitialiser</a>
+    </div>
+  </form>
 
   <form method="post">
     {% csrf_token %}
@@ -274,10 +294,10 @@
           <div class="pager">
             <div class="meta">Page {{ termine_without_form_page_obj.number }} / {{ termine_without_form_page_obj.paginator.num_pages }}</div>
             {% if termine_without_form_page_obj.has_previous %}
-              <a class="btn btn-ghost" href="?source={{ selected_source }}&termine_page={{ termine_without_form_page_obj.previous_page_number }}&status_page={{ form_status_issue_page_obj.number }}&all_page={{ all_apprenants_page_obj.number }}">Precedent</a>
+              <a class="btn btn-ghost" href="?source={{ selected_source }}&all_status={{ all_status_filter|urlencode }}&termine_page={{ termine_without_form_page_obj.previous_page_number }}&status_page={{ form_status_issue_page_obj.number }}&all_page={{ all_apprenants_page_obj.number }}">Precedent</a>
             {% endif %}
             {% if termine_without_form_page_obj.has_next %}
-              <a class="btn btn-ghost" href="?source={{ selected_source }}&termine_page={{ termine_without_form_page_obj.next_page_number }}&status_page={{ form_status_issue_page_obj.number }}&all_page={{ all_apprenants_page_obj.number }}">Suivant</a>
+              <a class="btn btn-ghost" href="?source={{ selected_source }}&all_status={{ all_status_filter|urlencode }}&termine_page={{ termine_without_form_page_obj.next_page_number }}&status_page={{ form_status_issue_page_obj.number }}&all_page={{ all_apprenants_page_obj.number }}">Suivant</a>
             {% endif %}
           </div>
         {% endif %}
@@ -353,10 +373,10 @@
           <div class="pager">
             <div class="meta">Page {{ form_status_issue_page_obj.number }} / {{ form_status_issue_page_obj.paginator.num_pages }}</div>
             {% if form_status_issue_page_obj.has_previous %}
-              <a class="btn btn-ghost" href="?source={{ selected_source }}&termine_page={{ termine_without_form_page_obj.number }}&status_page={{ form_status_issue_page_obj.previous_page_number }}&all_page={{ all_apprenants_page_obj.number }}">Precedent</a>
+              <a class="btn btn-ghost" href="?source={{ selected_source }}&all_status={{ all_status_filter|urlencode }}&termine_page={{ termine_without_form_page_obj.number }}&status_page={{ form_status_issue_page_obj.previous_page_number }}&all_page={{ all_apprenants_page_obj.number }}">Precedent</a>
             {% endif %}
             {% if form_status_issue_page_obj.has_next %}
-              <a class="btn btn-ghost" href="?source={{ selected_source }}&termine_page={{ termine_without_form_page_obj.number }}&status_page={{ form_status_issue_page_obj.next_page_number }}&all_page={{ all_apprenants_page_obj.number }}">Suivant</a>
+              <a class="btn btn-ghost" href="?source={{ selected_source }}&all_status={{ all_status_filter|urlencode }}&termine_page={{ termine_without_form_page_obj.number }}&status_page={{ form_status_issue_page_obj.next_page_number }}&all_page={{ all_apprenants_page_obj.number }}">Suivant</a>
             {% endif %}
           </div>
         {% endif %}
@@ -369,14 +389,21 @@
       <div class="section-title">
         <div>
           <h2>Tous Les Apprenants Actifs</h2>
-          <p>Vue complete de tous les apprenants actuellement presents dans le flux d'appels, avec leur statut courant et leur statut calcule.</p>
+          <p>Vue complete de tous les apprenants actuellement presents dans le flux d'appels, avec leur statut courant et leur statut calcule. Les lignes cochees peuvent etre modifiees avec les champs du haut.</p>
         </div>
+        <button class="btn btn-subtle" type="button" data-select-all="all-apprenants">Tout selectionner</button>
       </div>
       {% if all_apprenants_rows %}
+        {% if all_status_filter %}
+          <p class="muted" style="margin:0 0 12px;">{{ all_apprenants_filtered_total }} ligne(s) correspondent au statut actuel filtre, sur {{ all_apprenants_total }} apprenant(s) actif(s).</p>
+        {% endif %}
         <div class="table-wrap">
           <table>
             <thead>
               <tr>
+                <th class="checkbox-cell">
+                  <input type="checkbox" data-master-checkbox="all-apprenants" aria-label="Selectionner tous les apprenants actifs affiches">
+                </th>
                 <th>Code</th>
                 <th>Apprenant ID</th>
                 <th>Nom</th>
@@ -393,6 +420,16 @@
             <tbody>
               {% for row in all_apprenants_rows %}
                 <tr>
+                  <td class="checkbox-cell">
+                    <input
+                      type="checkbox"
+                      name="selected_targets"
+                      value="{{ row.selection_value }}"
+                      data-checkbox-group="all-apprenants"
+                      {% if row.selection_value in selected_target_values %}checked{% endif %}
+                      aria-label="Selectionner {{ row.code }}"
+                    >
+                  </td>
                   <td><strong>{{ row.code }}</strong></td>
                   <td>
                     <strong>{{ row.apprenant_id|default:"-" }}</strong>
@@ -418,10 +455,10 @@
           <div class="pager">
             <div class="meta">Page {{ all_apprenants_page_obj.number }} / {{ all_apprenants_page_obj.paginator.num_pages }}</div>
             {% if all_apprenants_page_obj.has_previous %}
-              <a class="btn btn-ghost" href="?source={{ selected_source }}&termine_page={{ termine_without_form_page_obj.number }}&status_page={{ form_status_issue_page_obj.number }}&all_page={{ all_apprenants_page_obj.previous_page_number }}">Precedent</a>
+              <a class="btn btn-ghost" href="?source={{ selected_source }}&all_status={{ all_status_filter|urlencode }}&termine_page={{ termine_without_form_page_obj.number }}&status_page={{ form_status_issue_page_obj.number }}&all_page={{ all_apprenants_page_obj.previous_page_number }}">Precedent</a>
             {% endif %}
             {% if all_apprenants_page_obj.has_next %}
-              <a class="btn btn-ghost" href="?source={{ selected_source }}&termine_page={{ termine_without_form_page_obj.number }}&status_page={{ form_status_issue_page_obj.number }}&all_page={{ all_apprenants_page_obj.next_page_number }}">Suivant</a>
+              <a class="btn btn-ghost" href="?source={{ selected_source }}&all_status={{ all_status_filter|urlencode }}&termine_page={{ termine_without_form_page_obj.number }}&status_page={{ form_status_issue_page_obj.number }}&all_page={{ all_apprenants_page_obj.next_page_number }}">Suivant</a>
             {% endif %}
           </div>
         {% endif %}
