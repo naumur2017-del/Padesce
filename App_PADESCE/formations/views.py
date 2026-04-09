@@ -1,3 +1,4 @@
+import logging
 import re
 import unicodedata
 from pathlib import Path
@@ -30,6 +31,8 @@ from App_PADESCE.presences.models import Presence
 from App_PADESCE.reporting.network_excel import build_padesce_source_index, normalize_network_lookup
 from App_PADESCE.satisfaction_apprenants.models import SatisfactionApprenant
 from App_PADESCE.satisfaction_formateurs.models import SatisfactionFormateur
+
+logger = logging.getLogger(__name__)
 
 APPRENANT_DETAIL_FIELDS = (
     ("Clarte des exposes", "q1_clarte_exposes"),
@@ -451,6 +454,18 @@ def _analysis_reference_warning() -> str:
         "Fiche reconstituee depuis la source d'analyse "
         "car cette reference n'est pas encore synchronisee dans PADESCE."
     )
+
+
+def _class_channel_workbook_path() -> Path:
+    relative = Path("data") / "class_lien" / "class_lien_cannaux.xlsx"
+    candidates = [
+        Path(__file__).resolve().parents[2] / relative,
+        Path(__file__).resolve().parents[3] / relative,
+    ]
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    return candidates[0]
 
 
 def _analysis_source_record_for_appel(source_bundle: dict | None, appel: Appel) -> dict:
@@ -1006,9 +1021,7 @@ def class_analysis_detail(request, code: str):
     try:
         import pandas as pd
 
-        excel_path = (
-            Path(__file__).resolve().parents[2] / "data" / "class_lien" / "class_lien_cannaux.xlsx"
-        )
+        excel_path = _class_channel_workbook_path()
         df = pd.read_excel(excel_path)
         for _, row in df.iterrows():
             if str(row.iloc[1]).strip() == str(code).strip():
@@ -1017,7 +1030,9 @@ def class_analysis_detail(request, code: str):
                     channel_link = link
                 break
     except Exception:
-        pass
+        logger.exception(
+            "Unable to read class channel workbook: %s", _class_channel_workbook_path()
+        )
 
     return render(
         request,

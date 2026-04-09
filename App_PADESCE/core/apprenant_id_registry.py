@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import logging
 import unicodedata
 from functools import lru_cache
 from pathlib import Path
 
 from django.conf import settings
+
+logger = logging.getLogger(__name__)
 
 
 def _clean(value) -> str:
@@ -24,7 +27,15 @@ def _norm_name(value) -> str:
 
 
 def _workbook_path() -> Path:
-    return Path(settings.BASE_DIR) / "data" / "rapport presence" / "rapport presence.xlsx"
+    relative = Path("data") / "rapport presence" / "rapport presence.xlsx"
+    candidates = [
+        Path(settings.BASE_DIR) / relative,
+        Path(settings.BASE_DIR).parent / relative,
+    ]
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    return candidates[0]
 
 
 @lru_cache(maxsize=1)
@@ -38,6 +49,7 @@ def _load_registry_cached(mtime: float):
 
         frame = pd.read_excel(workbook)
     except Exception:
+        logger.exception("Unable to load apprenant registry workbook: %s", workbook)
         return {"by_name": by_name, "by_class_name": by_class_name}
 
     for _, row in frame.iterrows():
@@ -61,6 +73,7 @@ def get_apprenant_id_from_presence_report(apprenant_name: str = "", classe_code:
     try:
         mtime = workbook.stat().st_mtime
     except OSError:
+        logger.warning("Apprenant workbook not found: %s", workbook)
         return ""
 
     payload = _load_registry_cached(mtime)
