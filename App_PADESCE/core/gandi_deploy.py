@@ -86,6 +86,7 @@ DEFAULT_INCLUDE_PATHS = (
     "templates",
     "static",
     "data",
+    "docs",
     "admin",
     "manage.py",
     "requirements.txt",
