@@ -1009,15 +1009,79 @@ def _apply_classes_batch_update_target(class_code: str, payload: dict, user) -> 
         .filter(code__iexact=class_code)
         .first()
     )
-    if classe is None:
-        result["message"] = f"Classe {class_code} introuvable."
-        return result
     prestation_code = payload.get("prestation_code")
     prestataire = payload.get("prestataire")
     beneficiaire = payload.get("beneficiaire")
     formation_title = payload.get("formation")
     cohorte = payload.get("cohorte")
+    
     try:
+        # Si la classe n'existe pas, essayer de la créer
+        if classe is None:
+            if not prestation_code:
+                result["message"] = f"Classe {class_code} introuvable et aucune prestation fournie pour creation."
+                return result
+            
+            prestation = Prestation.objects.select_related("formation").filter(code__iexact=prestation_code).first()
+            if prestation is None:
+                result["message"] = f"Prestation {prestation_code} introuvable pour creation de classe."
+                return result
+            
+            # Préparer les données pour la création
+            cohorte_value = 1
+            if cohorte:
+                if not str(cohorte).strip().isdigit():
+                    result["message"] = "La cohorte doit etre numerique."
+                    return result
+                cohorte_value = int(str(cohorte).strip())
+            
+            intitule = formation_title or getattr(prestation.formation, "nom", "") or "-"
+            
+            # Créer la classe
+            classe = Classe.objects.create(
+                code=class_code,
+                prestation=prestation,
+                formation=prestation.formation,
+                intitule_formation=intitule,
+                cohorte=cohorte_value,
+                statut="non_demarre",
+                actif=True,
+            )
+            created_count = 1
+            # Continuer avec la synchronisation des lignes formateurs
+            prestataire_value = prestataire or getattr(prestation.prestataire, "raison_sociale", "") or ""
+            beneficiaire_value = beneficiaire or getattr(getattr(prestation, "beneficiaire", None), "nom_structure", "") or ""
+            formation_value = intitule
+            cohorte_str = str(cohorte_value or "").strip()
+            
+            rows = AppelFormateur.objects.filter(is_active=True)
+            updated_rows = 0
+            for row in rows.iterator():
+                resolved = _resolve_batch_update_formateur_classe(row)
+                if not resolved or resolved.pk != classe.pk:
+                    continue
+                changed = False
+                if prestataire_value and row.prestataire != prestataire_value:
+                    row.prestataire = prestataire_value
+                    changed = True
+                if beneficiaire_value and row.beneficiaire != beneficiaire_value:
+                    row.beneficiaire = beneficiaire_value
+                    changed = True
+                if formation_value and row.formation != formation_value:
+                    row.formation = formation_value
+                    changed = True
+                if cohorte_str and row.cohorte != cohorte_str:
+                    row.cohorte = cohorte_str
+                    changed = True
+                if changed:
+                    row.save(update_fields=["prestataire", "beneficiaire", "formation", "cohorte", "updated_at"])
+                    updated_rows += 1
+            
+            result["message"] = f"Classe {class_code} creee avec succes. {updated_rows} ligne(s) formateur synchronisee(s)."
+            result["ok"] = True
+            return result
+        
+        # Sinon, mettre à jour la classe existante
         update_fields = ["updated_at"]
         if prestation_code:
             prestation = Prestation.objects.filter(code__iexact=prestation_code).first()
