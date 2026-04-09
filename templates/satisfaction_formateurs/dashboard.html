@@ -60,6 +60,7 @@
 {% include "includes/fast_stats_modal.html" %}
 
 <form method="get" class="filter-bar">
+  <input type="hidden" name="tab" id="js-active-tab-input" value="{{ active_tab|default:'prestataire' }}">
   <div class="filter-field">
     <label>Prestataire</label>
     <select name="prestataire">
@@ -86,6 +87,37 @@
     <a class="btn btn-ghost btn-sm" href="{% url 'satisfaction_formateurs_dashboard' %}">Réinitialiser</a>
   </div>
 </form>
+
+<div class="kpi-row" style="margin-bottom:16px;">
+  <div class="kpi-card" style="border-color:rgba(99,102,241,0.25);background:rgba(238,242,255,0.7);">
+    <div class="kpi-value" style="color:#3730a3;">{{ appels_cibles }}</div>
+    <div class="kpi-label">Appels Cibles</div>
+  </div>
+  <div class="kpi-card" style="border-color:rgba(234,179,8,0.25);background:rgba(254,252,232,0.6);">
+    <div class="kpi-value" style="color:#92400e;">{{ appels_tentes }}</div>
+    <div class="kpi-label">Appels Tentés</div>
+  </div>
+  <div class="kpi-card" style="border-color:rgba(34,197,94,0.25);background:rgba(240,253,244,0.6);">
+    <div class="kpi-value" style="color:#065f46;">{{ appels_reussis }}</div>
+    <div class="kpi-label">Appels Réussis</div>
+  </div>
+  <div class="kpi-card" style="border-color:rgba(59,130,246,0.25);background:rgba(239,246,255,0.6);">
+    <div class="kpi-value" style="color:#1d4ed8;">{{ formulaires_remplis_appels }}</div>
+    <div class="kpi-label">Total formulaires</div>
+  </div>
+  <div class="kpi-card" style="border-color:rgba(14,165,233,0.25);background:rgba(240,249,255,0.7);">
+    <div class="kpi-value" style="color:#0369a1;">{{ formulaires_remplis_sans_audio_appels }}</div>
+    <div class="kpi-label">Formulaires remplis sans audios</div>
+  </div>
+  <div class="kpi-card" style="border-color:rgba(139,92,246,0.25);background:rgba(245,243,255,0.6);">
+    <div class="kpi-value" style="color:#5b21b6;">{{ formulaires_avec_audio_appels }}</div>
+    <div class="kpi-label">Formulaires remplis avec audios</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-value">{{ audios_enregistres_appels }}</div>
+    <div class="kpi-label">Audios Enregistrés</div>
+  </div>
+</div>
 
 <!-- KPIs -->
 <div class="kpi-row">
@@ -117,15 +149,22 @@
 
 <!-- Onglets par groupe -->
 <div class="panel">
+  <div class="dash-header" style="margin-bottom:12px;">
+    <div class="section-title" style="margin:0;">Table active de l'analyse</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <a class="btn btn-ghost btn-sm" id="js-export-active-csv" href="{% url 'satisfaction_formateurs_dashboard_export_csv' %}{% if request.GET.urlencode %}?{{ request.GET.urlencode }}{% endif %}">Exporter la table active (CSV)</a>
+      <a class="btn btn-ghost btn-sm" id="js-export-active-chapeau" href="{% url 'satisfaction_formateurs_dashboard_export_chapeau' %}{% if request.GET.urlencode %}?{{ request.GET.urlencode }}{% endif %}">Exporter le chapeau (DOCX)</a>
+    </div>
+  </div>
   <div class="tab-bar">
-    <button class="tab-btn active" onclick="switchTab('prestataire',this)">Par prestataire</button>
-    <button class="tab-btn" onclick="switchTab('beneficiaire',this)">Par bénéficiaire</button>
-    <button class="tab-btn" onclick="switchTab('cohorte',this)">Par cohorte</button>
-    <button class="tab-btn" onclick="switchTab('detail',this)">Détail appels</button>
+    <button class="tab-btn {% if active_tab == 'prestataire' %}active{% endif %}" onclick="switchTab('prestataire',this)">Par prestataire</button>
+    <button class="tab-btn {% if active_tab == 'beneficiaire' %}active{% endif %}" onclick="switchTab('beneficiaire',this)">Par bénéficiaire</button>
+    <button class="tab-btn {% if active_tab == 'cohorte' %}active{% endif %}" onclick="switchTab('cohorte',this)">Par cohorte</button>
+    <button class="tab-btn {% if active_tab == 'detail' %}active{% endif %}" onclick="switchTab('detail',this)">Détail appels</button>
   </div>
 
   <!-- Par prestataire -->
-  <div class="tab-panel active" id="tab-prestataire">
+  <div class="tab-panel {% if active_tab == 'prestataire' %}active{% endif %}" id="tab-prestataire">
     <div class="table-scroll">
       <table>
         <thead><tr>
@@ -148,7 +187,7 @@
   </div>
 
   <!-- Par bénéficiaire -->
-  <div class="tab-panel" id="tab-beneficiaire">
+  <div class="tab-panel {% if active_tab == 'beneficiaire' %}active{% endif %}" id="tab-beneficiaire">
     <div class="table-scroll">
       <table>
         <thead><tr>
@@ -171,7 +210,7 @@
   </div>
 
   <!-- Par cohorte -->
-  <div class="tab-panel" id="tab-cohorte">
+  <div class="tab-panel {% if active_tab == 'cohorte' %}active{% endif %}" id="tab-cohorte">
     <div class="table-scroll">
       <table>
         <thead><tr>
@@ -194,7 +233,7 @@
   </div>
 
   <!-- Détail appels -->
-  <div class="tab-panel" id="tab-detail">
+  <div class="tab-panel {% if active_tab == 'detail' %}active{% endif %}" id="tab-detail">
     <div class="table-scroll">
       <table>
         <thead><tr>
@@ -240,11 +279,28 @@
 </div>
 
 <script>
+function updateExportLink(link, tabName) {
+  if (!link) return;
+  var url = new URL(link.href, window.location.origin);
+  url.searchParams.set('tab', tabName);
+  link.href = url.pathname + url.search;
+}
+
 function switchTab(name, btn) {
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   document.getElementById('tab-' + name).classList.add('active');
   btn.classList.add('active');
+
+  var activeTabInput = document.getElementById('js-active-tab-input');
+  if (activeTabInput) activeTabInput.value = name;
+
+  updateExportLink(document.getElementById('js-export-active-csv'), name);
+  updateExportLink(document.getElementById('js-export-active-chapeau'), name);
+
+  var nextUrl = new URL(window.location.href);
+  nextUrl.searchParams.set('tab', name);
+  window.history.replaceState({}, '', nextUrl.pathname + nextUrl.search);
 }
 </script>
 {% endblock %}

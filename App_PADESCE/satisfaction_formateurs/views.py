@@ -1,6 +1,7 @@
 import base64
 import csv
 import hashlib
+import io
 import logging
 import os
 import re
@@ -13,12 +14,14 @@ from django.contrib import messages
 from django.core.files.storage import default_storage
 from django.core.paginator import Paginator
 from django.db import transaction
+from django.db.models import Count, Q
 from django.http import HttpResponse
 from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.utils import timezone
 
 from App_PADESCE.appels.models import (
+    CALL_SUCCESS_STATUSES,
     FORMATEUR_SCORE_FIELDS,
     FORMATEUR_TEXT_FIELDS,
     AppelFormateur,
@@ -879,8 +882,305 @@ def _avg_num(values):
     return round(sum(nums) / len(nums), 2) if nums else 0
 
 
+FORMATEUR_DASHBOARD_TABS = {"prestataire", "beneficiaire", "cohorte", "detail"}
+
+
+def _active_formateurs_tab(request) -> str:
+    tab = (request.GET.get("tab") or "prestataire").strip().lower()
+    return tab if tab in FORMATEUR_DASHBOARD_TABS else "prestataire"
+
+
+def _build_formateur_appel_status_summary(queryset) -> dict[str, int]:
+    strict_form_q = (
+        Q(q1_prerequis_apprenants__isnull=False)
+        & Q(q2_interaction_apprenants__isnull=False)
+        & Q(q3_competences_acquises__isnull=False)
+    ) | Q(satisfaction_completed_at__isnull=False)
+    audio_q = Q(audio_file__isnull=False) & ~Q(audio_file="")
+    success_q = Q(status__in=CALL_SUCCESS_STATUSES) | Q(status="pause")
+
+    summary = queryset.aggregate(
+        appels_cibles=Count("id"),
+        appels_tentes=Count("id", filter=~Q(status="en_attente")),
+        appels_reussis=Count("id", filter=success_q),
+        formulaires_remplis=Count("id", filter=strict_form_q),
+        formulaires_remplis_sans_audio=Count(
+            "id", filter=strict_form_q & (Q(audio_file__isnull=True) | Q(audio_file=""))
+        ),
+        formulaires_avec_audio=Count("id", filter=strict_form_q & audio_q),
+        audios_enregistres=Count("id", filter=audio_q),
+    )
+    return {key: int(value or 0) for key, value in summary.items()}
+
+
+def _build_satisfaction_formateurs_dashboard_context(request) -> dict:
+    f_prestataire = (request.GET.get("prestataire") or "").strip()
+    f_beneficiaire = (request.GET.get("beneficiaire") or "").strip()
+    f_cohorte = (request.GET.get("cohorte") or "").strip()
+    active_tab = _active_formateurs_tab(request)
+
+    qs = AppelFormateur.objects.filter(is_active=True).order_by("session_date", "prestataire")
+    if f_prestataire:
+        qs = qs.filter(prestataire=f_prestataire)
+    if f_beneficiaire:
+        qs = qs.filter(beneficiaire=f_beneficiaire)
+    if f_cohorte:
+        qs = qs.filter(cohorte=f_cohorte)
+
+    records = list(
+        qs.values(
+            "id",
+            "reference_code",
+            "prestataire",
+            "beneficiaire",
+            "formation",
+            "cohorte",
+            "session_date",
+            "telephone",
+            "status",
+            "q1_prerequis_apprenants",
+            "q2_interaction_apprenants",
+            "q3_competences_acquises",
+            "q4_gestion_administrative",
+            "q5_gestion_financiere",
+            "q6_communication",
+            "commentaires",
+            "recommandations",
+        )
+    )
+
+    total = len(records)
+    termines = sum(1 for r in records if r["status"] == "termine")
+    with_scores = sum(1 for r in records if all(r.get(f) is not None for f, _ in Q_FORM_FIELDS))
+    global_avgs = {label: _avg_num([r[field] for r in records]) for field, label in Q_FORM_FIELDS}
+
+    def _group_stats(key_fn):
+        groups = defaultdict(list)
+        for r in records:
+            groups[key_fn(r)].append(r)
+        return sorted(
+            [
+                {
+                    "label": k,
+                    "nb": len(v),
+                    "avgs": [_avg_num([r[f] for r in v]) for f, _ in Q_FORM_FIELDS],
+                }
+                for k, v in groups.items()
+            ],
+            key=lambda x: x["label"],
+        )
+
+    prestataire_stats = _group_stats(lambda r: r["prestataire"] or "-")
+    beneficiaire_stats = _group_stats(lambda r: r["beneficiaire"] or "-")
+    cohorte_stats = _group_stats(lambda r: r["cohorte"] or "-")
+
+    all_qs = AppelFormateur.objects.filter(is_active=True)
+    prestataires = sorted(set(all_qs.values_list("prestataire", flat=True)) - {""})
+    beneficiaires = sorted(set(all_qs.values_list("beneficiaire", flat=True)) - {""})
+    cohortes = sorted(set(all_qs.values_list("cohorte", flat=True)) - {""})
+
+    status_counts = defaultdict(int)
+    for r in records:
+        status_counts[r["status"]] += 1
+
+    appel_summary = _build_formateur_appel_status_summary(qs)
+
+    context = {
+        "active_tab": active_tab,
+        "total": total,
+        "termines": termines,
+        "with_scores": with_scores,
+        "global_avgs": global_avgs,
+        "q_labels": [label for _, label in Q_FORM_FIELDS],
+        "prestataire_stats": prestataire_stats,
+        "beneficiaire_stats": beneficiaire_stats,
+        "cohorte_stats": cohorte_stats,
+        "status_counts": dict(status_counts),
+        "prestataires": prestataires,
+        "beneficiaires": beneficiaires,
+        "cohortes": cohortes,
+        "f_prestataire": f_prestataire,
+        "f_beneficiaire": f_beneficiaire,
+        "f_cohorte": f_cohorte,
+        "rows": records[:200],
+        "all_rows": records,
+        "appels_cibles": appel_summary["appels_cibles"],
+        "appels_tentes": appel_summary["appels_tentes"],
+        "appels_reussis": appel_summary["appels_reussis"],
+        "formulaires_remplis_appels": appel_summary["formulaires_remplis"],
+        "formulaires_remplis_sans_audio_appels": appel_summary[
+            "formulaires_remplis_sans_audio"
+        ],
+        "formulaires_avec_audio_appels": appel_summary["formulaires_avec_audio"],
+        "audios_enregistres_appels": appel_summary["audios_enregistres"],
+    }
+    context.update(build_fast_stats_context(request, default_mode="formateur"))
+    return context
+
+
+def _formateurs_dashboard_export_filename(active_tab: str, extension: str) -> str:
+    return f"analyse-formateurs-{active_tab}.{extension}"
+
+
+def _tabular_formateurs_dashboard_export(active_tab: str, context: dict) -> tuple[list[str], list[list]]:
+    if active_tab == "beneficiaire":
+        return (
+            ["Beneficiaire", "Nb appels", *[label for _, label in Q_FORM_FIELDS]],
+            [
+                [item["label"], item["nb"], *item["avgs"]]
+                for item in context["beneficiaire_stats"]
+            ],
+        )
+    if active_tab == "cohorte":
+        return (
+            ["Cohorte", "Nb appels", *[label for _, label in Q_FORM_FIELDS]],
+            [[item["label"], item["nb"], *item["avgs"]] for item in context["cohorte_stats"]],
+        )
+    if active_tab == "detail":
+        return (
+            [
+                "Prestataire",
+                "Beneficiaire",
+                "Formation",
+                "Cohorte",
+                "Telephone",
+                "Statut",
+                *[label for _, label in Q_FORM_FIELDS],
+                "Q4 Gestion admin",
+                "Q5 Gestion financiere",
+                "Q6 Communication",
+                "Commentaires",
+            ],
+            [
+                [
+                    row.get("prestataire", ""),
+                    row.get("beneficiaire", ""),
+                    row.get("formation", ""),
+                    row.get("cohorte", ""),
+                    row.get("telephone", ""),
+                    row.get("status", ""),
+                    *[row.get(field) for field, _ in Q_FORM_FIELDS],
+                    row.get("q4_gestion_administrative", ""),
+                    row.get("q5_gestion_financiere", ""),
+                    row.get("q6_communication", ""),
+                    row.get("commentaires", ""),
+                ]
+                for row in context["all_rows"]
+            ],
+        )
+    return (
+        ["Prestataire", "Nb appels", *[label for _, label in Q_FORM_FIELDS]],
+        [[item["label"], item["nb"], *item["avgs"]] for item in context["prestataire_stats"]],
+    )
+
+
+@require_analysis_access
+def satisfaction_formateurs_dashboard_export_csv(request):
+    context = _build_satisfaction_formateurs_dashboard_context(request)
+    active_tab = _active_formateurs_tab(request)
+    headers, export_rows = _tabular_formateurs_dashboard_export(active_tab, context)
+    filename = _formateurs_dashboard_export_filename(active_tab, "csv")
+
+    response = HttpResponse(content_type="text/csv; charset=utf-8")
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    response.write("\ufeff")
+    writer = csv.writer(response)
+    writer.writerow(headers)
+    for row in export_rows:
+        writer.writerow(row)
+    return response
+
+
+@require_analysis_access
+def satisfaction_formateurs_dashboard_export_chapeau(request):
+    context = _build_satisfaction_formateurs_dashboard_context(request)
+    active_tab = _active_formateurs_tab(request)
+    filename = _formateurs_dashboard_export_filename(active_tab, "docx")
+
+    from docx import Document
+
+    document = Document()
+    stats_by_tab = {
+        "prestataire": context["prestataire_stats"],
+        "beneficiaire": context["beneficiaire_stats"],
+        "cohorte": context["cohorte_stats"],
+    }
+
+    if active_tab == "detail":
+        rows = context["all_rows"]
+        if not rows:
+            document.add_paragraph("Aucun appel formateur a exporter.")
+        else:
+            for row in rows:
+                table = document.add_table(rows=1, cols=2)
+                table.style = "Table Grid"
+                title = table.rows[0].cells[0].merge(table.rows[0].cells[1]).paragraphs[0]
+                title_run = title.add_run(
+                    f"Enquete formateur : {row.get('formation') or row.get('reference_code')}"
+                )
+                title_run.bold = True
+                for field, label in Q_FORM_FIELDS:
+                    cells = table.add_row().cells
+                    cells[0].text = label
+                    value = row.get(field)
+                    cells[1].text = str(value) if value not in (None, "") else "-"
+                extra_rows = [
+                    ("Q4 - Gestion administrative", row.get("q4_gestion_administrative", "")),
+                    ("Q5 - Gestion financiere", row.get("q5_gestion_financiere", "")),
+                    ("Q6 - Communication", row.get("q6_communication", "")),
+                    ("Commentaires", row.get("commentaires", "")),
+                ]
+                for label, value in extra_rows:
+                    cells = table.add_row().cells
+                    cells[0].text = label
+                    cells[1].text = str(value or "-")
+                document.add_paragraph("")
+    else:
+        items = stats_by_tab.get(active_tab, context["prestataire_stats"])
+        if not items:
+            document.add_paragraph("Aucune synthese formateur a exporter.")
+        else:
+            title_by_tab = {
+                "prestataire": "Prestataire",
+                "beneficiaire": "Beneficiaire",
+                "cohorte": "Cohorte",
+            }
+            for item in items:
+                table = document.add_table(rows=1, cols=2)
+                table.style = "Table Grid"
+                title = table.rows[0].cells[0].merge(table.rows[0].cells[1]).paragraphs[0]
+                title_run = title.add_run(
+                    f"Enquete de satisfaction formateurs : {title_by_tab.get(active_tab, 'Groupe')} {item['label']}"
+                )
+                title_run.bold = True
+                headers = table.add_row().cells
+                headers[0].text = "QUESTION"
+                headers[1].text = "NOTE"
+                for index, (_field, label) in enumerate(Q_FORM_FIELDS):
+                    cells = table.add_row().cells
+                    cells[0].text = label
+                    avg = item["avgs"][index] if index < len(item.get("avgs", [])) else 0
+                    cells[1].text = f"{avg}/5" if avg else "-"
+                total_cells = table.add_row().cells
+                total_cells[0].text = "TOTAL DES APPELS"
+                total_cells[1].text = str(item["nb"])
+                document.add_paragraph("")
+
+    output = io.BytesIO()
+    document.save(output)
+    output.seek(0)
+    response = HttpResponse(
+        output.getvalue(),
+        content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    )
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return response
+
+
 @require_analysis_access
 def satisfaction_formateurs_dashboard(request):
+    context = _build_satisfaction_formateurs_dashboard_context(request)
+    return render(request, "satisfaction_formateurs/dashboard.html", context)
     """
     Tableau de bord d'analyse des appels formateurs.
     Stats par prestataire, bénéficiaire, cohorte + résumé Q4-Q6 textuels.
@@ -954,6 +1254,8 @@ def satisfaction_formateurs_dashboard(request):
     for r in records:
         status_counts[r["status"]] += 1
 
+    appel_summary = _build_formateur_appel_status_summary(qs)
+
     context = {
         "total": total,
         "termines": termines,
@@ -971,6 +1273,15 @@ def satisfaction_formateurs_dashboard(request):
         "f_beneficiaire": f_beneficiaire,
         "f_cohorte": f_cohorte,
         "rows": records[:200],
+        "appels_cibles": appel_summary["appels_cibles"],
+        "appels_tentes": appel_summary["appels_tentes"],
+        "appels_reussis": appel_summary["appels_reussis"],
+        "formulaires_remplis_appels": appel_summary["formulaires_remplis"],
+        "formulaires_remplis_sans_audio_appels": appel_summary[
+            "formulaires_remplis_sans_audio"
+        ],
+        "formulaires_avec_audio_appels": appel_summary["formulaires_avec_audio"],
+        "audios_enregistres_appels": appel_summary["audios_enregistres"],
     }
     context.update(build_fast_stats_context(request, default_mode="formateur"))
     return render(request, "satisfaction_formateurs/dashboard.html", context)
