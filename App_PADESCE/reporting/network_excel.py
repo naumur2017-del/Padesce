@@ -45,6 +45,9 @@ LEGACY_BUNDLED_CUTOFF_WORKBOOK_COPY = (
 DEFAULT_DESCENTE_WORKBOOK_GLOB = "DESCENTES CLASSES*.xlsx"
 DESCENTE_CHANNEL_SNAPSHOT = Path(settings.BASE_DIR) / "data" / "teams_channel_links.json"
 SOURCE_CACHE_TIMEOUT = int(str(os.getenv("PADESCE_SOURCE_CACHE_TIMEOUT", "900") or "900"))
+SOURCE_METADATA_CACHE_TIMEOUT = int(
+    str(os.getenv("PADESCE_SOURCE_METADATA_CACHE_TIMEOUT", "120") or "120")
+)
 
 
 @dataclass(frozen=True)
@@ -56,6 +59,56 @@ class WorkbookSource:
     cached_path: Path
     size: int
     modified_at: datetime
+
+
+def _workbook_source_cache_key(source_key: str) -> str:
+    normalized_source_key = normalize_workbook_source_key(source_key)
+    return f"padesce-workbook-source:{normalized_source_key}"
+
+
+def _serialize_workbook_source(source: WorkbookSource) -> dict[str, object]:
+    return {
+        "key": source.key,
+        "label": source.label,
+        "name": source.name,
+        "source_path": str(source.source_path),
+        "cached_path": str(source.cached_path),
+        "size": int(source.size),
+        "modified_at": source.modified_at.isoformat(),
+    }
+
+
+def _deserialize_workbook_source(payload: object) -> WorkbookSource | None:
+    if not isinstance(payload, dict):
+        return None
+
+    try:
+        cached_path = Path(str(payload["cached_path"]))
+        source_path = Path(str(payload["source_path"]))
+        modified_at = datetime.fromisoformat(str(payload["modified_at"]))
+        size = int(payload["size"])
+    except (KeyError, TypeError, ValueError):
+        return None
+
+    if not cached_path.exists() or not cached_path.is_file():
+        return None
+
+    return WorkbookSource(
+        key=str(payload.get("key") or DEFAULT_WORKBOOK_SOURCE),
+        label=str(payload.get("label") or ""),
+        name=str(payload.get("name") or cached_path.name),
+        source_path=source_path,
+        cached_path=cached_path,
+        size=size,
+        modified_at=modified_at,
+    )
+
+
+def _cached_workbook_source(
+    source_key: str = DEFAULT_WORKBOOK_SOURCE,
+) -> WorkbookSource | None:
+    payload = cache.get(_workbook_source_cache_key(source_key))
+    return _deserialize_workbook_source(payload)
 
 
 def _normalize_lookup(value: str) -> str:
@@ -189,9 +242,17 @@ def _ensure_cached_workbook(
     source_key: str = DEFAULT_WORKBOOK_SOURCE,
     force_refresh: bool = False,
 ) -> WorkbookSource:
-    config = _workbook_source_config(source_key)
+    normalized_source_key = normalize_workbook_source_key(source_key)
+    if force_refresh:
+        cache.delete(_workbook_source_cache_key(normalized_source_key))
+    else:
+        cached_source = _cached_workbook_source(normalized_source_key)
+        if cached_source is not None:
+            return cached_source
+
+    config = _workbook_source_config(normalized_source_key)
     cached_path = config["cached_path"]
-    source_path = _resolve_network_workbook(source_key=source_key)
+    source_path = _resolve_network_workbook(source_key=normalized_source_key)
     source_stat = source_path.stat()
 
     CACHE_DIRECTORY.mkdir(parents=True, exist_ok=True)
@@ -207,7 +268,7 @@ def _ensure_cached_workbook(
         if needs_copy:
             shutil.copy2(source_path, cached_path)
 
-    return WorkbookSource(
+    workbook_source = WorkbookSource(
         key=config["key"],
         label=config["label"],
         name=config["name"] if source_path == cached_path else source_path.name,
@@ -216,6 +277,12 @@ def _ensure_cached_workbook(
         size=source_stat.st_size,
         modified_at=datetime.fromtimestamp(source_stat.st_mtime),
     )
+    cache.set(
+        _workbook_source_cache_key(normalized_source_key),
+        _serialize_workbook_source(workbook_source),
+        timeout=SOURCE_METADATA_CACHE_TIMEOUT,
+    )
+    return workbook_source
 
 
 @contextmanager
