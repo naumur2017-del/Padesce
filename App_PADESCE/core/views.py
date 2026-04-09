@@ -1061,19 +1061,10 @@ def consultant_dashboard(request):
     ) = 0
     target_class_codes = [opt["value"] for opt in card_snapshot["class_options"] if opt["value"]]
     if target_class_codes:
-        eligible_target_apps = [
-            app
-            for app in _all_eligible
-            if (
-                str(getattr(getattr(app, "classe", None), "code", "") or "").strip()
-                or str(getattr(app, "classe_label", "") or "").strip()
-            )
-            in target_class_codes
-        ]
         base_qs = Appel.objects.filter(is_active=True).filter(
             Q(classe__code__in=target_class_codes) | Q(classe_label__in=target_class_codes)
         )
-        appels_cibles = len(eligible_target_apps)
+        appels_cibles = base_qs.count()
         success_q = (
             Q(status__in=CALL_SUCCESS_STATUSES)
             | Q(status="pause")
