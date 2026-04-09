@@ -3912,15 +3912,16 @@ def _resolve_batch_update_apprenant(appel: Appel) -> Apprenant | None:
     )
     if apprenant:
         return apprenant
-    from App_PADESCE.appels.views import _find_apprenant_for_appel
-
-    fallback = _find_apprenant_for_appel(Apprenant.objects.all(), appel)
-    if fallback is None:
-        return None
-    return (
-        Apprenant.objects.select_related("classe", "formation").filter(pk=fallback.pk).first()
-        or fallback
-    )
+    # Temporarily disable expensive fallback search to prevent 500 errors
+    # from App_PADESCE.appels.views import _find_apprenant_for_appel
+    # fallback = _find_apprenant_for_appel(Apprenant.objects.all(), appel)
+    # if fallback is None:
+    #     return None
+    # return (
+    #     Apprenant.objects.select_related("classe", "formation").filter(pk=fallback.pk).first()
+    #     or fallback
+    # )
+    return None
 
 
 def _batch_update_known_class_codes(appel: Appel, apprenant: Apprenant | None) -> list[str]:
