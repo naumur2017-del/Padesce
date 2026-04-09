@@ -279,6 +279,16 @@
 </div>
 
 {% if section == "principal" and scope == "apprenant" %}
+  <section class="public-panel">
+    <h2>Chapeau contrôle de présence</h2>
+    <p>Taux général de présence observé (simulation C1-C4 en attendant l'intégration finale) : <strong>{{ principal.presence_global_avg }}%</strong>. Ratio global PR : <strong>{{ principal.presence_global_pr_rate }}%</strong>.</p>
+  </section>
+
+  <section class="public-panel">
+    <h2>Chapeau satisfaction apprenants</h2>
+    <p>Sur {{ principal.summary_appels_cibles }} appels cibles, {{ principal.summary_form_remplis }} formulaires sont remplis, dont {{ principal.summary_form_audio }} avec audio et {{ principal.summary_form_sans_audio }} sans audio.</p>
+  </section>
+
   <div class="public-grid">
     <article class="public-card"><div class="value">{{ principal.card_prestations_count }}</div><div class="label">Prestations analysées</div></article>
     <article class="public-card"><div class="value">{{ principal.card_classes_count }}</div><div class="label">Classes analysées</div></article>
@@ -338,6 +348,11 @@
             <th>Prestataire</th>
             <th>Bénéficiaire</th>
             <th>Téléphone</th>
+            <th>C1</th>
+            <th>C2</th>
+            <th>C3</th>
+            <th>C4</th>
+            <th>Taux Présence</th>
           </tr>
         </thead>
         <tbody>
@@ -360,9 +375,14 @@
               <td>{{ row.prestataire|default:"-" }}</td>
               <td>{{ row.beneficiaire|default:"-" }}</td>
               <td>{{ row.telephone1|default:row.telephone2|default:"-" }}</td>
+              <td>{{ row.c1 }}</td>
+              <td>{{ row.c2 }}</td>
+              <td>{{ row.c3 }}</td>
+              <td>{{ row.c4 }}</td>
+              <td>{{ row.taux_presence_control }}%</td>
             </tr>
           {% empty %}
-            <tr><td colspan="6" class="muted">Aucun appel à afficher.</td></tr>
+            <tr><td colspan="11" class="muted">Aucun appel à afficher.</td></tr>
           {% endfor %}
         </tbody>
       </table>
@@ -381,6 +401,11 @@
     {% endif %}
   </section>
 {% elif section == "principal" and scope == "formateur" %}
+  <section class="public-panel">
+    <h2>Chapeau satisfaction formateurs</h2>
+    <p>Le suivi repose sur les formulaires complétés des formateurs : {{ principal.metrics.formulaires_remplis|default:0 }} formulaires, {{ principal.metrics.formulaires_avec_audio|default:0 }} avec audio.</p>
+  </section>
+
   <div class="public-grid">
     <article class="public-card"><div class="value">{{ principal.metrics.total|default:0 }}</div><div class="label">Appels formateurs</div></article>
     <article class="public-card"><div class="value">{{ principal.metrics.termines|default:0 }}</div><div class="label">Terminés</div></article>

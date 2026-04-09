@@ -851,6 +851,12 @@
             <th>Prestataire</th>
             <th>Bénéficiaire</th>
             <th>Cohorte</th>
+            <th>C1</th>
+            <th>C2</th>
+            <th>C3</th>
+            <th>C4</th>
+            <th>Taux Presence</th>
+            <th>Moyenne generale</th>
             {% for label in q_labels %}<th>{{ label }}</th>{% endfor %}
             <th>Commentaire</th>
           </tr>
@@ -874,11 +880,17 @@
             <td>{{ row.prestataire }}</td>
             <td>{{ row.beneficiaire }}</td>
             <td>{{ row.cohorte }}</td>
+            <td style="text-align:center;">{{ row.c1 }}</td>
+            <td style="text-align:center;">{{ row.c2 }}</td>
+            <td style="text-align:center;">{{ row.c3 }}</td>
+            <td style="text-align:center;">{{ row.c4 }}</td>
+            <td style="text-align:center;">{{ row.taux_presence_control }}%</td>
+            <td style="text-align:center;"><strong>{{ row.moyenne_generale }}</strong></td>
             {% for v in row.q_values %}<td style="text-align:center;">{{ v|default:"-" }}</td>{% endfor %}
             <td style="max-width:180px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="{{ row.commentaire }}">{{ row.commentaire }}</td>
           </tr>
           {% empty %}
-          <tr><td colspan="19" style="text-align:center; color:var(--muted); padding:20px;">Aucune donnée. Appliquez un filtre ou vérifiez les réponses saisies.</td></tr>
+          <tr><td colspan="26" style="text-align:center; color:var(--muted); padding:20px;">Aucune donnée. Appliquez un filtre ou vérifiez les réponses saisies.</td></tr>
           {% endfor %}
         </tbody>
       </table>

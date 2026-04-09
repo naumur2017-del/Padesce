@@ -62,6 +62,7 @@ from App_PADESCE.core.models import (
 from App_PADESCE.environnement.models import EnqueteEnvironnement
 from App_PADESCE.formations.models import Classe
 from App_PADESCE.presences.models import Presence
+from App_PADESCE.presences.control_utils import get_presence_controls
 from App_PADESCE.satisfaction_apprenants.models import SatisfactionApprenant
 from App_PADESCE.satisfaction_formateurs.models import SatisfactionFormateur
 
@@ -953,6 +954,12 @@ def _build_consultant_dashboard_context(request):
         apprenant = matched_apprenants.get(app.pk)
         app.apprenant_id = get_local_apprenant_identifier(apprenant)
         app.apprenant_db_label = get_local_apprenant_db_label(apprenant)
+        presence_controls = get_presence_controls(app.apprenant_id, fallback_seed=app.code)
+        app.c1 = presence_controls["c1"]
+        app.c2 = presence_controls["c2"]
+        app.c3 = presence_controls["c3"]
+        app.c4 = presence_controls["c4"]
+        app.taux_presence_control = presence_controls["taux_presence"]
         app.consultant_priority = bool(
             has_audio and answers_complete and (audio_duration or 0) >= 60
         )
@@ -981,6 +988,26 @@ def _build_consultant_dashboard_context(request):
         rows.append(app)
 
     rows.sort(key=_consultant_row_sort_key)
+    presence_avg = (
+        round(sum(float(item.taux_presence_control or 0) for item in rows) / len(rows), 2) if rows else 0
+    )
+    presence_pr_rate = (
+        round(
+            (
+                sum(
+                    1
+                    for item in rows
+                    for marker in [item.c1, item.c2, item.c3, item.c4]
+                    if marker == "PR"
+                )
+                / (len(rows) * 4)
+            )
+            * 100,
+            2,
+        )
+        if rows
+        else 0
+    )
 
     # Unfiltered snapshot for card counts (must match satisfaction analysis page)
     _all_eligible_qs = (
@@ -1140,6 +1167,8 @@ def _build_consultant_dashboard_context(request):
         "summary_form_sans_audio": form_sans_audio,
         "summary_form_audio": form_audio,
         "summary_audios": audios_enregistres,
+        "presence_global_avg": presence_avg,
+        "presence_global_pr_rate": presence_pr_rate,
     }
 
 

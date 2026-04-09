@@ -507,7 +507,7 @@
     </div>
   </form>
   {% else %}
-  <form method="post">
+  <form method="post" enctype="multipart/form-data">
     {% csrf_token %}
     <input type="hidden" name="tab" value="classes">
     <div class="grid">
@@ -540,6 +540,11 @@
         <label for="{{ form.formation_values.id_for_label }}">{{ form.formation_values.label }}</label>
         {{ form.formation_values }}
         <small>{{ form.formation_values.help_text }}</small>
+      </div>
+      <div class="field full-width">
+        <label for="classes_excel_file">Import Excel Classes (Sheet1)</label>
+        <input id="classes_excel_file" name="classes_excel_file" type="file" accept=".xlsx,.xlsm,.xltx,.xltm">
+        <small>Colonnes attendues (comme votre capture): Classe ID, Prestation ID, Nom du Prestataire, Nom du beneficiaire, Cohorte, FORMATION (et variantes proches acceptees).</small>
       </div>
     </div>
 
@@ -616,6 +621,7 @@
 
     <div class="batch-actions">
       <button class="btn btn-primary" type="submit" name="action" value="update_classes">Mettre a jour les classes</button>
+      <button class="btn btn-subtle" type="submit" name="action" value="upload_classes_excel">Uploader Excel et completer les donnees manquantes</button>
     </div>
   </form>
   {% endif %}

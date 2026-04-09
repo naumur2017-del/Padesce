@@ -75,6 +75,7 @@ from App_PADESCE.core.apprenant_lookup import (
 )
 from App_PADESCE.core.fast_stats import build_fast_stats_context
 from App_PADESCE.formations.models import Classe
+from App_PADESCE.presences.control_utils import get_presence_controls, upsert_presence_controls
 from App_PADESCE.reporting.network_excel import (
     build_consolidation_call_candidates,
     build_padesce_source_index,
@@ -738,6 +739,13 @@ def _dashboard_row_from_answer(answer_or_appel, *, matched_apprenant: Apprenant 
     classe_code = getattr(classe, "code", "") or appel.classe_label or ""
     apprenant_code = getattr(apprenant, "code", "") or appel.code or ""
     apprenant_id = get_local_apprenant_identifier(apprenant)
+    presence_controls = get_presence_controls(apprenant_id, fallback_seed=apprenant_code or appel.code)
+    score_values = [
+        getattr(answer, field, None) if answer else getattr(survey, field, None) if survey else None
+        for field, _ in Q_FIELDS
+    ]
+    numeric_scores = [float(value) for value in score_values if value is not None]
+    moyenne_generale = round(sum(numeric_scores) / len(numeric_scores), 2) if numeric_scores else 0
 
     return {
         "id": getattr(answer, "id", None),
@@ -784,6 +792,12 @@ def _dashboard_row_from_answer(answer_or_appel, *, matched_apprenant: Apprenant 
         "analysis_exclusion_reason": analysis_exclusion_reason,
         "formulaire_all_three": answer_has_all_three_scores(answer),
         "exclude_from_analysis": appel_is_manually_excluded(appel),
+        "c1": presence_controls["c1"],
+        "c2": presence_controls["c2"],
+        "c3": presence_controls["c3"],
+        "c4": presence_controls["c4"],
+        "taux_presence_control": presence_controls["taux_presence"],
+        "moyenne_generale": moyenne_generale,
         **{field: getattr(answer, field, None) if answer else None for field, _ in Q_FIELDS},
     }
 
@@ -3808,6 +3822,7 @@ def _build_update_form_candidate_row(
     selection_value = appel.code
     if classe_code and classe_code != "-":
         selection_value = f"{appel.code}|{classe_code}"
+    presence_controls = get_presence_controls(get_local_apprenant_identifier(apprenant), fallback_seed=appel.code)
     return {
         "code": appel.code,
         "apprenant_id": get_local_apprenant_identifier(apprenant),
@@ -3825,6 +3840,11 @@ def _build_update_form_candidate_row(
         "computed_status_label": _batch_update_status_display(computed_status),
         "commentaire": getattr(answer or survey, "commentaire", "") or "-",
         "recommandations": getattr(answer or survey, "recommandations", "") or "-",
+        "c1": presence_controls["c1"],
+        "c2": presence_controls["c2"],
+        "c3": presence_controls["c3"],
+        "c4": presence_controls["c4"],
+        "taux_presence_control": presence_controls["taux_presence"],
         "selection_value": selection_value,
         "has_complete_form": has_complete_form,
     }
@@ -3912,6 +3932,59 @@ def _paginate_update_form_rows(
     paginator = Paginator(queryset, per_page)
     page_obj = paginator.get_page(request.GET.get(page_param))
     return page_obj, _build_update_form_rows_for_appels(list(page_obj.object_list))
+
+
+def _normalize_presence_marker(value: str) -> str:
+    marker = str(value or "").strip().upper()
+    return marker if marker in {"PR", "AB"} else "AB"
+
+
+def _import_presence_controls_from_excel(uploaded_file) -> tuple[int, list[str]]:
+    workbook = openpyxl.load_workbook(uploaded_file, data_only=True)
+    worksheet = workbook.active
+    if worksheet is None:
+        return 0, ["Le fichier Excel ne contient aucune feuille."]
+
+    headers = []
+    for cell_value in next(worksheet.iter_rows(min_row=1, max_row=1, values_only=True), []):
+        headers.append(str(cell_value or "").strip().lower())
+    required = ["apprenantid", "c1", "c2", "c3", "c4", "taux"]
+    missing = [field for field in required if field not in headers]
+    if missing:
+        return 0, [f"Colonnes manquantes dans le fichier: {', '.join(missing)}"]
+
+    index = {name: headers.index(name) for name in required}
+    entries = []
+    errors: list[str] = []
+    for row_num, row_values in enumerate(
+        worksheet.iter_rows(min_row=2, max_row=worksheet.max_row, values_only=True), start=2
+    ):
+        apprenant_id = str(row_values[index["apprenantid"]] or "").strip()
+        if not apprenant_id:
+            continue
+        c1 = _normalize_presence_marker(row_values[index["c1"]])
+        c2 = _normalize_presence_marker(row_values[index["c2"]])
+        c3 = _normalize_presence_marker(row_values[index["c3"]])
+        c4 = _normalize_presence_marker(row_values[index["c4"]])
+        taux_raw = row_values[index["taux"]]
+        try:
+            taux_presence = float(taux_raw) if taux_raw not in (None, "") else None
+        except (TypeError, ValueError):
+            errors.append(f"Ligne {row_num}: taux invalide ({taux_raw}).")
+            taux_presence = None
+        entries.append(
+            {
+                "apprenant_id": apprenant_id,
+                "c1": c1,
+                "c2": c2,
+                "c3": c3,
+                "c4": c4,
+                "taux_presence": taux_presence,
+            }
+        )
+
+    updated = upsert_presence_controls(entries)
+    return updated, errors
 
 
 def _resolve_batch_update_apprenant(appel: Appel) -> Apprenant | None:
@@ -4173,6 +4246,9 @@ def _apply_batch_status_target(target: dict[str, str], target_status: str) -> di
 
 @require_analysis_access
 def satisfaction_update_form_page(request):
+    active_tab = str(request.GET.get("tab") or request.POST.get("tab") or "formulaires").strip().lower()
+    if active_tab not in {"formulaires", "presence"}:
+        active_tab = "formulaires"
     selected_source = _analysis_selected_source(request)
     all_status_filter = str(request.GET.get("all_status", "") or "").strip()
     initial = {
@@ -4196,69 +4272,80 @@ def satisfaction_update_form_page(request):
 
     if request.method == "POST" and form.is_valid():
         action = str(request.POST.get("action") or "update_form").strip() or "update_form"
-        targets = _merge_batch_update_targets(
-            form.cleaned_data["codes_text"],
-            request.POST.getlist("selected_targets"),
-            form.cleaned_data.get("classe_code", ""),
-        )
-        if not targets:
-            form.add_error(
-                "codes_text",
-                "Ajoutez au moins un code apprenant valide ou selectionnez au moins une ligne.",
-            )
-        else:
-            if action == "update_status":
-                requested_status = str(form.cleaned_data.get("target_status") or "").strip()
-                if not requested_status:
-                    form.add_error("target_status", "Choisissez le statut a appliquer.")
-                else:
-                    results = [
-                        _apply_batch_status_target(target, requested_status) for target in targets
-                    ]
-                    summary = {
-                        "requested_total": len(results),
-                        "updated_total": sum(1 for item in results if item["ok"]),
-                        "error_total": sum(1 for item in results if not item["ok"]),
-                        "synced_total": 0,
-                        "action_label": "statut(s)",
-                    }
-                    if summary["updated_total"]:
-                        messages.success(
-                            request,
-                            f"{summary['updated_total']} statut(s) mis a jour.",
-                        )
-                    if summary["error_total"]:
-                        messages.warning(
-                            request,
-                            f"{summary['error_total']} code(s) n'ont pas pu etre traites.",
-                        )
+        if action == "upload_presence_excel":
+            uploaded_file = request.FILES.get("presence_excel_file")
+            if not uploaded_file:
+                form.add_error(None, "Selectionnez un fichier Excel de presence.")
             else:
-                try:
-                    payloads = _build_batch_update_payloads(form.cleaned_data, len(targets))
-                except ValueError as exc:
-                    form.add_error(None, str(exc))
+                updated, import_errors = _import_presence_controls_from_excel(uploaded_file)
+                if updated:
+                    messages.success(request, f"{updated} ligne(s) de presence mises a jour.")
+                for error in import_errors[:10]:
+                    messages.warning(request, error)
+        else:
+            targets = _merge_batch_update_targets(
+                form.cleaned_data["codes_text"],
+                request.POST.getlist("selected_targets"),
+                form.cleaned_data.get("classe_code", ""),
+            )
+            if not targets:
+                form.add_error(
+                    "codes_text",
+                    "Ajoutez au moins un code apprenant valide ou selectionnez au moins une ligne.",
+                )
+            else:
+                if action == "update_status":
+                    requested_status = str(form.cleaned_data.get("target_status") or "").strip()
+                    if not requested_status:
+                        form.add_error("target_status", "Choisissez le statut a appliquer.")
+                    else:
+                        results = [
+                            _apply_batch_status_target(target, requested_status) for target in targets
+                        ]
+                        summary = {
+                            "requested_total": len(results),
+                            "updated_total": sum(1 for item in results if item["ok"]),
+                            "error_total": sum(1 for item in results if not item["ok"]),
+                            "synced_total": 0,
+                            "action_label": "statut(s)",
+                        }
+                        if summary["updated_total"]:
+                            messages.success(
+                                request,
+                                f"{summary['updated_total']} statut(s) mis a jour.",
+                            )
+                        if summary["error_total"]:
+                            messages.warning(
+                                request,
+                                f"{summary['error_total']} code(s) n'ont pas pu etre traites.",
+                            )
                 else:
-                    results = [
-                        _apply_batch_update_target(target, payload, request.user)
-                        for target, payload in zip(targets, payloads)
-                    ]
-                    summary = {
-                        "requested_total": len(results),
-                        "updated_total": sum(1 for item in results if item["ok"]),
-                        "error_total": sum(1 for item in results if not item["ok"]),
-                        "synced_total": sum(1 for item in results if item["survey_synced"]),
-                        "action_label": "formulaire(s)",
-                    }
-                    if summary["updated_total"]:
-                        messages.success(
-                            request,
-                            f"{summary['updated_total']} formulaire(s) mis a jour.",
-                        )
-                    if summary["error_total"]:
-                        messages.warning(
-                            request,
-                            f"{summary['error_total']} code(s) n'ont pas pu etre traites.",
-                        )
+                    try:
+                        payloads = _build_batch_update_payloads(form.cleaned_data, len(targets))
+                    except ValueError as exc:
+                        form.add_error(None, str(exc))
+                    else:
+                        results = [
+                            _apply_batch_update_target(target, payload, request.user)
+                            for target, payload in zip(targets, payloads)
+                        ]
+                        summary = {
+                            "requested_total": len(results),
+                            "updated_total": sum(1 for item in results if item["ok"]),
+                            "error_total": sum(1 for item in results if not item["ok"]),
+                            "synced_total": sum(1 for item in results if item["survey_synced"]),
+                            "action_label": "formulaire(s)",
+                        }
+                        if summary["updated_total"]:
+                            messages.success(
+                                request,
+                                f"{summary['updated_total']} formulaire(s) mis a jour.",
+                            )
+                        if summary["error_total"]:
+                            messages.warning(
+                                request,
+                                f"{summary['error_total']} code(s) n'ont pas pu etre traites.",
+                            )
 
     termine_qs = _termine_without_form_queryset()
     form_status_qs = _form_status_issue_queryset()
@@ -4292,6 +4379,7 @@ def satisfaction_update_form_page(request):
 
     context = {
         "form": form,
+        "active_tab": active_tab,
         "results": results,
         "summary": summary,
         "question_fields": Q_FIELDS,

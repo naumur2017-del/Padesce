@@ -10,6 +10,7 @@ from collections import defaultdict
 from datetime import date as date_cls
 
 import requests
+import openpyxl
 from django.contrib import messages
 from django.core.files.storage import default_storage
 from django.core.paginator import Paginator
@@ -1092,6 +1093,82 @@ def _apply_classes_batch_update_target(class_code: str, payload: dict, user) -> 
         return result
 
 
+def _normalize_excel_header(value: str) -> str:
+    return re.sub(r"[^a-z0-9]", "", str(value or "").strip().lower())
+
+
+def _pick_excel_value(data: dict, aliases: tuple[str, ...]) -> str:
+    for alias in aliases:
+        value = str(data.get(alias) or "").strip()
+        if value:
+            return value
+    return ""
+
+
+def _upload_classes_from_excel(uploaded_file, user) -> dict:
+    workbook = openpyxl.load_workbook(uploaded_file, data_only=True)
+    worksheet = workbook["Sheet1"] if "Sheet1" in workbook.sheetnames else workbook.active
+    if worksheet is None:
+        return {"updated": 0, "errors": ["Feuille Excel introuvable."], "processed": 0}
+
+    header_row = next(worksheet.iter_rows(min_row=1, max_row=1, values_only=True), None)
+    if not header_row:
+        return {"updated": 0, "errors": ["Le fichier ne contient pas d'entetes."], "processed": 0}
+    normalized_headers = [_normalize_excel_header(value) for value in header_row]
+    header_index = {name: idx for idx, name in enumerate(normalized_headers) if name}
+
+    class_header_aliases = ("classeid", "classe", "classid", "codeclasse")
+    if not any(alias in header_index for alias in class_header_aliases):
+        return {
+            "updated": 0,
+            "errors": ["Colonne Classe ID absente dans Sheet1."],
+            "processed": 0,
+        }
+
+    updated = 0
+    processed = 0
+    errors: list[str] = []
+    for row_num, row_values in enumerate(
+        worksheet.iter_rows(min_row=2, max_row=worksheet.max_row, values_only=True), start=2
+    ):
+        row_map = {
+            header: row_values[idx] if idx < len(row_values) else None
+            for header, idx in header_index.items()
+        }
+        class_code = _pick_excel_value(row_map, class_header_aliases)
+        if not class_code:
+            continue
+        processed += 1
+        payload = {
+            "prestation_code": _pick_excel_value(
+                row_map, ("prestationid", "prestation", "codeprestation")
+            )
+            or None,
+            "prestataire": _pick_excel_value(
+                row_map,
+                ("nomduprestataire", "prestataire", "prestationhorssimplitfi"),
+            )
+            or None,
+            "beneficiaire": _pick_excel_value(
+                row_map,
+                ("nomdubeneficiaire", "beneficiaire", "beneficiairehorssimplitfi"),
+            )
+            or None,
+            "formation": _pick_excel_value(
+                row_map, ("formation", "intituledelaformation", "titreformation")
+            )
+            or None,
+            "cohorte": _pick_excel_value(row_map, ("cohorte", "nombrecohorte")) or None,
+        }
+        result = _apply_classes_batch_update_target(class_code, payload, user)
+        if result["ok"]:
+            updated += 1
+        elif len(errors) < 30:
+            errors.append(f"Ligne {row_num} ({class_code}): {result['message']}")
+
+    return {"updated": updated, "errors": errors, "processed": processed}
+
+
 @require_analysis_access
 def satisfaction_formateurs_update_form_page(request):
     active_tab = str(request.GET.get("tab") or request.POST.get("tab") or "classes").strip().lower()
@@ -1118,125 +1195,144 @@ def satisfaction_formateurs_update_form_page(request):
 
     if request.method == "POST" and form.is_valid():
         action = str(request.POST.get("action") or "update_form").strip() or "update_form"
-        targets = _merge_formateur_batch_targets(
-            form.cleaned_data["reference_codes_text"],
-            request.POST.getlist("selected_targets"),
-        )
-        if not targets:
-            form.add_error(
-                "reference_codes_text",
-                "Ajoutez au moins une reference valide ou selectionnez au moins une ligne.",
-            )
-        elif action == "update_status":
-            requested_status = str(form.cleaned_data.get("target_status") or "").strip()
-            if not requested_status:
-                form.add_error("target_status", "Choisissez le statut a appliquer.")
+        if action == "upload_classes_excel":
+            uploaded_file = request.FILES.get("classes_excel_file")
+            if not uploaded_file:
+                form.add_error(None, "Selectionnez un fichier Excel a importer.")
             else:
-                results = [
-                    _apply_formateur_batch_status_target(
-                        reference_code, requested_status, request.user
-                    )
-                    for reference_code in targets
-                ]
-                summary = {
-                    "requested_total": len(results),
-                    "updated_total": sum(1 for item in results if item["ok"]),
-                    "error_total": sum(1 for item in results if not item["ok"]),
-                    "synced_total": sum(1 for item in results if item["survey_synced"]),
-                    "action_label": "statut(s)",
-                }
-                if summary["updated_total"]:
+                upload_result = _upload_classes_from_excel(uploaded_file, request.user)
+                if upload_result["updated"]:
                     messages.success(
                         request,
-                        f"{summary['updated_total']} statut(s) mis a jour.",
+                        f"{upload_result['updated']} classe(s) completee(s) depuis Excel (Sheet1).",
                     )
-                if summary["error_total"]:
-                    messages.warning(
-                        request,
-                        f"{summary['error_total']} reference(s) n'ont pas pu etre traitees.",
-                    )
-        elif action == "update_class_data":
-            try:
-                payloads = _build_formateur_batch_class_payloads(form.cleaned_data, len(targets))
-            except ValueError as exc:
-                form.add_error(None, str(exc))
-            else:
-                results = [
-                    _apply_formateur_batch_class_target(reference_code, payload, request.user)
-                    for reference_code, payload in zip(targets, payloads)
-                ]
-                summary = {
-                    "requested_total": len(results),
-                    "updated_total": sum(1 for item in results if item["ok"]),
-                    "error_total": sum(1 for item in results if not item["ok"]),
-                    "synced_total": sum(1 for item in results if item["survey_synced"]),
-                    "action_label": "donnee(s) de classe",
-                }
-                if summary["updated_total"]:
-                    messages.success(
-                        request,
-                        f"{summary['updated_total']} ligne(s) de donnees classe mises a jour.",
-                    )
-                if summary["error_total"]:
-                    messages.warning(
-                        request,
-                        f"{summary['error_total']} reference(s) n'ont pas pu etre traitees.",
-                    )
-        elif action == "update_classes":
-            class_targets = _merge_class_code_targets(
-                form.cleaned_data.get("class_codes_values", ""),
-                request.POST.getlist("selected_classes"),
+                if upload_result["processed"] == 0:
+                    messages.warning(request, "Aucune ligne exploitable trouvee dans le fichier.")
+                for error in upload_result["errors"][:10]:
+                    messages.warning(request, error)
+        else:
+            targets = _merge_formateur_batch_targets(
+                form.cleaned_data["reference_codes_text"],
+                request.POST.getlist("selected_targets"),
             )
-            if not class_targets:
-                form.add_error("class_codes_values", "Ajoutez au moins un code classe ou cochez au moins une classe.")
-            else:
-                try:
-                    payloads = _build_formateur_batch_class_payloads(form.cleaned_data, len(class_targets))
-                except ValueError as exc:
-                    form.add_error(None, str(exc))
+            if not targets:
+                form.add_error(
+                    "reference_codes_text",
+                    "Ajoutez au moins une reference valide ou selectionnez au moins une ligne.",
+                )
+            elif action == "update_status":
+                requested_status = str(form.cleaned_data.get("target_status") or "").strip()
+                if not requested_status:
+                    form.add_error("target_status", "Choisissez le statut a appliquer.")
                 else:
                     results = [
-                        _apply_classes_batch_update_target(class_code, payload, request.user)
-                        for class_code, payload in zip(class_targets, payloads)
+                        _apply_formateur_batch_status_target(
+                            reference_code, requested_status, request.user
+                        )
+                        for reference_code in targets
                     ]
                     summary = {
                         "requested_total": len(results),
                         "updated_total": sum(1 for item in results if item["ok"]),
                         "error_total": sum(1 for item in results if not item["ok"]),
-                        "synced_total": 0,
-                        "action_label": "classe(s)",
+                        "synced_total": sum(1 for item in results if item["survey_synced"]),
+                        "action_label": "statut(s)",
                     }
                     if summary["updated_total"]:
-                        messages.success(request, f"{summary['updated_total']} classe(s) mise(s) a jour.")
+                        messages.success(
+                            request,
+                            f"{summary['updated_total']} statut(s) mis a jour.",
+                        )
                     if summary["error_total"]:
-                        messages.warning(request, f"{summary['error_total']} classe(s) en erreur.")
-        else:
-            try:
-                payloads = _build_formateur_batch_payloads(form.cleaned_data, len(targets))
-            except ValueError as exc:
-                form.add_error(None, str(exc))
+                        messages.warning(
+                            request,
+                            f"{summary['error_total']} reference(s) n'ont pas pu etre traitees.",
+                        )
+            elif action == "update_class_data":
+                try:
+                    payloads = _build_formateur_batch_class_payloads(form.cleaned_data, len(targets))
+                except ValueError as exc:
+                    form.add_error(None, str(exc))
+                else:
+                    results = [
+                        _apply_formateur_batch_class_target(reference_code, payload, request.user)
+                        for reference_code, payload in zip(targets, payloads)
+                    ]
+                    summary = {
+                        "requested_total": len(results),
+                        "updated_total": sum(1 for item in results if item["ok"]),
+                        "error_total": sum(1 for item in results if not item["ok"]),
+                        "synced_total": sum(1 for item in results if item["survey_synced"]),
+                        "action_label": "donnee(s) de classe",
+                    }
+                    if summary["updated_total"]:
+                        messages.success(
+                            request,
+                            f"{summary['updated_total']} ligne(s) de donnees classe mises a jour.",
+                        )
+                    if summary["error_total"]:
+                        messages.warning(
+                            request,
+                            f"{summary['error_total']} reference(s) n'ont pas pu etre traitees.",
+                        )
+            elif action == "update_classes":
+                class_targets = _merge_class_code_targets(
+                    form.cleaned_data.get("class_codes_values", ""),
+                    request.POST.getlist("selected_classes"),
+                )
+                if not class_targets:
+                    form.add_error(
+                        "class_codes_values",
+                        "Ajoutez au moins un code classe ou cochez au moins une classe.",
+                    )
+                else:
+                    try:
+                        payloads = _build_formateur_batch_class_payloads(form.cleaned_data, len(class_targets))
+                    except ValueError as exc:
+                        form.add_error(None, str(exc))
+                    else:
+                        results = [
+                            _apply_classes_batch_update_target(class_code, payload, request.user)
+                            for class_code, payload in zip(class_targets, payloads)
+                        ]
+                        summary = {
+                            "requested_total": len(results),
+                            "updated_total": sum(1 for item in results if item["ok"]),
+                            "error_total": sum(1 for item in results if not item["ok"]),
+                            "synced_total": 0,
+                            "action_label": "classe(s)",
+                        }
+                        if summary["updated_total"]:
+                            messages.success(request, f"{summary['updated_total']} classe(s) mise(s) a jour.")
+                        if summary["error_total"]:
+                            messages.warning(request, f"{summary['error_total']} classe(s) en erreur.")
             else:
-                results = [
-                    _apply_formateur_batch_update_target(reference_code, payload, request.user)
-                    for reference_code, payload in zip(targets, payloads)
-                ]
-                summary = {
-                    "requested_total": len(results),
-                    "updated_total": sum(1 for item in results if item["ok"]),
-                    "error_total": sum(1 for item in results if not item["ok"]),
-                    "synced_total": sum(1 for item in results if item["survey_synced"]),
-                    "action_label": "formulaire(s)",
-                }
-                if summary["updated_total"]:
-                    messages.success(
-                        request,
-                        f"{summary['updated_total']} formulaire(s) mis a jour.",
-                    )
-                if summary["error_total"]:
-                    messages.warning(
-                        request,
-                        f"{summary['error_total']} reference(s) n'ont pas pu etre traitees.",
-                    )
+                try:
+                    payloads = _build_formateur_batch_payloads(form.cleaned_data, len(targets))
+                except ValueError as exc:
+                    form.add_error(None, str(exc))
+                else:
+                    results = [
+                        _apply_formateur_batch_update_target(reference_code, payload, request.user)
+                        for reference_code, payload in zip(targets, payloads)
+                    ]
+                    summary = {
+                        "requested_total": len(results),
+                        "updated_total": sum(1 for item in results if item["ok"]),
+                        "error_total": sum(1 for item in results if not item["ok"]),
+                        "synced_total": sum(1 for item in results if item["survey_synced"]),
+                        "action_label": "formulaire(s)",
+                    }
+                    if summary["updated_total"]:
+                        messages.success(
+                            request,
+                            f"{summary['updated_total']} formulaire(s) mis a jour.",
+                        )
+                    if summary["error_total"]:
+                        messages.warning(
+                            request,
+                            f"{summary['error_total']} reference(s) n'ont pas pu etre traitees.",
+                        )
 
     termine_qs = _formateur_termine_without_form_queryset()
     form_status_qs = _formateur_form_status_issue_queryset()
