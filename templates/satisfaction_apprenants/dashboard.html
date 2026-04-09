@@ -25,6 +25,12 @@
   .btn-ghost { background:transparent; border:1px solid var(--border); color:var(--text); box-shadow:none; }
   .btn-ghost:hover { background:rgba(111,60,195,0.06); }
   .btn-sm { padding:8px 12px; font-size:0.85rem; border-radius:10px; }
+  .actions-menu { position:relative; }
+  .actions-menu-toggle { min-width:42px; padding-inline:10px; }
+  .actions-menu-toggle .gear-icon { font-size:1rem; line-height:1; }
+  .actions-menu-panel { position:absolute; top:calc(100% + 8px); right:0; min-width:180px; display:none; flex-direction:column; gap:6px; padding:8px; border:1px solid var(--border); border-radius:12px; background:var(--panel); box-shadow:var(--shadow); z-index:20; }
+  .actions-menu.open .actions-menu-panel { display:flex; }
+  .actions-menu-panel .btn { width:100%; justify-content:flex-start; }
   table { width:100%; border-collapse:collapse; }
   th, td { padding:8px 10px; border:1px solid var(--border); font-size:0.85rem; text-align:left; }
   thead { background:rgba(111,60,195,0.06); }
@@ -49,31 +55,8 @@
   .source-pill-warning { background:rgba(245,158,11,0.16); color:#92400e; }
   .source-pill-danger { background:rgba(239,68,68,0.14); color:#991b1b; }
   .source-pill-muted { background:rgba(107,114,128,0.14); color:#4b5563; }
-  .table-detail-panel { margin-top:16px; margin-bottom:16px; padding:18px; border-radius:14px; border:1px solid rgba(111,60,195,0.16); background:rgba(111,60,195,0.04); }
-  .detail-grid { display:grid; gap:12px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); margin-bottom:14px; }
-  .detail-card { border:1px solid var(--border); border-radius:12px; background:rgba(255,255,255,0.88); padding:14px; }
-  .detail-card .label { font-size:0.8rem; color:var(--muted); text-transform:uppercase; letter-spacing:0.04em; }
-  .detail-card .value { margin-top:8px; font-size:1.2rem; font-weight:800; color:var(--accent-strong); }
-  .detail-card .meta { margin-top:6px; font-size:0.84rem; color:var(--muted); line-height:1.45; }
-  .detail-block { margin-top:12px; }
-  .detail-heading { font-size:0.86rem; font-weight:700; color:var(--accent-strong); margin-bottom:8px; }
-  .detail-pills { display:flex; flex-wrap:wrap; gap:8px; }
-  .detail-pill { display:inline-flex; align-items:center; gap:6px; padding:8px 12px; border-radius:999px; border:1px solid rgba(111,60,195,0.16); background:rgba(255,255,255,0.88); font-size:0.82rem; }
-  .detail-pill strong { color:var(--accent-strong); }
-  .rag-panel { margin-bottom:16px; padding:18px; border-radius:14px; border:1px solid rgba(111,60,195,0.18); background:linear-gradient(180deg, rgba(111,60,195,0.08), rgba(111,60,195,0.03)); }
-  .rag-layout { display:grid; gap:14px; grid-template-columns: minmax(280px, 1.1fr) minmax(280px, 1fr); align-items:start; }
-  .rag-form textarea { width:100%; min-height:118px; resize:vertical; padding:12px 14px; border-radius:12px; border:1px solid var(--border); background:#fff; color:var(--text); font:inherit; box-sizing:border-box; }
-  .rag-help { margin-top:8px; font-size:0.84rem; color:var(--muted); line-height:1.45; }
-  .rag-suggestions { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
   .suggestion-chip { border:1px solid rgba(111,60,195,0.18); background:rgba(255,255,255,0.85); color:var(--accent-strong); border-radius:999px; padding:8px 12px; font-size:0.82rem; font-weight:700; cursor:pointer; }
   .suggestion-chip:hover { background:rgba(111,60,195,0.08); }
-  .rag-answer-box { min-height:118px; padding:14px; border-radius:12px; border:1px solid var(--border); background:rgba(255,255,255,0.88); white-space:pre-wrap; line-height:1.55; }
-  .rag-empty { color:var(--muted); }
-  .rag-meta { margin-bottom:8px; font-size:0.82rem; color:var(--muted); }
-  .rag-result-wrap { margin-top:12px; }
-  .rag-result-wrap table th { text-transform:none; letter-spacing:0; font-size:0.8rem; }
-  .rag-result-wrap table td { vertical-align:top; }
-  .rag-inline-note { margin-top:10px; padding:10px 12px; border-radius:10px; border:1px solid rgba(245,158,11,0.22); background:rgba(245,158,11,0.08); color:#92400e; font-size:0.84rem; }
   .scope-switch { display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:18px; }
   .scope-tabs { display:inline-flex; align-items:center; gap:6px; padding:6px; border-radius:999px; border:1px solid var(--border); background:rgba(111,60,195,0.05); }
   .scope-tab { display:inline-flex; align-items:center; justify-content:center; min-width:120px; padding:9px 18px; border-radius:999px; font-size:0.85rem; font-weight:700; color:var(--muted); text-decoration:none; transition:background .15s, color .15s, box-shadow .15s; }
@@ -84,22 +67,25 @@
     .filter-bar { flex-direction:column; align-items:stretch; }
     .kpi-row { grid-template-columns: repeat(2, 1fr); }
   }
-  @media (max-width:960px) {
-    .rag-layout { grid-template-columns: 1fr; }
-  }
 </style>
 
 <div class="dash-header">
   <div>
     <h1>Analyses de Satisfaction</h1>
-    <p style="color:var(--muted); margin:4px 0 0; font-size:0.9rem;">Vue apprenants : cartes et tableaux basés sur les questionnaires d'appels sauvegardés, hors apprenants sans numéro joignable.</p>
   </div>
   <div class="filter-actions">
-    <button type="button" class="btn btn-ghost btn-sm" id="js-open-fast-stats">FAST STATS</button>
-    <a class="btn btn-ghost btn-sm" href="{% url 'satisfaction_update_form_page' %}?source={{ filter_source|urlencode }}">UPDATE FORM</a>
-    <a class="btn btn-ghost btn-sm" href="{% url 'satisfaction_general_page' %}{% if request.GET.urlencode %}?{{ request.GET.urlencode }}{% endif %}">General</a>
-    <a class="btn btn-primary btn-sm" href="{% url 'satisfaction_dashboard_daily_report_xlsx' %}?source={{ filter_source|urlencode }}">Télécharger le rapport quotidien (Excel)</a>
+    <div class="actions-menu" id="js-actions-menu">
+      <button type="button" class="btn btn-ghost btn-sm actions-menu-toggle" id="js-actions-menu-toggle" aria-expanded="false" aria-haspopup="true" aria-label="Ouvrir les actions">
+        <span class="gear-icon">&#9881;</span>
+      </button>
+      <div class="actions-menu-panel" id="js-actions-menu-panel">
+        <button type="button" class="btn btn-ghost btn-sm" id="js-open-fast-stats">Fast Stats</button>
+        <a class="btn btn-ghost btn-sm" href="{% url 'satisfaction_update_form_page' %}?source={{ filter_source|urlencode }}">Update Form</a>
+        <a class="btn btn-ghost btn-sm" href="{% url 'satisfaction_general_page' %}{% if request.GET.urlencode %}?{{ request.GET.urlencode }}{% endif %}">General</a>
+      </div>
+    </div>
     <a class="btn btn-ghost btn-sm" href="{% url 'satisfaction_apprenants_index' %}">Retour enquêtes</a>
+    <a class="btn btn-primary btn-sm" href="{% url 'satisfaction_dashboard_daily_report_xlsx' %}?source={{ filter_source|urlencode }}">Télécharger le rapport quotidien (Excel)</a>
   </div>
 </div>
 
@@ -112,6 +98,37 @@
 </div>
 
 {% include "includes/fast_stats_modal.html" %}
+
+<script>
+(function() {
+  const menu = document.getElementById('js-actions-menu');
+  const toggle = document.getElementById('js-actions-menu-toggle');
+  if (!menu || !toggle) return;
+
+  function setOpenState(isOpen) {
+    menu.classList.toggle('open', isOpen);
+    toggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+  }
+
+  toggle.addEventListener('click', (event) => {
+    event.stopPropagation();
+    setOpenState(!menu.classList.contains('open'));
+  });
+
+  menu.querySelectorAll('a, button').forEach((item) => {
+    if (item === toggle) return;
+    item.addEventListener('click', () => setOpenState(false));
+  });
+
+  document.addEventListener('click', (event) => {
+    if (!menu.contains(event.target)) setOpenState(false);
+  });
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') setOpenState(false);
+  });
+})();
+</script>
 
 <form method="get" class="filter-bar">
   <input type="hidden" name="tab" id="js-active-tab-input" value="{{ active_tab }}">
@@ -709,19 +726,6 @@
 })();
 </script>
 
-<div class="kpi-row">
-  <div class="kpi-card">
-    <div class="kpi-value">{{ total }}</div>
-    <div class="kpi-label">Enquêtes joignables</div>
-  </div>
-  {% for label, avg in global_avgs.items %}
-  <div class="kpi-card">
-    <div class="kpi-value">{{ avg }}<span style="font-size:0.7rem; color:var(--muted);">/5</span></div>
-    <div class="kpi-label">{{ label }}</div>
-  </div>
-  {% endfor %}
-</div>
-
 {% if toutes_prestations_classees %}
 <div class="kpi-row" style="grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));">
   {% if toutes_prestations_classees %}
@@ -1013,100 +1017,6 @@
     </table>
   </div>
 </div>
-
-<div class="panel" id="js-rag-footer-panel">
-  <div class="dash-header" style="margin-bottom:12px;">
-    <div>
-      <div class="section-title" style="margin-bottom:4px;">Assistant RAG et détails de la table</div>
-      <p style="margin:0; color:var(--muted); font-size:0.9rem;">Le pied de page résume l'onglet affiché et permet d'interroger uniquement les données visibles issues de la source réseau et de la table active.</p>
-    </div>
-  </div>
-
-  <div class="table-detail-panel">
-    <div class="detail-grid">
-      <div class="detail-card">
-        <div class="label">Vue active</div>
-        <div class="value" id="js-table-detail-label">{{ active_table_details.label }}</div>
-        <div class="meta" id="js-table-detail-description">{{ active_table_details.description }}</div>
-      </div>
-      <div class="detail-card">
-        <div class="label">Lignes affichées</div>
-        <div class="value" id="js-table-detail-rows">{{ active_table_details.row_count }}</div>
-        <div class="meta">Résultats actuellement visibles pour l'onglet actif.</div>
-      </div>
-      <div class="detail-card">
-        <div class="label">Colonnes affichées</div>
-        <div class="value" id="js-table-detail-columns">{{ active_table_details.column_count }}</div>
-        <div class="meta">Nombre d'en-têtes disponibles dans la table affichée.</div>
-      </div>
-      <div class="detail-card">
-        <div class="label">Source réseau</div>
-        <div class="value">{{ source_summary.name|default:"Source indisponible" }}</div>
-        <div class="meta">
-          {% if source_summary.available %}
-            Mise à jour {{ source_summary.modified_label }}
-          {% else %}
-            {{ source_summary.message }}
-          {% endif %}
-        </div>
-      </div>
-    </div>
-
-    <div class="detail-block">
-      <div class="detail-heading">Filtres appliqués</div>
-      <div class="detail-pills">
-        {% if active_filters_summary %}
-          {% for item in active_filters_summary %}
-            <span class="detail-pill"><strong>{{ item.label }} :</strong> {{ item.value }}</span>
-          {% endfor %}
-        {% else %}
-          <span class="detail-pill">Aucun filtre manuel. Seules les classes au seuil {{ analysis_threshold_label }} atteint sont affichées.</span>
-        {% endif %}
-      </div>
-    </div>
-
-    <div class="detail-block">
-      <div class="detail-heading">En-têtes de la table active</div>
-      <div class="detail-pills" id="js-table-detail-headers">
-        {% for header in active_table_details.headers %}
-          <span class="detail-pill">{{ header }}</span>
-        {% endfor %}
-      </div>
-    </div>
-  </div>
-
-  <div class="rag-panel">
-    <div class="dash-header" style="margin-bottom:12px;">
-      <div>
-        <div class="section-title" style="margin-bottom:4px;">Assistant RAG</div>
-        <p style="margin:0; color:var(--muted); font-size:0.9rem;">Posez une question en langage naturel sur la table active. La recherche s'appuie sur les lignes visibles et sur le classeur réseau consolidé.</p>
-      </div>
-    </div>
-    <div class="rag-layout">
-      <form id="js-rag-form" class="rag-form" data-rag-url="{% url 'satisfaction_dashboard_rag' %}">
-        {% csrf_token %}
-        <label for="js-rag-prompt" style="display:block; margin-bottom:8px; font-weight:700; color:var(--accent-strong);">Question analytique</label>
-        <textarea id="js-rag-prompt" name="prompt" placeholder="Exemple : affiche les apprenants dont la prestation est terminée et que la cohorte est 1"></textarea>
-        <div class="rag-help">Le RAG reste aligné sur l'onglet actif, sur les filtres actuels et sur les données de cohérence récupérées depuis le fichier réseau.</div>
-        <div class="rag-suggestions">
-          <button class="suggestion-chip" type="button" data-prompt="Affiche les apprenants dont la prestation est terminée et que la cohorte est 1">Prestations terminées cohorte 1</button>
-          <button class="suggestion-chip" type="button" data-prompt="Liste les apprenants de la classe active avec leur ID apprenant, leur inspecteur et leur numéro d'enquête">Classe active avec identifiants</button>
-          <button class="suggestion-chip" type="button" data-prompt="Résume les bénéficiaires les plus satisfaits dans la table active">Synthèse bénéficiaires</button>
-        </div>
-        <div class="filter-actions" style="margin-top:12px;">
-          <button class="btn btn-primary btn-sm" id="js-rag-submit" type="submit">Interroger la table</button>
-        </div>
-      </form>
-      <div>
-        <div class="rag-meta" id="js-rag-meta"></div>
-        <div class="rag-answer-box rag-empty" id="js-rag-answer"></div>
-        <div class="rag-result-wrap" id="js-rag-results"></div>
-      </div>
-    </div>
-  </div>
-</div>
-
-{{ tab_details|json_script:"js-tab-details-data" }}
 
 <script>
 (function() {
