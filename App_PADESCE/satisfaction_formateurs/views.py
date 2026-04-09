@@ -942,9 +942,17 @@ def _build_classes_tab_rows():
     rows = []
     known_codes: set[str] = set()
     for classe in classes_qs:
-        counts = call_counts_by_id.get(classe.pk, {"total": 0, "threshold_done": 0})
-        total = counts["total"]
-        done = counts["threshold_done"]
+        counts_by_id = call_counts_by_id.get(classe.pk, {"total": 0, "threshold_done": 0})
+        orphan_counts = orphan_counts_by_code.get(
+            str(classe.code or "").strip(),
+            {"total": 0, "threshold_done": 0},
+        )
+        # Keep legacy counters stable: prefer existing bucket without double counting.
+        total = max(int(counts_by_id["total"] or 0), int(orphan_counts["total"] or 0))
+        done = max(
+            int(counts_by_id["threshold_done"] or 0),
+            int(orphan_counts["threshold_done"] or 0),
+        )
         target = analysis_threshold_target(total)
         known_codes.add(str(classe.code or "").strip().casefold())
         rows.append(
