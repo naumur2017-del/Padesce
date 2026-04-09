@@ -1,0 +1,259 @@
+{% extends "base.html" %}
+{% block title %}Documentation Reporting{% endblock %}
+{% block content %}
+<style>
+  .manual-shell {
+    display: grid;
+    gap: 16px;
+  }
+  .manual-hero,
+  .manual-body {
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.96);
+    box-shadow: var(--shadow);
+  }
+  .manual-hero {
+    padding: 22px;
+    background:
+      radial-gradient(circle at top right, rgba(124, 58, 237, 0.12), transparent 30%),
+      linear-gradient(180deg, #ffffff 0%, #faf7ff 100%);
+  }
+  .manual-kicker {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+    padding: 6px 12px;
+    border-radius: 999px;
+    background: rgba(124, 58, 237, 0.10);
+    color: var(--accent-strong);
+    font-size: 0.85rem;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .manual-hero h1 {
+    margin: 0 0 10px;
+    color: var(--accent-strong);
+    font-size: clamp(1.4rem, 2.3vw, 2.2rem);
+    line-height: 1.1;
+  }
+  .manual-hero p {
+    margin: 0;
+    max-width: 780px;
+    color: #4d3b70;
+    line-height: 1.6;
+    font-size: 1rem;
+  }
+  .manual-actions {
+    margin-top: 18px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .manual-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    min-height: 46px;
+    padding: 0 18px;
+    border-radius: 14px;
+    border: 1px solid rgba(124, 58, 237, 0.16);
+    font-weight: 800;
+    transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+  }
+  .manual-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 14px 28px rgba(76, 29, 149, 0.12);
+  }
+  .manual-btn-primary {
+    background: linear-gradient(135deg, #7c3aed 0%, #4c1d95 100%);
+    color: #fff;
+  }
+  .manual-btn-secondary {
+    background: #fff;
+    color: var(--accent-strong);
+  }
+  .manual-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 14px;
+  }
+  .manual-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 12px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: #fff;
+    color: #5a4782;
+    font-size: 0.9rem;
+    font-weight: 600;
+  }
+  .manual-body {
+    padding: 28px;
+  }
+  .manual-content {
+    color: #271a42;
+    line-height: 1.72;
+    font-size: 1rem;
+  }
+  .manual-content h1,
+  .manual-content h2,
+  .manual-content h3 {
+    scroll-margin-top: 92px;
+    color: var(--accent-strong);
+    line-height: 1.2;
+  }
+  .manual-content h1 {
+    margin: 0 0 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid rgba(124, 58, 237, 0.14);
+    font-size: clamp(1.5rem, 2.1vw, 2.15rem);
+  }
+  .manual-content h2 {
+    margin: 28px 0 12px;
+    font-size: 1.28rem;
+  }
+  .manual-content h3 {
+    margin: 20px 0 10px;
+    font-size: 1.06rem;
+  }
+  .manual-content p {
+    margin: 0 0 14px;
+  }
+  .manual-content ul,
+  .manual-content ol {
+    margin: 0 0 16px;
+    padding-left: 22px;
+  }
+  .manual-content li {
+    margin: 6px 0;
+  }
+  .manual-content blockquote {
+    margin: 18px 0;
+    padding: 14px 16px;
+    border-left: 4px solid rgba(124, 58, 237, 0.38);
+    border-radius: 0 14px 14px 0;
+    background: #faf7ff;
+    color: #4a386f;
+  }
+  .manual-content blockquote p:last-child {
+    margin-bottom: 0;
+  }
+  .manual-content code {
+    padding: 0.14rem 0.4rem;
+    border-radius: 8px;
+    background: #f3edff;
+    color: #4c1d95;
+    font-size: 0.94em;
+  }
+  .manual-content pre {
+    margin: 16px 0;
+    padding: 16px 18px;
+    overflow-x: auto;
+    border-radius: 16px;
+    border: 1px solid rgba(124, 58, 237, 0.12);
+    background: #160f25;
+    color: #f8f5ff;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  }
+  .manual-content pre code {
+    padding: 0;
+    background: transparent;
+    color: inherit;
+  }
+  .manual-content a {
+    color: var(--accent-strong);
+    text-decoration: underline;
+    text-decoration-thickness: 1.5px;
+    text-underline-offset: 2px;
+  }
+  .manual-math {
+    margin: 18px 0;
+    padding: 16px 18px;
+    overflow-x: auto;
+    border-radius: 16px;
+    border: 1px solid rgba(124, 58, 237, 0.12);
+    background: linear-gradient(180deg, #fff 0%, #faf7ff 100%);
+  }
+  .manual-pagebreak {
+    margin: 30px 0;
+    border: 0;
+    border-top: 2px dashed rgba(124, 58, 237, 0.18);
+  }
+  @media (max-width: 720px) {
+    .manual-hero,
+    .manual-body {
+      padding: 18px;
+      border-radius: 16px;
+    }
+    .manual-content {
+      font-size: 0.97rem;
+    }
+  }
+  @media print {
+    .manual-hero {
+      box-shadow: none;
+    }
+    .manual-actions {
+      display: none;
+    }
+    .manual-body {
+      border: 0;
+      box-shadow: none;
+      padding: 0;
+    }
+    .manual-pagebreak {
+      page-break-after: always;
+      border: 0;
+      margin: 0;
+      height: 0;
+    }
+  }
+</style>
+
+<script>
+  window.MathJax = {
+    tex: {
+      inlineMath: [['$', '$'], ['\\(', '\\)']],
+      displayMath: [['$$', '$$'], ['\\[', '\\]']]
+    },
+    svg: { fontCache: 'global' }
+  };
+</script>
+<script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+
+<section class="manual-shell">
+  <header class="manual-hero">
+    <div class="manual-kicker">Documentation</div>
+    <h1>Documentation complete du systeme de reporting et d'analyse</h1>
+    <p>
+      Cette page affiche le manuel integral du dispositif PADESCE. Le bouton ci-dessous telecharge
+      la version source du document pour archivage, partage ou export.
+    </p>
+    <div class="manual-actions">
+      <a class="manual-btn manual-btn-primary" href="{{ manual_download_url }}">
+        <span>Telecharger le manuel</span>
+      </a>
+      <button class="manual-btn manual-btn-secondary" type="button" onclick="window.print()">
+        <span>Imprimer / PDF</span>
+      </button>
+    </div>
+    <div class="manual-meta">
+      <span class="manual-pill">Fichier : {{ manual_filename }}</span>
+      <span class="manual-pill">Affichage complet dans l'application</span>
+    </div>
+  </header>
+
+  <section class="manual-body">
+    <article class="manual-content">
+      {{ manual_html|safe }}
+    </article>
+  </section>
+</section>
+{% endblock %}

@@ -213,6 +213,7 @@ class LoginRequiredMiddleware:
                     "/dashboard/",
                     "/consultant/",
                     "/deploiement/live/",
+                    "/reporting/documentation/",
                     "/satisfaction-apprenants/analyse/",
                     "/accounts/logout/",
                     "/messages/support/",
