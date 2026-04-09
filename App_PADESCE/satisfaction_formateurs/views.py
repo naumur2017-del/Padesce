@@ -31,6 +31,7 @@ from App_PADESCE.appels.models import (
     sync_formateur_status,
 )
 from App_PADESCE.core.access import require_analysis_access
+from App_PADESCE.core.analysis_rules import analysis_threshold_label, analysis_threshold_target
 from App_PADESCE.core.fast_stats import build_fast_stats_context
 from App_PADESCE.formations.models import Classe, Formateur, Prestation
 from App_PADESCE.satisfaction_formateurs.forms import (
@@ -38,6 +39,7 @@ from App_PADESCE.satisfaction_formateurs.forms import (
     SatisfactionFormateurForm,
 )
 from App_PADESCE.satisfaction_formateurs.models import SatisfactionFormateur
+from App_PADESCE.appels.models import Appel, CALL_ANALYSIS_THRESHOLD_STATUSES
 
 SESSION_KEY = "sat_form_workflow"
 
@@ -889,8 +891,172 @@ def _apply_formateur_batch_class_target(reference_code: str, payload: dict, user
         return result
 
 
+def _merge_class_code_targets(raw_codes: str, selected_classes: list[str] | None) -> list[str]:
+    merged_targets: list[str] = []
+    seen_codes: set[str] = set()
+    raw_values = [raw_codes, *(selected_classes or [])]
+    for raw_value in raw_values:
+        for target in _parse_formateur_batch_targets(raw_value):
+            code_key = target.casefold()
+            if code_key in seen_codes:
+                continue
+            seen_codes.add(code_key)
+            merged_targets.append(target)
+    return merged_targets
+
+
+def _build_classes_tab_rows():
+    classes_qs = Classe.objects.select_related(
+        "prestation__prestataire",
+        "prestation__beneficiaire",
+        "formation",
+        "formateur",
+    ).order_by("code")
+    call_counts = {
+        row["classe_id"]: {
+            "total": int(row["total"] or 0),
+            "threshold_done": int(row["threshold_done"] or 0),
+        }
+        for row in Appel.objects.filter(is_active=True)
+        .values("classe_id")
+        .annotate(
+            total=Count("id"),
+            threshold_done=Count("id", filter=Q(status__in=CALL_ANALYSIS_THRESHOLD_STATUSES)),
+        )
+    }
+    rows = []
+    for classe in classes_qs:
+        counts = call_counts.get(classe.pk, {"total": 0, "threshold_done": 0})
+        total = counts["total"]
+        done = counts["threshold_done"]
+        target = analysis_threshold_target(total)
+        rows.append(
+            {
+                "selection_value": classe.code,
+                "classe_code": classe.code,
+                "prestation_code": getattr(classe.prestation, "code", "") or "-",
+                "prestataire": getattr(getattr(classe.prestation, "prestataire", None), "raison_sociale", "") or "-",
+                "beneficiaire": getattr(getattr(classe.prestation, "beneficiaire", None), "nom_structure", "") or "-",
+                "formation_title": classe.intitule_formation or getattr(classe.formation, "nom", "") or "-",
+                "cohorte": str(classe.cohorte),
+                "appels_total": total,
+                "threshold_done": done,
+                "threshold_target": target,
+                "threshold_reached": bool(total and done >= target),
+            }
+        )
+    return rows
+
+
+def _apply_classes_batch_update_target(class_code: str, payload: dict, user) -> dict:
+    result = {
+        "reference_code": f"Classe {class_code}",
+        "classe_code": class_code,
+        "formateur_label": "-",
+        "before_status": "-",
+        "after_status": "-",
+        "before_answers": "-",
+        "after_answers": "-",
+        "commentaires": "-",
+        "recommandations": "-",
+        "message": "",
+        "ok": False,
+        "survey_synced": False,
+    }
+    classe = (
+        Classe.objects.select_related("prestation__prestataire", "prestation__beneficiaire", "formation")
+        .filter(code__iexact=class_code)
+        .first()
+    )
+    if classe is None:
+        result["message"] = f"Classe {class_code} introuvable."
+        return result
+    prestation_code = payload.get("prestation_code")
+    prestataire = payload.get("prestataire")
+    beneficiaire = payload.get("beneficiaire")
+    formation_title = payload.get("formation")
+    cohorte = payload.get("cohorte")
+    try:
+        update_fields = ["updated_at"]
+        if prestation_code:
+            prestation = Prestation.objects.filter(code__iexact=prestation_code).first()
+            if prestation is None:
+                result["message"] = f"Prestation {prestation_code} introuvable."
+                return result
+            classe.prestation = prestation
+            update_fields.append("prestation")
+            if not formation_title:
+                formation_title = getattr(prestation.formation, "nom", "") or formation_title
+            if not prestataire:
+                prestataire = getattr(prestation.prestataire, "raison_sociale", "") or prestataire
+            if not beneficiaire:
+                beneficiaire = (
+                    getattr(getattr(prestation, "beneficiaire", None), "nom_structure", "")
+                    or beneficiaire
+                )
+        if formation_title:
+            classe.intitule_formation = formation_title
+            update_fields.append("intitule_formation")
+        if cohorte:
+            if not str(cohorte).strip().isdigit():
+                result["message"] = "La cohorte doit etre numerique."
+                return result
+            classe.cohorte = int(str(cohorte).strip())
+            update_fields.append("cohorte")
+        if len(update_fields) > 1:
+            classe.save(update_fields=update_fields)
+
+        # Synchronise les lignes appels formateurs liees a cette classe.
+        normalized_prestataire = (
+            prestataire
+            or getattr(getattr(classe.prestation, "prestataire", None), "raison_sociale", "")
+            or ""
+        )
+        normalized_beneficiaire = (
+            beneficiaire
+            or getattr(getattr(classe.prestation, "beneficiaire", None), "nom_structure", "")
+            or ""
+        )
+        normalized_formation = formation_title or classe.intitule_formation or ""
+        normalized_cohorte = str(cohorte or classe.cohorte or "").strip()
+
+        rows = AppelFormateur.objects.filter(is_active=True)
+        updated_rows = 0
+        for row in rows.iterator():
+            resolved = _resolve_batch_update_formateur_classe(row)
+            if not resolved or resolved.pk != classe.pk:
+                continue
+            changed = False
+            if normalized_prestataire and row.prestataire != normalized_prestataire:
+                row.prestataire = normalized_prestataire
+                changed = True
+            if normalized_beneficiaire and row.beneficiaire != normalized_beneficiaire:
+                row.beneficiaire = normalized_beneficiaire
+                changed = True
+            if normalized_formation and row.formation != normalized_formation:
+                row.formation = normalized_formation
+                changed = True
+            if normalized_cohorte and row.cohorte != normalized_cohorte:
+                row.cohorte = normalized_cohorte
+                changed = True
+            if changed:
+                row.save(update_fields=["prestataire", "beneficiaire", "formation", "cohorte", "updated_at"])
+                updated_rows += 1
+
+        result["message"] = f"Classe mise a jour. {updated_rows} ligne(s) formateur synchronisee(s)."
+        result["ok"] = True
+        return result
+    except Exception as exc:
+        logger.exception("Classes tab update failed for class=%s", class_code)
+        result["message"] = f"Erreur interne pendant la mise a jour de la classe: {exc}"
+        return result
+
+
 @require_analysis_access
 def satisfaction_formateurs_update_form_page(request):
+    active_tab = str(request.GET.get("tab") or request.POST.get("tab") or "classes").strip().lower()
+    if active_tab not in {"classes", "formulaires"}:
+        active_tab = "classes"
     all_status_filter = str(request.GET.get("all_status", "") or "").strip()
     initial = {
         "reference_codes_text": str(request.GET.get("codes", "") or "").strip(),
@@ -976,6 +1142,34 @@ def satisfaction_formateurs_update_form_page(request):
                         request,
                         f"{summary['error_total']} reference(s) n'ont pas pu etre traitees.",
                     )
+        elif action == "update_classes":
+            class_targets = _merge_class_code_targets(
+                form.cleaned_data.get("class_codes_values", ""),
+                request.POST.getlist("selected_classes"),
+            )
+            if not class_targets:
+                form.add_error("class_codes_values", "Ajoutez au moins un code classe ou cochez au moins une classe.")
+            else:
+                try:
+                    payloads = _build_formateur_batch_class_payloads(form.cleaned_data, len(class_targets))
+                except ValueError as exc:
+                    form.add_error(None, str(exc))
+                else:
+                    results = [
+                        _apply_classes_batch_update_target(class_code, payload, request.user)
+                        for class_code, payload in zip(class_targets, payloads)
+                    ]
+                    summary = {
+                        "requested_total": len(results),
+                        "updated_total": sum(1 for item in results if item["ok"]),
+                        "error_total": sum(1 for item in results if not item["ok"]),
+                        "synced_total": 0,
+                        "action_label": "classe(s)",
+                    }
+                    if summary["updated_total"]:
+                        messages.success(request, f"{summary['updated_total']} classe(s) mise(s) a jour.")
+                    if summary["error_total"]:
+                        messages.warning(request, f"{summary['error_total']} classe(s) en erreur.")
         else:
             try:
                 payloads = _build_formateur_batch_payloads(form.cleaned_data, len(targets))
@@ -1036,8 +1230,17 @@ def satisfaction_formateurs_update_form_page(request):
     if all_status_filter and all_status_filter not in known_status_values:
         all_status_choices.append((all_status_filter, all_status_filter))
 
+    classes_rows = _build_classes_tab_rows()
+    classes_page_obj = Paginator(classes_rows, 50).get_page(request.GET.get("classes_page"))
+    selected_class_values = {
+        str(value or "").strip()
+        for value in request.POST.getlist("selected_classes")
+        if str(value or "").strip()
+    }
+
     context = {
         "form": form,
+        "active_tab": active_tab,
         "results": results,
         "summary": summary,
         "selected_target_values": selected_target_values,
@@ -1053,6 +1256,11 @@ def satisfaction_formateurs_update_form_page(request):
         "all_formateurs_page_obj": all_formateurs_page_obj,
         "all_status_choices": all_status_choices,
         "all_status_filter": all_status_filter,
+        "classes_rows": list(classes_page_obj.object_list),
+        "classes_page_obj": classes_page_obj,
+        "classes_total": len(classes_rows),
+        "selected_class_values": selected_class_values,
+        "analysis_threshold_label": analysis_threshold_label(),
         "candidate_total": termine_without_form_total + form_status_issue_total,
         "dashboard_url": reverse("satisfaction_formateurs_dashboard"),
         "index_url": reverse("satisfaction_formateurs_index"),

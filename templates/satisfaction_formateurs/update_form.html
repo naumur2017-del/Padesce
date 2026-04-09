@@ -76,6 +76,14 @@
   <div class="scope-note">Basculer entre les ecrans batch apprenants et formateurs.</div>
 </div>
 
+<div class="scope-switch" style="margin-top:-4px;">
+  <div class="scope-tabs" role="tablist" aria-label="Mode UPDATE FORM formateurs">
+    <a class="scope-tab {% if active_tab == 'classes' %}active{% endif %}" href="?tab=classes">Classes</a>
+    <a class="scope-tab {% if active_tab == 'formulaires' %}active{% endif %}" href="?tab=formulaires">Formulaires</a>
+  </div>
+  <div class="scope-note">La tab Classes sert uniquement a modifier les donnees classe liees.</div>
+</div>
+
 <section class="panel">
   <div class="section-title">
     <div>
@@ -88,7 +96,8 @@
     <li>Vous pouvez laisser <code>References d'appel formateur</code> vide et selectionner directement les lignes plus bas.</li>
     <li>Une valeur unique s'applique a tout le lot. Une liste entre crochets doit avoir exactement le meme nombre de valeurs que le lot cible.</li>
     <li>Si Q1-Q3 sont vides, la valeur par defaut appliquee est <code>3</code>. Si Q4-Q6, commentaires ou recommandations sont vides, la valeur par defaut est <code>RAS</code>.</li>
-    <li>Le bouton <strong>Mettre a jour le formulaire</strong> ecrit les reponses ouvertes, les scores et les commentaires. Le bouton <strong>Changer le statut</strong> ne modifie pas les reponses.</li>
+    <li>Dans <strong>Classes</strong>, utilisez seulement les champs classe/prestation/prestataire/beneficiaire/formation/cohorte.</li>
+    <li>Dans <strong>Formulaires</strong>, le bouton <strong>Mettre a jour le formulaire</strong> ecrit les reponses ouvertes, les scores et les commentaires. Le bouton <strong>Changer le statut</strong> ne modifie pas les reponses.</li>
   </ul>
 </section>
 
@@ -129,7 +138,9 @@
     {% endif %}
   {% endfor %}
 
+  {% if active_tab == "formulaires" %}
   <form method="get" class="inline-filter-bar">
+    <input type="hidden" name="tab" value="formulaires">
     <div class="field">
       <label for="all-status-filter">Filtrer Tous Les Appels Formateurs Actifs par statut actuel</label>
       <select id="all-status-filter" name="all_status">
@@ -148,6 +159,7 @@
 
   <form method="post">
     {% csrf_token %}
+    <input type="hidden" name="tab" value="formulaires">
     <div class="grid">
       <div class="field full-width">
         <label for="{{ form.reference_codes_text.id_for_label }}">{{ form.reference_codes_text.label }}</label>
@@ -494,6 +506,119 @@
       <button class="btn btn-warning" type="submit" name="action" value="update_status">Changer le statut</button>
     </div>
   </form>
+  {% else %}
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="tab" value="classes">
+    <div class="grid">
+      <div class="field">
+        <label for="{{ form.class_codes_values.id_for_label }}">{{ form.class_codes_values.label }}</label>
+        {{ form.class_codes_values }}
+        <small>{{ form.class_codes_values.help_text }}</small>
+      </div>
+      <div class="field">
+        <label for="{{ form.prestation_codes_values.id_for_label }}">{{ form.prestation_codes_values.label }}</label>
+        {{ form.prestation_codes_values }}
+        <small>{{ form.prestation_codes_values.help_text }}</small>
+      </div>
+      <div class="field">
+        <label for="{{ form.cohorte_values.id_for_label }}">{{ form.cohorte_values.label }}</label>
+        {{ form.cohorte_values }}
+        <small>{{ form.cohorte_values.help_text }}</small>
+      </div>
+      <div class="field full-width">
+        <label for="{{ form.prestataire_values.id_for_label }}">{{ form.prestataire_values.label }}</label>
+        {{ form.prestataire_values }}
+        <small>{{ form.prestataire_values.help_text }}</small>
+      </div>
+      <div class="field full-width">
+        <label for="{{ form.beneficiaire_values.id_for_label }}">{{ form.beneficiaire_values.label }}</label>
+        {{ form.beneficiaire_values }}
+        <small>{{ form.beneficiaire_values.help_text }}</small>
+      </div>
+      <div class="field full-width">
+        <label for="{{ form.formation_values.id_for_label }}">{{ form.formation_values.label }}</label>
+        {{ form.formation_values }}
+        <small>{{ form.formation_values.help_text }}</small>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-top:16px;">
+      <div class="section-title">
+        <div>
+          <h2>Classes du systeme</h2>
+          <p>Selectionnez les classes a mettre a jour. Le seuil d'analyse affiche est {{ analysis_threshold_label }} des appels cibles termines/formulaires.</p>
+        </div>
+        <button class="btn btn-subtle" type="button" data-select-all="all-classes">Tout selectionner</button>
+      </div>
+      {% if classes_rows %}
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th class="checkbox-cell">
+                  <input type="checkbox" data-master-checkbox="all-classes" aria-label="Selectionner toutes les classes affichees">
+                </th>
+                <th>Code classe</th>
+                <th>Prestation ID</th>
+                <th>Prestataire</th>
+                <th>Beneficiaire</th>
+                <th>Titre de formation</th>
+                <th>Cohorte</th>
+                <th>Appels cibles</th>
+                <th>Termines/formulaires</th>
+                <th>Seuil cible</th>
+                <th>Seuil atteint</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in classes_rows %}
+                <tr>
+                  <td class="checkbox-cell">
+                    <input type="checkbox" name="selected_classes" value="{{ row.selection_value }}" data-checkbox-group="all-classes" {% if row.selection_value in selected_class_values %}checked{% endif %}>
+                  </td>
+                  <td><strong>{{ row.classe_code }}</strong></td>
+                  <td>{{ row.prestation_code }}</td>
+                  <td>{{ row.prestataire }}</td>
+                  <td>{{ row.beneficiaire }}</td>
+                  <td>{{ row.formation_title }}</td>
+                  <td>{{ row.cohorte }}</td>
+                  <td>{{ row.appels_total }}</td>
+                  <td>{{ row.threshold_done }}</td>
+                  <td>{{ row.threshold_target }}</td>
+                  <td>
+                    {% if row.threshold_reached %}
+                      <span class="pill pill-ok">Oui</span>
+                    {% else %}
+                      <span class="pill pill-no">Non</span>
+                    {% endif %}
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% if classes_page_obj.paginator.num_pages > 1 %}
+          <div class="pager">
+            <div class="meta">Page {{ classes_page_obj.number }} / {{ classes_page_obj.paginator.num_pages }}</div>
+            {% if classes_page_obj.has_previous %}
+              <a class="btn btn-ghost" href="?tab=classes&classes_page={{ classes_page_obj.previous_page_number }}">Precedent</a>
+            {% endif %}
+            {% if classes_page_obj.has_next %}
+              <a class="btn btn-ghost" href="?tab=classes&classes_page={{ classes_page_obj.next_page_number }}">Suivant</a>
+            {% endif %}
+          </div>
+        {% endif %}
+      {% else %}
+        <div class="empty">Aucune classe disponible.</div>
+      {% endif %}
+    </div>
+
+    <div class="batch-actions">
+      <button class="btn btn-primary" type="submit" name="action" value="update_classes">Mettre a jour les classes</button>
+    </div>
+  </form>
+  {% endif %}
 </section>
 
 {% if summary.requested_total %}
