@@ -3,6 +3,7 @@ import datetime
 import io
 import logging
 import os
+import threading
 import unicodedata
 import zipfile
 from collections import Counter, defaultdict
@@ -32,11 +33,10 @@ from App_PADESCE.appels.models import (
     AppelCGA,
     AppelFormateur,
     AppelImportArchive,
-    appel_answers_has_any_answer_q,
-    appel_answers_modified_any_answer_q,
+    appel_answers_completed_q,
+    appel_answers_modified_completion_q,
     is_call_success_status,
     padesce_form_tracking_cutoff,
-    sync_padesce_status,
 )
 from App_PADESCE.apprenants.models import Apprenant
 from App_PADESCE.core.analysis_rules import analysis_threshold_label, analysis_threshold_target
@@ -48,13 +48,15 @@ from App_PADESCE.core.call_metrics import (
     phone_variants,
     summarize_source_class_phone_coverage,
 )
+<<<<<<< Updated upstream
+=======
+from App_PADESCE.core.analysis_rules import ANALYSIS_THRESHOLD_PERCENT, analysis_threshold_label, analysis_threshold_target
+>>>>>>> Stashed changes
 from App_PADESCE.formations.models import Classe
 from App_PADESCE.reporting.network_excel import build_padesce_source_index, normalize_network_lookup
 from App_PADESCE.satisfaction_apprenants.models import SatisfactionApprenant
 
 logger = logging.getLogger(__name__)
-
-ANALYSIS_CACHE_TIMEOUT = int(str(os.getenv("PADESCE_ANALYSIS_CACHE_TIMEOUT", "300") or "300"))
 
 
 APPEL_QUESTION_FIELDS = [
@@ -70,6 +72,12 @@ APPEL_QUESTION_FIELDS = [
 ]
 
 
+<<<<<<< Updated upstream
+=======
+
+
+
+>>>>>>> Stashed changes
 def _normalize_header(value):
     if value is None:
         return ""
@@ -143,6 +151,7 @@ def _coerce_note_value(value, default=None):
     return note if 1 <= note <= 5 else default
 
 
+<<<<<<< Updated upstream
 def _payload_has_any_question_answer(payload: dict) -> bool:
     for index, field in enumerate(APPEL_QUESTION_FIELDS, 1):
         raw_value = payload.get(field, payload.get(f"q{index}"))
@@ -190,6 +199,8 @@ def _build_live_class_progress(classe_label: str | None):
     }
 
 
+=======
+>>>>>>> Stashed changes
 def _save_appel_answers(appel: Appel, user, payload: dict, *, apply_defaults: bool = False):
     defaults = {}
     for index, field in enumerate(APPEL_QUESTION_FIELDS, 1):
@@ -262,23 +273,12 @@ def _find_existing_satisfaction_for_appel(appel: Appel, apprenant: Apprenant | N
     return None
 
 
-def _save_satisfaction_for_appel(
-    appel: Appel,
-    user,
-    payload: dict,
-    apprenant: Apprenant | None,
-    *,
-    existing_satisfaction: SatisfactionApprenant | None = None,
-):
+def _save_satisfaction_for_appel(appel: Appel, user, payload: dict, apprenant: Apprenant | None):
     defaults = _build_satisfaction_defaults(payload, user)
     defaults["apprenant"] = apprenant
     defaults["classe"] = getattr(apprenant, "classe", None) or appel.classe
 
-    satisfaction = existing_satisfaction or _find_existing_satisfaction_for_appel(
-        appel,
-        apprenant,
-        defaults["date"],
-    )
+    satisfaction = _find_existing_satisfaction_for_appel(appel, apprenant, defaults["date"])
     if satisfaction:
         for field, value in defaults.items():
             setattr(satisfaction, field, value)
@@ -312,7 +312,7 @@ def _status_rank(value: str) -> int:
     return ranks.get(str(value or "").strip(), -1)
 
 
-COMPLETED_STATUSES = set(CALL_SUCCESS_STATUSES)
+COMPLETED_STATUSES = {"formulaire_avec_audio", "formulaire_rempli", "appel_reussi", "termine"}
 
 
 def _best_duplicate_winner(rows):
@@ -390,16 +390,16 @@ def _normalize_dashboard_fenetre(value):
 
 
 def _build_progress_metrics(queryset):
-    completed_q = Q(status__in=CALL_SUCCESS_STATUSES)
-    threshold_q = Q(status__in=CALL_ANALYSIS_THRESHOLD_STATUSES)
+    completed_q = Q(status__in=["formulaire_avec_audio", "formulaire_rempli", "appel_reussi", "termine"])
     stats = queryset.aggregate(
         total=Count("id"),
-        termines=Count("id", filter=threshold_q),
+        termines=Count("id", filter=completed_q),
         # Appels = tous ceux où Demarrer a été pressé au moins une fois (status != en_attente)
         appels_tentes=Count("id", filter=~Q(status="en_attente")),
-        appels_reussis=Count("id", filter=completed_q),
-        # Formulaires remplis = formulaire_rempli OU formulaire_avec_audio
-        formulaires_remplis=Count("id", filter=Q(status__in=CALL_FORM_STATUSES)),
+        # Appels réussis = formulaire rempli (Q1-Q9), pas à rappeler
+        appels_reussis=Count("id", filter=Q(status__in=["formulaire_rempli", "formulaire_avec_audio"])),
+        # Formulaires remplis = au moins une Q1-Q9, sans audio
+        formulaires_remplis=Count("id", filter=Q(status="formulaire_rempli")),
         formulaires_avec_audio=Count("id", filter=Q(status="formulaire_avec_audio")),
         rappels=Count("id", filter=Q(status="a_rappeler")),
         # Audios = présence fichier audio (indépendant du statut)
@@ -423,7 +423,11 @@ def _build_progress_metrics(queryset):
                 f"Seuil de {threshold_label} atteint. Vous pouvez passer a autre chose."
                 if threshold_reached
                 else (
+<<<<<<< Updated upstream
                     f"Encore {max(threshold_target - termines, 0)} formulaire(s) pour atteindre {threshold_label}."  # noqa: E501
+=======
+                    f"Encore {max(threshold_target - termines, 0)} appel(s) termine(s) pour atteindre {threshold_label}."
+>>>>>>> Stashed changes
                     if total
                     else "Aucun appel dans ce filtre."
                 )
@@ -648,7 +652,7 @@ def _source_class_is_finished(source_class: dict) -> bool:
 
 def _safe_build_padesce_source_index() -> dict | None:
     try:
-        return build_padesce_source_index(source_key="cutoff")
+        return build_padesce_source_index()
     except Exception as exc:
         logger.warning(
             "Impossible de charger la source PADESCE pour les optimisations d'appels: %s", exc
@@ -656,6 +660,7 @@ def _safe_build_padesce_source_index() -> dict | None:
         return None
 
 
+<<<<<<< Updated upstream
 def _cached_appel_class_progress_snapshot(source_bundle: dict | None = None) -> dict:
     source_marker = str(
         ((source_bundle or {}).get("source") or {}).get("modified_at") or "no-source"
@@ -673,6 +678,8 @@ def _cached_appel_class_progress_snapshot(source_bundle: dict | None = None) -> 
     return snapshot
 
 
+=======
+>>>>>>> Stashed changes
 def _callable_phone_summary_from_appel_rows(appel_rows: list[dict]) -> dict[str, dict[str, int]]:
     callable_counts: dict[str, int] = defaultdict(int)
     phone_counts: dict[str, Counter[str]] = defaultdict(Counter)
@@ -701,9 +708,14 @@ def _callable_phone_summary_from_appel_rows(appel_rows: list[dict]) -> dict[str,
 
 def _build_appel_class_progress_snapshot(source_bundle: dict | None = None) -> dict:
     appel_rows = list(
+<<<<<<< Updated upstream
         Appel.objects.filter(is_active=True).values(
+=======
+        Appel.objects.filter(is_active=True)
+        .exclude(classe_label="")
+        .values(
+>>>>>>> Stashed changes
             "id",
-            "code",
             "classe_label",
             "status",
             "prestataire",
@@ -713,17 +725,6 @@ def _build_appel_class_progress_snapshot(source_bundle: dict | None = None) -> d
             "telephone2",
         )
     )
-    source_records_by_code = (source_bundle or {}).get("records") or {}
-    normalized_appel_rows = []
-    for row in appel_rows:
-        normalized_row = dict(row)
-        classe_label = str(normalized_row.get("classe_label") or "").strip()
-        if not classe_label:
-            row_code_key = normalize_network_lookup(str(normalized_row.get("code") or ""))
-            source_record = source_records_by_code.get(row_code_key, {})
-            classe_label = str(source_record.get("classe_id") or "").strip()
-        normalized_row["classe_label"] = classe_label
-        normalized_appel_rows.append(normalized_row)
 
     label_by_key: dict[str, str] = {}
     raw_labels_by_key: dict[str, set[str]] = defaultdict(set)
@@ -733,16 +734,20 @@ def _build_appel_class_progress_snapshot(source_bundle: dict | None = None) -> d
     # Total DB appels per class (regardless of phone) – used for coherence check
     total_db_appels_by_key: dict[str, int] = defaultdict(int)
 
+<<<<<<< Updated upstream
     for classe_label, summary in _callable_phone_summary_from_appel_rows(
         normalized_appel_rows
     ).items():
+=======
+    for classe_label, summary in _callable_phone_summary_from_appel_rows(appel_rows).items():
+>>>>>>> Stashed changes
         classe_key = normalize_network_lookup(classe_label)
         if not classe_key:
             continue
         fallback_phone_summary_by_key[classe_key] = summary
         fallback_callable_counts_by_key[classe_key] = int(summary.get("callable_total") or 0)
 
-    for row in normalized_appel_rows:
+    for row in appel_rows:
         classe_label = str(row.get("classe_label") or "").strip()
         classe_key = normalize_network_lookup(classe_label)
         if not classe_key:
@@ -751,12 +756,16 @@ def _build_appel_class_progress_snapshot(source_bundle: dict | None = None) -> d
             label_by_key.setdefault(classe_key, classe_label)
             raw_labels_by_key[classe_key].add(classe_label)
         total_db_appels_by_key[classe_key] += 1
+<<<<<<< Updated upstream
         if str(
             row.get("status") or ""
         ).strip() in CALL_ANALYSIS_THRESHOLD_STATUSES and has_usable_phone(
             row.get("telephone1"),
             row.get("telephone2"),
         ):
+=======
+        if row.get("status") in {"formulaire_avec_audio", "formulaire_rempli", "appel_reussi", "termine"} and has_usable_phone(row.get("telephone1"), row.get("telephone2")):
+>>>>>>> Stashed changes
             callable_termines_by_key[classe_key] += 1
 
     source_callable_counts_by_key: dict[str, int] = {}
@@ -795,7 +804,6 @@ def _build_appel_class_progress_snapshot(source_bundle: dict | None = None) -> d
     progress_by_key: dict[str, dict] = {}
     hidden_class_labels: set[str] = set()
     hidden_class_keys: set[str] = set()
-    hidden_call_codes: set[str] = set()
     hidden_appel_count = 0
     classes_without_callable_phone = 0
 
@@ -825,7 +833,7 @@ def _build_appel_class_progress_snapshot(source_bundle: dict | None = None) -> d
                 or {}
             )
         termines = int(callable_termines_by_key.get(classe_key) or 0)
-        target = analysis_threshold_target(callable_total)
+        target = (callable_total + 1) // 2 if callable_total else 0
         reached = callable_total > 0 and termines >= target
         remaining_to_target = max(target - termines, 0)
         progress = {
@@ -843,25 +851,18 @@ def _build_appel_class_progress_snapshot(source_bundle: dict | None = None) -> d
         progress_by_key[classe_key] = progress
         if callable_total <= 0:
             classes_without_callable_phone += 1
-        if reached:
+        if float(progress["pct"]) >= 25:
             hidden_class_keys.add(classe_key)
             hidden_class_labels.update(raw_labels_by_key.get(classe_key) or {display_label})
-            hidden_call_codes.update(
-                str(row.get("code") or "").strip()
-                for row in normalized_appel_rows
-                if normalize_network_lookup(row.get("classe_label", "")) == classe_key
-                and str(row.get("code") or "").strip()
-            )
             hidden_appel_count += sum(
                 1
-                for row in normalized_appel_rows
+                for row in appel_rows
                 if normalize_network_lookup(row.get("classe_label", "")) == classe_key
             )
-
-    prestations = (source_bundle or {}).get("prestations") or {}
 
     recommended_classes = []
     if source_bundle:
+        prestations = source_bundle.get("prestations") or {}
         for prestation_key, class_keys in prestation_classes.items():
             actionable_keys = [
                 classe_key
@@ -945,11 +946,14 @@ def _build_appel_class_progress_snapshot(source_bundle: dict | None = None) -> d
     for item in recommended_classes:
         item.pop("score", None)
 
+    # classe_progress only contains classes NOT yet at 50% (shown in the UI filter)
+    # classe_progress_all contains ALL classes including those already hidden (50% reached)
     classe_progress_all = list(progress_by_key.values())
 
-    prestation_keys = set(prestation_classes)
-    prestation_keys.update(prestations)
+    # Count prestations where ALL classes reached the 25% analysis threshold
+    analysis_threshold_pct = ANALYSIS_THRESHOLD_PERCENT
     analysis_prestations_count = 0
+<<<<<<< Updated upstream
     actionable_prestations_count = 0
     blocked_prestations_count = 0
     prestation_progress = []
@@ -1009,6 +1013,19 @@ def _build_appel_class_progress_snapshot(source_bundle: dict | None = None) -> d
     )
     remaining_to_minimum_target = max(minimum_target - analysis_prestations_count, 0)
     minimum_target_gap = max(minimum_target - max_reachable_prestations_count, 0)
+=======
+    if source_bundle:
+        for prestation_key, class_keys in prestation_classes.items():
+            if not class_keys:
+                continue
+            all_at_threshold = all(
+                int(progress_by_key.get(ck, {}).get("total") or 0) > 0
+                and float(progress_by_key.get(ck, {}).get("pct") or 0) >= analysis_threshold_pct
+                for ck in class_keys
+            )
+            if all_at_threshold:
+                analysis_prestations_count += 1
+>>>>>>> Stashed changes
 
     return {
         "source_bundle": source_bundle,
@@ -1017,45 +1034,30 @@ def _build_appel_class_progress_snapshot(source_bundle: dict | None = None) -> d
         "classe_progress_all": classe_progress_all,
         "progress_by_key": progress_by_key,
         "hidden_class_labels": sorted(hidden_class_labels),
-        "hidden_call_codes": sorted(hidden_call_codes),
         "hidden_class_count": len(hidden_class_keys),
         "hidden_appel_count": hidden_appel_count,
         "classes_without_callable_phone_count": classes_without_callable_phone,
         "recommended_classes": recommended_classes[:8],
-        "prestation_progress": prestation_progress,
         "analysis_prestations_count": analysis_prestations_count,
-        "analysis_goal_summary": {
-            "total_prestations_count": total_prestations_count,
-            "analysis_prestations_count": analysis_prestations_count,
-            "actionable_prestations_count": actionable_prestations_count,
-            "blocked_prestations_count": blocked_prestations_count,
-            "minimum_target": minimum_target,
-            "remaining_to_minimum_target": remaining_to_minimum_target,
-            "max_reachable_prestations_count": max_reachable_prestations_count,
-            "minimum_target_gap": minimum_target_gap,
-        },
     }
 
 
-def _build_filtered_appels_queryset(
-    request,
-    *,
-    hidden_class_labels: list[str] | None = None,
-    hidden_call_codes: list[str] | None = None,
-):
+def _build_filtered_appels_queryset(request, *, hidden_class_labels: list[str] | None = None):
     appels_qs = Appel.objects.filter(is_active=True)
+<<<<<<< Updated upstream
     hidden_class_labels = [
         label for label in (hidden_class_labels or []) if str(label or "").strip()
     ]
     hidden_call_codes = [code for code in (hidden_call_codes or []) if str(code or "").strip()]
+=======
+    hidden_class_labels = [label for label in (hidden_class_labels or []) if str(label or "").strip()]
+>>>>>>> Stashed changes
     if hidden_class_labels:
         appels_qs = appels_qs.exclude(classe_label__in=hidden_class_labels)
-    if hidden_call_codes:
-        appels_qs = appels_qs.exclude(code__in=hidden_call_codes)
-    completed_answers_filter = appel_answers_has_any_answer_q("answers__")
-    modified_answers_filter = appel_answers_modified_any_answer_q("answers__")
+    completed_answers_filter = appel_answers_completed_q("answers__")
+    modified_answers_filter = appel_answers_modified_completion_q("answers__")
     tracked_audio_filter = Q(audio_file__isnull=False) & ~Q(audio_file="")
-    status_filter = (request.GET.get("status") or "").strip()
+    status_filter = request.GET.get("status") or ""
     prestataire_filter = request.GET.get("prestataire") or ""
     beneficiaire_filter = request.GET.get("beneficiaire") or ""
     classe_filter = request.GET.get("classe") or ""
@@ -1071,10 +1073,7 @@ def _build_filtered_appels_queryset(
     search = request.GET.get("q", "").strip()
 
     if status_filter:
-        if status_filter == "completed":
-            appels_qs = appels_qs.filter(status__in=CALL_COMPLETED_STATUSES)
-        else:
-            appels_qs = appels_qs.filter(status=status_filter)
+        appels_qs = appels_qs.filter(status=status_filter)
     if prestataire_filter:
         appels_qs = appels_qs.filter(prestataire__icontains=prestataire_filter)
     if beneficiaire_filter:
@@ -1107,16 +1106,12 @@ def _build_filtered_appels_queryset(
         if tracking_username:
             form_tracking_cutoff = padesce_form_tracking_cutoff()
             tracking_filter = (
-                Q(
-                    locked_by__username__iexact=tracking_username,
-                    status__in=CALL_SUCCESS_STATUSES,
-                    updated_at__lt=form_tracking_cutoff,
-                )
+                Q(locked_by__username__iexact=tracking_username, status="termine", updated_at__lt=form_tracking_cutoff)
                 | (Q(locked_by__username__iexact=tracking_username) & completed_answers_filter)
                 | (
                     Q(
                         locked_by__username__iexact=tracking_username,
-                        status__in=CALL_SUCCESS_STATUSES,
+                        status="termine",
                         updated_at__gte=form_tracking_cutoff,
                     )
                     & tracked_audio_filter
@@ -1413,13 +1408,16 @@ def appels_index(request):
             )
         return redirect(request.path_info)
 
+<<<<<<< Updated upstream
     optimization_snapshot = _cached_appel_class_progress_snapshot(
         _safe_build_padesce_source_index()
     )
+=======
+    optimization_snapshot = _build_appel_class_progress_snapshot(_safe_build_padesce_source_index())
+>>>>>>> Stashed changes
     appels_qs, filters = _build_filtered_appels_queryset(
         request,
         hidden_class_labels=optimization_snapshot["hidden_class_labels"],
-        hidden_call_codes=optimization_snapshot.get("hidden_call_codes", []),
     )
 
     appels_count = appels_qs.count()
@@ -1455,15 +1453,20 @@ def appels_index(request):
         enriched_classes.append({"value": c_label, "label": label_with_prog})
     filters["classes_enriched"] = enriched_classes
 
-    # ── Analysis threshold stats across ALL classes (visible + hidden) ──
+    # ── Analysis threshold stats (25%) across ALL classes (visible + hidden) ──
     all_classe_progress = optimization_snapshot["classe_progress_all"]
     analysis_classes_count = sum(
+<<<<<<< Updated upstream
         1
         for item in all_classe_progress
         if int(item.get("total") or 0) > 0 and bool(item.get("reached"))
+=======
+        1 for item in all_classe_progress
+        if int(item.get("total") or 0) > 0 and float(item.get("pct") or 0) >= ANALYSIS_THRESHOLD_PERCENT
+>>>>>>> Stashed changes
     )
+    # Count distinct prestations where all their classes reached the 25% threshold
     analysis_prestations_count = optimization_snapshot.get("analysis_prestations_count", 0)
-    analysis_goal_summary = optimization_snapshot.get("analysis_goal_summary", {})
 
     import json as _json
 
@@ -1489,7 +1492,6 @@ def appels_index(request):
                 "analysis_classes_count": analysis_classes_count,
                 "analysis_prestations_count": analysis_prestations_count,
             },
-            "analysis_goal_summary": analysis_goal_summary,
             "source_summary": optimization_snapshot["source_summary"],
             "analysis_threshold_label": analysis_threshold_label(),
         },
@@ -1498,13 +1500,16 @@ def appels_index(request):
 
 @login_required
 def appels_export_filtered_csv(request):
+<<<<<<< Updated upstream
     optimization_snapshot = _cached_appel_class_progress_snapshot(
         _safe_build_padesce_source_index()
     )
+=======
+    optimization_snapshot = _build_appel_class_progress_snapshot(_safe_build_padesce_source_index())
+>>>>>>> Stashed changes
     appels_qs, _ = _build_filtered_appels_queryset(
         request,
         hidden_class_labels=optimization_snapshot["hidden_class_labels"],
-        hidden_call_codes=optimization_snapshot.get("hidden_call_codes", []),
     )
     appels = appels_qs.select_related("locked_by").order_by("status", "nom")
 
@@ -1562,6 +1567,7 @@ def _cleanup_stale_locks(timeout_minutes=3):
     - pause: 2 minutes max (paused calls should resume or terminate quickly)
     """
     from App_PADESCE.appels.models import Appel, AppelCGA, AppelFormateur
+<<<<<<< Updated upstream
 
     # For PADESCE/formateurs, abandoned active rows fall back to "appel_tente"
     # so the operator can see Demarrer again after a dropped connection.
@@ -1570,11 +1576,23 @@ def _cleanup_stale_locks(timeout_minutes=3):
         locked_by__isnull=False, locked_at__lt=cutoff_active, status="en_cours"
     ).update(locked_by=None, locked_at=None, status="appel_tente")
 
+=======
+    
+    # Cleanup for en_cours locks (3 min)
+    cutoff_active = timezone.now() - datetime.timedelta(minutes=timeout_minutes)
+    Appel.objects.filter(
+        locked_by__isnull=False,
+        locked_at__lt=cutoff_active,
+        status='en_cours'
+    ).update(locked_by=None, locked_at=None, status='pause')
+    
+>>>>>>> Stashed changes
     AppelCGA.objects.filter(
         locked_by__isnull=False, locked_at__lt=cutoff_active, status="en_cours"
     ).update(locked_by=None, locked_at=None, status="pause")
 
     AppelFormateur.objects.filter(
+<<<<<<< Updated upstream
         locked_by__isnull=False, locked_at__lt=cutoff_active, status="en_cours"
     ).update(locked_by=None, locked_at=None, status="appel_tente")
 
@@ -1584,13 +1602,35 @@ def _cleanup_stale_locks(timeout_minutes=3):
         locked_by__isnull=False, locked_at__lt=cutoff_pause, status="pause"
     ).update(locked_by=None, locked_at=None, status="appel_tente")
 
+=======
+        locked_by__isnull=False,
+        locked_at__lt=cutoff_active,
+        status='en_cours'
+    ).update(locked_by=None, locked_at=None, status='pause')
+    
+    # Cleanup for pause locks (2 min)
+    cutoff_pause = timezone.now() - datetime.timedelta(minutes=2)
+    Appel.objects.filter(
+        locked_by__isnull=False,
+        locked_at__lt=cutoff_pause,
+        status='pause'
+    ).update(locked_by=None, locked_at=None)
+    
+>>>>>>> Stashed changes
     AppelCGA.objects.filter(
         locked_by__isnull=False, locked_at__lt=cutoff_pause, status="pause"
     ).update(locked_by=None, locked_at=None)
 
     AppelFormateur.objects.filter(
+<<<<<<< Updated upstream
         locked_by__isnull=False, locked_at__lt=cutoff_pause, status="pause"
     ).update(locked_by=None, locked_at=None, status="appel_tente")
+=======
+        locked_by__isnull=False,
+        locked_at__lt=cutoff_pause,
+        status='pause'
+    ).update(locked_by=None, locked_at=None)
+>>>>>>> Stashed changes
 
 
 def _handle_lock_conflict(instance, current_user, action):
@@ -1655,7 +1695,12 @@ def _check_other_active_calls(user, current_instance):
 def appel_action(request, pk: int):
     # Clean up stale locks that may be blocking access
     _cleanup_stale_locks()
+<<<<<<< Updated upstream
 
+=======
+    _cleanup_stale_locks()
+    
+>>>>>>> Stashed changes
     appel = get_object_or_404(Appel, pk=pk)
     action = request.POST.get("action")
     rappel_at = request.POST.get("rappel_at")
@@ -1666,17 +1711,15 @@ def appel_action(request, pk: int):
     satisfaction_message = ""  # noqa: F841
 
     if action == "start":
-        appel.status = "en_cours"
+        appel.status = "appel_tente"
         appel.locked_by = request.user
         appel.locked_at = now
-        appel.rappel_at = None
     elif action == "pause":
-        appel.status = "pause"
+        appel.status = "appel_tente"
     elif action == "resume":
-        appel.status = "en_cours"
+        appel.status = "appel_tente"
         appel.locked_by = request.user
         appel.locked_at = now
-        appel.rappel_at = None
     elif action == "rappeler":
         appel.status = "a_rappeler"
         appel.locked_by = request.user
@@ -1687,11 +1730,8 @@ def appel_action(request, pk: int):
                 appel.rappel_at = timezone.make_aware(naive_dt)
             except (ValueError, TypeError):
                 appel.rappel_at = None
-        else:
-            appel.rappel_at = None
     elif action == "terminer":
         appel.status = "termine"
-        appel.rappel_at = None
     else:
         return JsonResponse({"ok": False, "error": "Action inconnue."}, status=400)
 
@@ -1715,12 +1755,23 @@ def appel_action(request, pk: int):
                 setattr(appel, flag_name, _parse_bool_flag(val) or False)
             update_fields.append(flag_name)
 
-    appel.save(update_fields=list(dict.fromkeys(update_fields)))
-    sync_padesce_status(appel)
+    appel.save(update_fields=update_fields)
     # Progress info for the UI
     class_info = None
     if appel.classe_label:
-        class_info = _build_live_class_progress(appel.classe_label)
+        q_count = Appel.objects.filter(classe_label=appel.classe_label, is_active=True)
+        total_c = q_count.count()
+        termines_c = q_count.filter(status="termine").count()
+        target_c = (total_c + 1) // 2
+        reached_c = total_c > 0 and termines_c >= target_c
+        class_info = {
+            "label": appel.classe_label,
+            "total": total_c,
+            "termines": termines_c,
+            "target": target_c,
+            "reached": reached_c,
+            "pct": round((termines_c / total_c) * 100, 1) if total_c else 0,
+        }
 
     return JsonResponse(
         {
@@ -1745,9 +1796,20 @@ def finalize_appel(request, pk: int):
             appel = Appel.objects.select_for_update().get(pk=pk)
             action = request.POST.get("action", "terminer")
             file_obj = request.FILES.get("audio")
+            logger.info(f"finalize_appel: pk={pk}, action={action}, has_file={bool(file_obj)}, files={list(request.FILES.keys())}, post_keys={list(request.POST.keys())}")
 
             if action == "terminer":
-                appel.status = "appel_tente"
+                # form_modified=1 uniquement si l'utilisateur a explicitement cliqué un radio Q1-Q9
+                _has_real_form = request.POST.get("form_modified") == "1"
+                _has_audio_upload = bool(request.FILES.get("audio"))
+                if _has_real_form and _has_audio_upload:
+                    appel.status = "formulaire_avec_audio"
+                elif _has_real_form:
+                    appel.status = "formulaire_rempli"
+                elif _has_audio_upload:
+                    appel.status = "formulaire_avec_audio"
+                else:
+                    appel.status = "appel_tente"
                 appel.rappel_at = None
             elif action == "rappeler":
                 appel.status = "a_rappeler"
@@ -1761,9 +1823,7 @@ def finalize_appel(request, pk: int):
                 else:
                     appel.rappel_at = None
 
-            update_fields = ["updated_at", "rappel_at"]
-            if action in {"terminer", "rappeler"}:
-                update_fields.append("status")
+            update_fields = ["status", "updated_at", "rappel_at"]
             deja_forme_flag = _parse_bool_flag(request.POST.get("deja_forme")) or False
             appel.deja_forme = deja_forme_flag
             update_fields.append("deja_forme")
@@ -1783,30 +1843,37 @@ def finalize_appel(request, pk: int):
                         setattr(appel, flag_name, _parse_bool_flag(val) or False)
                     update_fields.append(flag_name)
 
+            appel.save(update_fields=list(dict.fromkeys(update_fields)))
+
             satisfaction_saved = False
             satisfaction_message = ""
             if action == "terminer":
-                commentaire_val = request.POST.get("commentaire", "") or ""
-                recommandations_val = request.POST.get("recommandations", "") or ""
+                commentaire_val = request.POST.get("commentaire", "") or "RAS"
+                recommandations_val = request.POST.get("recommandations", "") or "RAS"
+                # IMPORTANT: Toujours envoyer les réponses (même avec valeurs défaut)
                 manual_data = {
-                    "q1_clarte_exposes": request.POST.get("q1"),
-                    "q2_interaction_formateur": request.POST.get("q2"),
-                    "q3_maitrise_contenu": request.POST.get("q3"),
-                    "q4_salle_adequate": request.POST.get("q4"),
-                    "q5_materiel_disponible": request.POST.get("q5"),
-                    "q6_organisation_temps": request.POST.get("q6"),
-                    "q7_utilite_formation": request.POST.get("q7"),
-                    "q8_adequation_besoins": request.POST.get("q8"),
-                    "q9_satisfaction_globale": request.POST.get("q9"),
-                    "commentaire": commentaire_val.strip(),
-                    "recommandations": recommandations_val.strip(),
+                    "q1_clarte_exposes": request.POST.get("q1") or "3",
+                    "q2_interaction_formateur": request.POST.get("q2") or "3",
+                    "q3_maitrise_contenu": request.POST.get("q3") or "3",
+                    "q4_salle_adequate": request.POST.get("q4") or "3",
+                    "q5_materiel_disponible": request.POST.get("q5") or "3",
+                    "q6_organisation_temps": request.POST.get("q6") or "3",
+                    "q7_utilite_formation": request.POST.get("q7") or "3",
+                    "q8_adequation_besoins": request.POST.get("q8") or "3",
+                    "q9_satisfaction_globale": request.POST.get("q9") or "3",
+                    "commentaire": commentaire_val.strip() or "RAS",
+                    "recommandations": recommandations_val.strip() or "RAS",
                 }
+<<<<<<< Updated upstream
                 manual_data = {
                     key: value for key, value in manual_data.items() if value not in (None, "")
                 }
                 auto_result = _auto_process_satisfaction_from_appel(
                     appel, request.user, manual_data=manual_data
                 )
+=======
+                auto_result = _auto_process_satisfaction_from_appel(appel, request.user, manual_data=manual_data)
+>>>>>>> Stashed changes
                 satisfaction_saved = auto_result.get("satisfaction_saved", False)
                 satisfaction_message = auto_result.get("message", "")
                 satisfaction_id = auto_result.get("satisfaction_id")
@@ -1814,7 +1881,9 @@ def finalize_appel(request, pk: int):
                 satisfaction_id = None
 
             if file_obj:
+                logger.info(f"Saving audio file for appel {appel.pk}: {file_obj.name}, size={file_obj.size}")
                 appel.audio_file = file_obj
+<<<<<<< Updated upstream
                 update_fields.append("audio_file")
 
             appel.save(update_fields=list(dict.fromkeys(update_fields)))
@@ -1830,6 +1899,31 @@ def finalize_appel(request, pk: int):
             if appel.classe_label:
                 class_info = _build_live_class_progress(appel.classe_label)
 
+=======
+                appel.save(update_fields=["audio_file", "updated_at"])
+                logger.info(f"Audio file saved: {appel.audio_file.path if appel.audio_file else 'None'}")
+                if satisfaction_id:
+                    satisfaction = SatisfactionApprenant.objects.filter(pk=satisfaction_id).first()
+                    _attach_appel_audio_to_satisfaction(satisfaction, appel)
+            
+            # 5. Get class progress
+            class_info = None
+            if appel.classe_label:
+                q_count = Appel.objects.filter(classe_label=appel.classe_label, is_active=True)
+                total_c = q_count.count()
+                termines_c = q_count.filter(status="termine").count()
+                target_c = (total_c + 1) // 2
+                reached_c = total_c > 0 and termines_c >= target_c
+                class_info = {
+                    "label": appel.classe_label,
+                    "total": total_c,
+                    "termines": termines_c,
+                    "target": target_c,
+                    "reached": reached_c,
+                    "pct": round((termines_c / total_c) * 100, 1) if total_c else 0,
+                }
+            
+>>>>>>> Stashed changes
             audio_url = _safe_audio_url(appel)
             return JsonResponse(
                 {
@@ -1879,7 +1973,7 @@ def appel_upload_audio(request, pk: int):
 
     appel.save(update_fields=update_fields)
     payload = {"ok": True, "audio_saved": True, "audio_url": _safe_audio_url(appel)}
-    if is_call_success_status(appel.status):
+    if appel.status == "termine":
         commentaire_val = request.POST.get("commentaire", "") or ""
         recommandations_val = request.POST.get("recommandations", "") or ""
         manual_data = {
@@ -1892,8 +1986,8 @@ def appel_upload_audio(request, pk: int):
             "q7_utilite_formation": request.POST.get("q7"),
             "q8_adequation_besoins": request.POST.get("q8"),
             "q9_satisfaction_globale": request.POST.get("q9"),
-            "commentaire": commentaire_val.strip(),
-            "recommandations": recommandations_val.strip(),
+            "commentaire": commentaire_val.strip() or "RAS",
+            "recommandations": recommandations_val.strip() or "RAS",
         }
         manual_data = {k: v for k, v in manual_data.items() if v is not None and v != ""}
         auto_result = _auto_process_satisfaction_from_appel(
@@ -1907,13 +2001,22 @@ def appel_upload_audio(request, pk: int):
                 "satisfaction_message": auto_result["message"],
             }
         )
-    sync_padesce_status(appel)
-    payload["status"] = appel.status
-    payload["status_label"] = appel.get_status_display()
     # Progress info for the UI
     class_info = None
     if appel.classe_label:
-        class_info = _build_live_class_progress(appel.classe_label)
+        q_count = Appel.objects.filter(classe_label=appel.classe_label, is_active=True)
+        total_c = q_count.count()
+        termines_c = q_count.filter(status="termine").count()
+        target_c = (total_c + 1) // 2
+        reached_c = total_c > 0 and termines_c >= target_c
+        class_info = {
+            "label": appel.classe_label,
+            "total": total_c,
+            "termines": termines_c,
+            "target": target_c,
+            "reached": reached_c,
+            "pct": round((termines_c / total_c) * 100, 1) if total_c else 0,
+        }
     payload["class_progress"] = class_info
 
     return JsonResponse(payload)
@@ -1926,34 +2029,7 @@ def _auto_process_satisfaction_from_appel(appel: Appel, user, manual_data: dict 
     """  # noqa: E501
     if manual_data is None:
         manual_data = {}
-    has_any_question_answer = _payload_has_any_question_answer(manual_data)
-    has_complete_questionnaire = _payload_has_complete_questionnaire(manual_data)
-    has_open_feedback = bool(
-        str(manual_data.get("commentaire", "") or "").strip()
-        or str(manual_data.get("recommandations", "") or "").strip()
-    )
-
-    if has_any_question_answer or has_open_feedback:
-        _save_appel_answers(appel, user, manual_data, apply_defaults=False)
-
-    if not has_complete_questionnaire:
-        if has_any_question_answer:
-            message = "Reponses partielles enregistrees."
-        elif has_open_feedback:
-            message = "Resultat d'appel enregistre."
-        else:
-            message = "Appel finalise sans questionnaire."
-        return {
-            "ok": True,
-            "satisfaction_saved": False,
-            "satisfaction_id": None,
-            "message": message,
-        }
-    existing_satisfaction = (
-        SatisfactionApprenant.objects.select_related("apprenant", "classe")
-        .filter(appel=appel)
-        .first()
-    )
+    _save_appel_answers(appel, user, manual_data, apply_defaults=True)
     base_qs = Apprenant.objects.all()
     scoped_qs = base_qs
     if appel.classe_id:
@@ -1961,23 +2037,19 @@ def _auto_process_satisfaction_from_appel(appel: Appel, user, manual_data: dict 
     elif appel.classe_label:
         scoped_qs = scoped_qs.filter(classe__code__iexact=str(appel.classe_label).strip())
 
+<<<<<<< Updated upstream
     apprenant = (
         existing_satisfaction.apprenant
         if existing_satisfaction and existing_satisfaction.apprenant_id
         else None
     )
+=======
+    apprenant = _find_apprenant_for_appel(scoped_qs, appel)
+>>>>>>> Stashed changes
     if not apprenant:
-        apprenant = _find_apprenant_for_appel(scoped_qs, appel)
-    if not apprenant and (appel.classe_id or appel.classe_label):
         apprenant = _find_apprenant_for_appel(base_qs, appel)
 
-    satisfaction = _save_satisfaction_for_appel(
-        appel,
-        user,
-        manual_data,
-        apprenant,
-        existing_satisfaction=existing_satisfaction,
-    )
+    satisfaction = _save_satisfaction_for_appel(appel, user, manual_data, apprenant)
     if not apprenant:
         logger.info(
             "Satisfaction sauvegardee sans apprenant lie. %s",
@@ -2130,7 +2202,6 @@ def appel_answers_detail(request, pk: int):
                 update_fields.append(flag_name)
         if len(update_fields) > 1:
             appel.save(update_fields=update_fields)
-        sync_padesce_status(appel)
 
         return JsonResponse({"ok": True, "message": "Réponses mises à jour."})
 
