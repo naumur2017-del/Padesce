@@ -200,6 +200,14 @@
   <form method="get" class="inline-filter-bar">
     <input type="hidden" name="source" value="{{ selected_source }}">
     <div class="field">
+      <label for="all-classe-id-filter">Filtrer par Classe ID</label>
+      <input id="all-classe-id-filter" type="text" name="all_classe_id" value="{{ all_classe_id_filter }}" placeholder="Ex: CLA003">
+    </div>
+    <div class="field">
+      <label for="all-prestation-id-filter">Filtrer par Prestation ID</label>
+      <input id="all-prestation-id-filter" type="text" name="all_prestation_id" value="{{ all_prestation_id_filter }}" placeholder="Ex: PRESTA087">
+    </div>
+    <div class="field">
       <label for="all-status-filter">Filtrer Tous Les Apprenants Actifs par statut actuel</label>
       <select id="all-status-filter" name="all_status">
         <option value="">Tous les statuts</option>
@@ -207,7 +215,7 @@
           <option value="{{ value }}" {% if all_status_filter == value %}selected{% endif %}>{{ label }}</option>
         {% endfor %}
       </select>
-      <small>Ce filtre agit uniquement sur la table complete des apprenants actifs.</small>
+      <small>Les filtres ci-dessus s'appliquent a toutes les tables de cette page.</small>
     </div>
     <div class="actions">
       <button class="btn btn-ghost" type="submit">Filtrer</button>
@@ -373,10 +381,10 @@
           <div class="pager">
             <div class="meta">Page {{ termine_without_form_page_obj.number }} / {{ termine_without_form_page_obj.paginator.num_pages }}</div>
             {% if termine_without_form_page_obj.has_previous %}
-              <a class="btn btn-ghost" href="?source={{ selected_source }}&all_status={{ all_status_filter|urlencode }}&termine_page={{ termine_without_form_page_obj.previous_page_number }}&status_page={{ form_status_issue_page_obj.number }}&all_page={{ all_apprenants_page_obj.number }}">Precedent</a>
+              <a class="btn btn-ghost" href="?source={{ selected_source }}&all_status={{ all_status_filter|urlencode }}&all_classe_id={{ all_classe_id_filter|urlencode }}&all_prestation_id={{ all_prestation_id_filter|urlencode }}&termine_page={{ termine_without_form_page_obj.previous_page_number }}&status_page={{ form_status_issue_page_obj.number }}&all_page={{ all_apprenants_page_obj.number }}">Precedent</a>
             {% endif %}
             {% if termine_without_form_page_obj.has_next %}
-              <a class="btn btn-ghost" href="?source={{ selected_source }}&all_status={{ all_status_filter|urlencode }}&termine_page={{ termine_without_form_page_obj.next_page_number }}&status_page={{ form_status_issue_page_obj.number }}&all_page={{ all_apprenants_page_obj.number }}">Suivant</a>
+              <a class="btn btn-ghost" href="?source={{ selected_source }}&all_status={{ all_status_filter|urlencode }}&all_classe_id={{ all_classe_id_filter|urlencode }}&all_prestation_id={{ all_prestation_id_filter|urlencode }}&termine_page={{ termine_without_form_page_obj.next_page_number }}&status_page={{ form_status_issue_page_obj.number }}&all_page={{ all_apprenants_page_obj.number }}">Suivant</a>
             {% endif %}
           </div>
         {% endif %}
@@ -462,10 +470,10 @@
           <div class="pager">
             <div class="meta">Page {{ form_status_issue_page_obj.number }} / {{ form_status_issue_page_obj.paginator.num_pages }}</div>
             {% if form_status_issue_page_obj.has_previous %}
-              <a class="btn btn-ghost" href="?source={{ selected_source }}&all_status={{ all_status_filter|urlencode }}&termine_page={{ termine_without_form_page_obj.number }}&status_page={{ form_status_issue_page_obj.previous_page_number }}&all_page={{ all_apprenants_page_obj.number }}">Precedent</a>
+              <a class="btn btn-ghost" href="?source={{ selected_source }}&all_status={{ all_status_filter|urlencode }}&all_classe_id={{ all_classe_id_filter|urlencode }}&all_prestation_id={{ all_prestation_id_filter|urlencode }}&termine_page={{ termine_without_form_page_obj.number }}&status_page={{ form_status_issue_page_obj.previous_page_number }}&all_page={{ all_apprenants_page_obj.number }}">Precedent</a>
             {% endif %}
             {% if form_status_issue_page_obj.has_next %}
-              <a class="btn btn-ghost" href="?source={{ selected_source }}&all_status={{ all_status_filter|urlencode }}&termine_page={{ termine_without_form_page_obj.number }}&status_page={{ form_status_issue_page_obj.next_page_number }}&all_page={{ all_apprenants_page_obj.number }}">Suivant</a>
+              <a class="btn btn-ghost" href="?source={{ selected_source }}&all_status={{ all_status_filter|urlencode }}&all_classe_id={{ all_classe_id_filter|urlencode }}&all_prestation_id={{ all_prestation_id_filter|urlencode }}&termine_page={{ termine_without_form_page_obj.number }}&status_page={{ form_status_issue_page_obj.next_page_number }}&all_page={{ all_apprenants_page_obj.number }}">Suivant</a>
             {% endif %}
           </div>
         {% endif %}
@@ -554,10 +562,10 @@
           <div class="pager">
             <div class="meta">Page {{ all_apprenants_page_obj.number }} / {{ all_apprenants_page_obj.paginator.num_pages }}</div>
             {% if all_apprenants_page_obj.has_previous %}
-              <a class="btn btn-ghost" href="?source={{ selected_source }}&all_status={{ all_status_filter|urlencode }}&termine_page={{ termine_without_form_page_obj.number }}&status_page={{ form_status_issue_page_obj.number }}&all_page={{ all_apprenants_page_obj.previous_page_number }}">Precedent</a>
+              <a class="btn btn-ghost" href="?source={{ selected_source }}&all_status={{ all_status_filter|urlencode }}&all_classe_id={{ all_classe_id_filter|urlencode }}&all_prestation_id={{ all_prestation_id_filter|urlencode }}&termine_page={{ termine_without_form_page_obj.number }}&status_page={{ form_status_issue_page_obj.number }}&all_page={{ all_apprenants_page_obj.previous_page_number }}">Precedent</a>
             {% endif %}
             {% if all_apprenants_page_obj.has_next %}
-              <a class="btn btn-ghost" href="?source={{ selected_source }}&all_status={{ all_status_filter|urlencode }}&termine_page={{ termine_without_form_page_obj.number }}&status_page={{ form_status_issue_page_obj.number }}&all_page={{ all_apprenants_page_obj.next_page_number }}">Suivant</a>
+              <a class="btn btn-ghost" href="?source={{ selected_source }}&all_status={{ all_status_filter|urlencode }}&all_classe_id={{ all_classe_id_filter|urlencode }}&all_prestation_id={{ all_prestation_id_filter|urlencode }}&termine_page={{ termine_without_form_page_obj.number }}&status_page={{ form_status_issue_page_obj.number }}&all_page={{ all_apprenants_page_obj.next_page_number }}">Suivant</a>
             {% endif %}
           </div>
         {% endif %}

@@ -3964,6 +3964,17 @@ def _paginate_update_form_rows(
     return page_obj, _build_update_form_rows_for_appels(list(page_obj.object_list))
 
 
+def _apply_update_form_table_filters(queryset, classe_id_filter: str, prestation_id_filter: str):
+    filtered_qs = queryset
+    if classe_id_filter:
+        filtered_qs = filtered_qs.filter(
+            Q(classe__code__icontains=classe_id_filter) | Q(classe_label__icontains=classe_id_filter)
+        )
+    if prestation_id_filter:
+        filtered_qs = filtered_qs.filter(classe__prestation__code__icontains=prestation_id_filter)
+    return filtered_qs
+
+
 def _normalize_presence_marker(value: str) -> str:
     marker = str(value or "").strip().upper()
     return marker if marker in {"PR", "AB"} else "AB"
@@ -4283,6 +4294,8 @@ def satisfaction_update_form_page(request):
         active_tab = "formulaires"
     selected_source = _analysis_selected_source(request)
     all_status_filter = str(request.GET.get("all_status", "") or "").strip()
+    all_classe_id_filter = str(request.GET.get("all_classe_id", "") or "").strip()
+    all_prestation_id_filter = str(request.GET.get("all_prestation_id", "") or "").strip()
     initial = {
         "classe_code": str(request.GET.get("classe_code", "") or "").strip(),
         "codes_text": str(request.GET.get("codes", "") or "").strip(),
@@ -4380,9 +4393,21 @@ def satisfaction_update_form_page(request):
                                 f"{summary['error_total']} code(s) n'ont pas pu etre traites.",
                             )
 
-    termine_qs = _termine_without_form_queryset()
-    form_status_qs = _form_status_issue_queryset()
-    all_apprenants_base_qs = _update_form_candidate_base_queryset()
+    termine_qs = _apply_update_form_table_filters(
+        _termine_without_form_queryset(),
+        all_classe_id_filter,
+        all_prestation_id_filter,
+    )
+    form_status_qs = _apply_update_form_table_filters(
+        _form_status_issue_queryset(),
+        all_classe_id_filter,
+        all_prestation_id_filter,
+    )
+    all_apprenants_base_qs = _apply_update_form_table_filters(
+        _update_form_candidate_base_queryset(),
+        all_classe_id_filter,
+        all_prestation_id_filter,
+    )
     all_apprenants_qs = all_apprenants_base_qs
     if all_status_filter:
         all_apprenants_qs = all_apprenants_qs.filter(status=all_status_filter)
@@ -4429,6 +4454,8 @@ def satisfaction_update_form_page(request):
         "all_apprenants_page_obj": all_apprenants_page_obj,
         "all_status_choices": all_status_choices,
         "all_status_filter": all_status_filter,
+        "all_classe_id_filter": all_classe_id_filter,
+        "all_prestation_id_filter": all_prestation_id_filter,
         "candidate_total": termine_without_form_total + form_status_issue_total,
         "selected_source": selected_source,
         "general_url": f"{reverse('satisfaction_general_page')}?source={selected_source}",
