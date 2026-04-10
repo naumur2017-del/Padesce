@@ -31,6 +31,7 @@ from App_PADESCE.core.apprenant_lookup import (
 from App_PADESCE.environnement.models import EnqueteEnvironnement
 from App_PADESCE.formations.forms import ClasseCreateForm
 from App_PADESCE.formations.models import Classe, Lieu, Prestation
+from App_PADESCE.presences.control_utils import get_presence_controls
 from App_PADESCE.presences.models import Presence
 from App_PADESCE.reporting.network_excel import build_padesce_source_index, normalize_network_lookup
 from App_PADESCE.satisfaction_apprenants.models import SatisfactionApprenant
@@ -585,11 +586,13 @@ def _build_apprenant_rows(appels, *, back_url: str):
         call_count = _apprenant_call_count(appel, form_state["has_form"], has_audio)
         detail_url = _detail_url("analysis_apprenant_call_detail", appel.pk, back_url)
         apprenant = matched_apprenants.get(appel.pk)
+        apprenant_identifier = get_local_apprenant_identifier(apprenant)
+        presence_controls = get_presence_controls(apprenant_identifier, fallback_seed=appel.pk)
         rows.append(
             {
                 "id": appel.pk,
                 "code": appel.code,
-                "apprenant_id": get_local_apprenant_identifier(apprenant),
+                "apprenant_id": apprenant_identifier,
                 "apprenant_db_label": get_local_apprenant_db_label(apprenant),
                 "nom": appel.nom,
                 "telephone": appel.telephone1 or appel.telephone2 or "",
@@ -602,6 +605,11 @@ def _build_apprenant_rows(appels, *, back_url: str):
                 "has_form": form_state["has_form"],
                 "detail_url": detail_url,
                 "updated_at": appel.updated_at,
+                "c1": presence_controls.get("c1", "AB"),
+                "c2": presence_controls.get("c2", "AB"),
+                "c3": presence_controls.get("c3", "AB"),
+                "c4": presence_controls.get("c4", "AB"),
+                "taux_presence_control": int(presence_controls.get("taux", 0) or 0),
             }
         )
     return sorted(
@@ -619,6 +627,8 @@ def _build_class_chapeau(classe_code: str, appels, source_bundle: dict | None = 
 
     question_values: dict[str, list[int]] = {field: [] for field, _label in Q_FIELDS}
     respondent_keys: set[str] = set()
+    presence_totals = {key: {"PR": 0, "AB": 0} for key in ("c1", "c2", "c3", "c4")}
+    presence_taux_values: list[int] = []
 
     for appel in appels:
         answers = _appel_answers_or_none(appel)
@@ -638,6 +648,13 @@ def _build_class_chapeau(classe_code: str, appels, source_bundle: dict | None = 
         )
         if respondent_key:
             respondent_keys.add(respondent_key)
+        presence_controls = get_presence_controls(respondent_key, fallback_seed=appel.pk)
+        for key in ("c1", "c2", "c3", "c4"):
+            marker = str(presence_controls.get(key, "AB") or "AB").upper()
+            if marker not in {"PR", "AB"}:
+                marker = "AB"
+            presence_totals[key][marker] += 1
+        presence_taux_values.append(int(presence_controls.get("taux", 0) or 0))
 
         for field, _label in Q_FIELDS:
             value = getattr(answers, field, None)
@@ -660,6 +677,20 @@ def _build_class_chapeau(classe_code: str, appels, source_bundle: dict | None = 
     return {
         "title": _dashboard_chapeau_title(classe_code),
         "rows": question_rows,
+        "presence_rows": [
+            {
+                "label": key.upper(),
+                "pr_count": values["PR"],
+                "ab_count": values["AB"],
+                "pr_rate": round((values["PR"] / (values["PR"] + values["AB"]) * 100), 2)
+                if (values["PR"] + values["AB"]) > 0
+                else 0,
+            }
+            for key, values in presence_totals.items()
+        ],
+        "presence_taux_avg": round(sum(presence_taux_values) / len(presence_taux_values), 2)
+        if presence_taux_values
+        else 0,
         "respondents_count": len(respondent_keys),
         "formulaires_remplis": len(respondent_keys),
         "has_data": any(item["count"] for item in question_rows),

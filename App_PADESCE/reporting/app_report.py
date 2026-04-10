@@ -654,17 +654,18 @@ def _qualified_prestation_codes(source_bundle: dict | None) -> set[str]:
 
     qualified_codes: set[str] = set()
     for prestation_key, class_keys in prestation_classes.items():
-        any_reached = False
+        all_reached = True
         for class_key in class_keys:
             total_apprenants = int(apprenant_counts.get(class_key) or 0)
             if total_apprenants <= 0:
-                continue
+                all_reached = False
+                break
             threshold_target = analysis_threshold_target(total_apprenants)
             total_termines = int(terminated_by_class.get(class_key) or 0)
-            if total_termines >= threshold_target:
-                any_reached = True
+            if total_termines < threshold_target:
+                all_reached = False
                 break
-        if any_reached:
+        if all_reached:
             qualified_codes.add(prestation_key)
     return qualified_codes
 

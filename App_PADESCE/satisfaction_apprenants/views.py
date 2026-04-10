@@ -1599,7 +1599,7 @@ def _fallback_qualified_prestation_codes(classe_stats_all: list[dict]) -> set[st
     return {
         prestation_key
         for prestation_key, threshold_states in prestations.items()
-        if threshold_states and any(threshold_states)
+        if threshold_states and all(threshold_states)
     }
 
 
@@ -1668,10 +1668,16 @@ def _qualified_prestation_codes_from_source(
             if item.get("code")
         }
     )
+    terminated_prestation_codes = _terminated_prestation_codes_from_source(filters, source_bundle)
+    if not terminated_prestation_codes:
+        return set()
+
     qualified_codes = set()
     for prestation_key, class_map in prestation_classes.items():
+        if prestation_key not in terminated_prestation_codes:
+            continue
         class_keys = set(class_map)
-        if class_keys and any(threshold_by_class.get(class_key, False) for class_key in class_keys):
+        if class_keys and all(threshold_by_class.get(class_key, False) for class_key in class_keys):
             qualified_codes.add(prestation_key)
     return qualified_codes
 
@@ -2708,6 +2714,27 @@ def _build_satisfaction_dashboard_data(request):
         ],
         key=lambda item: (item["code"], item["prestataire"], item["beneficiaire"]),
     )
+    qualified_prestation_keys = {
+        key
+        for key, item in prestation_groups.items()
+        if normalize_network_lookup(item["code"]) in qualified_prestation_codes
+    }
+    qualified_class_codes = {
+        normalize_network_lookup(class_code)
+        for key in qualified_prestation_keys
+        for class_code in prestation_groups.get(key, {}).get("associated_classes", set())
+        if str(class_code or "").strip()
+    }
+    qualified_prestataire_labels = {
+        prestation_groups.get(key, {}).get("prestataire", "")
+        for key in qualified_prestation_keys
+        if str(prestation_groups.get(key, {}).get("prestataire", "") or "").strip()
+    }
+    qualified_beneficiaire_labels = {
+        prestation_groups.get(key, {}).get("beneficiaire", "")
+        for key in qualified_prestation_keys
+        if str(prestation_groups.get(key, {}).get("beneficiaire", "") or "").strip()
+    }
 
     # Full list (unfiltered by qualified) — used for ranking/map features
     prestation_stats_all = sorted(
@@ -2784,6 +2811,7 @@ def _build_satisfaction_dashboard_data(request):
             "fenetre": item.get("fenetre", ""),
         }
         for item in classe_stats_seuil
+        if normalize_network_lookup(item.get("code", "")) in qualified_class_codes
     ]
     analyzed_prestations = [
         {
@@ -2797,10 +2825,12 @@ def _build_satisfaction_dashboard_data(request):
     analyzed_prestataires = [
         {"label": label, "nb": item["metrics"]["nb"]}
         for label, item in sorted(prestataire_groups.items(), key=lambda pair: pair[0])
+        if label in qualified_prestataire_labels
     ]
     analyzed_beneficiaires = [
         {"label": label, "nb": item["metrics"]["nb"]}
         for label, item in sorted(beneficiaire_groups.items(), key=lambda pair: pair[0])
+        if label in qualified_beneficiaire_labels
     ]
     analyzed_cohortes = [{"label": item["label"], "nb": item["nb"]} for item in cohorte_stats]
 

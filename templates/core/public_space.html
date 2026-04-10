@@ -281,12 +281,40 @@
 {% if section == "principal" and scope == "apprenant" %}
   <section class="public-panel">
     <h2>Chapeau contrôle de présence</h2>
-    <p>Taux général de présence observé (simulation C1-C4 en attendant l'intégration finale) : <strong>{{ principal.presence_global_avg }}%</strong>. Ratio global PR : <strong>{{ principal.presence_global_pr_rate }}%</strong>.</p>
+    <div class="table-wrap">
+      <table class="stats-table">
+        <thead>
+          <tr>
+            <th>Indicateur</th>
+            <th>Valeur</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>Taux général de présence (C1-C4)</td><td>{{ principal.presence_global_avg }}%</td></tr>
+          <tr><td>Ratio global PR</td><td>{{ principal.presence_global_pr_rate }}%</td></tr>
+        </tbody>
+      </table>
+    </div>
   </section>
 
   <section class="public-panel">
     <h2>Chapeau satisfaction apprenants</h2>
-    <p>Sur {{ principal.summary_appels_cibles }} appels cibles, {{ principal.summary_form_remplis }} formulaires sont remplis, dont {{ principal.summary_form_audio }} avec audio et {{ principal.summary_form_sans_audio }} sans audio.</p>
+    <div class="table-wrap">
+      <table class="stats-table">
+        <thead>
+          <tr>
+            <th>Indicateur</th>
+            <th>Valeur</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>Appels cibles</td><td>{{ principal.summary_appels_cibles }}</td></tr>
+          <tr><td>Formulaires remplis</td><td>{{ principal.summary_form_remplis }}</td></tr>
+          <tr><td>Formulaires avec audio</td><td>{{ principal.summary_form_audio }}</td></tr>
+          <tr><td>Formulaires sans audio</td><td>{{ principal.summary_form_sans_audio }}</td></tr>
+        </tbody>
+      </table>
+    </div>
   </section>
 
   <div class="public-grid">
@@ -403,7 +431,21 @@
 {% elif section == "principal" and scope == "formateur" %}
   <section class="public-panel">
     <h2>Chapeau satisfaction formateurs</h2>
-    <p>Le suivi repose sur les formulaires complétés des formateurs : {{ principal.summary_form_remplis }} formulaires, {{ principal.summary_form_audio }} avec audio.</p>
+    <div class="table-wrap">
+      <table class="stats-table">
+        <thead>
+          <tr>
+            <th>Indicateur</th>
+            <th>Valeur</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>Formulaires remplis</td><td>{{ principal.summary_form_remplis }}</td></tr>
+          <tr><td>Formulaires avec audio</td><td>{{ principal.summary_form_audio }}</td></tr>
+          <tr><td>Formulaires sans audio</td><td>{{ principal.summary_form_sans_audio }}</td></tr>
+        </tbody>
+      </table>
+    </div>
   </section>
 
   <div class="public-grid">
