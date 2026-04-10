@@ -1599,7 +1599,7 @@ def _fallback_qualified_prestation_codes(classe_stats_all: list[dict]) -> set[st
     return {
         prestation_key
         for prestation_key, threshold_states in prestations.items()
-        if threshold_states and all(threshold_states)
+        if threshold_states and any(threshold_states)
     }
 
 
@@ -1668,16 +1668,10 @@ def _qualified_prestation_codes_from_source(
             if item.get("code")
         }
     )
-    terminated_prestation_codes = _terminated_prestation_codes_from_source(filters, source_bundle)
-    if not terminated_prestation_codes:
-        return set()
-
     qualified_codes = set()
     for prestation_key, class_map in prestation_classes.items():
-        if prestation_key not in terminated_prestation_codes:
-            continue
         class_keys = set(class_map)
-        if class_keys and all(threshold_by_class.get(class_key, False) for class_key in class_keys):
+        if class_keys and any(threshold_by_class.get(class_key, False) for class_key in class_keys):
             qualified_codes.add(prestation_key)
     return qualified_codes
 

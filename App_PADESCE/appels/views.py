@@ -851,19 +851,19 @@ def _build_appel_class_progress_snapshot(source_bundle: dict | None = None) -> d
     # classe_progress_all contains ALL classes including those already hidden (50% reached)
     classe_progress_all = list(progress_by_key.values())
 
-    # Count prestations where ALL classes reached the 25% analysis threshold
+    # Count prestations where at least one class reached the analysis threshold
     analysis_threshold_pct = ANALYSIS_THRESHOLD_PERCENT
     analysis_prestations_count = 0
     if source_bundle:
         for prestation_key, class_keys in prestation_classes.items():
             if not class_keys:
                 continue
-            all_at_threshold = all(
+            any_at_threshold = any(
                 int(progress_by_key.get(ck, {}).get("total") or 0) > 0
                 and float(progress_by_key.get(ck, {}).get("pct") or 0) >= analysis_threshold_pct
                 for ck in class_keys
             )
-            if all_at_threshold:
+            if any_at_threshold:
                 analysis_prestations_count += 1
 
     return {

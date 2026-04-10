@@ -133,18 +133,17 @@ def _consultant_qualified_prestation_codes(source_bundle: dict | None) -> set[st
     for prestation_key, class_keys in prestation_classes.items():
         if not class_keys:
             continue
-        all_reached = True
+        any_reached = False
         for class_key in class_keys:
             total_apprenants = int(apprenant_counts.get(class_key) or 0)
             if total_apprenants <= 0:
-                all_reached = False
-                break
+                continue
             threshold_count = analysis_threshold_target(total_apprenants)
             total_termines = int(terminated_by_class.get(class_key) or 0)
-            if total_termines < threshold_count:
-                all_reached = False
+            if total_termines >= threshold_count:
+                any_reached = True
                 break
-        if all_reached:
+        if any_reached:
             qualified_codes.add(prestation_key)
     return qualified_codes
 
