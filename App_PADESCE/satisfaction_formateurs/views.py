@@ -902,15 +902,18 @@ def _build_formateur_appel_status_summary(queryset) -> dict[str, int]:
     summary = queryset.aggregate(
         appels_cibles=Count("id"),
         appels_tentes=Count("id", filter=~Q(status="en_attente")),
-        appels_reussis=Count("id", filter=success_q),
-        formulaires_remplis=Count("id", filter=strict_form_q),
-        formulaires_remplis_sans_audio=Count(
-            "id", filter=strict_form_q & (Q(audio_file__isnull=True) | Q(audio_file=""))
-        ),
-        formulaires_avec_audio=Count("id", filter=strict_form_q & audio_q),
+        appels_reussis=Count("id", filter=Q(status__in=["formulaire_rempli", "formulaire_avec_audio", "termine", "appel_reussi", "a_rappeler"])),
+        formulaires_remplis=Count("id", filter=Q(status="termine")),
+        formulaires_remplis_sans_audio=Count("id", filter=Q(status="formulaire_rempli")),
+        formulaires_avec_audio=Count("id", filter=Q(status="formulaire_avec_audio")),
         audios_enregistres=Count("id", filter=audio_q),
     )
     return {key: int(value or 0) for key, value in summary.items()}
+
+
+def _is_strict_formateur_record(record: dict) -> bool:
+    has_answers = all(record.get(field_name) is not None for field_name, _ in Q_FORM_FIELDS)
+    return has_answers or record.get("satisfaction_completed_at") is not None
 
 
 def _build_satisfaction_formateurs_dashboard_context(request) -> dict:
@@ -941,6 +944,7 @@ def _build_satisfaction_formateurs_dashboard_context(request) -> dict:
             "q1_prerequis_apprenants",
             "q2_interaction_apprenants",
             "q3_competences_acquises",
+            "satisfaction_completed_at",
             "q4_gestion_administrative",
             "q5_gestion_financiere",
             "q6_communication",
@@ -951,8 +955,13 @@ def _build_satisfaction_formateurs_dashboard_context(request) -> dict:
 
     total = len(records)
     termines = sum(1 for r in records if r["status"] == "termine")
-    with_scores = sum(1 for r in records if all(r.get(f) is not None for f, _ in Q_FORM_FIELDS))
-    global_avgs = {label: _avg_num([r[field] for r in records]) for field, label in Q_FORM_FIELDS}
+    strict_form_records = [record for record in records if _is_strict_formateur_record(record)]
+    with_scores = len(strict_form_records)
+    global_avgs = {
+        label: _avg_num([record[field] for record in strict_form_records])
+        for field, label in Q_FORM_FIELDS
+    }
+    moyenne_generale_globale = _avg_num(list(global_avgs.values()))
 
     def _group_stats(key_fn):
         groups = defaultdict(list)
@@ -991,6 +1000,7 @@ def _build_satisfaction_formateurs_dashboard_context(request) -> dict:
         "termines": termines,
         "with_scores": with_scores,
         "global_avgs": global_avgs,
+        "moyenne_generale_globale": moyenne_generale_globale,
         "q_labels": [label for _, label in Q_FORM_FIELDS],
         "prestataire_stats": prestataire_stats,
         "beneficiaire_stats": beneficiaire_stats,
@@ -1180,108 +1190,4 @@ def satisfaction_formateurs_dashboard_export_chapeau(request):
 @require_analysis_access
 def satisfaction_formateurs_dashboard(request):
     context = _build_satisfaction_formateurs_dashboard_context(request)
-    return render(request, "satisfaction_formateurs/dashboard.html", context)
-    """
-    Tableau de bord d'analyse des appels formateurs.
-    Stats par prestataire, bénéficiaire, cohorte + résumé Q4-Q6 textuels.
-    """
-    f_prestataire = (request.GET.get("prestataire") or "").strip()
-    f_beneficiaire = (request.GET.get("beneficiaire") or "").strip()
-    f_cohorte = (request.GET.get("cohorte") or "").strip()
-
-    qs = AppelFormateur.objects.filter(is_active=True).order_by("session_date", "prestataire")
-    if f_prestataire:
-        qs = qs.filter(prestataire=f_prestataire)
-    if f_beneficiaire:
-        qs = qs.filter(beneficiaire=f_beneficiaire)
-    if f_cohorte:
-        qs = qs.filter(cohorte=f_cohorte)
-
-    records = list(
-        qs.values(
-            "id",
-            "reference_code",
-            "prestataire",
-            "beneficiaire",
-            "formation",
-            "cohorte",
-            "session_date",
-            "telephone",
-            "status",
-            "q1_prerequis_apprenants",
-            "q2_interaction_apprenants",
-            "q3_competences_acquises",
-            "q4_gestion_administrative",
-            "q5_gestion_financiere",
-            "q6_communication",
-            "commentaires",
-            "recommandations",
-        )
-    )
-
-    total = len(records)
-    termines = sum(1 for r in records if r["status"] == "termine")
-    with_scores = sum(1 for r in records if all(r.get(f) is not None for f, _ in Q_FORM_FIELDS))
-
-    global_avgs = {label: _avg_num([r[field] for r in records]) for field, label in Q_FORM_FIELDS}
-
-    def _group_stats(key_fn):
-        groups = defaultdict(list)
-        for r in records:
-            groups[key_fn(r)].append(r)
-        return sorted(
-            [
-                {
-                    "label": k,
-                    "nb": len(v),
-                    "avgs": [_avg_num([r[f] for r in v]) for f, _ in Q_FORM_FIELDS],
-                }
-                for k, v in groups.items()
-            ],
-            key=lambda x: x["label"],
-        )
-
-    prestataire_stats = _group_stats(lambda r: r["prestataire"] or "—")
-    beneficiaire_stats = _group_stats(lambda r: r["beneficiaire"] or "—")
-    cohorte_stats = _group_stats(lambda r: r["cohorte"] or "—")
-
-    all_qs = AppelFormateur.objects.filter(is_active=True)
-    prestataires = sorted(set(all_qs.values_list("prestataire", flat=True)) - {""})
-    beneficiaires = sorted(set(all_qs.values_list("beneficiaire", flat=True)) - {""})
-    cohortes = sorted(set(all_qs.values_list("cohorte", flat=True)) - {""})
-
-    status_counts = defaultdict(int)
-    for r in records:
-        status_counts[r["status"]] += 1
-
-    appel_summary = _build_formateur_appel_status_summary(qs)
-
-    context = {
-        "total": total,
-        "termines": termines,
-        "with_scores": with_scores,
-        "global_avgs": global_avgs,
-        "q_labels": [label for _, label in Q_FORM_FIELDS],
-        "prestataire_stats": prestataire_stats,
-        "beneficiaire_stats": beneficiaire_stats,
-        "cohorte_stats": cohorte_stats,
-        "status_counts": dict(status_counts),
-        "prestataires": prestataires,
-        "beneficiaires": beneficiaires,
-        "cohortes": cohortes,
-        "f_prestataire": f_prestataire,
-        "f_beneficiaire": f_beneficiaire,
-        "f_cohorte": f_cohorte,
-        "rows": records[:200],
-        "appels_cibles": appel_summary["appels_cibles"],
-        "appels_tentes": appel_summary["appels_tentes"],
-        "appels_reussis": appel_summary["appels_reussis"],
-        "formulaires_remplis_appels": appel_summary["formulaires_remplis"],
-        "formulaires_remplis_sans_audio_appels": appel_summary[
-            "formulaires_remplis_sans_audio"
-        ],
-        "formulaires_avec_audio_appels": appel_summary["formulaires_avec_audio"],
-        "audios_enregistres_appels": appel_summary["audios_enregistres"],
-    }
-    context.update(build_fast_stats_context(request, default_mode="formateur"))
     return render(request, "satisfaction_formateurs/dashboard.html", context)

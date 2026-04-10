@@ -278,6 +278,28 @@
   </div>
 </div>
 
+<div class="panel">
+  <div class="section-title">Moyennes générales</div>
+  <div class="table-scroll" style="max-height:none;">
+    <table style="text-align:center;">
+      <thead>
+        <tr>
+          {% for label in q_labels %}<th>{{ label }}</th>{% endfor %}
+          <th>Moyenne générale GLOBALE</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr style="font-size:1.2rem; font-weight:800; color:var(--accent-strong);">
+          {% for label, avg in global_avgs.items %}
+            <td>{{ avg|default:"0" }} <span style="font-size:0.7rem;color:var(--muted);">/5</span></td>
+          {% endfor %}
+          <td>{{ moyenne_generale_globale|default:"0" }} <span style="font-size:0.7rem;color:var(--muted);">/5</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
 <script>
 function updateExportLink(link, tabName) {
   if (!link) return;
