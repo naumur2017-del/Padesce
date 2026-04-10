@@ -1333,6 +1333,39 @@ def _build_consultant_dashboard_context(request):
             except:
                 pass
 
+    analysis_recovery = {
+        "available": False,
+        "ratio": "",
+        "qualified": 0,
+        "total": 0,
+        "remaining": 0,
+        "by_category": {},
+        "top_missing": [],
+    }
+    try:
+        from django.test import RequestFactory
+
+        from App_PADESCE.satisfaction_apprenants.views import _build_satisfaction_dashboard_data
+
+        rf = RequestFactory()
+        analysis_request = rf.get("/satisfaction/dashboard", {"source": "cutoff"})
+        analysis_dashboard = _build_satisfaction_dashboard_data(analysis_request)
+        analysis_ctx = analysis_dashboard.get("context", {})
+        missing = analysis_ctx.get("missing_analysis", {}) or {}
+        total_source = int(analysis_ctx.get("analyzed_prestations_total_count") or 0)
+        total_qualified = int(analysis_ctx.get("analyzed_prestations_count") or 0)
+        analysis_recovery = {
+            "available": bool(missing.get("available")),
+            "ratio": analysis_ctx.get("analyzed_prestations_ratio") or f"{total_qualified}/{total_source}",
+            "qualified": total_qualified,
+            "total": total_source,
+            "remaining": max(total_source - total_qualified, 0),
+            "by_category": missing.get("by_category") or {},
+            "top_missing": (missing.get("details") or [])[:8],
+        }
+    except Exception:
+        analysis_recovery = analysis_recovery
+
     return {
         "rows": current_page_rows,
         "page_obj": page_obj,
@@ -1392,6 +1425,7 @@ def _build_consultant_dashboard_context(request):
         "summary_form_sans_audio": fmt(max(form_remplis - global_audio_count, 0)),
         "presence_global_avg": presence_avg,
         "presence_global_pr_rate": presence_pr_rate,
+        "analysis_recovery": analysis_recovery,
         "consultant_mode": "apprenants",
         "card_primary_label": "Prestations analysées",
         "card_secondary_label": "Classes analysées",

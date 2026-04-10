@@ -317,6 +317,55 @@
     </div>
   </section>
 
+  {% if principal.analysis_recovery.available %}
+  <section class="public-panel">
+    <h2>Pilotage des prestations analysées (Cutoff)</h2>
+    <div class="table-wrap">
+      <table class="stats-table">
+        <thead>
+          <tr>
+            <th>Indicateur</th>
+            <th>Valeur</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>Prestations analysées</td><td>{{ principal.analysis_recovery.ratio }}</td></tr>
+          <tr><td>Prestations restantes à qualifier</td><td>{{ principal.analysis_recovery.remaining }}</td></tr>
+          <tr><td>Bloquées - seuil non atteint</td><td>{{ principal.analysis_recovery.by_category.pas_seuil_atteint|default:0 }}</td></tr>
+          <tr><td>Bloquées - non importées</td><td>{{ principal.analysis_recovery.by_category.pas_disponible|default:0 }}</td></tr>
+          <tr><td>Bloquées - sans numéro</td><td>{{ principal.analysis_recovery.by_category.pas_de_numero|default:0 }}</td></tr>
+        </tbody>
+      </table>
+    </div>
+    {% if principal.analysis_recovery.top_missing %}
+    <div class="table-wrap" style="margin-top:12px;">
+      <table>
+        <thead>
+          <tr>
+            <th>Prestation</th>
+            <th>Prestataire</th>
+            <th>Bénéficiaire</th>
+            <th>Blocage</th>
+            <th>Classes</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in principal.analysis_recovery.top_missing %}
+          <tr>
+            <td>{{ item.prestation_id }}</td>
+            <td>{{ item.prestataire|default:"-" }}</td>
+            <td>{{ item.beneficiaire|default:"-" }}</td>
+            <td>{{ item.category_label|default:item.category }}</td>
+            <td>{{ item.classe_count|default:0 }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+  </section>
+  {% endif %}
+
   <div class="public-grid">
     <article class="public-card"><div class="value">{{ principal.card_prestations_count }}</div><div class="label">Prestations analysées</div></article>
     <article class="public-card"><div class="value">{{ principal.card_classes_count }}</div><div class="label">Classes analysées</div></article>
