@@ -1644,13 +1644,7 @@ def _active_formateurs_tab(request) -> str:
 
 
 def _build_formateur_appel_status_summary(queryset) -> dict[str, int]:
-    strict_form_q = (
-        Q(q1_prerequis_apprenants__isnull=False)
-        & Q(q2_interaction_apprenants__isnull=False)
-        & Q(q3_competences_acquises__isnull=False)
-    ) | Q(satisfaction_completed_at__isnull=False)
     audio_q = Q(audio_file__isnull=False) & ~Q(audio_file="")
-    success_q = Q(status__in=CALL_SUCCESS_STATUSES) | Q(status="pause")
 
     summary = queryset.aggregate(
         appels_cibles=Count("id"),
@@ -1668,15 +1662,34 @@ def _build_formateur_appel_status_summary(queryset) -> dict[str, int]:
             ),
         ),
         formulaires_remplis=Count("id", filter=Q(status="termine")),
-        formulaires_remplis_sans_audio=Count(
-            "id", filter=Q(status="termine") & (Q(audio_file__isnull=True) | Q(audio_file=""))
-        ),
-        formulaires_avec_audio=Count(
-            "id", filter=Q(status="termine") & Q(audio_file__isnull=False)
-        ),
         audios_enregistres=Count("id", filter=audio_q),
     )
-    return {key: int(value or 0) for key, value in summary.items()}
+    # Les KPI "avec/sans audio" doivent suivre l'existence reelle du fichier,
+    # pas seulement la presence d'un chemin en base.
+    termine_audio_rows = queryset.filter(status="termine").values_list("audio_file", flat=True)
+    storage_exists_cache: dict[str, bool] = {}
+    formulaires_avec_audio = 0
+    formulaires_remplis_sans_audio = 0
+
+    for audio_name in termine_audio_rows:
+        normalized_name = str(audio_name or "").strip()
+        if not normalized_name:
+            formulaires_remplis_sans_audio += 1
+            continue
+        if normalized_name not in storage_exists_cache:
+            try:
+                storage_exists_cache[normalized_name] = default_storage.exists(normalized_name)
+            except Exception:
+                storage_exists_cache[normalized_name] = False
+        if storage_exists_cache[normalized_name]:
+            formulaires_avec_audio += 1
+        else:
+            formulaires_remplis_sans_audio += 1
+
+    summary = {key: int(value or 0) for key, value in summary.items()}
+    summary["formulaires_avec_audio"] = formulaires_avec_audio
+    summary["formulaires_remplis_sans_audio"] = formulaires_remplis_sans_audio
+    return summary
 
 
 def _is_strict_formateur_record(record: dict) -> bool:
