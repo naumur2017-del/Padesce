@@ -177,7 +177,102 @@ def _resolve_formateur_classe(record, cache: dict[tuple, object]):
 
 def _build_formateur_principal(request) -> dict:
     queryset, filters = _build_filtered_formateurs_queryset(request)
-    metrics = _build_formateur_progress_metrics(queryset)
+    
+    # 1. Resolve and Enrich ALL rows (small set, safe to list)
+    all_rows = list(queryset.order_by("-updated_at", "session_date", "prestataire", "reference_code"))
+    resolution_cache: dict[tuple, object] = {}
+    
+    # Enriched stats for cards
+    res_formations = set()
+    res_cohortes = set()
+    res_prestataires = set()
+    res_beneficiaires = set()
+    
+    # Metrics
+    summary_tentes_count = 0
+    summary_reussis_count = 0
+    summary_form_remplis = 0
+    summary_form_audio = 0
+    summary_audios_total = 0
+    
+    success_statuses = ["formulaire_rempli", "formulaire_avec_audio", "termine", "appel_reussi"]
+    
+    for row in all_rows:
+        classe = _resolve_formateur_classe(row, resolution_cache)
+        prestation = getattr(classe, "prestation", None)
+        formation_obj = getattr(classe, "formation", None)
+        prest_obj = getattr(prestation, "prestataire", None)
+        ben_obj = getattr(prestation, "beneficiaire", None)
+        
+        classe_code = str(getattr(classe, "code", "") or "").strip()
+        prestation_code = str(getattr(prestation, "code", "") or "").strip()
+        
+        # Enrichment from Classe Metadata (The user's "complet par téléphone" request)
+        if classe:
+            row.prestataire = prest_obj.raison_sociale if prest_obj else row.prestataire
+            row.beneficiaire = ben_obj.nom_structure if ben_obj else row.beneficiaire
+            row.formation = (classe.intitule_formation or formation_obj.nom) if formation_obj else row.formation
+            row.cohorte = classe.cohorte or row.cohorte
+        
+        row.public_classe_code = classe_code or "-"
+        row.public_classe_url = (
+            f"{reverse('class_analysis_detail', args=[classe_code])}?tab=formateurs"
+            if classe_code
+            else ""
+        )
+        row.public_prestation_code = prestation_code or "-"
+        row.public_prestation_url = (
+            f"{reverse('prestation_analysis_detail', args=[prestation_code])}?tab=formateurs"
+            if prestation_code
+            else ""
+        )
+        
+        # Calculate Metrics and Card counts
+        has_form = formateur_has_any_form_data(row)
+        has_audio = formateur_has_any_audio(row)
+        row.public_has_form = has_form
+        row.public_has_audio = has_audio
+        
+        is_tented = row.status != "en_attente"
+        if is_tented:
+            summary_tentes_count += 1
+            summary_reussis_count += 1 # Any attempt is reussi by rule
+            if has_audio:
+                summary_audios_total += 1
+            if has_form:
+                summary_form_remplis += 1
+                if has_audio:
+                    summary_form_audio += 1
+        
+        # Cards (distinct counts for completed records)
+        if row.status in success_statuses:
+            res_formations.add(formation_obj.pk if formation_obj else row.formation)
+            res_cohortes.add(classe.pk if classe else f"{row.prestataire}-{row.beneficiaire}-{row.cohorte}")
+            res_prestataires.add(prest_obj.pk if prest_obj else row.prestataire)
+            res_beneficiaires.add(ben_obj.pk if ben_obj else row.beneficiaire)
+
+    # 2. Sorting: Prioritize records with both form and audio
+    from datetime import date
+    all_rows.sort(
+        key=lambda x: (
+            getattr(x, "public_has_form", False) and getattr(x, "public_has_audio", False),
+            getattr(x, "updated_at", None) or getattr(x, "session_date", date.min) or date.min
+        ),
+        reverse=True
+    )
+
+    # 3. Pagination
+    def fmt(val):
+        return f"{int(val or 0):,}".replace(",", " ")
+
+
+    paginator = Paginator(all_rows, 25)
+    page_number = request.GET.get("page", 1)
+    try:
+        page_obj = paginator.page(page_number)
+    except (PageNotAnInteger, EmptyPage):
+        page_obj = paginator.page(1)
+
     filters["status_choices"] = [
         {"value": "", "label": "Statut"},
         {"value": "en_attente", "label": "En attente"},
@@ -191,91 +286,27 @@ def _build_formateur_principal(request) -> dict:
         {"value": "completed", "label": "Finalises"},
         {"value": "termine", "label": "Termine"},
     ]
-    paginator = Paginator(
-        queryset.order_by("-updated_at", "session_date", "prestataire", "reference_code"),
-        25,
-    )
-    page_number = request.GET.get("page", 1)
-    try:
-        page_obj = paginator.page(page_number)
-    except (PageNotAnInteger, EmptyPage):
-        page_obj = paginator.page(1)
-
-    resolution_cache: dict[tuple, object] = {}
-    rows = []
-    for row in page_obj.object_list:
-        classe = _resolve_formateur_classe(row, resolution_cache)
-        prestation = getattr(classe, "prestation", None)
-        classe_code = str(getattr(classe, "code", "") or "").strip()
-        prestation_code = str(getattr(prestation, "code", "") or "").strip()
-        row.public_classe_code = classe_code or "-"
-        row.public_classe_url = (
-            f"{reverse('class_analysis_detail', args=[classe_code])}?tab=formateurs"
-            if classe_code
-            else ""
-        )
-        row.public_prestation_code = prestation_code or "-"
-        row.public_prestation_url = (
-            f"{reverse('prestation_analysis_detail', args=[prestation_code])}?tab=formateurs"
-            if prestation_code
-            else ""
-        )
-        row.public_has_form = formateur_has_any_form_data(row)
-        row.public_has_audio = formateur_has_any_audio(row)
-        rows.append(row)
-
-    # Logic from internal dashboard: card counts based on completed forms
-    def fmt(val):
-        return f"{int(val or 0):,}".replace(",", " ")
-
-    completed_qs = queryset.filter(
-        status__in=["formulaire_rempli", "formulaire_avec_audio", "termine", "appel_reussi"]
-    )
-    card_formations = completed_qs.values_list("formation", flat=True).distinct().count()
-    card_cohortes = completed_qs.values_list("cohorte", flat=True).distinct().count()
-    card_prestataires = completed_qs.values_list("prestataire", flat=True).distinct().count()
-    card_beneficiaires = completed_qs.values_list("beneficiaire", flat=True).distinct().count()
-
-    # Dynamic metrics calculation restoring the correct internal dashboard formulas
-    tentes_qs = queryset.exclude(status="en_attente")
-    tentes_count = tentes_qs.count()
-    summary_reussis = tentes_count  # Everything attempted is considered "reussi" in this context
-
-    summary_form_remplis = 0
-    summary_form_audio = 0
-    summary_audios_total = 0
-
-    for item in list(tentes_qs):
-        has_form = formateur_has_any_form_data(item)
-        has_audio = formateur_has_any_audio(item)
-        if has_audio:
-            summary_audios_total += 1
-
-        if has_form:
-            summary_form_remplis += 1
-            if has_audio:
-                summary_form_audio += 1
-
-    summary_form_sans_audio = max(summary_form_remplis - summary_form_audio, 0)
 
     return {
-        "rows": rows,
+        "rows": page_obj.object_list,
         "page_obj": page_obj,
         "paginator": paginator,
         "filters": filters,
-        "metrics": metrics,
-        "card_formations_count": fmt(card_formations),
-        "card_cohortes_count": fmt(card_cohortes),
-        "card_prestataires_count": fmt(card_prestataires),
-        "card_beneficiaires_count": fmt(card_beneficiaires),
-        "summary_appels_cibles": fmt(queryset.count()),
-        "summary_tentes": fmt(tentes_count),
-        "summary_reussis": fmt(summary_reussis),
+        "card_formations_count": fmt(len(res_formations)),
+        "card_cohortes_count": fmt(len(res_cohortes)),
+        "card_prestataires_count": fmt(len(res_prestataires)),
+        "card_beneficiaires_count": fmt(len(res_beneficiaires)),
+        "summary_appels_cibles": fmt(len(all_rows)),
+        "summary_tentes": fmt(summary_tentes_count),
+        "summary_reussis": fmt(summary_reussis_count),
         "summary_form_remplis": fmt(summary_form_remplis),
-        "summary_form_sans_audio": fmt(summary_form_sans_audio),
+        "summary_form_sans_audio": fmt(max(summary_form_remplis - summary_form_audio, 0)),
         "summary_form_audio": fmt(summary_form_audio),
         "summary_audios": fmt(summary_audios_total),
     }
+
+
+
 
 
 def _build_formateur_overview(request) -> dict:
@@ -450,6 +481,7 @@ def public_space(request):
                 "active": section == "stats",
                 "url": _public_space_url(section="stats", scope=scope),
             },
+
         ],
         "scope_tabs": [
             {

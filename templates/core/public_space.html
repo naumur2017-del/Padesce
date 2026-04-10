@@ -323,7 +323,7 @@
     <article class="public-card"><div class="value">{{ principal.card_prestataires_count }}</div><div class="label">Prestataires analysés</div></article>
     <article class="public-card"><div class="value">{{ principal.card_beneficiaires_count }}</div><div class="label">Bénéficiaires analysés</div></article>
     <article class="public-card"><div class="value">{{ principal.summary_appels_cibles }}</div><div class="label">Appels ciblés</div></article>
-    <article class="public-card"><div class="value">{{ principal.card_apprenants_count }}</div><div class="label">Apprenants analysés</div></article>
+
     <article class="public-card"><div class="value">{{ principal.summary_tentes }}</div><div class="label">Appels tentés</div></article>
     <article class="public-card"><div class="value">{{ principal.summary_reussis }}</div><div class="label">Appels réussis</div></article>
     <article class="public-card"><div class="value">{{ principal.summary_form_remplis }}</div><div class="label">Formulaires remplis</div></article>
@@ -505,7 +505,6 @@
       <table>
         <thead>
           <tr>
-            <th>Référence</th>
             <th>Classe</th>
             <th>Prestation ID</th>
             <th>Prestataire</th>
@@ -521,7 +520,6 @@
         <tbody>
           {% for row in principal.rows %}
             <tr>
-              <td>{{ row.reference_code|default:"-" }}</td>
               <td>
                 {% if row.public_classe_url %}
                   <a href="{{ row.public_classe_url }}">{{ row.public_classe_code }}</a>
@@ -536,6 +534,7 @@
                   {{ row.public_prestation_code }}
                 {% endif %}
               </td>
+
               <td>{{ row.prestataire|default:"-" }}</td>
               <td>{{ row.beneficiaire|default:"-" }}</td>
               <td>{{ row.formation|default:"-" }}</td>

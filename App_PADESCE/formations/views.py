@@ -538,28 +538,51 @@ def _class_formateur_candidates(classe: Classe):
 
 
 def _resolve_classe_for_formateur_analysis(row: AppelFormateur):
+    from App_PADESCE.appels.models import AppelFormateur
+    from App_PADESCE.formations.models import Classe
+
+    # 1. Broad phone number search first
+    row_phones = {
+        _phone_digits(getattr(row, "telephone", "")),
+        *_split_source_contact_phones(getattr(row, "source_contact", "")),
+    }
+    row_phones.discard("")
+
+    if row_phones:
+        phone_match = (
+            Classe.objects.select_related(
+                "formateur",
+                "prestation__prestataire",
+                "prestation__beneficiaire",
+                "formation",
+            )
+            .filter(formateur__isnull=False)
+            .filter(
+                Q(formateur__telephone__in=list(row_phones))
+                | Q(formateur__telephone_mobile__in=list(row_phones))
+            )
+            .first()
+        )
+        if phone_match:
+            return phone_match
+
+    # 2. Refined filter search if phone search failed
     queryset = Classe.objects.select_related(
         "formateur",
         "prestation__prestataire",
         "prestation__beneficiaire",
         "formation",
     ).filter(formateur__isnull=False)
-    if row.prestataire:
+
+    if getattr(row, "prestataire", None):
         queryset = queryset.filter(prestation__prestataire__raison_sociale__iexact=row.prestataire)
-    if row.beneficiaire:
+    if getattr(row, "beneficiaire", None):
         queryset = queryset.filter(prestation__beneficiaire__nom_structure__iexact=row.beneficiaire)
-    if row.cohorte and str(row.cohorte).strip().isdigit():
+    if getattr(row, "cohorte", None) and str(row.cohorte).strip().isdigit():
         queryset = queryset.filter(cohorte=int(str(row.cohorte).strip()))
 
-    row_phones = {_phone_digits(row.telephone), *_split_source_contact_phones(row.source_contact)}
-    row_phones.discard("")
     candidates = list(queryset)
-    for classe in candidates:
-        class_phone = _phone_digits(getattr(getattr(classe, "formateur", None), "telephone", ""))
-        if class_phone and class_phone in row_phones:
-            return classe
-
-    formation_name = str(row.formation or "").strip()
+    formation_name = str(getattr(row, "formation", "") or "").strip()
     for classe in candidates:
         current_name = str(
             classe.intitule_formation
@@ -568,7 +591,9 @@ def _resolve_classe_for_formateur_analysis(row: AppelFormateur):
         ).strip()
         if _formation_matches(current_name, formation_name):
             return classe
+
     return candidates[0] if candidates else None
+
 
 
 def _build_apprenant_rows(appels, *, back_url: str):
