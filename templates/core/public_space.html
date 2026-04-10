@@ -242,6 +242,54 @@
       grid-template-columns: 1fr;
     }
   }
+  .js-public-row {
+    cursor: pointer;
+    transition: background 0.15s ease;
+  }
+  .js-public-row:hover {
+    background-color: rgba(124, 58, 237, 0.04);
+  }
+  .modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.65);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+    padding: 24px;
+    backdrop-filter: blur(4px);
+  }
+  .modal-backdrop[hidden] { display: none; }
+  .modal-panel {
+    width: min(1180px, 98vw);
+    max-height: 94vh;
+    background: #fff;
+    border-radius: 20px;
+    padding: 24px;
+    box-shadow: 0 30px 90px rgba(0,0,0,0.4);
+    display: flex;
+    flex-direction: column;
+    animation: modalPop 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  @keyframes modalPop {
+    from { opacity: 0; transform: scale(0.96) translateY(20px); }
+    to { opacity: 1; transform: scale(1) translateY(0); }
+  }
+  .modal-content {
+    flex: 1;
+    overflow: auto;
+    border-radius: 12px;
+    padding: 4px;
+    scrollbar-width: thin;
+  }
+  .modal-head {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 12px;
+  }
 </style>
 
 <section class="public-hero">
@@ -308,10 +356,7 @@
           </tr>
         </thead>
         <tbody>
-          <tr><td>Appels cibles</td><td>{{ principal.summary_appels_cibles }}</td></tr>
-          <tr><td>Formulaires remplis</td><td>{{ principal.summary_form_remplis }}</td></tr>
-          <tr><td>Formulaires avec audio</td><td>{{ principal.summary_form_audio }}</td></tr>
-          <tr><td>Formulaires sans audio</td><td>{{ principal.summary_form_sans_audio }}</td></tr>
+          <tr><td>Moyenne satisfaction</td><td><strong>{{ principal.summary_moyenne_satisfaction }}/5</strong></td></tr>
         </tbody>
       </table>
     </div>
@@ -434,8 +479,10 @@
         </thead>
         <tbody>
           {% for row in principal.rows %}
-            <tr>
-              <td>{{ row.nom }}</td>
+            <tr class="js-public-row" data-href="{% url 'analysis_apprenant_call_detail' row.id %}?back={{ request.get_full_path|urlencode }}">
+              <td>
+                {{ row.nom }}
+              </td>
               <td>
                 <strong>{{ row.apprenant_id|default:"-" }}</strong>
                 {% if row.apprenant_db_label %}
@@ -489,9 +536,7 @@
           </tr>
         </thead>
         <tbody>
-          <tr><td>Formulaires remplis</td><td>{{ principal.summary_form_remplis }}</td></tr>
-          <tr><td>Formulaires avec audio</td><td>{{ principal.summary_form_audio }}</td></tr>
-          <tr><td>Formulaires sans audio</td><td>{{ principal.summary_form_sans_audio }}</td></tr>
+          <tr><td>Satisfaction compétences</td><td><strong>{{ principal.summary_moyenne_competences }}/5</strong></td></tr>
         </tbody>
       </table>
     </div>
@@ -568,7 +613,7 @@
         </thead>
         <tbody>
           {% for row in principal.rows %}
-            <tr>
+            <tr class="js-public-row" data-href="{% url 'analysis_formateur_call_detail' row.id %}?back={{ request.get_full_path|urlencode }}">
               <td>
                 {% if row.public_classe_url %}
                   <a href="{{ row.public_classe_url }}">{{ row.public_classe_code }}</a>
@@ -583,6 +628,7 @@
                   {{ row.public_prestation_code }}
                 {% endif %}
               </td>
+
 
               <td>{{ row.prestataire|default:"-" }}</td>
               <td>{{ row.beneficiaire|default:"-" }}</td>
@@ -894,4 +940,74 @@
     })();
   </script>
 {% endif %}
+<div class="modal-backdrop" id="public-modal" hidden>
+  <div class="modal-panel">
+    <div class="modal-head">
+      <button class="public-btn" type="button" id="public-modal-close">Fermer</button>
+    </div>
+    <div class="modal-content" id="public-modal-content"></div>
+  </div>
+</div>
+
+<script>
+  (function() {
+    const modal = document.getElementById('public-modal');
+    const content = document.getElementById('public-modal-content');
+    const closeBtn = document.getElementById('public-modal-close');
+
+    if (!modal) {
+      console.warn("Modal #public-modal not found.");
+      return;
+    }
+
+    const openModal = async (url) => {
+      console.log("Opening modal for:", url);
+      content.innerHTML = "<div style='padding:60px; text-align:center; color:var(--muted); font-size:1.1rem;'><i class='fas fa-circle-notch fa-spin'></i> Chargement des détails...</div>";
+      modal.hidden = false;
+      document.body.style.overflow = 'hidden';
+      try {
+        const response = await fetch(`${url}${url.includes('?') ? '&' : '?'}modal=1`, {
+            headers: { "X-Requested-With": "XMLHttpRequest" }
+        });
+        if (!response.ok) throw new Error("Error loading");
+        const html = await response.text();
+        content.innerHTML = html;
+      } catch (e) {
+        console.error("Fetch error:", e);
+        content.innerHTML = "<div style='padding:60px; text-align:center; color:#991b1b; font-weight:700;'>Erreur lors du chargement des détails.<br><span style='font-weight:400; font-size:0.9rem; opacity:0.8'>L'appel pourrait ne plus être disponible ou un problème serveur est survenu.</span></div>";
+      }
+    };
+
+    const closeModal = () => {
+      modal.hidden = true;
+      content.innerHTML = "";
+      document.body.style.overflow = '';
+    };
+
+    // Delegated listener for rows
+    document.addEventListener('click', function(e) {
+      const row = e.target.closest('.js-public-row');
+      if (!row) return;
+
+      // Ignore if clicking a link or something inside a link
+      if (e.target.tagName.toLowerCase() === 'a' || e.target.closest('a')) {
+        console.log("Clicked link inside row, allowing default behavior.");
+        return;
+      }
+
+      const href = row.dataset.href;
+      if (href) {
+        console.log("Row clicked, triggering modal: ", href);
+        e.preventDefault();
+        e.stopPropagation();
+        openModal(href);
+      }
+    });
+
+    closeBtn?.addEventListener('click', closeModal);
+    modal?.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !modal.hidden) closeModal(); });
+  })();
+</script>
 {% endblock %}
+

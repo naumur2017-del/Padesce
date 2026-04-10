@@ -196,6 +196,10 @@ def _build_formateur_principal(request) -> dict:
     summary_form_audio = 0
     summary_audios_total = 0
 
+    # Satisfaction Q3
+    q3_sum = 0
+    q3_count = 0
+
     success_statuses = ["formulaire_rempli", "formulaire_avec_audio", "termine", "appel_reussi"]
 
     for row in all_rows:
@@ -235,6 +239,11 @@ def _build_formateur_principal(request) -> dict:
         has_audio = formateur_has_any_audio(row)
         row.public_has_form = has_form
         row.public_has_audio = has_audio
+
+        # Q3 satisfaction
+        if row.q3_competences_acquises is not None:
+            q3_sum += row.q3_competences_acquises
+            q3_count += 1
 
         is_tented = row.status != "en_attente"
         if is_tented:
@@ -292,6 +301,8 @@ def _build_formateur_principal(request) -> dict:
         {"value": "termine", "label": "Termine"},
     ]
 
+    avg_q3 = round(q3_sum / q3_count, 1) if q3_count else 0
+
     return {
         "rows": page_obj.object_list,
         "page_obj": page_obj,
@@ -308,6 +319,7 @@ def _build_formateur_principal(request) -> dict:
         "summary_form_sans_audio": fmt(max(summary_form_remplis - summary_form_audio, 0)),
         "summary_form_audio": fmt(summary_form_audio),
         "summary_audios": fmt(summary_audios_total),
+        "summary_moyenne_competences": avg_q3,
     }
 
 
@@ -503,7 +515,32 @@ def public_space(request):
 
     if scope == "apprenant":
         if section == "principal":
-            context["principal"] = _build_consultant_dashboard_context(request)
+            ctx = _build_consultant_dashboard_context(request)
+            # Calculate Average satisfaction for the current filtered set
+
+            # Build queryset from the same logic (simple enough here as we use Appel.objects.filter(is_active=True))
+            # But we should ideally reuse the filtering logic.
+            # For simplicity, we can sometimes manually calculate from rows if small,
+            # but for 30000 learners, we need a query.
+            # Assuming _build_consultant_dashboard_context uses a specific filtering logic,
+            # we try to replicate the core filters.
+
+            # Since _build_consultant_dashboard_context is complex, we'll try to get the average
+            # from the rows if they were all fetched, but they are paginated.
+            # Wait, ctx["rows"] are the ALL rows (unpaginated list) in that function!
+            # (checked views.py:1358: "total_rows": len(rows))
+            all_rows = ctx.get("rows", [])
+            q9_sum = 0
+            q9_count = 0
+            for r in all_rows:
+                # AppelAnswers are reachable via answers__q9
+                val = getattr(getattr(r, "answers", None), "q9_satisfaction_globale", None)
+                if val is not None:
+                    q9_sum += val
+                    q9_count += 1
+            avg_q9 = round(q9_sum / q9_count, 1) if q9_count else 0
+            ctx["summary_moyenne_satisfaction"] = avg_q9
+            context["principal"] = ctx
         elif section == "apercu":
             context["overview"] = _build_apprenant_overview(request)
         else:

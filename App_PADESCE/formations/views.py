@@ -556,10 +556,7 @@ def _resolve_classe_for_formateur_analysis(row: AppelFormateur):
                 "formation",
             )
             .filter(formateur__isnull=False)
-            .filter(
-                Q(formateur__telephone__in=list(row_phones))
-                | Q(formateur__telephone_mobile__in=list(row_phones))
-            )
+            .filter(Q(formateur__telephone__in=list(row_phones)))
             .first()
         )
         if phone_match:
