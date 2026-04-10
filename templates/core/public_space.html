@@ -1,0 +1,730 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Espace PADESCE{% endblock %}
+{% block content %}
+{% if section == "stats" %}
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+{% endif %}
+<style>
+  .public-hero,
+  .public-panel,
+  .public-card {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--panel);
+    box-shadow: var(--shadow);
+  }
+  .public-hero {
+    padding: 20px;
+    margin-bottom: 16px;
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+  .public-hero h1 {
+    margin: 0 0 8px;
+    color: var(--accent-strong);
+  }
+  .public-hero p {
+    margin: 0;
+    color: var(--muted);
+    max-width: 760px;
+  }
+  .public-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .public-btn,
+  .public-tab,
+  .public-scope {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 42px;
+    padding: 10px 14px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: rgba(124, 58, 237, 0.06);
+    color: var(--accent-strong);
+    text-decoration: none;
+    font-weight: 700;
+  }
+  .public-btn.primary,
+  .public-tab.active,
+  .public-scope.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+  }
+  .public-switches {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+  }
+  .public-switch-group {
+    display: inline-flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .public-grid {
+    display: grid;
+    gap: 12px;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    margin-bottom: 16px;
+  }
+  .public-card {
+    padding: 14px;
+  }
+  .public-card .value {
+    font-size: 1.6rem;
+    font-weight: 800;
+    color: var(--accent-strong);
+  }
+  .public-card .label {
+    margin-top: 6px;
+    color: var(--muted);
+    font-weight: 600;
+  }
+  .public-panel {
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+  .public-panel h2,
+  .public-panel h3 {
+    margin: 0 0 10px;
+    color: var(--accent-strong);
+  }
+  .public-panel p {
+    color: var(--muted);
+  }
+  .public-toolbar {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 14px;
+  }
+  .public-input,
+  .public-select {
+    min-height: 42px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: #fff;
+    color: var(--text);
+  }
+  .public-input {
+    min-width: 200px;
+    flex: 1 1 220px;
+  }
+  .public-select {
+    min-width: 180px;
+  }
+  .table-wrap {
+    overflow: auto;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: #fff;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  th,
+  td {
+    padding: 10px 12px;
+    border-bottom: 1px solid rgba(109, 77, 168, 0.12);
+    text-align: left;
+    vertical-align: top;
+  }
+  th {
+    position: sticky;
+    top: 0;
+    background: #faf7ff;
+    color: var(--accent-strong);
+    font-size: 0.82rem;
+    text-transform: uppercase;
+  }
+  .split-grid {
+    display: grid;
+    gap: 16px;
+    grid-template-columns: minmax(0, 1.6fr) minmax(280px, 0.9fr);
+  }
+  .stack {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .mini-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .mini-item {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: rgba(124, 58, 237, 0.06);
+  }
+  .mini-item strong {
+    color: var(--accent-strong);
+  }
+  .stats-grid {
+    display: grid;
+    gap: 16px;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+  .stats-table td:last-child,
+  .stats-table th:last-child {
+    text-align: right;
+  }
+  .map-shell {
+    height: 460px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    background: #fff;
+  }
+  .muted {
+    color: var(--muted);
+  }
+  @media (max-width: 960px) {
+    .split-grid,
+    .stats-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+
+<section class="public-hero">
+  <div>
+    <h1>Espace PADESCE</h1>
+    <p>La page d'accueil ouvre directement l'espace public. Les autres modules restent accessibles via la connexion quand vous devez naviguer dans les pages internes.</p>
+  </div>
+  <div class="public-actions">
+    {% if user.is_authenticated %}
+      <a class="public-btn primary" href="{% url 'home' %}">Dashboard</a>
+    {% else %}
+      <a class="public-btn primary" href="{{ login_url }}">Login</a>
+    {% endif %}
+  </div>
+</section>
+
+<div class="public-switches">
+  <div class="public-switch-group" role="tablist" aria-label="Choix du profil">
+    {% for item in scope_tabs %}
+      <a class="public-scope{% if item.active %} active{% endif %}" href="{{ item.url }}">{{ item.label }}</a>
+    {% endfor %}
+  </div>
+  <div class="public-switch-group" role="tablist" aria-label="Choix de la section">
+    {% for item in page_tabs %}
+      <a class="public-tab{% if item.active %} active{% endif %}" href="{{ item.url }}">{{ item.label }}</a>
+    {% endfor %}
+  </div>
+</div>
+
+{% if section == "principal" and scope == "apprenant" %}
+  <div class="public-grid">
+    <article class="public-card"><div class="value">{{ principal.card_prestations_count }}</div><div class="label">Prestations analysées</div></article>
+    <article class="public-card"><div class="value">{{ principal.card_classes_count }}</div><div class="label">Classes analysées</div></article>
+    <article class="public-card"><div class="value">{{ principal.card_prestataires_count }}</div><div class="label">Prestataires analysés</div></article>
+    <article class="public-card"><div class="value">{{ principal.card_beneficiaires_count }}</div><div class="label">Bénéficiaires analysés</div></article>
+    <article class="public-card"><div class="value">{{ principal.card_apprenants_count }}</div><div class="label">Apprenants analyses</div></article>
+    <article class="public-card"><div class="value">{{ principal.summary_appels_cibles }}</div><div class="label">Appels cibles</div></article>
+    <article class="public-card"><div class="value">{{ principal.summary_tentes }}</div><div class="label">Appels tentés</div></article>
+    <article class="public-card"><div class="value">{{ principal.summary_reussis }}</div><div class="label">Appels réussis</div></article>
+    <article class="public-card"><div class="value">{{ principal.summary_form_remplis }}</div><div class="label">Formulaires remplis</div></article>
+    <article class="public-card"><div class="value">{{ principal.summary_form_sans_audio }}</div><div class="label">Formulaires sans audio</div></article>
+    <article class="public-card"><div class="value">{{ principal.summary_form_audio }}</div><div class="label">Formulaires avec audio</div></article>
+    <article class="public-card"><div class="value">{{ principal.summary_audios }}</div><div class="label">Nombre d'audios</div></article>
+  </div>
+
+  <section class="public-panel">
+    <h2>Page principale apprenant</h2>
+    <form method="get" class="public-toolbar">
+      <input type="hidden" name="scope" value="apprenant">
+      <input type="hidden" name="section" value="principal">
+      <input class="public-input" type="text" name="q" value="{{ principal.filters.q }}" placeholder="Recherche apprenant">
+      <select class="public-select" name="beneficiaire">
+        <option value="">Bénéficiaire</option>
+        {% for item in principal.filters.beneficiaires %}
+          <option value="{{ item }}" {% if principal.filters.beneficiaire == item %}selected{% endif %}>{{ item }}</option>
+        {% endfor %}
+      </select>
+      <select class="public-select" name="prestation">
+        <option value="">Prestataire</option>
+        {% for item in principal.filters.prestataires %}
+          <option value="{{ item }}" {% if principal.filters.prestation == item %}selected{% endif %}>{{ item }}</option>
+        {% endfor %}
+      </select>
+      <select class="public-select" name="classe">
+        <option value="">Classe</option>
+        {% for item in principal.filters.classes %}
+          <option value="{{ item.value }}" {% if principal.filters.classe == item.value %}selected{% endif %}>{{ item.label }}</option>
+        {% endfor %}
+      </select>
+      <select class="public-select" name="fenetre">
+        <option value="">Fenêtre</option>
+        {% for item in principal.filters.fenetres %}
+          <option value="{{ item }}" {% if principal.filters.fenetre == item %}selected{% endif %}>{{ item }}</option>
+        {% endfor %}
+      </select>
+      <button class="public-btn primary" type="submit">Filtrer</button>
+      <a class="public-btn" href="{% url 'public_space' %}?scope=apprenant&section=principal">Reset</a>
+    </form>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Nom apprenant</th>
+            <th>Apprenant ID</th>
+            <th>Classe</th>
+            <th>Prestataire</th>
+            <th>Bénéficiaire</th>
+            <th>Téléphone</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in principal.rows %}
+            <tr>
+              <td>{{ row.nom }}</td>
+              <td>
+                <strong>{{ row.apprenant_id|default:"-" }}</strong>
+                {% if row.apprenant_db_label %}
+                  <div class="muted">{{ row.apprenant_db_label }}</div>
+                {% endif %}
+              </td>
+              <td>
+                {% if row.classe and row.classe.code %}
+                  <a href="{% url 'class_analysis_detail' row.classe.code %}?tab=apprenants">{{ row.consultant_class_display|default:"-" }}</a>
+                {% else %}
+                  {{ row.consultant_class_display|default:"-" }}
+                {% endif %}
+              </td>
+              <td>{{ row.prestataire|default:"-" }}</td>
+              <td>{{ row.beneficiaire|default:"-" }}</td>
+              <td>{{ row.telephone1|default:row.telephone2|default:"-" }}</td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="6" class="muted">Aucun appel à afficher.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {% if principal.page_obj %}
+      <div class="public-toolbar" style="margin-top:12px;">
+        {% if principal.page_obj.has_previous %}
+          <a class="public-btn" href="?scope=apprenant&section=principal&q={{ principal.filters.q|urlencode }}&classe={{ principal.filters.classe|urlencode }}&prestation={{ principal.filters.prestation|urlencode }}&beneficiaire={{ principal.filters.beneficiaire|urlencode }}&fenetre={{ principal.filters.fenetre|urlencode }}&page={{ principal.page_obj.previous_page_number }}">Précédent</a>
+        {% endif %}
+        <span class="muted">Page {{ principal.page_obj.number }} / {{ principal.paginator.num_pages }}</span>
+        {% if principal.page_obj.has_next %}
+          <a class="public-btn" href="?scope=apprenant&section=principal&q={{ principal.filters.q|urlencode }}&classe={{ principal.filters.classe|urlencode }}&prestation={{ principal.filters.prestation|urlencode }}&beneficiaire={{ principal.filters.beneficiaire|urlencode }}&fenetre={{ principal.filters.fenetre|urlencode }}&page={{ principal.page_obj.next_page_number }}">Suivant</a>
+        {% endif %}
+      </div>
+    {% endif %}
+  </section>
+{% elif section == "principal" and scope == "formateur" %}
+  <div class="public-grid">
+    <article class="public-card"><div class="value">{{ principal.metrics.total|default:0 }}</div><div class="label">Appels formateurs</div></article>
+    <article class="public-card"><div class="value">{{ principal.metrics.termines|default:0 }}</div><div class="label">Terminés</div></article>
+    <article class="public-card"><div class="value">{{ principal.metrics.appels_tentes|default:0 }}</div><div class="label">Appels tentés</div></article>
+    <article class="public-card"><div class="value">{{ principal.metrics.appels_reussis|default:0 }}</div><div class="label">Appels réussis</div></article>
+    <article class="public-card"><div class="value">{{ principal.metrics.formulaires_remplis|default:0 }}</div><div class="label">Formulaires remplis</div></article>
+    <article class="public-card"><div class="value">{{ principal.metrics.formulaires_avec_audio|default:0 }}</div><div class="label">Formulaires avec audio</div></article>
+    <article class="public-card"><div class="value">{{ principal.metrics.audios|default:0 }}</div><div class="label">Nombre d'audios</div></article>
+  </div>
+
+  <section class="public-panel">
+    <h2>Page principale formateur</h2>
+    <form method="get" class="public-toolbar">
+      <input type="hidden" name="scope" value="formateur">
+      <input type="hidden" name="section" value="principal">
+      <input class="public-input" type="text" name="q" value="{{ principal.filters.q }}" placeholder="Recherche">
+      <select class="public-select" name="status">
+        {% for item in principal.filters.status_choices %}
+          <option value="{{ item.value }}" {% if principal.filters.status == item.value %}selected{% endif %}>{{ item.label }}</option>
+        {% endfor %}
+      </select>
+      <select class="public-select" name="prestataire">
+        <option value="">Prestataire</option>
+        {% for item in principal.filters.prestataires %}
+          <option value="{{ item }}" {% if principal.filters.prestataire == item %}selected{% endif %}>{{ item }}</option>
+        {% endfor %}
+      </select>
+      <select class="public-select" name="beneficiaire">
+        <option value="">Bénéficiaire</option>
+        {% for item in principal.filters.beneficiaires %}
+          <option value="{{ item }}" {% if principal.filters.beneficiaire == item %}selected{% endif %}>{{ item }}</option>
+        {% endfor %}
+      </select>
+      <select class="public-select" name="formation">
+        <option value="">Formation</option>
+        {% for item in principal.filters.formations %}
+          <option value="{{ item }}" {% if principal.filters.formation == item %}selected{% endif %}>{{ item }}</option>
+        {% endfor %}
+      </select>
+      <select class="public-select" name="cohorte">
+        <option value="">Cohorte</option>
+        {% for item in principal.filters.cohortes %}
+          <option value="{{ item }}" {% if principal.filters.cohorte == item %}selected{% endif %}>{{ item }}</option>
+        {% endfor %}
+      </select>
+      <button class="public-btn primary" type="submit">Filtrer</button>
+      <a class="public-btn" href="{% url 'public_space' %}?scope=formateur&section=principal">Reset</a>
+    </form>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Référence</th>
+            <th>Classe</th>
+            <th>Prestation ID</th>
+            <th>Prestataire</th>
+            <th>Bénéficiaire</th>
+            <th>Formation</th>
+            <th>Cohorte</th>
+            <th>Téléphone</th>
+            <th>Statut</th>
+            <th>Formulaire</th>
+            <th>Audio</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in principal.rows %}
+            <tr>
+              <td>{{ row.reference_code|default:"-" }}</td>
+              <td>
+                {% if row.public_classe_url %}
+                  <a href="{{ row.public_classe_url }}">{{ row.public_classe_code }}</a>
+                {% else %}
+                  {{ row.public_classe_code }}
+                {% endif %}
+              </td>
+              <td>
+                {% if row.public_prestation_url %}
+                  <a href="{{ row.public_prestation_url }}">{{ row.public_prestation_code }}</a>
+                {% else %}
+                  {{ row.public_prestation_code }}
+                {% endif %}
+              </td>
+              <td>{{ row.prestataire|default:"-" }}</td>
+              <td>{{ row.beneficiaire|default:"-" }}</td>
+              <td>{{ row.formation|default:"-" }}</td>
+              <td>{{ row.cohorte|default:"-" }}</td>
+              <td>{{ row.telephone|default:"-" }}</td>
+              <td>{{ row.get_status_display|default:row.status }}</td>
+              <td>{% if row.public_has_form %}Oui{% else %}Non{% endif %}</td>
+              <td>{% if row.public_has_audio %}Oui{% else %}Non{% endif %}</td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="11" class="muted">Aucun appel formateur à afficher.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {% if principal.page_obj %}
+      <div class="public-toolbar" style="margin-top:12px;">
+        {% if principal.page_obj.has_previous %}
+          <a class="public-btn" href="?scope=formateur&section=principal&q={{ principal.filters.q|urlencode }}&status={{ principal.filters.status|urlencode }}&prestataire={{ principal.filters.prestataire|urlencode }}&beneficiaire={{ principal.filters.beneficiaire|urlencode }}&formation={{ principal.filters.formation|urlencode }}&cohorte={{ principal.filters.cohorte|urlencode }}&page={{ principal.page_obj.previous_page_number }}">Précédent</a>
+        {% endif %}
+        <span class="muted">Page {{ principal.page_obj.number }} / {{ principal.paginator.num_pages }}</span>
+        {% if principal.page_obj.has_next %}
+          <a class="public-btn" href="?scope=formateur&section=principal&q={{ principal.filters.q|urlencode }}&status={{ principal.filters.status|urlencode }}&prestataire={{ principal.filters.prestataire|urlencode }}&beneficiaire={{ principal.filters.beneficiaire|urlencode }}&formation={{ principal.filters.formation|urlencode }}&cohorte={{ principal.filters.cohorte|urlencode }}&page={{ principal.page_obj.next_page_number }}">Suivant</a>
+        {% endif %}
+      </div>
+    {% endif %}
+  </section>
+{% elif section == "apercu" %}
+  <div class="public-grid">
+    {% for label, value in overview.summary_cards %}
+      <article class="public-card">
+        <div class="value">{{ value }}</div>
+        <div class="label">{{ label }}</div>
+      </article>
+    {% endfor %}
+  </div>
+
+  <div class="split-grid">
+    <div class="stack">
+      <section class="public-panel">
+        <h2>Résumé des classes</h2>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Classe</th>
+                <th>Formation</th>
+                <th>Prestation ID</th>
+                <th>Cohorte</th>
+                <th>Fenêtre</th>
+                <th>Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for item in overview.classes %}
+                <tr>
+                  <td>{% if item.url %}<a href="{{ item.url }}">{{ item.code }}</a>{% else %}{{ item.code|default:"-" }}{% endif %}</td>
+                  <td>{{ item.label|default:"-" }}</td>
+                  <td>{% if item.prestation_url %}<a href="{{ item.prestation_url }}">{{ item.prestation_code }}</a>{% else %}{{ item.prestation_code|default:"-" }}{% endif %}</td>
+                  <td>{{ item.cohorte|default:"-" }}</td>
+                  <td>{{ item.fenetre|default:"-" }}</td>
+                  <td>{{ item.nb }}</td>
+                </tr>
+              {% empty %}
+                <tr><td colspan="6" class="muted">Aucune classe disponible.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="public-panel">
+        <h2>Résumé des prestations</h2>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Prestation ID</th>
+                <th>Prestataire</th>
+                <th>Bénéficiaire</th>
+                <th>Total</th>
+                {% if scope == "apprenant" %}<th>Moyenne</th>{% endif %}
+              </tr>
+            </thead>
+            <tbody>
+              {% for item in overview.prestations %}
+                <tr>
+                  <td>{% if item.url %}<a href="{{ item.url }}">{{ item.code }}</a>{% else %}{{ item.code|default:"-" }}{% endif %}</td>
+                  <td>{{ item.prestataire|default:"-" }}</td>
+                  <td>{{ item.beneficiaire|default:"-" }}</td>
+                  <td>{{ item.nb }}</td>
+                  {% if scope == "apprenant" %}<td>{{ item.avg }}</td>{% endif %}
+                </tr>
+              {% empty %}
+                <tr><td colspan="{% if scope == 'apprenant' %}5{% else %}4{% endif %}" class="muted">Aucune prestation disponible.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+
+    <div class="stack">
+      <section class="public-panel">
+        <h3>Prestataires</h3>
+        <div class="mini-list">
+          {% for item in overview.prestataires %}
+            <div class="mini-item"><span>{{ item.label }}</span><strong>{{ item.nb }}</strong></div>
+          {% empty %}
+            <div class="mini-item"><span>Aucun prestataire</span><strong>0</strong></div>
+          {% endfor %}
+        </div>
+      </section>
+
+      <section class="public-panel">
+        <h3>Bénéficiaires</h3>
+        <div class="mini-list">
+          {% for item in overview.beneficiaires %}
+            <div class="mini-item"><span>{{ item.label }}</span><strong>{{ item.nb }}</strong></div>
+          {% empty %}
+            <div class="mini-item"><span>Aucun bénéficiaire</span><strong>0</strong></div>
+          {% endfor %}
+        </div>
+      </section>
+    </div>
+  </div>
+{% else %}
+  <div class="public-grid">
+    {% for label, value in stats.summary_cards %}
+      <article class="public-card">
+        <div class="value">{{ value }}</div>
+        <div class="label">{{ label }}</div>
+      </article>
+    {% endfor %}
+  </div>
+
+  <div class="stats-grid">
+    <section class="public-panel">
+      <h2>Moyennes générales</h2>
+      <div class="table-wrap">
+        <table class="stats-table">
+          <thead>
+            <tr><th>Indicateur</th><th>Moyenne</th></tr>
+          </thead>
+          <tbody>
+            {% for label, value in stats.global_avgs.items %}
+              <tr>
+                <td>{{ label }}</td>
+                <td>{{ value }}/5</td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="2" class="muted">Aucune moyenne disponible.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% if scope == "formateur" %}
+        <p class="muted" style="margin-top:12px;">Le classement des prestations formateurs est calculé sur les notes Q1 à Q3, comme dans les analyses.</p>
+      {% endif %}
+    </section>
+
+    <section class="public-panel">
+      <h2>Carte des prestations</h2>
+      <div id="public-map" class="map-shell"></div>
+      {{ stats.map_data|json_script:"public-map-data" }}
+    </section>
+  </div>
+
+  <div class="stats-grid">
+    <section class="public-panel">
+      <h2>Top prestations</h2>
+      <div class="table-wrap">
+        <table class="stats-table">
+          <thead>
+            <tr>
+              <th>Prestation ID</th>
+              <th>Prestataire</th>
+              <th>Région</th>
+              <th>Score</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for item in stats.best_rankings %}
+              <tr>
+                <td><a href="{% url 'prestation_analysis_detail' item.code %}?tab={{ scope }}s">{{ item.code }}</a></td>
+                <td>{{ item.prestataire|default:"-" }}</td>
+                <td>{{ item.region|default:"Inconnu" }}</td>
+                <td>{{ item.score_global }}</td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="4" class="muted">Aucune prestation classée.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="public-panel">
+      <h2>Prestations à améliorer</h2>
+      <div class="table-wrap">
+        <table class="stats-table">
+          <thead>
+            <tr>
+              <th>Prestation ID</th>
+              <th>Prestataire</th>
+              <th>Région</th>
+              <th>Score</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for item in stats.improve_rankings %}
+              <tr>
+                <td><a href="{% url 'prestation_analysis_detail' item.code %}?tab={{ scope }}s">{{ item.code }}</a></td>
+                <td>{{ item.prestataire|default:"-" }}</td>
+                <td>{{ item.region|default:"Inconnu" }}</td>
+                <td>{{ item.score_global }}</td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="4" class="muted">Aucune prestation à afficher.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    (function () {
+      const mapEl = document.getElementById("public-map");
+      const dataEl = document.getElementById("public-map-data");
+      if (!mapEl || !dataEl || typeof L === "undefined") {
+        return;
+      }
+
+      const rankingData = JSON.parse(dataEl.textContent || "{}");
+      const lookupRegion = (rawName) => {
+        const normalized = String(rawName || "").trim();
+        const candidates = [
+          normalized,
+          normalized.toUpperCase(),
+          normalized.toLowerCase(),
+          normalized.replace(/\s+/g, " "),
+        ];
+        for (const key of candidates) {
+          if (rankingData[key]) {
+            return rankingData[key];
+          }
+        }
+        return [];
+      };
+
+      const map = L.map("public-map", {
+        zoomControl: true,
+        scrollWheelZoom: false
+      }).setView([7.3, 12.35], 6);
+
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        attribution: "&copy; OpenStreetMap"
+      }).addTo(map);
+
+      fetch("{% static 'geojson/cameroun-regions.geojson' %}")
+        .then((response) => response.json())
+        .then((geojson) => {
+          const layer = L.geoJSON(geojson, {
+            style: function () {
+              return {
+                fillColor: "#7c3aed",
+                weight: 1.5,
+                opacity: 1,
+                color: "#ffffff",
+                fillOpacity: 0.22
+              };
+            },
+            onEachFeature: function (feature, regionLayer) {
+              const regionName = feature.properties.shapeName || feature.properties.NAME_1 || feature.properties.nom || "";
+              regionLayer.on("mouseover", function () {
+                const items = lookupRegion(regionName);
+                let html = "<div style='min-width:220px'><strong>" + regionName + "</strong>";
+                if (items.length) {
+                  html += "<table style='width:100%;margin-top:8px;border-collapse:collapse'>";
+                  items.forEach((item) => {
+                    html += "<tr><td style='padding:4px 0'><strong>" + item.code + "</strong></td><td style='padding:4px 0;text-align:right'>" + Number(item.score || 0).toFixed(1) + "</td></tr>";
+                  });
+                  html += "</table>";
+                } else {
+                  html += "<div style='margin-top:8px;color:#78669d'>Aucune prestation classée.</div>";
+                }
+                html += "</div>";
+                regionLayer.bindTooltip(html, {sticky: true, opacity: 0.98}).openTooltip();
+                regionLayer.setStyle({fillOpacity: 0.4});
+              });
+              regionLayer.on("mouseout", function () {
+                regionLayer.closeTooltip();
+                layer.resetStyle(regionLayer);
+              });
+            }
+          }).addTo(map);
+
+          const bounds = layer.getBounds();
+          if (bounds.isValid()) {
+            map.fitBounds(bounds, {padding: [16, 16]});
+          }
+        })
+        .catch(() => {
+          mapEl.innerHTML = "<div style='display:flex;height:100%;align-items:center;justify-content:center;color:#991b1b;'>Impossible de charger la carte.</div>";
+        });
+    })();
+  </script>
+{% endif %}
+{% endblock %}

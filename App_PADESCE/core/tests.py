@@ -587,6 +587,39 @@ class FriendlyErrorPagesTests(TestCase):
         self.assertEqual(response.json(), {"error": "keep-json"})
 
 
+class PublicSpaceTests(TestCase):
+    @patch("App_PADESCE.core.views._consultant_analysis_snapshot")
+    def test_root_redirects_to_public_espace_padesce(self, mock_snapshot):
+        mock_snapshot.return_value = {
+            "class_options": [],
+            "prestataire_options": [],
+            "beneficiaire_options": [],
+            "fenetre_options": [],
+            "counts": {
+                "analyzed_classes_count": 0,
+                "analyzed_prestations_count": 0,
+                "analyzed_prestataires_count": 0,
+                "analyzed_beneficiaires_count": 0,
+                "analyzed_learners_count": 0,
+            },
+        }
+
+        response = self.client.get(reverse("public_space"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Espace PADESCE")
+        self.assertContains(response, "Page principale")
+        self.assertContains(response, "Apercu")
+        self.assertContains(response, "Stats")
+        self.assertContains(response, reverse("login"))
+
+    def test_login_page_is_served_under_login_path(self):
+        response = self.client.get(reverse("login"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(reverse("login"), "/login/")
+
+
 class PublicConsultantAccessTests(TestCase):
     @override_settings(PUBLIC_CONSULTANT_ACCESS=True)
     @patch("App_PADESCE.core.views._consultant_analysis_snapshot")
@@ -620,7 +653,7 @@ class PublicConsultantAccessTests(TestCase):
         response = self.client.get(reverse("consultant_dashboard"))
 
         self.assertEqual(response.status_code, 302)
-        self.assertIn("/", response["Location"])
+        self.assertIn(reverse("login"), response["Location"])
 
     @override_settings(PUBLIC_CONSULTANT_ACCESS=True)
     def test_login_page_shows_consultant_direct_button(self):
@@ -628,7 +661,7 @@ class PublicConsultantAccessTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Espace PADESCE")
-        self.assertContains(response, reverse("consultant_dashboard"))
+        self.assertContains(response, reverse("public_space"))
 
     @override_settings(PUBLIC_CONSULTANT_ACCESS=True)
     @patch("App_PADESCE.core.views._consultant_analysis_snapshot")
