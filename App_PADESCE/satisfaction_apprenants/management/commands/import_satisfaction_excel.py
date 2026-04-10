@@ -494,7 +494,9 @@ def _sync_source_models(
             inspecteur = Inspecteur.objects.filter(code=inspecteur_code).first()
         if inspecteur is None:
             inspecteur = Inspecteur(code=inspecteur_code)
-        inspecteur.nom_complet = _clean_text(source_record.get("inspecteur_label") or inspecteur_code)
+        inspecteur.nom_complet = _clean_text(
+            source_record.get("inspecteur_label") or inspecteur_code
+        )
         inspecteur.actif = True
         if inspecteur.pk is None and getattr(inspecteur, "id", None) is None:
             inspecteur.id = _next_primary_key(Inspecteur)

@@ -37,7 +37,7 @@ def _render_inline(text: str) -> str:
     cursor = 0
 
     for match in _INLINE_TOKEN_RE.finditer(text):
-        parts.append(html.escape(text[cursor:match.start()]))
+        parts.append(html.escape(text[cursor : match.start()]))
         label = match.group("label")
         code = match.group("code")
         bold = match.group("bold")
@@ -86,7 +86,9 @@ def render_reporting_manual_html(markdown_text: str) -> str:
         nonlocal quote_lines
         if not quote_lines:
             return
-        quote_html = " ".join(_render_inline(chunk.strip()) for chunk in quote_lines if chunk.strip())
+        quote_html = " ".join(
+            _render_inline(chunk.strip()) for chunk in quote_lines if chunk.strip()
+        )
         if quote_html:
             parts.append(f"<blockquote><p>{quote_html}</p></blockquote>")
         quote_lines = []
@@ -106,7 +108,7 @@ def render_reporting_manual_html(markdown_text: str) -> str:
             return
         math_body = "\n".join(math_lines).strip()
         if math_body:
-            parts.append(f"<div class=\"manual-math\">$$\n{html.escape(math_body)}\n$$</div>")
+            parts.append(f'<div class="manual-math">$$\n{html.escape(math_body)}\n$$</div>')
         math_lines = []
 
     def close_list() -> None:
@@ -172,7 +174,7 @@ def render_reporting_manual_html(markdown_text: str) -> str:
             level = len(heading_match.group(1))
             title = heading_match.group(2).strip()
             heading_id = _slugify_heading(title)
-            parts.append(f"<h{level} id=\"{heading_id}\">{_render_inline(title)}</h{level}>")
+            parts.append(f'<h{level} id="{heading_id}">{_render_inline(title)}</h{level}>')
             continue
 
         if stripped.startswith(">"):

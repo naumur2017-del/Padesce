@@ -223,8 +223,8 @@ def _deactivate_missing_entities(touched: dict[str, set[int]]) -> dict[str, int]
     summary: dict[str, int] = {}
     for key, model, touched_ids in specs:
         if touched_ids:
-            summary[key] = model.objects.filter(actif=True).exclude(pk__in=touched_ids).update(
-                actif=False
+            summary[key] = (
+                model.objects.filter(actif=True).exclude(pk__in=touched_ids).update(actif=False)
             )
         else:
             summary[key] = 0

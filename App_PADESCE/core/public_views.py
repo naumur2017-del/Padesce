@@ -79,9 +79,11 @@ def _build_apprenant_overview(request) -> dict:
                 "cohorte": item.get("cohorte") or "-",
                 "fenetre": item.get("fenetre") or "-",
                 "prestation_code": prestation_code or "-",
-                "url": f"{reverse('class_analysis_detail', args=[code])}?tab=apprenants"
-                if code
-                else "",
+                "url": (
+                    f"{reverse('class_analysis_detail', args=[code])}?tab=apprenants"
+                    if code
+                    else ""
+                ),
                 "prestation_url": (
                     f"{reverse('prestation_analysis_detail', args=[prestation_code])}?tab=apprenants"
                     if prestation_code
@@ -101,9 +103,11 @@ def _build_apprenant_overview(request) -> dict:
                 "beneficiaire": item.get("beneficiaire") or "-",
                 "nb": item.get("nb", 0),
                 "avg": item.get("avg", 0),
-                "url": f"{reverse('prestation_analysis_detail', args=[code])}?tab=apprenants"
-                if code
-                else "",
+                "url": (
+                    f"{reverse('prestation_analysis_detail', args=[code])}?tab=apprenants"
+                    if code
+                    else ""
+                ),
             }
         )
 
@@ -220,12 +224,57 @@ def _build_formateur_principal(request) -> dict:
         row.public_has_audio = formateur_has_any_audio(row)
         rows.append(row)
 
+    # Logic from internal dashboard: card counts based on completed forms
+    def fmt(val):
+        return f"{int(val or 0):,}".replace(",", " ")
+
+    completed_qs = queryset.filter(
+        status__in=["formulaire_rempli", "formulaire_avec_audio", "termine", "appel_reussi"]
+    )
+    card_formations = completed_qs.values_list("formation", flat=True).distinct().count()
+    card_cohortes = completed_qs.values_list("cohorte", flat=True).distinct().count()
+    card_prestataires = completed_qs.values_list("prestataire", flat=True).distinct().count()
+    card_beneficiaires = completed_qs.values_list("beneficiaire", flat=True).distinct().count()
+
+    # Dynamic metrics calculation restoring the correct internal dashboard formulas
+    tentes_qs = queryset.exclude(status="en_attente")
+    tentes_count = tentes_qs.count()
+    summary_reussis = tentes_count  # Everything attempted is considered "reussi" in this context
+
+    summary_form_remplis = 0
+    summary_form_audio = 0
+    summary_audios_total = 0
+
+    for item in list(tentes_qs):
+        has_form = formateur_has_any_form_data(item)
+        has_audio = formateur_has_any_audio(item)
+        if has_audio:
+            summary_audios_total += 1
+
+        if has_form:
+            summary_form_remplis += 1
+            if has_audio:
+                summary_form_audio += 1
+
+    summary_form_sans_audio = max(summary_form_remplis - summary_form_audio, 0)
+
     return {
         "rows": rows,
         "page_obj": page_obj,
         "paginator": paginator,
         "filters": filters,
         "metrics": metrics,
+        "card_formations_count": fmt(card_formations),
+        "card_cohortes_count": fmt(card_cohortes),
+        "card_prestataires_count": fmt(card_prestataires),
+        "card_beneficiaires_count": fmt(card_beneficiaires),
+        "summary_appels_cibles": fmt(queryset.count()),
+        "summary_tentes": fmt(tentes_count),
+        "summary_reussis": fmt(summary_reussis),
+        "summary_form_remplis": fmt(summary_form_remplis),
+        "summary_form_sans_audio": fmt(summary_form_sans_audio),
+        "summary_form_audio": fmt(summary_form_audio),
+        "summary_audios": fmt(summary_audios_total),
     }
 
 
@@ -320,7 +369,10 @@ def _build_formateur_stats(request) -> dict:
         )
         bucket["effectif"] += 1
 
-        values = [_formateur_record_value(record, field_name, None) for field_name in FORMATEUR_SCORE_FIELDS]
+        values = [
+            _formateur_record_value(record, field_name, None)
+            for field_name in FORMATEUR_SCORE_FIELDS
+        ]
         if not all(value not in (None, "") for value in values):
             continue
 
@@ -357,11 +409,16 @@ def _build_formateur_stats(request) -> dict:
         "improve_rankings": improve_rankings[:10],
         "map_data": _region_map_from_rankings(best_rankings),
         "summary_cards": [
-            ("Moyenne Q1-Q3", round(sum(item["avg"] for item in prestation_stats) / len(prestation_stats), 2))
-            if prestation_stats
-            else ("Moyenne Q1-Q3", 0),
+            (
+                (
+                    "Moyenne Q1-Q3",
+                    round(sum(item["avg"] for item in prestation_stats) / len(prestation_stats), 2),
+                )
+                if prestation_stats
+                else ("Moyenne Q1-Q3", 0)
+            ),
             ("Appels", ctx.get("total", 0)),
-            ("Terminés", ctx.get("termines", 0)),
+            ("Appels ciblés", ctx.get("appels_cibles", 0)),
             ("Avec scores", ctx.get("with_scores", 0)),
         ],
     }

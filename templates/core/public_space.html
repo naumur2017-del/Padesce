@@ -294,8 +294,8 @@
     <article class="public-card"><div class="value">{{ principal.card_classes_count }}</div><div class="label">Classes analysées</div></article>
     <article class="public-card"><div class="value">{{ principal.card_prestataires_count }}</div><div class="label">Prestataires analysés</div></article>
     <article class="public-card"><div class="value">{{ principal.card_beneficiaires_count }}</div><div class="label">Bénéficiaires analysés</div></article>
-    <article class="public-card"><div class="value">{{ principal.card_apprenants_count }}</div><div class="label">Apprenants analyses</div></article>
-    <article class="public-card"><div class="value">{{ principal.summary_appels_cibles }}</div><div class="label">Appels cibles</div></article>
+    <article class="public-card"><div class="value">{{ principal.summary_appels_cibles }}</div><div class="label">Appels ciblés</div></article>
+    <article class="public-card"><div class="value">{{ principal.card_apprenants_count }}</div><div class="label">Apprenants analysés</div></article>
     <article class="public-card"><div class="value">{{ principal.summary_tentes }}</div><div class="label">Appels tentés</div></article>
     <article class="public-card"><div class="value">{{ principal.summary_reussis }}</div><div class="label">Appels réussis</div></article>
     <article class="public-card"><div class="value">{{ principal.summary_form_remplis }}</div><div class="label">Formulaires remplis</div></article>
@@ -403,17 +403,21 @@
 {% elif section == "principal" and scope == "formateur" %}
   <section class="public-panel">
     <h2>Chapeau satisfaction formateurs</h2>
-    <p>Le suivi repose sur les formulaires complétés des formateurs : {{ principal.metrics.formulaires_remplis|default:0 }} formulaires, {{ principal.metrics.formulaires_avec_audio|default:0 }} avec audio.</p>
+    <p>Le suivi repose sur les formulaires complétés des formateurs : {{ principal.summary_form_remplis }} formulaires, {{ principal.summary_form_audio }} avec audio.</p>
   </section>
 
   <div class="public-grid">
-    <article class="public-card"><div class="value">{{ principal.metrics.total|default:0 }}</div><div class="label">Appels formateurs</div></article>
-    <article class="public-card"><div class="value">{{ principal.metrics.termines|default:0 }}</div><div class="label">Terminés</div></article>
-    <article class="public-card"><div class="value">{{ principal.metrics.appels_tentes|default:0 }}</div><div class="label">Appels tentés</div></article>
-    <article class="public-card"><div class="value">{{ principal.metrics.appels_reussis|default:0 }}</div><div class="label">Appels réussis</div></article>
-    <article class="public-card"><div class="value">{{ principal.metrics.formulaires_remplis|default:0 }}</div><div class="label">Formulaires remplis</div></article>
-    <article class="public-card"><div class="value">{{ principal.metrics.formulaires_avec_audio|default:0 }}</div><div class="label">Formulaires avec audio</div></article>
-    <article class="public-card"><div class="value">{{ principal.metrics.audios|default:0 }}</div><div class="label">Nombre d'audios</div></article>
+    <article class="public-card"><div class="value">{{ principal.card_prestataires_count }}</div><div class="label">Prestataires analysés</div></article>
+    <article class="public-card"><div class="value">{{ principal.card_beneficiaires_count }}</div><div class="label">Bénéficiaires analysés</div></article>
+    <article class="public-card"><div class="value">{{ principal.card_formations_count }}</div><div class="label">Formations analysées</div></article>
+    <article class="public-card"><div class="value">{{ principal.card_cohortes_count }}</div><div class="label">Cohortes analysées</div></article>
+    <article class="public-card"><div class="value">{{ principal.summary_appels_cibles }}</div><div class="label">Appels ciblés</div></article>
+    <article class="public-card"><div class="value">{{ principal.summary_tentes }}</div><div class="label">Appels tentés</div></article>
+    <article class="public-card"><div class="value">{{ principal.summary_reussis }}</div><div class="label">Appels réussis</div></article>
+    <article class="public-card"><div class="value">{{ principal.summary_form_remplis }}</div><div class="label">Formulaires remplis</div></article>
+    <article class="public-card"><div class="value">{{ principal.summary_form_sans_audio }}</div><div class="label">Formulaires sans audio</div></article>
+    <article class="public-card"><div class="value">{{ principal.summary_form_audio }}</div><div class="label">Formulaires avec audio</div></article>
+    <article class="public-card"><div class="value">{{ principal.summary_audios }}</div><div class="label">Nombre d'audios</div></article>
   </div>
 
   <section class="public-panel">

@@ -25,10 +25,10 @@ from App_PADESCE.formations.models import (
     Prestataire,
     Prestation,
 )
+from App_PADESCE.satisfaction_apprenants.cutoff_sync import sync_cutoff_reference_data
 from App_PADESCE.satisfaction_apprenants.management.commands.import_satisfaction_excel import (
     _sync_source_models,
 )
-from App_PADESCE.satisfaction_apprenants.cutoff_sync import sync_cutoff_reference_data
 from App_PADESCE.satisfaction_apprenants.models import SatisfactionApprenant
 from App_PADESCE.satisfaction_apprenants.services import get_prestations_ranking
 from App_PADESCE.satisfaction_apprenants.views import (
@@ -36,7 +36,6 @@ from App_PADESCE.satisfaction_apprenants.views import (
     _assign_enquete_ids,
     _attach_network_source_to_rows,
     _build_dashboard_filter_options,
-    _dashboard_row_from_answer,
     _build_missing_prestations_analysis,
     _build_satisfaction_dashboard_data,
     _build_threshold_class_stats,
@@ -44,6 +43,7 @@ from App_PADESCE.satisfaction_apprenants.views import (
     _dashboard_chapeau_title,
     _dashboard_export_filename,
     _dashboard_export_filename_from_rows,
+    _dashboard_row_from_answer,
     _merge_class_apprenant_counts,
     _qualified_prestation_codes_from_source,
     _safe_import_appel_code,
@@ -1406,7 +1406,9 @@ class SatisfactionGeneralPageTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Classe attendue CLA999 differente de la classe trouvee CLA001.")
+        self.assertContains(
+            response, "Classe attendue CLA999 differente de la classe trouvee CLA001."
+        )
 
         self.eligible_appel.refresh_from_db()
         answers = AppelAnswers.objects.get(appel=self.eligible_appel)

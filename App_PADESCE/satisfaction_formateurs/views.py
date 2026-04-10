@@ -9,8 +9,8 @@ import uuid
 from collections import defaultdict
 from datetime import date as date_cls
 
-import requests
 import openpyxl
+import requests
 from django.contrib import messages
 from django.core.files.storage import default_storage
 from django.core.paginator import Paginator
@@ -22,9 +22,11 @@ from django.urls import reverse
 from django.utils import timezone
 
 from App_PADESCE.appels.models import (
+    CALL_ANALYSIS_THRESHOLD_STATUSES,
     CALL_SUCCESS_STATUSES,
     FORMATEUR_SCORE_FIELDS,
     FORMATEUR_TEXT_FIELDS,
+    Appel,
     AppelFormateur,
     derive_formateur_status,
     formateur_has_any_audio,
@@ -34,13 +36,19 @@ from App_PADESCE.appels.models import (
 from App_PADESCE.core.access import require_analysis_access
 from App_PADESCE.core.analysis_rules import analysis_threshold_label, analysis_threshold_target
 from App_PADESCE.core.fast_stats import build_fast_stats_context
-from App_PADESCE.formations.models import Beneficiaire, Classe, Formation, Formateur, Prestataire, Prestation
+from App_PADESCE.formations.models import (
+    Beneficiaire,
+    Classe,
+    Formateur,
+    Formation,
+    Prestataire,
+    Prestation,
+)
 from App_PADESCE.satisfaction_formateurs.forms import (
     SatisfactionFormateurBatchUpdateForm,
     SatisfactionFormateurForm,
 )
 from App_PADESCE.satisfaction_formateurs.models import SatisfactionFormateur
-from App_PADESCE.appels.models import Appel, CALL_ANALYSIS_THRESHOLD_STATUSES
 
 SESSION_KEY = "sat_form_workflow"
 
@@ -833,9 +841,15 @@ def _apply_formateur_batch_class_target(reference_code: str, payload: dict, user
             if prestation_obj and not prestation_code:
                 prestation_code = prestation_obj.code
             if prestation_obj and not prestataire:
-                prestataire = getattr(getattr(prestation_obj, "prestataire", None), "raison_sociale", "") or None
+                prestataire = (
+                    getattr(getattr(prestation_obj, "prestataire", None), "raison_sociale", "")
+                    or None
+                )
             if prestation_obj and not beneficiaire:
-                beneficiaire = getattr(getattr(prestation_obj, "beneficiaire", None), "nom_structure", "") or None
+                beneficiaire = (
+                    getattr(getattr(prestation_obj, "beneficiaire", None), "nom_structure", "")
+                    or None
+                )
             if not formation:
                 formation = (
                     getattr(class_obj, "intitule_formation", "")
@@ -855,9 +869,7 @@ def _apply_formateur_batch_class_target(reference_code: str, payload: dict, user
                 if not prestataire:
                     prestataire = prestation_obj.prestataire.raison_sociale
                 if not beneficiaire:
-                    beneficiaire = (
-                        getattr(prestation_obj.beneficiaire, "nom_structure", "") or None
-                    )
+                    beneficiaire = getattr(prestation_obj.beneficiaire, "nom_structure", "") or None
                 if not formation:
                     formation = getattr(prestation_obj.formation, "nom", "") or None
 
@@ -942,17 +954,9 @@ def _build_classes_tab_rows():
     rows = []
     known_codes: set[str] = set()
     for classe in classes_qs:
-        counts_by_id = call_counts_by_id.get(classe.pk, {"total": 0, "threshold_done": 0})
-        orphan_counts = orphan_counts_by_code.get(
-            str(classe.code or "").strip(),
-            {"total": 0, "threshold_done": 0},
-        )
-        # Keep legacy counters stable: prefer existing bucket without double counting.
-        total = max(int(counts_by_id["total"] or 0), int(orphan_counts["total"] or 0))
-        done = max(
-            int(counts_by_id["threshold_done"] or 0),
-            int(orphan_counts["threshold_done"] or 0),
-        )
+        counts = call_counts_by_id.get(classe.pk, {"total": 0, "threshold_done": 0})
+        total = counts["total"]
+        done = counts["threshold_done"]
         target = analysis_threshold_target(total)
         known_codes.add(str(classe.code or "").strip().casefold())
         rows.append(
@@ -960,9 +964,17 @@ def _build_classes_tab_rows():
                 "selection_value": classe.code,
                 "classe_code": classe.code,
                 "prestation_code": getattr(classe.prestation, "code", "") or "-",
-                "prestataire": getattr(getattr(classe.prestation, "prestataire", None), "raison_sociale", "") or "-",
-                "beneficiaire": getattr(getattr(classe.prestation, "beneficiaire", None), "nom_structure", "") or "-",
-                "formation_title": classe.intitule_formation or getattr(classe.formation, "nom", "") or "-",
+                "prestataire": getattr(
+                    getattr(classe.prestation, "prestataire", None), "raison_sociale", ""
+                )
+                or "-",
+                "beneficiaire": getattr(
+                    getattr(classe.prestation, "beneficiaire", None), "nom_structure", ""
+                )
+                or "-",
+                "formation_title": classe.intitule_formation
+                or getattr(classe.formation, "nom", "")
+                or "-",
                 "cohorte": str(classe.cohorte),
                 "appels_total": total,
                 "threshold_done": done,
@@ -1013,7 +1025,9 @@ def _apply_classes_batch_update_target(class_code: str, payload: dict, user) -> 
         "survey_synced": False,
     }
     classe = (
-        Classe.objects.select_related("prestation__prestataire", "prestation__beneficiaire", "formation")
+        Classe.objects.select_related(
+            "prestation__prestataire", "prestation__beneficiaire", "formation"
+        )
         .filter(code__iexact=class_code)
         .first()
     )
@@ -1022,12 +1036,14 @@ def _apply_classes_batch_update_target(class_code: str, payload: dict, user) -> 
     beneficiaire = payload.get("beneficiaire")
     formation_title = payload.get("formation")
     cohorte = payload.get("cohorte")
-    
+
     try:
         # Si la classe n'existe pas, essayer de la créer
         if classe is None:
             if not prestation_code:
-                result["message"] = f"Classe {class_code} introuvable et aucune prestation fournie pour creation."
+                result["message"] = (
+                    f"Classe {class_code} introuvable et aucune prestation fournie pour creation."
+                )
                 return result
 
             prestation, prestation_error = _resolve_or_create_prestation(
@@ -1038,10 +1054,11 @@ def _apply_classes_batch_update_target(class_code: str, payload: dict, user) -> 
             )
             if prestation is None:
                 result["message"] = (
-                    prestation_error or f"Prestation {prestation_code} introuvable pour creation de classe."
+                    prestation_error
+                    or f"Prestation {prestation_code} introuvable pour creation de classe."
                 )
                 return result
-            
+
             # Préparer les données pour la création
             cohorte_value = 1
             if cohorte:
@@ -1049,9 +1066,9 @@ def _apply_classes_batch_update_target(class_code: str, payload: dict, user) -> 
                     result["message"] = "La cohorte doit etre numerique."
                     return result
                 cohorte_value = int(str(cohorte).strip())
-            
+
             intitule = formation_title or getattr(prestation.formation, "nom", "") or "-"
-            
+
             # Créer la classe
             classe = Classe.objects.create(
                 code=class_code,
@@ -1064,11 +1081,17 @@ def _apply_classes_batch_update_target(class_code: str, payload: dict, user) -> 
             )
             created_count = 1
             # Continuer avec la synchronisation des lignes formateurs
-            prestataire_value = prestataire or getattr(prestation.prestataire, "raison_sociale", "") or ""
-            beneficiaire_value = beneficiaire or getattr(getattr(prestation, "beneficiaire", None), "nom_structure", "") or ""
+            prestataire_value = (
+                prestataire or getattr(prestation.prestataire, "raison_sociale", "") or ""
+            )
+            beneficiaire_value = (
+                beneficiaire
+                or getattr(getattr(prestation, "beneficiaire", None), "nom_structure", "")
+                or ""
+            )
             formation_value = intitule
             cohorte_str = str(cohorte_value or "").strip()
-            
+
             rows = AppelFormateur.objects.filter(is_active=True)
             updated_rows = 0
             for row in rows.iterator():
@@ -1089,13 +1112,23 @@ def _apply_classes_batch_update_target(class_code: str, payload: dict, user) -> 
                     row.cohorte = cohorte_str
                     changed = True
                 if changed:
-                    row.save(update_fields=["prestataire", "beneficiaire", "formation", "cohorte", "updated_at"])
+                    row.save(
+                        update_fields=[
+                            "prestataire",
+                            "beneficiaire",
+                            "formation",
+                            "cohorte",
+                            "updated_at",
+                        ]
+                    )
                     updated_rows += 1
-            
-            result["message"] = f"Classe {class_code} creee avec succes. {updated_rows} ligne(s) formateur synchronisee(s)."
+
+            result["message"] = (
+                f"Classe {class_code} creee avec succes. {updated_rows} ligne(s) formateur synchronisee(s)."
+            )
             result["ok"] = True
             return result
-        
+
         # Sinon, mettre à jour la classe existante
         update_fields = ["updated_at"]
         if prestation_code:
@@ -1168,10 +1201,20 @@ def _apply_classes_batch_update_target(class_code: str, payload: dict, user) -> 
                 row.cohorte = normalized_cohorte
                 changed = True
             if changed:
-                row.save(update_fields=["prestataire", "beneficiaire", "formation", "cohorte", "updated_at"])
+                row.save(
+                    update_fields=[
+                        "prestataire",
+                        "beneficiaire",
+                        "formation",
+                        "cohorte",
+                        "updated_at",
+                    ]
+                )
                 updated_rows += 1
 
-        result["message"] = f"Classe mise a jour. {updated_rows} ligne(s) formateur synchronisee(s)."
+        result["message"] = (
+            f"Classe mise a jour. {updated_rows} ligne(s) formateur synchronisee(s)."
+        )
         result["ok"] = True
         return result
     except Exception as exc:
@@ -1218,9 +1261,11 @@ def _resolve_or_create_prestation(
     if not code:
         return None, "Prestation ID manquant."
 
-    existing = Prestation.objects.select_related("prestataire", "beneficiaire", "formation").filter(
-        code__iexact=code
-    ).first()
+    existing = (
+        Prestation.objects.select_related("prestataire", "beneficiaire", "formation")
+        .filter(code__iexact=code)
+        .first()
+    )
     if existing:
         return existing, None
 
@@ -1248,7 +1293,9 @@ def _resolve_or_create_prestation(
 
     beneficiaire_obj = None
     if beneficiaire_label:
-        beneficiaire_obj = Beneficiaire.objects.filter(nom_structure__iexact=beneficiaire_label).first()
+        beneficiaire_obj = Beneficiaire.objects.filter(
+            nom_structure__iexact=beneficiaire_label
+        ).first()
         if beneficiaire_obj is None:
             beneficiaire_obj = Beneficiaire.objects.create(
                 nom_structure=beneficiaire_label,
@@ -1410,7 +1457,9 @@ def satisfaction_formateurs_update_form_page(request):
                         )
             elif action == "update_class_data":
                 try:
-                    payloads = _build_formateur_batch_class_payloads(form.cleaned_data, len(targets))
+                    payloads = _build_formateur_batch_class_payloads(
+                        form.cleaned_data, len(targets)
+                    )
                 except ValueError as exc:
                     form.add_error(None, str(exc))
                 else:
@@ -1447,7 +1496,9 @@ def satisfaction_formateurs_update_form_page(request):
                     )
                 else:
                     try:
-                        payloads = _build_formateur_batch_class_payloads(form.cleaned_data, len(class_targets))
+                        payloads = _build_formateur_batch_class_payloads(
+                            form.cleaned_data, len(class_targets)
+                        )
                     except ValueError as exc:
                         form.add_error(None, str(exc))
                     else:
@@ -1463,9 +1514,13 @@ def satisfaction_formateurs_update_form_page(request):
                             "action_label": "classe(s)",
                         }
                         if summary["updated_total"]:
-                            messages.success(request, f"{summary['updated_total']} classe(s) mise(s) a jour.")
+                            messages.success(
+                                request, f"{summary['updated_total']} classe(s) mise(s) a jour."
+                            )
                         if summary["error_total"]:
-                            messages.warning(request, f"{summary['error_total']} classe(s) en erreur.")
+                            messages.warning(
+                                request, f"{summary['error_total']} classe(s) en erreur."
+                            )
             else:
                 try:
                     payloads = _build_formateur_batch_payloads(form.cleaned_data, len(targets))
@@ -1600,10 +1655,25 @@ def _build_formateur_appel_status_summary(queryset) -> dict[str, int]:
     summary = queryset.aggregate(
         appels_cibles=Count("id"),
         appels_tentes=Count("id", filter=~Q(status="en_attente")),
-        appels_reussis=Count("id", filter=Q(status__in=["formulaire_rempli", "formulaire_avec_audio", "termine", "appel_reussi", "a_rappeler"])),
+        appels_reussis=Count(
+            "id",
+            filter=Q(
+                status__in=[
+                    "formulaire_rempli",
+                    "formulaire_avec_audio",
+                    "termine",
+                    "appel_reussi",
+                    "a_rappeler",
+                ]
+            ),
+        ),
         formulaires_remplis=Count("id", filter=Q(status="termine")),
-        formulaires_remplis_sans_audio=Count("id", filter=Q(status="termine") & (Q(audio_file__isnull=True) | Q(audio_file=""))),
-        formulaires_avec_audio=Count("id", filter=Q(status="termine") & Q(audio_file__isnull=False)),
+        formulaires_remplis_sans_audio=Count(
+            "id", filter=Q(status="termine") & (Q(audio_file__isnull=True) | Q(audio_file=""))
+        ),
+        formulaires_avec_audio=Count(
+            "id", filter=Q(status="termine") & Q(audio_file__isnull=False)
+        ),
         audios_enregistres=Count("id", filter=audio_q),
     )
     return {key: int(value or 0) for key, value in summary.items()}
@@ -1716,9 +1786,7 @@ def _build_satisfaction_formateurs_dashboard_context(request) -> dict:
         "appels_tentes": appel_summary["appels_tentes"],
         "appels_reussis": appel_summary["appels_reussis"],
         "formulaires_remplis_appels": appel_summary["formulaires_remplis"],
-        "formulaires_remplis_sans_audio_appels": appel_summary[
-            "formulaires_remplis_sans_audio"
-        ],
+        "formulaires_remplis_sans_audio_appels": appel_summary["formulaires_remplis_sans_audio"],
         "formulaires_avec_audio_appels": appel_summary["formulaires_avec_audio"],
         "audios_enregistres_appels": appel_summary["audios_enregistres"],
     }
@@ -1730,14 +1798,13 @@ def _formateurs_dashboard_export_filename(active_tab: str, extension: str) -> st
     return f"analyse-formateurs-{active_tab}.{extension}"
 
 
-def _tabular_formateurs_dashboard_export(active_tab: str, context: dict) -> tuple[list[str], list[list]]:
+def _tabular_formateurs_dashboard_export(
+    active_tab: str, context: dict
+) -> tuple[list[str], list[list]]:
     if active_tab == "beneficiaire":
         return (
             ["Beneficiaire", "Nb appels", *[label for _, label in Q_FORM_FIELDS]],
-            [
-                [item["label"], item["nb"], *item["avgs"]]
-                for item in context["beneficiaire_stats"]
-            ],
+            [[item["label"], item["nb"], *item["avgs"]] for item in context["beneficiaire_stats"]],
         )
     if active_tab == "cohorte":
         return (

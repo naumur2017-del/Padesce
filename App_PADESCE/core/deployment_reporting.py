@@ -173,16 +173,20 @@ def build_checks(run: dict[str, Any]) -> list[dict[str, Any]]:
         {
             "label": "Configuration du deploiement",
             "status": "ok" if (run.get("config", {}) or {}).get("ready") else "error",
-            "detail": "Les acces serveur necessaires etaient disponibles."
-            if (run.get("config", {}) or {}).get("ready")
-            else "Une information serveur manquait au lancement.",
+            "detail": (
+                "Les acces serveur necessaires etaient disponibles."
+                if (run.get("config", {}) or {}).get("ready")
+                else "Une information serveur manquait au lancement."
+            ),
         },
         {
             "label": "Resultat final",
             "status": "ok" if run.get("status") == "completed" else "error",
-            "detail": "Le pipeline s'est termine sans erreur bloquante."
-            if run.get("status") == "completed"
-            else (run.get("error") or "Le pipeline s'est arrete avant la fin."),
+            "detail": (
+                "Le pipeline s'est termine sans erreur bloquante."
+                if run.get("status") == "completed"
+                else (run.get("error") or "Le pipeline s'est arrete avant la fin.")
+            ),
         },
         {
             "label": "Changements prepares",
@@ -201,9 +205,11 @@ def build_checks(run: dict[str, Any]) -> list[dict[str, Any]]:
         {
             "label": "Manifeste distant relu",
             "status": "ok" if verification.get("remote_manifest") else "warning",
-            "detail": "La reference distante a bien ete relue apres transfert."
-            if verification.get("remote_manifest")
-            else "La reference distante n'a pas pu etre relue apres transfert.",
+            "detail": (
+                "La reference distante a bien ete relue apres transfert."
+                if verification.get("remote_manifest")
+                else "La reference distante n'a pas pu etre relue apres transfert."
+            ),
         },
     ]
 
@@ -238,9 +244,11 @@ def build_checks(run: dict[str, Any]) -> list[dict[str, Any]]:
         {
             "label": "Erreurs de controle",
             "status": "ok" if not errors else "error",
-            "detail": "Aucune erreur de controle."
-            if not errors
-            else " ; ".join(str(item) for item in errors),
+            "detail": (
+                "Aucune erreur de controle."
+                if not errors
+                else " ; ".join(str(item) for item in errors)
+            ),
         }
     )
     return checks
@@ -643,9 +651,7 @@ def _build_run_workbook(report: dict[str, Any]) -> Workbook | None:
         fill_color, text_color = _status_style(
             "error"
             if entry.get("level") == "error"
-            else "warning"
-            if entry.get("level") == "warning"
-            else "info"
+            else "warning" if entry.get("level") == "warning" else "info"
         )
         level_cell.fill = _cell_fill(fill_color)
         level_cell.font = Font(color=text_color, bold=True)
@@ -700,11 +706,11 @@ def _build_history_workbook(history: list[dict[str, Any]]) -> Workbook | None:
             summary.get("additions", 0),
             summary.get("modifications", 0),
             summary.get("deletions", 0),
-            "Oui"
-            if live_refresh.get("reloaded")
-            else "Non"
-            if live_refresh.get("required", True)
-            else "Non requis",
+            (
+                "Oui"
+                if live_refresh.get("reloaded")
+                else "Non" if live_refresh.get("required", True) else "Non requis"
+            ),
             entry.get("deployment_page_url", ""),
         ]
         for column, value in enumerate(values, start=1):

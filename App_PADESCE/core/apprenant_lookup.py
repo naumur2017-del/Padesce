@@ -106,7 +106,10 @@ def _pick_by_class(candidates: list[Apprenant], class_codes: list[str]) -> Appre
     if class_codes:
         for class_code in class_codes:
             for candidate in candidates:
-                if _normalize_key(getattr(getattr(candidate, "classe", None), "code", "")) == class_code:
+                if (
+                    _normalize_key(getattr(getattr(candidate, "classe", None), "code", ""))
+                    == class_code
+                ):
                     return candidate
     return candidates[0]
 
@@ -214,7 +217,8 @@ def match_apprenants_to_appels(appels) -> dict[int, Apprenant | None]:
             scoped_candidates = [
                 candidate
                 for candidate in candidates
-                if _normalize_key(getattr(getattr(candidate, "classe", None), "code", "")) in class_codes
+                if _normalize_key(getattr(getattr(candidate, "classe", None), "code", ""))
+                in class_codes
             ] or candidates
 
         apprenant = _pick_by_class(
@@ -222,7 +226,9 @@ def match_apprenants_to_appels(appels) -> dict[int, Apprenant | None]:
             class_codes,
         )
         if apprenant is None:
-            apprenant = _pick_partial_code(scoped_candidates, getattr(appel, "code", ""), class_codes)
+            apprenant = _pick_partial_code(
+                scoped_candidates, getattr(appel, "code", ""), class_codes
+            )
         if apprenant is None:
             for phone in phone_candidates:
                 apprenant = _pick_by_class(candidates_by_phone.get(phone, []), class_codes)
@@ -231,7 +237,9 @@ def match_apprenants_to_appels(appels) -> dict[int, Apprenant | None]:
         if apprenant is None and name_key:
             apprenant = _pick_by_class(candidates_by_name.get(name_key, []), class_codes)
         if apprenant is None:
-            apprenant = _pick_flexible_name(scoped_candidates, getattr(appel, "nom", ""), class_codes)
+            apprenant = _pick_flexible_name(
+                scoped_candidates, getattr(appel, "nom", ""), class_codes
+            )
 
         matched[appel.pk] = apprenant
 

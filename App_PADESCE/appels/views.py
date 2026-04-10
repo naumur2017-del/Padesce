@@ -2,8 +2,6 @@ import csv
 import datetime
 import io
 import logging
-import os
-import threading
 import unicodedata
 import zipfile
 from collections import Counter, defaultdict
@@ -13,7 +11,6 @@ from pathlib import Path
 import openpyxl
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.core.cache import cache
 from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
 from django.db import transaction
 from django.db.models import Case, Count, DecimalField, ExpressionWrapper, F, Q, When
@@ -24,10 +21,6 @@ from django.utils.text import slugify
 from django.views.decorators.http import require_POST
 
 from App_PADESCE.appels.models import (
-    CALL_ANALYSIS_THRESHOLD_STATUSES,
-    CALL_COMPLETED_STATUSES,
-    CALL_FORM_STATUSES,
-    CALL_SUCCESS_STATUSES,
     Appel,
     AppelAnswers,
     AppelCGA,
@@ -35,23 +28,20 @@ from App_PADESCE.appels.models import (
     AppelImportArchive,
     appel_answers_completed_q,
     appel_answers_modified_completion_q,
-    is_call_success_status,
     padesce_form_tracking_cutoff,
 )
 from App_PADESCE.apprenants.models import Apprenant
-from App_PADESCE.core.analysis_rules import analysis_threshold_label, analysis_threshold_target
-from App_PADESCE.core.cache_versions import get_analysis_cache_version
+from App_PADESCE.core.analysis_rules import (
+    ANALYSIS_THRESHOLD_PERCENT,
+    analysis_threshold_label,
+    analysis_threshold_target,
+)
 from App_PADESCE.core.call_metrics import (
     count_callable_source_records_by_class,
     has_usable_phone,
     normalize_phone_digits,
     phone_variants,
     summarize_source_class_phone_coverage,
-)
-from App_PADESCE.core.analysis_rules import (
-    ANALYSIS_THRESHOLD_PERCENT,
-    analysis_threshold_label,
-    analysis_threshold_target,
 )
 from App_PADESCE.formations.models import Classe
 from App_PADESCE.reporting.network_excel import build_padesce_source_index, normalize_network_lookup

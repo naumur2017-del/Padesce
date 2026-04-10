@@ -22,14 +22,14 @@
 
 <section class="hero">
   <h2>{{ appel.nom }}</h2>
-  <p>Dossier complet de l'appel termine, du formulaire saisi et de l'audio associe si disponible.</p>
+  <p>Dossier complet de l'appel terminé, du formulaire saisi et de l'audio associé si disponible.</p>
 </section>
 
 <section class="summary-cards">
   <article class="summary-card"><div class="label">Apprenant ID</div><div class="value">{{ appel.code }}</div></article>
   <article class="summary-card"><div class="label">Classe</div><div class="value">{{ appel.classe_label|default:"-" }}</div></article>
-  <article class="summary-card"><div class="label">Questions renseignees</div><div class="value">{{ filled_questions_count }}/9</div></article>
-  <article class="summary-card"><div class="label">Operateur</div><div class="value">{{ appel.locked_by.username|default:"-" }}</div></article>
+  <article class="summary-card"><div class="label">Questions renseignées</div><div class="value">{{ filled_questions_count }}/9</div></article>
+  <article class="summary-card"><div class="label">Opérateur</div><div class="value">{{ appel.locked_by.username|default:"-" }}</div></article>
 </section>
 
 <div class="detail-grid">
@@ -37,14 +37,14 @@
     <h3>Infos apprenant</h3>
     <div class="meta"><strong>Nom :</strong> {{ appel.nom }}</div>
     <div class="meta"><strong>Apprenant ID :</strong> {{ appel.code }}</div>
-    <div class="meta"><strong>Telephone :</strong> {{ appel.telephone1|default:appel.telephone2|default:"-" }}</div>
+    <div class="meta"><strong>Téléphone :</strong> {{ appel.telephone1|default:appel.telephone2|default:"-" }}</div>
     <div class="meta"><strong>Classe :</strong> {{ appel.classe_label|default:"-" }}</div>
     <div class="meta"><strong>Prestataire :</strong> {{ appel.prestataire|default:"-" }}</div>
-    <div class="meta"><strong>Beneficiaire :</strong> {{ appel.beneficiaire|default:"-" }}</div>
+    <div class="meta"><strong>Bénéficiaire :</strong> {{ appel.beneficiaire|default:"-" }}</div>
     <div class="meta"><strong>Lieu :</strong> {{ appel.lieu|default:"-" }}</div>
     <div class="meta"><strong>Formation :</strong> {{ appel.formation_padesce|default:"-" }}</div>
-    <div class="meta"><strong>Type formation declaree :</strong> {{ appel.type_formation_declaree|default:"-" }}</div>
-    <div class="meta"><strong>Operateur :</strong> {{ appel.locked_by.username|default:"-" }}</div>
+    <div class="meta"><strong>Type formation déclarée :</strong> {{ appel.type_formation_declaree|default:"-" }}</div>
+    <div class="meta"><strong>Opérateur :</strong> {{ appel.locked_by.username|default:"-" }}</div>
   </section>
   <section class="panel">
     <h3>Audio</h3>
@@ -65,7 +65,7 @@
 <section class="panel">
   <h3>Formulaire rempli</h3>
   {% if consultant_answers_simulated %}
-    <p class="muted" style="margin-top:0;">Les notes manquantes ont ete completees automatiquement pour la consultation.</p>
+    <p class="muted" style="margin-top:0;">Les notes manquantes ont été complétées automatiquement pour la consultation.</p>
   {% endif %}
   <table>
     <thead>

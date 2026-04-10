@@ -78,9 +78,8 @@ def _build_menu_items(user, path: str, consultant_only: bool) -> list[dict[str, 
             }
         )
 
-    if not consultant_only:
-        add_item("Appels Padesce", _safe_reverse("appels_index"), "/appels/")
-        add_item("Appel Formateur", _safe_reverse("formateurs_index"), "/appels-formateurs/")
+    add_item("Appels Padesce", _safe_reverse("appels_index"), "/appels/")
+    add_item("Appel Formateur", _safe_reverse("formateurs_index"), "/appels-formateurs/")
 
     if superadmin_access:
         add_item("Backup", _safe_reverse("backup_dashboard"), "/backup/")
@@ -96,18 +95,19 @@ def _build_menu_items(user, path: str, consultant_only: bool) -> list[dict[str, 
             _safe_reverse("reporting_manual"),
             "/reporting/documentation/",
         )
+        add_item(
+            "Analyse Enquete Formateur",
+            _safe_reverse("satisfaction_formateurs_dashboard"),
+            "/satisfaction-formateurs/",
+        )
+        add_item("Espace Padesce", _safe_reverse("public_space"), "/")
+
         if not consultant_only:
-            add_item(
-                "Analyse Enquete Formateur",
-                _safe_reverse("satisfaction_formateurs_dashboard"),
-                "/satisfaction-formateurs/",
-            )
             add_item(
                 "Rapport",
                 _safe_reverse("application_report_view"),
                 "/reporting/",
             )
-            add_item("Espace Padesce", _safe_reverse("consultant_dashboard"), "/consultant/")
             add_item(
                 "Excel Source", _safe_reverse("reporting_network_excel"), "/reporting/excel-reseau/"
             )
@@ -116,8 +116,7 @@ def _build_menu_items(user, path: str, consultant_only: bool) -> list[dict[str, 
         add_item("Suivi Utilisateurs", _safe_reverse("user_tracking"), "/suivi-utilisateurs/")
         add_item("Deploiement Gandi", _safe_reverse("deployment_dashboard"), "/deploiement/")
 
-    if not consultant_only:
-        add_item("CGA", _safe_reverse("cga_index"), "/cga/")
+    add_item("CGA", _safe_reverse("cga_index"), "/cga/")
 
     if staff_access:
         add_item("Admin", _safe_reverse("admin:index"), "/admin/")

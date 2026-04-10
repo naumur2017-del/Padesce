@@ -1812,8 +1812,8 @@ def reporting_embed_table(request, code: str):
 # Section 7 – Vues Rapport Application
 # ---------------------------------------------------------------------------
 
-from django.contrib.auth.models import Group
 from django.contrib.auth import get_user_model as _get_user_model
+from django.contrib.auth.models import Group
 from django.shortcuts import redirect
 from django.urls import reverse
 
@@ -1853,7 +1853,9 @@ def application_report_view(request):
         "user_groups_total": Group.objects.count(),
         "user_managers_total": user_model.objects.filter(
             groups__name__in=["manager_padesce", "manager_cga"]
-        ).distinct().count(),
+        )
+        .distinct()
+        .count(),
         "mail_recipients": get_report_email_recipients(),
     }
     return render(request, "reporting/rapport.html", context)
@@ -1878,7 +1880,9 @@ def application_report_export_csv_view(request):
     start_date, end_date = parse_report_dates(request.GET.get("start"), request.GET.get("end"))
     report = build_application_report(start_date, end_date)
     filename = f"rapport_application_{start_date}_{end_date}.csv"
-    response = HttpResponse(export_application_report_csv(report), content_type="text/csv; charset=utf-8")
+    response = HttpResponse(
+        export_application_report_csv(report), content_type="text/csv; charset=utf-8"
+    )
     response["Content-Disposition"] = f'attachment; filename="{filename}"'
     return response
 

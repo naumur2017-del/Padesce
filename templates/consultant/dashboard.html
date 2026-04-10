@@ -38,6 +38,12 @@
   .card[data-filter] { cursor:pointer; border:2px solid transparent; transition:border-color .2s ease; }
   .card[data-filter]:hover { border-color:var(--accent); }
   .card[data-filter].active { border-color:var(--accent); box-shadow:0 0 0 4px rgba(124,58,237,0.12); }
+  .scope-switch { display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:18px; }
+  .scope-tabs { display:inline-flex; align-items:center; gap:6px; padding:6px; border-radius:999px; border:1px solid var(--border); background:rgba(111,60,195,0.05); }
+  .scope-tab { display:inline-flex; align-items:center; justify-content:center; min-width:120px; padding:9px 18px; border-radius:999px; font-size:0.85rem; font-weight:700; color:var(--muted); text-decoration:none; transition:background .15s, color .15s, box-shadow .15s; }
+  .scope-tab:hover { background:rgba(111,60,195,0.08); color:var(--accent-strong); }
+  .scope-tab.active { background:var(--accent); color:#fff; box-shadow:0 8px 18px rgba(76,29,149,0.18); }
+  .scope-note { font-size:0.85rem; color:var(--muted); }
   @media (max-width:1200px) {
     .cards-row.top, .cards-row.bottom { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
   }
@@ -48,27 +54,35 @@
   <p>Padesce</p>
 </section>
 
+<div class="scope-switch">
+  <div class="scope-tabs" role="tablist" aria-label="Navigation des analyses de satisfaction">
+    <a class="scope-tab {% if consultant_mode != 'formateurs' %}active{% endif %}" href="?target=apprenants" {% if consultant_mode != 'formateurs' %}aria-current="page"{% endif %}>Apprenants</a>
+    <a class="scope-tab {% if consultant_mode == 'formateurs' %}active{% endif %}" href="?target=formateurs" {% if consultant_mode == 'formateurs' %}aria-current="page"{% endif %}>Formateurs</a>
+  </div>
+  <div class="scope-note">Basculer entre les appels apprenants et formateurs.</div>
+</div>
+
 <section class="cards">
   <div class="cards-row top">
     <article class="card">
-      <div class="value">{{ card_prestations_count }}</div>
-      <div class="label">Prestations analysées</div>
+      <div class="value">{{ card_prestations_count|default:"0" }}</div>
+      <div class="label">{{ card_primary_label|default:"Prestations analysées" }}</div>
     </article>
     <article class="card">
-      <div class="value">{{ card_classes_count }}</div>
+      <div class="value">{{ card_classes_count|default:"0" }}</div>
       <div class="label">
-        Classes analysées
+        {{ card_secondary_label|default:"Classes analysées" }}
         {% if card_fenetres %}
         <div style="font-size:0.75rem; color:var(--muted); font-weight:normal;">Fenetre: {{ card_fenetres|join:", " }}</div>
         {% endif %}
       </div>
     </article>
     <article class="card">
-      <div class="value">{{ card_prestataires_count }}</div>
+      <div class="value">{{ card_prestataires_count|default:"0" }}</div>
       <div class="label">Prestataires analysés</div>
     </article>
     <article class="card">
-      <div class="value">{{ card_beneficiaires_count }}</div>
+      <div class="value">{{ card_beneficiaires_count|default:"0" }}</div>
       <div class="label">Bénéficiaires analysés</div>
     </article>
     <article class="card">
@@ -77,6 +91,12 @@
     </article>
   </div>
   <div class="cards-row bottom">
+    {% if consultant_mode == 'apprenants' %}
+    <article class="card" style="border-top: 3px solid #0891b2;">
+      <div class="value">{{ card_vague1_total }}</div>
+      <div class="label">Apprenants Vague 1</div>
+    </article>
+    {% endif %}
     <article class="card" style="border-top: 3px solid #0f766e;">
       <div class="value">{{ summary_appels_cibles }}</div>
       <div class="label">Appels cibles</div>
@@ -87,11 +107,11 @@
     </article>
     <article class="card" style="border-top: 3px solid #10b981;" data-filter="reussi">
       <div class="value">{{ summary_reussis }}</div>
-      <div class="label">Appels réussis</div>
+      <div class="label">Appels décrochés</div>
     </article>
     <article class="card" style="border-top: 3px solid #6366f1;" data-filter="form">
       <div class="value">{{ summary_form_remplis }}</div>
-      <div class="label">Formulaires remplis : Total</div>
+      <div class="label">Formulaires remplis</div>
     </article>
     <article class="card" style="border-top: 3px solid #2563eb;">
       <div class="value">{{ summary_form_sans_audio }}</div>
@@ -111,13 +131,16 @@
 <section class="panel">
   <div class="panel-head">
     <div>
-      <h2 style="margin:0 0 4px; color:var(--accent-strong);">Appels PADESCE termines</h2>
-      <p>Les audios de plus d'une minute remontent en tete. Clique sur une ligne pour ouvrir le dossier complet.</p>
+      <h2 style="margin:0 0 4px; color:var(--accent-strong);">{{ panel_title|default:"Appels PADESCE terminés" }}</h2>
+      <p>{{ panel_subtitle|default:"Les audios de plus d'une minute remontent en tête. Cliquez sur une ligne pour ouvrir le dossier complet." }}</p>
     </div>
 
   </div>
   <div class="toolbar">
-    <input class="input" type="text" name="q" id="f-q" form="consultant-filter-form" placeholder="Recherche apprenant..." value="{{ filters.q }}">
+    <input class="input" type="text" name="q" id="f-q" form="consultant-filter-form" placeholder="{{ search_placeholder|default:'Recherche...' }}" value="{{ filters.q }}">
+    {% if consultant_mode == 'apprenants' %}
+    <input class="input" type="text" name="apprenant_id" id="f-apprenant-id" form="consultant-filter-form" placeholder="Filtrer par Apprenant ID..." value="{{ filters.apprenant_id }}">
+    {% endif %}
     <select class="input" name="beneficiaire" id="f-beneficiaire" form="consultant-filter-form">
       <option value="">Bénéficiaire</option>
       {% for item in filters.beneficiaires %}
@@ -130,19 +153,27 @@
         <option value="{{ item }}" {% if filters.prestation == item %}selected{% endif %}>{{ item }}</option>
       {% endfor %}
     </select>
-    <select class="input" name="classe" id="f-classe" form="consultant-filter-form">
-      <option value="">Classe</option>
+    <select class="input" name="{% if consultant_mode == 'formateurs' %}formation{% else %}classe{% endif %}" id="f-classe" form="consultant-filter-form">
+      <option value="">{{ table_col_scope_label|default:"Classe" }}</option>
       {% for item in filters.classes %}
         <option value="{{ item.value }}" {% if filters.classe == item.value %}selected{% endif %}>{{ item.label }}</option>
       {% endfor %}
+      {% for item in filters.formations %}
+        <option value="{{ item }}" {% if filters.formation == item %}selected{% endif %}>{{ item }}</option>
+      {% endfor %}
     </select>
-    <select class="input" name="fenetre" id="f-fenetre" form="consultant-filter-form">
-      <option value="">Fenêtre</option>
+    <select class="input" name="{% if consultant_mode == 'formateurs' %}cohorte{% else %}fenetre{% endif %}" id="f-fenetre" form="consultant-filter-form">
+      <option value="">{% if consultant_mode == 'formateurs' %}Cohorte{% else %}Fenêtre{% endif %}</option>
       {% for item in filters.fenetres %}
         <option value="{{ item }}" {% if filters.fenetre == item %}selected{% endif %}>{{ item }}</option>
       {% endfor %}
+      {% for item in filters.cohortes %}
+        <option value="{{ item }}" {% if filters.cohorte == item %}selected{% endif %}>{{ item }}</option>
+      {% endfor %}
     </select>
-    <form id="consultant-filter-form" method="get"></form>
+    <form id="consultant-filter-form" method="get">
+      <input type="hidden" name="target" value="{{ consultant_mode }}">
+    </form>
     <button class="btn btn-primary" type="submit" form="consultant-filter-form">Filtrer</button>
     <a class="btn" href="{% url 'consultant_dashboard' %}">Reset</a>
     <a class="btn" href="{% url 'satisfaction_dashboard' %}">Voir analyse satisfaction</a>
@@ -162,7 +193,12 @@
       classe:       document.getElementById('f-classe'),
       fenetre:      document.getElementById('f-fenetre'),
     };
-    const LABELS = {beneficiaire:'Bénéficiaire', prestataire:'Prestataire', classe:'Classe', fenetre:'Fenêtre'};
+    const LABELS = {
+      beneficiaire: 'Bénéficiaire',
+      prestataire:  'Prestataire',
+      classe:       '{{ table_col_scope_label|default:"Classe"|escapejs }}',
+      fenetre:      '{% if consultant_mode == "formateurs" %}Cohorte{% else %}Fenêtre{% endif %}',
+    };
 
     function filteredRows(skipField) {
       return FILTER_DATA.filter(r => {
@@ -170,7 +206,13 @@
           if (k === skipField) return true;
           const v = SELECTS[k].value;
           if (!v) return true;
-          return (k === 'classe' ? r.classe_value : k === 'prestataire' ? r.prestataire : r[k]) === v;
+          if (k === 'classe') {
+             return (r.classe_value || r.formation) === v;
+          }
+          if (k === 'fenetre') {
+             return (r.fenetre || r.cohorte) === v;
+          }
+          return (k === 'prestataire' ? r.prestataire : r[k]) === v;
         });
       });
     }
@@ -182,8 +224,17 @@
       const seen = new Set();
       const opts = [];
       rows.forEach(r => {
-        const val = field === 'classe' ? r.classe_value : field === 'prestataire' ? r.prestataire : r[field];
-        const lbl = field === 'classe' ? r.classe_label : val;
+        let val, lbl;
+        if (field === 'classe') {
+          val = r.classe_value || r.formation;
+          lbl = r.classe_label || r.formation;
+        } else if (field === 'fenetre') {
+          val = r.fenetre || r.cohorte;
+          lbl = val;
+        } else {
+          val = field === 'prestataire' ? r.prestataire : r[field];
+          lbl = val;
+        }
         if (val && !seen.has(val)) { seen.add(val); opts.push({val, lbl}); }
       });
       opts.sort((a, b) => a.lbl.localeCompare(b.lbl));
@@ -214,42 +265,51 @@
     <table>
       <thead>
         <tr>
-          <th>Nom apprenant</th>
-          <th>Apprenant ID</th>
-          <th>Classe</th>
+          {% if consultant_mode == 'apprenants' %}
+          <th>{{ table_col_name_label|default:"Nom" }}</th>
+          <th>{{ table_col_id_label|default:"ID" }}</th>
+          {% endif %}
+          <th>{{ table_col_scope_label|default:"Classe" }}</th>
+          <th>Indicateurs</th>
           <th>Prestataire</th>
-          <th>Beneficiaire</th>
-          <th>Telephone</th>
+          <th>Bénéficiaire</th>
+          <th>Téléphone</th>
         </tr>
       </thead>
       <tbody>
         {% for row in rows %}
           <tr class="clickable-row js-open-modal" 
-              data-detail-url="{% url 'consultant_call_detail' row.id %}" 
+              data-detail-url="{% url detail_url_name row.id %}" 
               data-audio-url="{% if row.audio_file %}{{ row.audio_file.url }}{% endif %}"
               data-status="{{ row.status }}"
               data-has-form="{{ row.consultant_has_form|yesno:'1,0' }}"
               data-has-audio="{{ row.consultant_has_audio|yesno:'1,0' }}">
-            <td>{{ row.nom }}</td>
+            {% if consultant_mode == 'apprenants' %}
+            <td>{{ row.consultant_display_name|default:row.nom }}</td>
             <td>
-              <strong>{{ row.apprenant_id|default:"-" }}</strong>
+              <strong>{{ row.consultant_reference|default:row.apprenant_id|default:"-" }}</strong>
               {% if row.apprenant_db_label %}
-                <div class="row-meta">{{ row.apprenant_db_label }}</div>
+                <div class="row-meta" style="font-size:0.75rem; color:var(--muted);">{{ row.apprenant_db_label }}</div>
               {% endif %}
             </td>
+            {% endif %}
             <td>
               {% if row.classe %}
-                <a href="{% url 'class_detail' row.classe.id %}" style="text-decoration:underline;">{{ row.consultant_class_display|default:row.classe_label|default:"-" }}</a>
+                <a href="{% url 'class_detail' row.classe.id %}" style="text-decoration:underline;">{{ row.consultant_class_display|default:"-" }}</a>
               {% else %}
-                {{ row.consultant_class_display|default:row.classe_label|default:"-" }}
+                {{ row.consultant_scope_label|default:row.consultant_class_display|default:"-" }}
               {% endif %}
+            </td>
+            <td style="font-size:1.2rem; min-width:60px;">
+              {% if row.consultant_has_form %}📁{% endif %}
+              {% if row.consultant_has_audio %}🎧{% endif %}
             </td>
             <td>{{ row.prestataire|default:"-" }}</td>
             <td>{{ row.beneficiaire|default:"-" }}</td>
-            <td>{{ row.telephone1|default:row.telephone2|default:"-" }}</td>
+            <td>{{ row.consultant_telephone|default:row.telephone1|default:row.telephone2|default:"-" }}</td>
           </tr>
         {% empty %}
-          <tr><td colspan="6">Aucun appel termine a consulter.</td></tr>
+          <tr><td colspan="6">{{ table_empty_message|default:"Aucun appel terminé à consulter." }}</td></tr>
         {% endfor %}
       </tbody>
     </table>
@@ -262,10 +322,10 @@
       </div>
       <div class="pagination-actions">
         {% if page_obj.has_previous %}
-          <a class="btn" href="?q={{ filters.q|urlencode }}&classe={{ filters.classe|urlencode }}&prestation={{ filters.prestation|urlencode }}&beneficiaire={{ filters.beneficiaire|urlencode }}&fenetre={{ filters.fenetre|urlencode }}&page={{ page_obj.previous_page_number }}">Precedent</a>
+          <a class="btn" href="?target={{ consultant_mode }}&q={{ filters.q|urlencode }}&classe={{ filters.classe|urlencode }}&formation={{ filters.formation|urlencode }}&prestation={{ filters.prestation|urlencode }}&beneficiaire={{ filters.beneficiaire|urlencode }}&fenetre={{ filters.fenetre|urlencode }}&cohorte={{ filters.cohorte|urlencode }}&page={{ page_obj.previous_page_number }}">Précédent</a>
         {% endif %}
         {% if page_obj.has_next %}
-          <a class="btn" href="?q={{ filters.q|urlencode }}&classe={{ filters.classe|urlencode }}&prestation={{ filters.prestation|urlencode }}&beneficiaire={{ filters.beneficiaire|urlencode }}&fenetre={{ filters.fenetre|urlencode }}&page={{ page_obj.next_page_number }}">Suivant</a>
+          <a class="btn" href="?target={{ consultant_mode }}&q={{ filters.q|urlencode }}&classe={{ filters.classe|urlencode }}&formation={{ filters.formation|urlencode }}&prestation={{ filters.prestation|urlencode }}&beneficiaire={{ filters.beneficiaire|urlencode }}&fenetre={{ filters.fenetre|urlencode }}&cohorte={{ filters.cohorte|urlencode }}&page={{ page_obj.next_page_number }}">Suivant</a>
         {% endif %}
       </div>
     </div>

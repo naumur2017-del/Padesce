@@ -61,17 +61,17 @@ from App_PADESCE.core.analysis_rules import (
     set_appel_manual_exclusion,
     toggle_appel_manual_exclusion,
 )
-from App_PADESCE.core.cache_versions import get_analysis_cache_version
-from App_PADESCE.core.call_metrics import (
-    count_callable_source_records_by_class,
-    has_usable_phone,
-    normalize_phone_digits,
-)
 from App_PADESCE.core.apprenant_lookup import (
     get_local_apprenant_db_label,
     get_local_apprenant_identifier,
     match_apprenants_to_appels,
     resolve_apprenant_for_appel,
+)
+from App_PADESCE.core.cache_versions import get_analysis_cache_version
+from App_PADESCE.core.call_metrics import (
+    count_callable_source_records_by_class,
+    has_usable_phone,
+    normalize_phone_digits,
 )
 from App_PADESCE.core.fast_stats import build_fast_stats_context
 from App_PADESCE.formations.models import Classe
@@ -676,7 +676,9 @@ def _autosize_worksheet(worksheet, max_width: int = 40):
         )
 
 
-def _dashboard_row_from_answer(answer_or_appel, *, matched_apprenant: Apprenant | None = None) -> dict:
+def _dashboard_row_from_answer(
+    answer_or_appel, *, matched_apprenant: Apprenant | None = None
+) -> dict:
     if hasattr(answer_or_appel, "appel"):
         answer = answer_or_appel
         appel = answer.appel
@@ -739,7 +741,9 @@ def _dashboard_row_from_answer(answer_or_appel, *, matched_apprenant: Apprenant 
     classe_code = getattr(classe, "code", "") or appel.classe_label or ""
     apprenant_code = getattr(apprenant, "code", "") or appel.code or ""
     apprenant_id = get_local_apprenant_identifier(apprenant)
-    presence_controls = get_presence_controls(apprenant_id, fallback_seed=apprenant_code or appel.code)
+    presence_controls = get_presence_controls(
+        apprenant_id, fallback_seed=apprenant_code or appel.code
+    )
     score_values = [
         getattr(answer, field, None) if answer else getattr(survey, field, None) if survey else None
         for field, _ in Q_FIELDS
@@ -3822,7 +3826,9 @@ def _build_update_form_candidate_row(
     selection_value = appel.code
     if classe_code and classe_code != "-":
         selection_value = f"{appel.code}|{classe_code}"
-    presence_controls = get_presence_controls(get_local_apprenant_identifier(apprenant), fallback_seed=appel.code)
+    presence_controls = get_presence_controls(
+        get_local_apprenant_identifier(apprenant), fallback_seed=appel.code
+    )
     return {
         "code": appel.code,
         "apprenant_id": get_local_apprenant_identifier(apprenant),
@@ -4246,7 +4252,9 @@ def _apply_batch_status_target(target: dict[str, str], target_status: str) -> di
 
 @require_analysis_access
 def satisfaction_update_form_page(request):
-    active_tab = str(request.GET.get("tab") or request.POST.get("tab") or "formulaires").strip().lower()
+    active_tab = (
+        str(request.GET.get("tab") or request.POST.get("tab") or "formulaires").strip().lower()
+    )
     if active_tab not in {"formulaires", "presence"}:
         active_tab = "formulaires"
     selected_source = _analysis_selected_source(request)
@@ -4300,7 +4308,8 @@ def satisfaction_update_form_page(request):
                         form.add_error("target_status", "Choisissez le statut a appliquer.")
                     else:
                         results = [
-                            _apply_batch_status_target(target, requested_status) for target in targets
+                            _apply_batch_status_target(target, requested_status)
+                            for target in targets
                         ]
                         summary = {
                             "requested_total": len(results),

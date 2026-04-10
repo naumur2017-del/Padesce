@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import re
 from collections import defaultdict
 from datetime import date, timedelta
 from functools import lru_cache
@@ -22,7 +23,6 @@ from django.views.decorators.http import require_GET, require_POST
 from App_PADESCE.appels.models import (
     APPEL_ANSWER_QUESTION_FIELDS,
     CALL_ANALYSIS_THRESHOLD_STATUSES,
-    CALL_SUCCESS_STATUSES,
     CALL_TENTATIVE_STATUSES,
     Appel,
     AppelAnswers,
@@ -61,8 +61,8 @@ from App_PADESCE.core.models import (
 )
 from App_PADESCE.environnement.models import EnqueteEnvironnement
 from App_PADESCE.formations.models import Classe
-from App_PADESCE.presences.models import Presence
 from App_PADESCE.presences.control_utils import get_presence_controls
+from App_PADESCE.presences.models import Presence
 from App_PADESCE.satisfaction_apprenants.models import SatisfactionApprenant
 from App_PADESCE.satisfaction_formateurs.models import SatisfactionFormateur
 
@@ -535,7 +535,7 @@ def home(request):
         and not is_padesce_manager
         and not is_cga_manager
     )
-    can_view_call_cards = bool(request.user.is_authenticated and not is_consultant_only)
+    can_view_call_cards = bool(request.user.is_authenticated)
     can_view_analysis_pages = has_analysis_access(request.user)
     can_view_consultant_space = has_consultant_access(request.user)
     can_view_padesce_dashboard = bool(is_superuser or is_padesce_manager)
@@ -885,6 +885,253 @@ def fast_stats_api(request):
     return build_fast_stats_api_response(request)
 
 
+def _consultant_dashboard_target(request):
+    target = request.GET.get("target") or "apprenants"
+    if target not in ["apprenants", "formateurs"]:
+        return "apprenants"
+    return target
+
+
+def _consultant_formateur_display_name(row):
+    """Extrait un nom plus lisible depuis le code de référence si possible."""
+    ref = str(row.reference_code or "")
+    # Pattern: FORM-ID-NamePart-Phone-Date
+    m = re.search(r"FORM-\d+-(.*?)-(\d{9,})-", ref)
+    if m:
+        return m.group(1).replace("-", " ").strip().upper()
+
+    # Fallback sur source_contact si c'est du texte
+    contact = str(row.source_contact or "").strip()
+    if contact and any(c.isalpha() for c in contact):
+        return contact
+    return "Formateur inconnu"
+
+
+def _consultant_formateurs_dashboard_context(request):
+    from App_PADESCE.appels.models import (
+        AppelFormateur,
+        formateur_has_any_form_data,
+    )
+
+    search = (request.GET.get("q") or "").strip()
+    cohorte_filter = (request.GET.get("cohorte") or "").strip()
+    formation_filter = (request.GET.get("formation") or "").strip()
+    status_filter = (request.GET.get("status") or "").strip()
+
+    rows_qs = AppelFormateur.objects.filter(is_active=True).exclude(status="en_attente")
+
+    if search:
+        rows_qs = rows_qs.filter(
+            Q(source_contact__icontains=search)
+            | Q(reference_code__icontains=search)
+            | Q(telephone__icontains=search)
+            | Q(formation__icontains=search)
+        )
+    if cohorte_filter:
+        rows_qs = rows_qs.filter(cohorte__iexact=cohorte_filter)
+    if formation_filter:
+        rows_qs = rows_qs.filter(formation__iexact=formation_filter)
+    if status_filter:
+        rows_qs = rows_qs.filter(status=status_filter)
+
+    from App_PADESCE.appels.formateurs_views import _resolve_classe_for_formateur_row
+
+    rows = list(rows_qs.order_by("source_contact", "reference_code", "pk"))
+    for row in rows:
+        classe = _resolve_classe_for_formateur_row(row)
+        formateur = classe.formateur if (classe and getattr(classe, "formateur", None)) else None
+
+        if formateur:
+            row.consultant_display_name = formateur.nom_complet
+            row.consultant_reference = formateur.code
+        else:
+            # Fallback intelligent: utiliser le bénéficiaire si aucun formateur n'est lié
+            row.consultant_display_name = (
+                row.beneficiaire or ""
+            ).strip() or _consultant_formateur_display_name(row)
+            # Utiliser le téléphone comme identifiant plus lisible que le code d'appel technique
+            row.consultant_reference = row.telephone or row.reference_code or "-"
+
+        row.consultant_scope_label = row.formation or "-"
+        row.consultant_telephone = row.telephone or "-"
+        # Only count audio if file physically exists
+        row.consultant_has_audio = False
+        if row.audio_file and row.audio_file.name:
+            try:
+                row.consultant_has_audio = row.audio_file.storage.exists(row.audio_file.name)
+            except:
+                pass
+        row.consultant_has_form = formateur_has_any_form_data(row)
+        # Normalization for template compatibility
+        row.nom = row.consultant_display_name
+        row.apprenant_id = row.consultant_reference
+        row.classe_label = row.consultant_scope_label
+        row.telephone1 = row.consultant_telephone
+        row.telephone2 = None
+        row.consultant_class_display = row.consultant_scope_label
+        row.classe = classe
+
+    # Base QS for counts includes all active records (including en_attente)
+    stats_qs = AppelFormateur.objects.filter(is_active=True)
+    # Success statuses
+    # Integer fields (scores 1-4)
+    formateur_score_fields = [
+        "q1_prerequis_apprenants",
+        "q2_interaction_apprenants",
+        "q3_competences_acquises",
+    ]
+    # Text fields
+    formateur_text_fields = [
+        "q4_gestion_administrative",
+        "q5_gestion_financiere",
+        "q6_communication",
+        "commentaires",
+        "recommandations",
+    ]
+
+    # We iterate over the relevant records to check physical audio existence accurately
+    # (Formateur subset is small enough for this to be fast)
+    tentes_qs = stats_qs.exclude(status="en_attente")
+    tentes_count = tentes_qs.count()
+
+    # User says: "Tout autre statut autre que 'en attente' indique un appel décroché."
+    summary_reussis = tentes_count
+
+    summary_form_remplis = 0
+    summary_form_audio = 0
+
+    # We use a list to avoid multiple DB hits in the loop
+    all_active_tentes = list(tentes_qs)
+
+    for item in all_active_tentes:
+        # Check form data
+        has_form = False
+        if item.satisfaction_completed_at:
+            has_form = True
+        else:
+            for f in formateur_score_fields:
+                if getattr(item, f, None) is not None:
+                    has_form = True
+                    break
+            if not has_form:
+                for f in formateur_text_fields:
+                    val = getattr(item, f, "")
+                    if val and val.strip():
+                        has_form = True
+                        break
+
+        if has_form:
+            summary_form_remplis += 1
+            # Check physical audio existence
+            if item.audio_file and item.audio_file.name:
+                try:
+                    if item.audio_file.storage.exists(item.audio_file.name):
+                        summary_form_audio += 1
+                except Exception:
+                    pass
+
+    summary_form_sans_audio = summary_form_remplis - summary_form_audio
+
+    stats_counts = {
+        "appels_cibles": stats_qs.count(),
+        "tentes": tentes_count,
+        "reussis": summary_reussis,
+        "forms": summary_form_remplis,
+        "forms_audio": summary_form_audio,
+        "forms_sans_audio": summary_form_sans_audio,
+        "audios_total": summary_form_audio,  # Total audios also strictly physical now
+    }
+
+    # Summary cards calculations (distinct values from terminés)
+    completed_qs = stats_qs.filter(
+        status__in=["formulaire_rempli", "formulaire_avec_audio", "termine", "appel_reussi"]
+    )
+    card_formations = completed_qs.values_list("formation", flat=True).distinct().count()
+    card_cohortes = completed_qs.values_list("cohorte", flat=True).distinct().count()
+    card_prestataires = completed_qs.values_list("prestataire", flat=True).distinct().count()
+    card_beneficiaires = completed_qs.values_list("beneficiaire", flat=True).distinct().count()
+
+    # Prioritize rows with form AND audio
+    from datetime import date
+
+    rows.sort(
+        key=lambda x: (
+            getattr(x, "consultant_has_form", False) and getattr(x, "consultant_has_audio", False),
+            getattr(x, "session_date", date.min) or date.min,
+        ),
+        reverse=True,
+    )
+
+    # Paginator
+    paginator = Paginator(rows, 25)
+    page_number = request.GET.get("page", 1)
+    try:
+        page_obj = paginator.page(page_number)
+    except:
+        page_obj = paginator.page(1)
+
+    # Filter Map
+    _filter_rows = []
+    for row in stats_qs:
+        _filter_rows.append(
+            {
+                "beneficiaire": (row.beneficiaire or "").strip(),
+                "prestataire": (row.prestataire or "").strip(),
+                "formation": (row.formation or "").strip(),
+                "cohorte": (row.cohorte or "").strip(),
+            }
+        )
+
+    def fmt(val):
+        return f"{int(val or 0):,}".replace(",", " ")
+
+    return {
+        "rows": list(page_obj.object_list),
+        "page_obj": page_obj,
+        "paginator": paginator,
+        "filters": {
+            "q": search,
+            "cohorte": cohorte_filter,
+            "formation": formation_filter,
+            "status": status_filter,
+            "formations": sorted(
+                list(set(row["formation"] for row in _filter_rows if row["formation"]))
+            ),
+            "cohortes": sorted(list(set(row["cohorte"] for row in _filter_rows if row["cohorte"]))),
+            "prestataires": sorted(
+                list(set(row["prestataire"] for row in _filter_rows if row["prestataire"]))
+            ),
+            "beneficiaires": sorted(
+                list(set(row["beneficiaire"] for row in _filter_rows if row["beneficiaire"]))
+            ),
+        },
+        "filter_map_json": json.dumps(_filter_rows, ensure_ascii=False),
+        "total_rows": len(rows),
+        "summary_appels_cibles": fmt(stats_counts["appels_cibles"]),
+        "summary_tentes": fmt(stats_counts["tentes"]),
+        "summary_reussis": fmt(stats_counts["reussis"]),
+        "summary_form_remplis": fmt(stats_counts["forms"]),
+        "summary_form_audio": fmt(stats_counts["forms_audio"]),
+        "summary_form_sans_audio": fmt(stats_counts["forms_sans_audio"]),
+        "summary_audios": fmt(stats_counts["audios_total"]),
+        "card_prestations_count": fmt(card_formations),
+        "card_classes_count": fmt(card_cohortes),
+        "card_prestataires_count": fmt(card_prestataires),
+        "card_beneficiaires_count": fmt(card_beneficiaires),
+        "consultant_mode": "formateurs",
+        "card_primary_label": "Formations analysées",
+        "card_secondary_label": "Cohortes analysées",
+        "panel_title": "Appels PADESCE formateurs terminés",
+        "panel_subtitle": "Les audios de plus d'une minute remontent en tête. Cliquez sur une ligne pour ouvrir le dossier complet.",
+        "search_placeholder": "Recherche formateur.",
+        "table_col_name_label": "Nom formateur",
+        "table_col_id_label": "ID Formateur",
+        "table_col_scope_label": "Formation",
+        "table_empty_message": "Aucun appel formateur terminé à consulter.",
+        "detail_url_name": "analysis_formateur_call_detail",
+    }
+
+
 def _build_consultant_dashboard_context(request):
     search = (request.GET.get("q") or "").strip()
     classe_filter = (request.GET.get("classe") or "").strip()
@@ -892,6 +1139,7 @@ def _build_consultant_dashboard_context(request):
     beneficiaire_filter = (request.GET.get("beneficiaire") or "").strip()
     fenetre_filter = (request.GET.get("fenetre") or "").strip()
     status_filter = (request.GET.get("status") or "").strip()
+    apprenant_id_filter = (request.GET.get("apprenant_id") or "").strip()
 
     rows_qs = (
         Appel.objects.filter(is_active=True)
@@ -960,6 +1208,12 @@ def _build_consultant_dashboard_context(request):
         app.c3 = presence_controls["c3"]
         app.c4 = presence_controls["c4"]
         app.taux_presence_control = presence_controls["taux_presence"]
+
+        if (
+            apprenant_id_filter
+            and apprenant_id_filter.lower() not in (app.apprenant_id or "").lower()
+        ):
+            continue
         app.consultant_priority = bool(
             has_audio and answers_complete and (audio_duration or 0) >= 60
         )
@@ -985,11 +1239,20 @@ def _build_consultant_dashboard_context(request):
 
         if app.code in priorities:
             app.priority_avg = priorities[app.code]["avg_satisfaction"]
+
+        # Normalize attributes for template compatibility
+        app.consultant_display_name = app.nom
+        app.consultant_reference = app.apprenant_id or "-"
+        app.consultant_scope_label = app.consultant_class_display
+        app.consultant_telephone = app.telephone1 or app.telephone2 or "-"
+
         rows.append(app)
 
     rows.sort(key=_consultant_row_sort_key)
     presence_avg = (
-        round(sum(float(item.taux_presence_control or 0) for item in rows) / len(rows), 2) if rows else 0
+        round(sum(float(item.taux_presence_control or 0) for item in rows) / len(rows), 2)
+        if rows
+        else 0
     )
     presence_pr_rate = (
         round(
@@ -1009,121 +1272,39 @@ def _build_consultant_dashboard_context(request):
         else 0
     )
 
-    # Unfiltered snapshot for card counts (must match satisfaction analysis page)
-    _all_eligible_qs = (
-        Appel.objects.filter(is_active=True)
-        .exclude(status="en_attente")
-        .select_related(
-            "classe",
-            "classe__prestation__beneficiaire",
-            "classe__prestation__prestataire",
-            "answers",
-            "answers__modified_by",
-            "satisfaction_apprenant",
-            "satisfaction_apprenant__enqueteur",
-        )
-        .order_by("nom", "pk")
-    )
-    _all_eligible = [
-        app
-        for app in _all_eligible_qs
-        if _consultant_dashboard_fenetre(app) in {"2", "3"}
-        and appel_is_analysis_eligible(
-            app,
-            answer=_consultant_answer_or_none(app),
-            survey=_consultant_survey_or_none(app),
-        )
-    ]
+    # Use the existing snapshot helpers
+    card_snapshot = _consultant_analysis_snapshot(request.user)
+    if not card_snapshot:
+        card_snapshot = _fallback_consultant_analysis_snapshot(rows_qs_list)
 
-    card_snapshot = _consultant_analysis_snapshot(
-        getattr(request, "user", None)
-    ) or _fallback_consultant_analysis_snapshot(_all_eligible)
+    analysis_snapshot = card_snapshot
 
-    analysis_snapshot = _fallback_consultant_analysis_snapshot(_all_eligible)
+    # --- KPIs ---
+    appels_cibles = len(rows_qs_list)
+    tentes = len([r for r in rows_qs_list if r.status != "en_attente"])
 
-    # Build filter_map for dynamic JS cascading
-    _status_label_map = dict(Appel.STATUS_CHOICES)
-    _filter_rows = []
-    for app in _all_eligible:
-        fenetre = _consultant_dashboard_fenetre(app)
-        classe = getattr(app, "classe", None)
-        class_code = (
-            str(getattr(classe, "code", "") or "").strip() or (app.classe_label or "").strip()
-        )
-        class_label = _consultant_class_display(app)
-        _filter_rows.append(
+    # Strictly matching internal logic: reussis means processed/eligible for analysis
+    reussis = len(rows)
+
+    # Form/Audio counts based on processed rows
+    form_remplis = sum(1 for r in rows if getattr(r, "consultant_has_form", False))
+    # We'll calculate audio counts after the physical existence check loop below
+
+    filter_map = []
+    for row in rows:
+        filter_map.append(
             {
-                "beneficiaire": (app.beneficiaire or "").strip(),
-                "prestataire": (app.prestataire or "").strip(),
-                "classe_value": class_code,
-                "classe_label": class_label if class_label != "-" else class_code,
-                "fenetre": fenetre,
-                "status": app.status or "",
-                "status_label": _status_label_map.get(app.status, app.status or ""),
+                "beneficiaire": row.beneficiaire,
+                "prestataire": row.prestataire,
+                "classe_value": row.classe.code if row.classe else "",
+                "classe_label": row.consultant_class_display,
+                "fenetre": _consultant_dashboard_fenetre(row),
             }
         )
-    filter_map_json = json.dumps(_filter_rows, ensure_ascii=False)
+    filter_map_json = json.dumps(filter_map, ensure_ascii=False)
 
-    # Strict form counting: q1-q9 must all be non-null.
-    # AppelAnswers fields are nullable so check each individually.
-    # SatisfactionApprenant fields are non-nullable — existence of the related
-    # record is sufficient (avoids Django 6.x ValueError on non-nullable
-    # integer fields used with __isnull via a LEFT JOIN).
-    q_fields = [
-        "q1_clarte_exposes",
-        "q2_interaction_formateur",
-        "q3_maitrise_contenu",
-        "q4_salle_adequate",
-        "q5_materiel_disponible",
-        "q6_organisation_temps",
-        "q7_utilite_formation",
-        "q8_adequation_besoins",
-        "q9_satisfaction_globale",
-    ]
-    answers_valid_q = Q()
-    for f in q_fields:
-        answers_valid_q &= Q(**{f"answers__{f}__isnull": False})
-
-    survey_valid_q = Q(satisfaction_apprenant__isnull=False)
-
-    strict_form_q = answers_valid_q | survey_valid_q
-
-    appels_cibles = tentes = reussis = form_remplis = form_sans_audio = form_audio = (
-        audios_enregistres
-    ) = 0
-    target_class_codes = [opt["value"] for opt in card_snapshot["class_options"] if opt["value"]]
-    if target_class_codes:
-        base_qs = Appel.objects.filter(is_active=True).filter(
-            Q(classe__code__in=target_class_codes) | Q(classe_label__in=target_class_codes)
-        )
-        appels_cibles = base_qs.count()
-        success_q = (
-            Q(status__in=CALL_SUCCESS_STATUSES)
-            | Q(status="pause")
-            | Q(deja_forme=True)
-            | Q(flag_numero_double=True)
-            | Q(flag_pas_forme=True)
-            | Q(flag_faux_nom=True)
-        )
-        stats = base_qs.aggregate(
-            tentes=Count("id", filter=~Q(status="en_attente")),
-            reussis=Count("id", filter=success_q),
-            forms=Count("id", filter=strict_form_q),
-            forms_audio=Count(
-                "id",
-                filter=strict_form_q & (Q(audio_file__isnull=False) & ~Q(audio_file="")),
-            ),
-            audios=Count("id", filter=Q(audio_file__isnull=False) & ~Q(audio_file="")),
-        )
-        tentes = stats["tentes"] or 0
-        reussis = stats["reussis"] or 0
-        form_remplis = stats["forms"] or 0
-        form_audio = stats["forms_audio"] or 0
-        form_sans_audio = max(form_remplis - form_audio, 0)
-        audios_enregistres = stats["audios"] or 0
-
-        # Optional: refine the count using actual form validation.
-        # The database query stays much faster for a dashboard.
+    def fmt(val):
+        return f"{int(val or 0):,}".replace(",", " ")
 
     paginator = Paginator(rows, 25)
     page_number = request.GET.get("page", 1)
@@ -1132,52 +1313,109 @@ def _build_consultant_dashboard_context(request):
     except (PageNotAnInteger, EmptyPage):
         page_obj = paginator.page(1)
 
+    # Post-process ONLY the current page to check for physical audio existence
+    current_page_rows = list(page_obj.object_list)
+    for row in current_page_rows:
+        row.consultant_has_audio = False
+        if row.audio_file and row.audio_file.name:
+            try:
+                row.consultant_has_audio = row.audio_file.storage.exists(row.audio_file.name)
+            except:
+                pass
+
+    # Global audio check for summary cards
+    global_audio_count = 0
+    for r in rows:
+        if r.audio_file and r.audio_file.name:
+            try:
+                if r.audio_file.storage.exists(r.audio_file.name):
+                    global_audio_count += 1
+            except:
+                pass
+
     return {
-        "rows": list(page_obj.object_list),
+        "rows": current_page_rows,
         "page_obj": page_obj,
         "paginator": paginator,
         "filters": {
             "q": search,
+            "apprenant_id": apprenant_id_filter,
             "classe": classe_filter,
             "prestation": prestation_filter,
             "beneficiaire": beneficiaire_filter,
             "fenetre": fenetre_filter,
             "status": status_filter,
-            "classes": analysis_snapshot["class_options"],
-            "prestataires": analysis_snapshot["prestataire_options"],
-            "beneficiaires": analysis_snapshot.get("beneficiaire_options", []),
-            "fenetres": analysis_snapshot.get("fenetre_options", []),
+            "classes": analysis_snapshot["class_options"] if analysis_snapshot else [],
+            "prestataires": analysis_snapshot["prestataire_options"] if analysis_snapshot else [],
+            "beneficiaires": (
+                analysis_snapshot.get("beneficiaire_options") if analysis_snapshot else []
+            )
+            or [],
+            "fenetres": (analysis_snapshot.get("fenetre_options") if analysis_snapshot else [])
+            or [],
         },
         "filter_map_json": filter_map_json,
         "total_rows": len(rows),
-        "card_prestations_count": card_snapshot["counts"].get("analyzed_prestations_count", 0),
-        "card_classes_count": card_snapshot["counts"].get("analyzed_classes_count", 0),
-        "card_prestataires_count": card_snapshot["counts"].get(
-            "analyzed_prestataires_count", 0
+        "card_prestations_count": (
+            fmt(card_snapshot["counts"].get("analyzed_prestations_count", 0))
+            if card_snapshot
+            else fmt(0)
         ),
-        "card_beneficiaires_count": card_snapshot["counts"].get(
-            "analyzed_beneficiaires_count", 0
+        "card_classes_count": (
+            fmt(card_snapshot["counts"].get("analyzed_classes_count", 0))
+            if card_snapshot
+            else fmt(0)
         ),
-        "card_apprenants_count": card_snapshot["counts"].get("analyzed_learners_count", 0),
-        "card_fenetres": card_snapshot["fenetre_options"],
-        "summary_appels_cibles": appels_cibles,
-        "summary_tentes": tentes,
-        "summary_reussis": reussis,
-        "summary_form_remplis": form_remplis,
-        "summary_form_sans_audio": form_sans_audio,
-        "summary_form_audio": form_audio,
-        "summary_audios": audios_enregistres,
+        "card_prestataires_count": (
+            fmt(card_snapshot["counts"].get("analyzed_prestataires_count", 0))
+            if card_snapshot
+            else fmt(0)
+        ),
+        "card_beneficiaires_count": (
+            fmt(card_snapshot["counts"].get("analyzed_beneficiaires_count", 0))
+            if card_snapshot
+            else fmt(0)
+        ),
+        "card_apprenants_count": fmt(len(rows)),
+        "card_vague1_total": (
+            fmt(card_snapshot["counts"].get("source_apprenant_count", 0))
+            if card_snapshot
+            else fmt(0)
+        ),
+        "card_fenetres": card_snapshot["fenetre_options"] if card_snapshot else [],
+        "summary_appels_cibles": fmt(appels_cibles),
+        "summary_tentes": fmt(tentes),
+        "summary_reussis": fmt(reussis),
+        "summary_form_remplis": fmt(form_remplis),
+        "summary_form_audio": fmt(global_audio_count),
+        "summary_audios": fmt(global_audio_count),
+        "summary_form_sans_audio": fmt(max(form_remplis - global_audio_count, 0)),
         "presence_global_avg": presence_avg,
         "presence_global_pr_rate": presence_pr_rate,
+        "consultant_mode": "apprenants",
+        "card_primary_label": "Prestations analysées",
+        "card_secondary_label": "Classes analysées",
+        "panel_title": "Appels PADESCE terminés",
+        "panel_subtitle": "Les audios de plus d'une minute remontent en tête. Cliquez sur une ligne pour ouvrir le dossier complet.",
+        "search_placeholder": "Recherche apprenant...",
+        "table_col_name_label": "Nom apprenant",
+        "table_col_id_label": "Apprenant ID",
+        "table_col_scope_label": "Classe",
+        "table_empty_message": "Aucun appel terminé à consulter.",
+        "detail_url_name": "consultant_call_detail",
     }
 
 
 @require_consultant_access
 def consultant_dashboard(request):
+    if _consultant_dashboard_target(request) == "formateurs":
+        return render(
+            request,
+            "consultant/dashboard.html",
+            _consultant_formateurs_dashboard_context(request),
+        )
     return render(
-        request,
-        "consultant/dashboard.html",
-        _build_consultant_dashboard_context(request),
+        request, "consultant/dashboard.html", _build_consultant_dashboard_context(request)
     )
 
 
