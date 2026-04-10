@@ -905,7 +905,7 @@ def _build_formateur_appel_status_summary(queryset) -> dict[str, int]:
         appels_reussis=Count("id", filter=Q(status__in=["formulaire_rempli", "formulaire_avec_audio", "termine", "appel_reussi", "a_rappeler"])),
         formulaires_remplis=Count("id", filter=Q(status="termine")),
         formulaires_remplis_sans_audio=Count("id", filter=Q(status="termine") & (Q(audio_file__isnull=True) | Q(audio_file=""))),
-        formulaires_avec_audio=Count("id", filter=Q(status="termine") & audio_q),
+        formulaires_avec_audio=Count("id", filter=Q(status="termine") & Q(audio_file__isnull=False)),
         audios_enregistres=Count("id", filter=audio_q),
     )
     return {key: int(value or 0) for key, value in summary.items()}
