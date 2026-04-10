@@ -10,7 +10,6 @@ from django.urls import reverse
 
 from App_PADESCE.appels.formateurs_views import (
     _build_filtered_formateurs_queryset,
-    _build_formateur_progress_metrics,
 )
 from App_PADESCE.appels.models import (
     FORMATEUR_SCORE_FIELDS,
@@ -177,43 +176,47 @@ def _resolve_formateur_classe(record, cache: dict[tuple, object]):
 
 def _build_formateur_principal(request) -> dict:
     queryset, filters = _build_filtered_formateurs_queryset(request)
-    
+
     # 1. Resolve and Enrich ALL rows (small set, safe to list)
-    all_rows = list(queryset.order_by("-updated_at", "session_date", "prestataire", "reference_code"))
+    all_rows = list(
+        queryset.order_by("-updated_at", "session_date", "prestataire", "reference_code")
+    )
     resolution_cache: dict[tuple, object] = {}
-    
+
     # Enriched stats for cards
     res_formations = set()
     res_cohortes = set()
     res_prestataires = set()
     res_beneficiaires = set()
-    
+
     # Metrics
     summary_tentes_count = 0
     summary_reussis_count = 0
     summary_form_remplis = 0
     summary_form_audio = 0
     summary_audios_total = 0
-    
+
     success_statuses = ["formulaire_rempli", "formulaire_avec_audio", "termine", "appel_reussi"]
-    
+
     for row in all_rows:
         classe = _resolve_formateur_classe(row, resolution_cache)
         prestation = getattr(classe, "prestation", None)
         formation_obj = getattr(classe, "formation", None)
         prest_obj = getattr(prestation, "prestataire", None)
         ben_obj = getattr(prestation, "beneficiaire", None)
-        
+
         classe_code = str(getattr(classe, "code", "") or "").strip()
         prestation_code = str(getattr(prestation, "code", "") or "").strip()
-        
+
         # Enrichment from Classe Metadata (The user's "complet par téléphone" request)
         if classe:
             row.prestataire = prest_obj.raison_sociale if prest_obj else row.prestataire
             row.beneficiaire = ben_obj.nom_structure if ben_obj else row.beneficiaire
-            row.formation = (classe.intitule_formation or formation_obj.nom) if formation_obj else row.formation
+            row.formation = (
+                (classe.intitule_formation or formation_obj.nom) if formation_obj else row.formation
+            )
             row.cohorte = classe.cohorte or row.cohorte
-        
+
         row.public_classe_code = classe_code or "-"
         row.public_classe_url = (
             f"{reverse('class_analysis_detail', args=[classe_code])}?tab=formateurs"
@@ -226,45 +229,47 @@ def _build_formateur_principal(request) -> dict:
             if prestation_code
             else ""
         )
-        
+
         # Calculate Metrics and Card counts
         has_form = formateur_has_any_form_data(row)
         has_audio = formateur_has_any_audio(row)
         row.public_has_form = has_form
         row.public_has_audio = has_audio
-        
+
         is_tented = row.status != "en_attente"
         if is_tented:
             summary_tentes_count += 1
-            summary_reussis_count += 1 # Any attempt is reussi by rule
+            summary_reussis_count += 1  # Any attempt is reussi by rule
             if has_audio:
                 summary_audios_total += 1
             if has_form:
                 summary_form_remplis += 1
                 if has_audio:
                     summary_form_audio += 1
-        
+
         # Cards (distinct counts for completed records)
         if row.status in success_statuses:
             res_formations.add(formation_obj.pk if formation_obj else row.formation)
-            res_cohortes.add(classe.pk if classe else f"{row.prestataire}-{row.beneficiaire}-{row.cohorte}")
+            res_cohortes.add(
+                classe.pk if classe else f"{row.prestataire}-{row.beneficiaire}-{row.cohorte}"
+            )
             res_prestataires.add(prest_obj.pk if prest_obj else row.prestataire)
             res_beneficiaires.add(ben_obj.pk if ben_obj else row.beneficiaire)
 
     # 2. Sorting: Prioritize records with both form and audio
     from datetime import date
+
     all_rows.sort(
         key=lambda x: (
             getattr(x, "public_has_form", False) and getattr(x, "public_has_audio", False),
-            getattr(x, "updated_at", None) or getattr(x, "session_date", date.min) or date.min
+            getattr(x, "updated_at", None) or getattr(x, "session_date", date.min) or date.min,
         ),
-        reverse=True
+        reverse=True,
     )
 
     # 3. Pagination
     def fmt(val):
         return f"{int(val or 0):,}".replace(",", " ")
-
 
     paginator = Paginator(all_rows, 25)
     page_number = request.GET.get("page", 1)
@@ -304,9 +309,6 @@ def _build_formateur_principal(request) -> dict:
         "summary_form_audio": fmt(summary_form_audio),
         "summary_audios": fmt(summary_audios_total),
     }
-
-
-
 
 
 def _build_formateur_overview(request) -> dict:
@@ -481,7 +483,6 @@ def public_space(request):
                 "active": section == "stats",
                 "url": _public_space_url(section="stats", scope=scope),
             },
-
         ],
         "scope_tabs": [
             {

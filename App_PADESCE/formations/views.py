@@ -538,7 +538,6 @@ def _class_formateur_candidates(classe: Classe):
 
 
 def _resolve_classe_for_formateur_analysis(row: AppelFormateur):
-    from App_PADESCE.appels.models import AppelFormateur
     from App_PADESCE.formations.models import Classe
 
     # 1. Broad phone number search first
@@ -593,7 +592,6 @@ def _resolve_classe_for_formateur_analysis(row: AppelFormateur):
             return classe
 
     return candidates[0] if candidates else None
-
 
 
 def _build_apprenant_rows(appels, *, back_url: str):
@@ -707,15 +705,19 @@ def _build_class_chapeau(classe_code: str, appels, source_bundle: dict | None = 
                 "label": key.upper(),
                 "pr_count": values["PR"],
                 "ab_count": values["AB"],
-                "pr_rate": round((values["PR"] / (values["PR"] + values["AB"]) * 100), 2)
-                if (values["PR"] + values["AB"]) > 0
-                else 0,
+                "pr_rate": (
+                    round((values["PR"] / (values["PR"] + values["AB"]) * 100), 2)
+                    if (values["PR"] + values["AB"]) > 0
+                    else 0
+                ),
             }
             for key, values in presence_totals.items()
         ],
-        "presence_taux_avg": round(sum(presence_taux_values) / len(presence_taux_values), 2)
-        if presence_taux_values
-        else 0,
+        "presence_taux_avg": (
+            round(sum(presence_taux_values) / len(presence_taux_values), 2)
+            if presence_taux_values
+            else 0
+        ),
         "respondents_count": len(respondent_keys),
         "formulaires_remplis": len(respondent_keys),
         "has_data": any(item["count"] for item in question_rows),

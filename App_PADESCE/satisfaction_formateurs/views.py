@@ -23,7 +23,6 @@ from django.utils import timezone
 
 from App_PADESCE.appels.models import (
     CALL_ANALYSIS_THRESHOLD_STATUSES,
-    CALL_SUCCESS_STATUSES,
     FORMATEUR_SCORE_FIELDS,
     FORMATEUR_TEXT_FIELDS,
     Appel,
