@@ -868,24 +868,10 @@ class ConsultantAnalysisSnapshotTests(SimpleTestCase):
                 "analyzed_prestations_count": 49,
                 "analyzed_prestataires_count": 12,
                 "analyzed_beneficiaires_count": 10,
-                "appels_cibles": 190,
-                "appels_tentes": 175,
-                "appels_reussis": 160,
-                "formulaires_remplis_appels": 150,
-                "formulaires_remplis_sans_audio_appels": 40,
-                "formulaires_avec_audio_appels": 110,
-                "audios_enregistres_appels": 112,
                 "classe_stats": [
                     {"code": "CLA012", "intitule": "Gestion d'entreprise"},
                     {"code": "CLA014", "intitule": "Elevage"},
                 ],
-                "class_options": [
-                    {"value": "CLA012", "label": "CLA012 - Gestion d'entreprise"},
-                    {"value": "CLA014", "label": "CLA014 - Elevage"},
-                ],
-                "prestataires": ["Prestataire Alpha", "Prestataire Beta"],
-                "beneficiaires": ["Beneficiaire A", "Beneficiaire B"],
-                "fenetres": ["2", "3"],
                 "analyzed_prestataires": [
                     {"label": "Prestataire Alpha", "nb": 70},
                     {"label": "Prestataire Beta", "nb": 12},
@@ -898,7 +884,6 @@ class ConsultantAnalysisSnapshotTests(SimpleTestCase):
                     {"label": "2", "nb": 100},
                     {"label": "3", "nb": 100},
                 ],
-                "source_summary": {"source_apprenant_count": 320},
             }
         }
 
@@ -906,8 +891,6 @@ class ConsultantAnalysisSnapshotTests(SimpleTestCase):
             SimpleNamespace(is_authenticated=True),
             classe_filter="CLA012",
             prestataire_filter="Prestataire Alpha",
-            beneficiaire_filter="Beneficiaire A",
-            fenetre_filter="2",
         )
 
         self.assertEqual(snapshot["counts"]["analyzed_classes_count"], 174)
@@ -915,14 +898,6 @@ class ConsultantAnalysisSnapshotTests(SimpleTestCase):
         self.assertEqual(snapshot["counts"]["analyzed_prestataires_count"], 12)
         self.assertEqual(snapshot["counts"]["analyzed_beneficiaires_count"], 10)
         self.assertEqual(snapshot["counts"]["total_apprenants"], 200)
-        self.assertEqual(snapshot["counts"]["source_apprenant_count"], 320)
-        self.assertEqual(snapshot["counts"]["appels_cibles"], 190)
-        self.assertEqual(snapshot["counts"]["appels_tentes"], 175)
-        self.assertEqual(snapshot["counts"]["appels_reussis"], 160)
-        self.assertEqual(snapshot["counts"]["formulaires_remplis"], 150)
-        self.assertEqual(snapshot["counts"]["formulaires_remplis_sans_audio"], 40)
-        self.assertEqual(snapshot["counts"]["formulaires_avec_audio"], 110)
-        self.assertEqual(snapshot["counts"]["audios_enregistres"], 112)
         self.assertEqual(
             snapshot["class_options"],
             [
@@ -937,5 +912,3 @@ class ConsultantAnalysisSnapshotTests(SimpleTestCase):
         fake_request = mock_build_dashboard_data.call_args[0][0]
         self.assertEqual(fake_request.GET.get("classe"), "CLA012")
         self.assertEqual(fake_request.GET.get("prestataire"), "Prestataire Alpha")
-        self.assertEqual(fake_request.GET.get("beneficiaire"), "Beneficiaire A")
-        self.assertEqual(fake_request.GET.get("fenetre"), "2")

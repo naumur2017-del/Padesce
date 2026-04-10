@@ -110,22 +110,8 @@
   .recommend-chip { display:inline-flex; align-items:center; gap:6px; padding:6px 10px; border-radius:999px; background:rgba(15,139,141,0.08); border:1px solid rgba(15,139,141,0.14); font-size:0.82rem; font-weight:600; color:#0f5f61; }
   .recommend-copy { margin:0; color:var(--muted); font-size:0.88rem; line-height:1.45; }
   .recommend-empty { margin-top:10px; color:var(--muted); }
-  .scope-switch { display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:12px; }
-  .scope-tabs { display:inline-flex; align-items:center; gap:6px; padding:6px; border-radius:999px; border:1px solid var(--border); background:rgba(111,60,195,0.05); }
-  .scope-tab { display:inline-flex; align-items:center; justify-content:center; min-width:140px; padding:9px 18px; border-radius:999px; font-size:0.85rem; font-weight:700; color:var(--muted); text-decoration:none; transition:background .15s, color .15s, box-shadow .15s; }
-  .scope-tab:hover { background:rgba(111,60,195,0.08); color:var(--accent-strong); }
-  .scope-tab.active { background:var(--accent); color:#fff; box-shadow:0 8px 18px rgba(76,29,149,0.18); }
-  .scope-note { font-size:0.85rem; color:var(--muted); }
 
 </style>
-
-<div class="scope-switch">
-  <div class="scope-tabs" role="tablist" aria-label="Navigation des appels">
-    <a class="scope-tab active" href="{% url 'appels_index' %}" aria-current="page">Appels Apprenants</a>
-    <a class="scope-tab" href="{% url 'formateurs_index' %}">Appels Formateurs</a>
-  </div>
-  <div class="scope-note">Basculer entre les appels apprenants PADESCE et les appels formateurs.</div>
-</div>
 
 <!-- <h1 class="h4 mb-2">Appels</h1>
 <div class="classe-summary">
@@ -230,13 +216,13 @@
     <select name="prestataire" class="input">
       <option value="">Prestataire</option>
       {% for p in filters.prestataires %}
-        <option value="{{ p }}" {% if filters.prestataire == p %}selected{% endif %}>{{ p }}</option>
+        <option value="{{ p.value }}" {% if filters.prestataire == p.label %}selected{% endif %}>{{ p.label }}</option>
       {% endfor %}
     </select>
     <select name="beneficiaire" class="input">
       <option value="">Bénéficiaire</option>
       {% for p in filters.beneficiaires %}
-        <option value="{{ p }}" {% if filters.beneficiaire == p %}selected{% endif %}>{{ p }}</option>
+        <option value="{{ p.value }}" {% if filters.beneficiaire == p.label %}selected{% endif %}>{{ p.label }}</option>
       {% endfor %}
     </select>
     <select name="classe" class="input" id="js-classe-filter">

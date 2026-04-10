@@ -119,27 +119,6 @@
     grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
     margin-bottom: 16px;
   }
-  .public-grid.v1-reordered > .public-card {
-    order: 10;
-  }
-  .public-grid.v1-reordered > .public-card:nth-child(2) {
-    order: 1;
-  }
-  .public-grid.v1-reordered > .public-card:nth-child(3) {
-    order: 2;
-  }
-  .public-grid.v1-reordered > .public-card:nth-child(4) {
-    order: 3;
-  }
-  .public-grid.v1-reordered > .public-card:nth-child(5) {
-    order: 4;
-  }
-  .public-grid.v1-reordered > .public-card:nth-child(1) {
-    order: 5;
-  }
-  .public-grid.v1-reordered > .public-card:nth-child(6) {
-    order: 6;
-  }
   .public-card {
     padding: 14px;
   }
@@ -243,57 +222,6 @@
     gap: 16px;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   }
-  .stats-grid > .stack {
-    grid-column: 1 / -1;
-  }
-  .table-scroll-11 {
-    border-radius: 8px;
-    border: 1px solid var(--border);
-  }
-  .table-scroll-11 table {
-    width: 100%;
-    border-collapse: collapse;
-  }
-  .table-scroll-11 thead {
-    background: var(--panel);
-  }
-  .table-scroll-11 tbody tr {
-    display: none;
-  }
-  .table-scroll-11 tbody tr.pagination-visible {
-    display: table-row;
-  }
-  .table-pagination {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    gap: 8px;
-    margin-top: 12px;
-    padding: 12px 0;
-  }
-  .table-pagination button {
-    padding: 6px 10px;
-    border: 1px solid var(--border);
-    background: var(--panel);
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 0.9rem;
-    color: var(--accent-strong);
-    transition: background 0.15s ease;
-  }
-  .table-pagination button:hover:not(:disabled) {
-    background: rgba(124, 58, 237, 0.1);
-  }
-  .table-pagination button:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-  .table-pagination .page-info {
-    font-size: 0.9rem;
-    color: var(--muted);
-    min-width: 60px;
-    text-align: center;
-  }
   .stats-table td:last-child,
   .stats-table th:last-child {
     text-align: right;
@@ -313,54 +241,6 @@
     .stats-grid {
       grid-template-columns: 1fr;
     }
-  }
-  .js-public-row {
-    cursor: pointer;
-    transition: background 0.15s ease;
-  }
-  .js-public-row:hover {
-    background-color: rgba(124, 58, 237, 0.04);
-  }
-  .modal-backdrop {
-    position: fixed;
-    inset: 0;
-    background: rgba(15, 23, 42, 0.65);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 2000;
-    padding: 24px;
-    backdrop-filter: blur(4px);
-  }
-  .modal-backdrop[hidden] { display: none; }
-  .modal-panel {
-    width: min(1180px, 98vw);
-    max-height: 94vh;
-    background: #fff;
-    border-radius: 20px;
-    padding: 24px;
-    box-shadow: 0 30px 90px rgba(0,0,0,0.4);
-    display: flex;
-    flex-direction: column;
-    animation: modalPop 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-  }
-  @keyframes modalPop {
-    from { opacity: 0; transform: scale(0.96) translateY(20px); }
-    to { opacity: 1; transform: scale(1) translateY(0); }
-  }
-  .modal-content {
-    flex: 1;
-    overflow: auto;
-    border-radius: 12px;
-    padding: 4px;
-    scrollbar-width: thin;
-  }
-  .modal-head {
-    display: flex;
-    justify-content: flex-end;
-    margin-bottom: 12px;
-    border-bottom: 1px solid var(--border);
-    padding-bottom: 12px;
   }
 </style>
 
@@ -428,7 +308,10 @@
           </tr>
         </thead>
         <tbody>
-          <tr><td>Moyenne satisfaction</td><td><strong>{{ principal.summary_moyenne_satisfaction }}/5</strong></td></tr>
+          <tr><td>Appels cibles</td><td>{{ principal.summary_appels_cibles }}</td></tr>
+          <tr><td>Formulaires remplis</td><td>{{ principal.summary_form_remplis }}</td></tr>
+          <tr><td>Formulaires avec audio</td><td>{{ principal.summary_form_audio }}</td></tr>
+          <tr><td>Formulaires sans audio</td><td>{{ principal.summary_form_sans_audio }}</td></tr>
         </tbody>
       </table>
     </div>
@@ -437,6 +320,23 @@
   {% if principal.analysis_recovery.available %}
   <section class="public-panel">
     <h2>Pilotage des prestations analysées (Cutoff)</h2>
+    <div class="table-wrap">
+      <table class="stats-table">
+        <thead>
+          <tr>
+            <th>Indicateur</th>
+            <th>Valeur</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>Prestations analysées</td><td>{{ principal.analysis_recovery.ratio }}</td></tr>
+          <tr><td>Prestations restantes à qualifier</td><td>{{ principal.analysis_recovery.remaining }}</td></tr>
+          <tr><td>Bloquées - seuil non atteint</td><td>{{ principal.analysis_recovery.by_category.pas_seuil_atteint|default:0 }}</td></tr>
+          <tr><td>Bloquées - non importées</td><td>{{ principal.analysis_recovery.by_category.pas_disponible|default:0 }}</td></tr>
+          <tr><td>Bloquées - sans numéro</td><td>{{ principal.analysis_recovery.by_category.pas_de_numero|default:0 }}</td></tr>
+        </tbody>
+      </table>
+    </div>
     {% if principal.analysis_recovery.top_missing %}
     <div class="table-wrap" style="margin-top:12px;">
       <table>
@@ -466,8 +366,7 @@
   </section>
   {% endif %}
 
-  <div class="public-grid v1-reordered">
-    <article class="public-card"><div class="value">{{ principal.card_vague1_total }}</div><div class="label">Apprenants Vague 1</div></article>
+  <div class="public-grid">
     <article class="public-card"><div class="value">{{ principal.card_prestations_count }}</div><div class="label">Prestations analysées</div></article>
     <article class="public-card"><div class="value">{{ principal.card_classes_count }}</div><div class="label">Classes analysées</div></article>
     <article class="public-card"><div class="value">{{ principal.card_prestataires_count }}</div><div class="label">Prestataires analysés</div></article>
@@ -535,10 +434,8 @@
         </thead>
         <tbody>
           {% for row in principal.rows %}
-            <tr class="js-public-row" data-href="{% url 'analysis_apprenant_call_detail' row.id %}?back={{ request.get_full_path|urlencode }}">
-              <td>
-                {{ row.nom }}
-              </td>
+            <tr>
+              <td>{{ row.nom }}</td>
               <td>
                 <strong>{{ row.apprenant_id|default:"-" }}</strong>
                 {% if row.apprenant_db_label %}
@@ -592,7 +489,9 @@
           </tr>
         </thead>
         <tbody>
-          <tr><td>Satisfaction compétences</td><td><strong>{{ principal.summary_moyenne_competences }}/5</strong></td></tr>
+          <tr><td>Formulaires remplis</td><td>{{ principal.summary_form_remplis }}</td></tr>
+          <tr><td>Formulaires avec audio</td><td>{{ principal.summary_form_audio }}</td></tr>
+          <tr><td>Formulaires sans audio</td><td>{{ principal.summary_form_sans_audio }}</td></tr>
         </tbody>
       </table>
     </div>
@@ -669,7 +568,7 @@
         </thead>
         <tbody>
           {% for row in principal.rows %}
-            <tr class="js-public-row" data-href="{% url 'analysis_formateur_call_detail' row.id %}?back={{ request.get_full_path|urlencode }}">
+            <tr>
               <td>
                 {% if row.public_classe_url %}
                   <a href="{{ row.public_classe_url }}">{{ row.public_classe_code }}</a>
@@ -684,7 +583,6 @@
                   {{ row.public_prestation_code }}
                 {% endif %}
               </td>
-
 
               <td>{{ row.prestataire|default:"-" }}</td>
               <td>{{ row.beneficiaire|default:"-" }}</td>
@@ -724,11 +622,11 @@
     {% endfor %}
   </div>
 
-  <div class="stats-grid">
+  <div class="split-grid">
     <div class="stack">
       <section class="public-panel">
         <h2>Résumé des classes</h2>
-        <div class="table-scroll-11" data-table="classes-table">
+        <div class="table-wrap">
           <table>
             <thead>
               <tr>
@@ -756,22 +654,18 @@
             </tbody>
           </table>
         </div>
-        <div class="table-pagination" data-controller="classes-table">
-          <button class="prev-btn" type="button">Précédent</button>
-          <span class="page-info"><span class="current-page">1</span> / <span class="total-pages">1</span></span>
-          <button class="next-btn" type="button">Suivant</button>
-        </div>
       </section>
 
       <section class="public-panel">
         <h2>Résumé des prestations</h2>
-        <div class="table-scroll-11" data-table="prestations-table">
+        <div class="table-wrap">
           <table>
             <thead>
               <tr>
                 <th>Prestation ID</th>
                 <th>Prestataire</th>
                 <th>Bénéficiaire</th>
+                <th>Total</th>
                 {% if scope == "apprenant" %}<th>Moyenne</th>{% endif %}
               </tr>
             </thead>
@@ -781,18 +675,38 @@
                   <td>{% if item.url %}<a href="{{ item.url }}">{{ item.code }}</a>{% else %}{{ item.code|default:"-" }}{% endif %}</td>
                   <td>{{ item.prestataire|default:"-" }}</td>
                   <td>{{ item.beneficiaire|default:"-" }}</td>
+                  <td>{{ item.nb }}</td>
                   {% if scope == "apprenant" %}<td>{{ item.avg }}</td>{% endif %}
                 </tr>
               {% empty %}
-                <tr><td colspan="{% if scope == 'apprenant' %}4{% else %}3{% endif %}" class="muted">Aucune prestation disponible.</td></tr>
+                <tr><td colspan="{% if scope == 'apprenant' %}5{% else %}4{% endif %}" class="muted">Aucune prestation disponible.</td></tr>
               {% endfor %}
             </tbody>
           </table>
         </div>
-        <div class="table-pagination" data-controller="prestations-table">
-          <button class="prev-btn" type="button">Précédent</button>
-          <span class="page-info"><span class="current-page">1</span> / <span class="total-pages">1</span></span>
-          <button class="next-btn" type="button">Suivant</button>
+      </section>
+    </div>
+
+    <div class="stack">
+      <section class="public-panel">
+        <h3>Prestataires</h3>
+        <div class="mini-list">
+          {% for item in overview.prestataires %}
+            <div class="mini-item"><span>{{ item.label }}</span><strong>{{ item.nb }}</strong></div>
+          {% empty %}
+            <div class="mini-item"><span>Aucun prestataire</span><strong>0</strong></div>
+          {% endfor %}
+        </div>
+      </section>
+
+      <section class="public-panel">
+        <h3>Bénéficiaires</h3>
+        <div class="mini-list">
+          {% for item in overview.beneficiaires %}
+            <div class="mini-item"><span>{{ item.label }}</span><strong>{{ item.nb }}</strong></div>
+          {% empty %}
+            <div class="mini-item"><span>Aucun bénéficiaire</span><strong>0</strong></div>
+          {% endfor %}
         </div>
       </section>
     </div>
@@ -980,139 +894,4 @@
     })();
   </script>
 {% endif %}
-
-<script>
-  (function () {
-    const ROWS_PER_PAGE = 11;
-
-    function initPagination(tableSelector, controlSelector) {
-      const tableContainer = document.querySelector(`[data-table="${tableSelector}"]`);
-      const controlContainer = document.querySelector(`[data-controller="${tableSelector}"]`);
-
-      if (!tableContainer || !controlContainer) return;
-
-      const tbody = tableContainer.querySelector("tbody");
-      const rows = Array.from(tbody.querySelectorAll("tr")).filter(
-        (tr) => !tr.querySelector("td.muted") || tr.querySelectorAll("td").length > 1
-      );
-
-      if (rows.length === 0) {
-        controlContainer.style.display = "none";
-        return;
-      }
-
-      const totalPages = Math.ceil(rows.length / ROWS_PER_PAGE);
-      let currentPage = 1;
-
-      const updateDisplay = () => {
-        const start = (currentPage - 1) * ROWS_PER_PAGE;
-        const end = start + ROWS_PER_PAGE;
-
-        rows.forEach((row, idx) => {
-          if (idx >= start && idx < end) {
-            row.classList.add("pagination-visible");
-          } else {
-            row.classList.remove("pagination-visible");
-          }
-        });
-
-        controlContainer.querySelector(".current-page").textContent = currentPage;
-        controlContainer.querySelector(".total-pages").textContent = totalPages;
-        controlContainer.querySelector(".prev-btn").disabled = currentPage === 1;
-        controlContainer.querySelector(".next-btn").disabled = currentPage === totalPages;
-      };
-
-      controlContainer.querySelector(".prev-btn").addEventListener("click", () => {
-        if (currentPage > 1) {
-          currentPage--;
-          updateDisplay();
-        }
-      });
-
-      controlContainer.querySelector(".next-btn").addEventListener("click", () => {
-        if (currentPage < totalPages) {
-          currentPage++;
-          updateDisplay();
-        }
-      });
-
-      updateDisplay();
-    }
-
-    // Initialize pagination for both tables
-    initPagination("classes-table", "classes-table");
-    initPagination("prestations-table", "prestations-table");
-  })();
-</script>
-
-<div class="modal-backdrop" id="public-modal" hidden>
-  <div class="modal-panel">
-    <div class="modal-head">
-      <button class="public-btn" type="button" id="public-modal-close">Fermer</button>
-    </div>
-    <div class="modal-content" id="public-modal-content"></div>
-  </div>
-</div>
-
-<script>
-  (function() {
-    const modal = document.getElementById('public-modal');
-    const content = document.getElementById('public-modal-content');
-    const closeBtn = document.getElementById('public-modal-close');
-
-    if (!modal) {
-      console.warn("Modal #public-modal not found.");
-      return;
-    }
-
-    const openModal = async (url) => {
-      console.log("Opening modal for:", url);
-      content.innerHTML = "<div style='padding:60px; text-align:center; color:var(--muted); font-size:1.1rem;'><i class='fas fa-circle-notch fa-spin'></i> Chargement des détails...</div>";
-      modal.hidden = false;
-      document.body.style.overflow = 'hidden';
-      try {
-        const response = await fetch(`${url}${url.includes('?') ? '&' : '?'}modal=1`, {
-            headers: { "X-Requested-With": "XMLHttpRequest" }
-        });
-        if (!response.ok) throw new Error("Error loading");
-        const html = await response.text();
-        content.innerHTML = html;
-      } catch (e) {
-        console.error("Fetch error:", e);
-        content.innerHTML = "<div style='padding:60px; text-align:center; color:#991b1b; font-weight:700;'>Erreur lors du chargement des détails.<br><span style='font-weight:400; font-size:0.9rem; opacity:0.8'>L'appel pourrait ne plus être disponible ou un problème serveur est survenu.</span></div>";
-      }
-    };
-
-    const closeModal = () => {
-      modal.hidden = true;
-      content.innerHTML = "";
-      document.body.style.overflow = '';
-    };
-
-    // Delegated listener for rows
-    document.addEventListener('click', function(e) {
-      const row = e.target.closest('.js-public-row');
-      if (!row) return;
-
-      // Ignore if clicking a link or something inside a link
-      if (e.target.tagName.toLowerCase() === 'a' || e.target.closest('a')) {
-        console.log("Clicked link inside row, allowing default behavior.");
-        return;
-      }
-
-      const href = row.dataset.href;
-      if (href) {
-        console.log("Row clicked, triggering modal: ", href);
-        e.preventDefault();
-        e.stopPropagation();
-        openModal(href);
-      }
-    });
-
-    closeBtn?.addEventListener('click', closeModal);
-    modal?.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
-    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !modal.hidden) closeModal(); });
-  })();
-</script>
 {% endblock %}
-

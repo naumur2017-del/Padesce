@@ -28,6 +28,7 @@ from App_PADESCE.core.apprenant_lookup import (
     get_local_apprenant_identifier,
     match_apprenants_to_appels,
 )
+from App_PADESCE.core.media_access import build_protected_media_url
 from App_PADESCE.environnement.models import EnqueteEnvironnement
 from App_PADESCE.formations.forms import ClasseCreateForm
 from App_PADESCE.formations.models import Classe, Lieu, Prestation
@@ -120,10 +121,7 @@ def _file_state(file_field) -> tuple[bool, str]:
         exists = False
     if not exists:
         return False, ""
-    try:
-        return True, file_field.url
-    except Exception:
-        return True, ""
+    return True, build_protected_media_url(file_field)
 
 
 def _appel_answers_or_none(appel: Appel):
@@ -556,7 +554,7 @@ def _resolve_classe_for_formateur_analysis(row: AppelFormateur):
                 "formation",
             )
             .filter(formateur__isnull=False)
-            .filter(Q(formateur__telephone__in=list(row_phones)))
+            .filter(formateur__telephone__in=list(row_phones))
             .first()
         )
         if phone_match:

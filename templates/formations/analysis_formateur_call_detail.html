@@ -1,4 +1,4 @@
-{% extends request.GET.modal|yesno:"base_modal.html,base.html" %}
+{% extends "base.html" %}
 {% block title %}Appel formateur {{ row.reference_code }}{% endblock %}
 {% block content %}
 <style>
