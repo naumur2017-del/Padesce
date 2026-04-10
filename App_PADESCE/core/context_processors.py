@@ -74,31 +74,30 @@ def _build_menu_items(user, path: str, consultant_only: bool) -> list[dict[str, 
             {
                 "label": label,
                 "url": url,
-                "active": any(path.startswith(prefix) for prefix in active_prefixes),
+                "active": any(
+                    (prefix == "/" and path == "/") or (prefix != "/" and path.startswith(prefix))
+                    for prefix in active_prefixes
+                ),
             }
         )
 
     add_item("Appels Padesce", _safe_reverse("appels_index"), "/appels/")
-    add_item("Appel Formateur", _safe_reverse("formateurs_index"), "/appels-formateurs/")
+    add_item("Dashboard", _safe_reverse("home"), "/dashboard/")
 
     if superadmin_access:
         add_item("Backup", _safe_reverse("backup_dashboard"), "/backup/")
 
     if analysis_access:
         add_item(
-            "Analyse Enquete Apprenants",
+            "Analyses de satisfaction",
             _safe_reverse("satisfaction_dashboard"),
             "/satisfaction-apprenants/",
+            "/satisfaction-formateurs/",
         )
         add_item(
             "Documentation Reporting",
             _safe_reverse("reporting_manual"),
             "/reporting/documentation/",
-        )
-        add_item(
-            "Analyse Enquete Formateur",
-            _safe_reverse("satisfaction_formateurs_dashboard"),
-            "/satisfaction-formateurs/",
         )
         add_item("Espace Padesce", _safe_reverse("public_space"), "/")
 

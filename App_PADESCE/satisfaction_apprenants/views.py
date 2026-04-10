@@ -3968,7 +3968,8 @@ def _apply_update_form_table_filters(queryset, classe_id_filter: str, prestation
     filtered_qs = queryset
     if classe_id_filter:
         filtered_qs = filtered_qs.filter(
-            Q(classe__code__icontains=classe_id_filter) | Q(classe_label__icontains=classe_id_filter)
+            Q(classe__code__icontains=classe_id_filter)
+            | Q(classe_label__icontains=classe_id_filter)
         )
     if prestation_id_filter:
         filtered_qs = filtered_qs.filter(classe__prestation__code__icontains=prestation_id_filter)
