@@ -110,16 +110,19 @@ def _build_apprenant_overview(request) -> dict:
             }
         )
 
+    def fmt(val):
+        return f"{int(val or 0):,}".replace(",", " ")
+
     return {
         "classes": classes,
         "prestations": prestations,
         "prestataires": ctx.get("analyzed_prestataires", []),
         "beneficiaires": ctx.get("analyzed_beneficiaires", []),
         "summary_cards": [
-            ("Classes", ctx.get("analyzed_classes_count", 0)),
-            ("Prestations", ctx.get("analyzed_prestations_count", 0)),
-            ("Prestataires", ctx.get("analyzed_prestataires_count", 0)),
-            ("Bénéficiaires", ctx.get("analyzed_beneficiaires_count", 0)),
+            ("Prestataires analysés", fmt(ctx.get("analyzed_prestataires_count", 0))),
+            ("Bénéficiaires analysés", fmt(ctx.get("analyzed_beneficiaires_count", 0))),
+            ("Formations analysées", fmt(ctx.get("analyzed_prestations_count", 0))),
+            ("Cohortes analysées", fmt(ctx.get("analyzed_classes_count", 0))),
         ],
     }
 
@@ -329,11 +332,42 @@ def _build_formateur_overview(request) -> dict:
     class_rows: dict[str, dict] = {}
     prestation_rows: dict[str, dict] = {}
 
+    success_statuses = ["formulaire_rempli", "formulaire_avec_audio", "termine", "appel_reussi"]
+    res_formations = set()
+    res_cohortes = set()
+    res_prestataires = set()
+    res_beneficiaires = set()
+
     for record in ctx.get("all_rows", []):
         classe = _resolve_formateur_classe(record, resolution_cache)
         prestation = getattr(classe, "prestation", None)
+        formation_obj = getattr(classe, "formation", None)
+        prest_obj = getattr(prestation, "prestataire", None)
+        ben_obj = getattr(prestation, "beneficiaire", None)
+
         classe_code = str(getattr(classe, "code", "") or "").strip()
         prestation_code = str(getattr(prestation, "code", "") or "").strip()
+
+        # Update overview tables (logic remains the same, but we could also filter them if needed)
+        # However, for the cards, we follow the principal page logic exactly.
+        if (
+            record.get("status") in success_statuses
+            or getattr(record, "status", None) in success_statuses
+        ):
+            res_formations.add(
+                formation_obj.pk if formation_obj else _formateur_record_value(record, "formation")
+            )
+            res_cohortes.add(
+                classe.pk
+                if classe
+                else f"{_formateur_record_value(record, 'prestataire')}-{_formateur_record_value(record, 'beneficiaire')}-{_formateur_record_value(record, 'cohorte')}"
+            )
+            res_prestataires.add(
+                prest_obj.pk if prest_obj else _formateur_record_value(record, "prestataire")
+            )
+            res_beneficiaires.add(
+                ben_obj.pk if ben_obj else _formateur_record_value(record, "beneficiaire")
+            )
 
         if classe_code:
             class_rows.setdefault(
@@ -373,6 +407,9 @@ def _build_formateur_overview(request) -> dict:
             )
             prestation_rows[prestation_code]["nb"] += 1
 
+    def fmt(val):
+        return f"{int(val or 0):,}".replace(",", " ")
+
     return {
         "classes": sorted(class_rows.values(), key=lambda item: (item["code"], item["label"])),
         "prestations": sorted(
@@ -381,10 +418,10 @@ def _build_formateur_overview(request) -> dict:
         "prestataires": ctx.get("prestataire_stats", []),
         "beneficiaires": ctx.get("beneficiaire_stats", []),
         "summary_cards": [
-            ("Classes", len(class_rows)),
-            ("Prestations", len(prestation_rows)),
-            ("Prestataires", len(ctx.get("prestataire_stats", []))),
-            ("Bénéficiaires", len(ctx.get("beneficiaire_stats", []))),
+            ("Prestataires analysés", fmt(len(res_prestataires))),
+            ("Bénéficiaires analysés", fmt(len(res_beneficiaires))),
+            ("Formations analysées", fmt(len(res_formations))),
+            ("Cohortes analysées", fmt(len(res_cohortes))),
         ],
     }
 
