@@ -816,7 +816,7 @@
   <div class="dash-header" style="margin-bottom:12px;">
     <div>
       <div class="section-title" style="margin-bottom:4px;">Table active de l'analyse</div>
-      <p style="margin:0; color:var(--muted); font-size:0.9rem;">Seules les classes dont l'objectif est atteint sont affichées. Les prestations analysées sont limitées à celles dont toutes les classes de la source choisie sont terminées et ont atteint le seuil de {{ analysis_threshold_label }}.</p>
+      <p style="margin:0; color:var(--muted); font-size:0.9rem;">Seules les classes dont l'objectif est atteint sont affichées. Une prestation terminée de la source choisie est comptée comme analysée dès qu'au moins une de ses classes joignables atteint le seuil de {{ analysis_threshold_label }}.</p>
     </div>
     <div class="filter-actions">
       <a
@@ -825,6 +825,12 @@
         data-base-url="{% url 'satisfaction_dashboard_export_csv' %}"
         href="{% url 'satisfaction_dashboard_export_csv' %}{% if request.GET.urlencode %}?{{ request.GET.urlencode }}{% endif %}"
       >Exporter la table active (CSV)</a>
+      <a
+        class="btn btn-ghost btn-sm"
+        id="js-export-class-lists-zip"
+        data-base-url="{% url 'satisfaction_dashboard_export_class_lists_zip' %}"
+        href="{% url 'satisfaction_dashboard_export_class_lists_zip' %}{% if request.GET.urlencode %}?{{ request.GET.urlencode }}{% endif %}"
+      >Télécharger les listes par classe (ZIP)</a>
       <a class="btn btn-ghost btn-sm" href="{% url 'satisfaction_dashboard_export_chapeau' %}{% if request.GET.urlencode %}?{{ request.GET.urlencode }}{% endif %}">Exporter le chapeau (DOCX)</a>
     </div>
   </div>
@@ -1022,9 +1028,11 @@
 (function() {
   const activeTabInput = document.getElementById('js-active-tab-input');
   const exportActiveCsv = document.getElementById('js-export-active-csv');
+  const exportClassListsZip = document.getElementById('js-export-class-lists-zip');
   const analysisGrid = document.getElementById('js-analysis-grid');
   const dashboardPanel = document.getElementById('js-dashboard-panel');
   const exportBaseUrl = exportActiveCsv?.dataset.baseUrl || '';
+  const exportClassListsZipBaseUrl = exportClassListsZip?.dataset.baseUrl || '';
   const ragForm = document.getElementById('js-rag-form');
   const ragPrompt = document.getElementById('js-rag-prompt');
   const ragSubmit = document.getElementById('js-rag-submit');
@@ -1192,11 +1200,16 @@
     }
   }
 
-  function updateExportLink(tabId) {
-    if (!exportActiveCsv || !exportBaseUrl) return;
+  function updateExportHref(link, baseUrl, tabId) {
+    if (!link || !baseUrl) return;
     const url = new URL(window.location.href);
     url.searchParams.set('tab', tabId);
-    exportActiveCsv.href = `${exportBaseUrl}?${url.searchParams.toString()}`;
+    link.href = `${baseUrl}?${url.searchParams.toString()}`;
+  }
+
+  function updateExportLink(tabId) {
+    updateExportHref(exportActiveCsv, exportBaseUrl, tabId);
+    updateExportHref(exportClassListsZip, exportClassListsZipBaseUrl, tabId);
   }
 
   function activateTab(tabId, syncHistory = true) {

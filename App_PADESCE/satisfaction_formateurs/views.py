@@ -10,6 +10,7 @@ from datetime import date as date_cls
 
 import requests
 from django.contrib import messages
+from django.core.cache import cache
 from django.core.files.storage import default_storage
 from django.core.paginator import Paginator
 from django.db import transaction
@@ -28,6 +29,12 @@ from App_PADESCE.appels.models import (
     sync_formateur_status,
 )
 from App_PADESCE.core.access import require_analysis_access
+from App_PADESCE.core.analysis_materialization import (
+    analysis_dashboard_cache_timeout_seconds,
+    formateurs_dashboard_cache_key,
+    load_materialized_dashboard_payload,
+    save_materialized_dashboard_payload,
+)
 from App_PADESCE.core.fast_stats import build_fast_stats_context
 from App_PADESCE.formations.models import Classe, Formateur
 from App_PADESCE.satisfaction_formateurs.forms import (
@@ -879,11 +886,10 @@ def _avg_num(values):
     return round(sum(nums) / len(nums), 2) if nums else 0
 
 
-@require_analysis_access
-def satisfaction_formateurs_dashboard(request):
+def _build_formateurs_dashboard_context(request):
     """
-    Tableau de bord d'analyse des appels formateurs.
-    Stats par prestataire, bénéficiaire, cohorte + résumé Q4-Q6 textuels.
+    Contexte lourd du dashboard formateurs (sans FAST STATS).
+    Mis en cache mémoire + table MaterializedDashboardPayload.
     """
     f_prestataire = (request.GET.get("prestataire") or "").strip()
     f_beneficiaire = (request.GET.get("beneficiaire") or "").strip()
@@ -954,7 +960,7 @@ def satisfaction_formateurs_dashboard(request):
     for r in records:
         status_counts[r["status"]] += 1
 
-    context = {
+    return {
         "total": total,
         "termines": termines,
         "with_scores": with_scores,
@@ -972,5 +978,25 @@ def satisfaction_formateurs_dashboard(request):
         "f_cohorte": f_cohorte,
         "rows": records[:200],
     }
+
+
+@require_analysis_access
+def satisfaction_formateurs_dashboard(request):
+    """
+    Tableau de bord d'analyse des appels formateurs.
+    Stats par prestataire, bénéficiaire, cohorte + résumé Q4-Q6 textuels.
+    """
+    cache_key = formateurs_dashboard_cache_key(request)
+    ttl = analysis_dashboard_cache_timeout_seconds()
+    context = cache.get(cache_key)
+    if context is None:
+        context = load_materialized_dashboard_payload(cache_key)
+        if context is not None:
+            cache.set(cache_key, context, ttl)
+    if context is None:
+        context = _build_formateurs_dashboard_context(request)
+        save_materialized_dashboard_payload(cache_key, context, ttl)
+        cache.set(cache_key, context, ttl)
+    context = dict(context)
     context.update(build_fast_stats_context(request, default_mode="formateur"))
     return render(request, "satisfaction_formateurs/dashboard.html", context)

@@ -61,6 +61,10 @@ from App_PADESCE.core.analysis_rules import (
     set_appel_manual_exclusion,
     toggle_appel_manual_exclusion,
 )
+from App_PADESCE.core.analysis_materialization import (
+    load_materialized_dashboard_payload,
+    save_materialized_dashboard_payload,
+)
 from App_PADESCE.core.apprenant_id_registry import get_apprenant_id_from_presence_report
 from App_PADESCE.core.cache_versions import get_analysis_cache_version
 from App_PADESCE.core.call_metrics import (
@@ -2511,6 +2515,10 @@ def _build_satisfaction_dashboard_data(request):
     cached_payload = cache.get(cache_key)
     if cached_payload is not None:
         return cached_payload
+    materialized_payload = load_materialized_dashboard_payload(cache_key)
+    if materialized_payload is not None:
+        cache.set(cache_key, materialized_payload, timeout=ANALYSIS_CACHE_TIMEOUT)
+        return materialized_payload
     threshold_class_codes = _status_threshold_class_codes(source_bundle)
 
     all_rows = [
@@ -2970,6 +2978,7 @@ def _build_satisfaction_dashboard_data(request):
     context["audios_enregistres_appels"] = _appel_stats["audios_enregistres"]
     context["tab_details"] = _build_table_details_context(context, rows)
     payload = {"rows": rows, "filters": filters, "context": context}
+    save_materialized_dashboard_payload(cache_key, payload, ANALYSIS_CACHE_TIMEOUT)
     cache.set(cache_key, payload, timeout=ANALYSIS_CACHE_TIMEOUT)
     return payload
 
@@ -4930,7 +4939,9 @@ def import_missing_apprenants(request):
 
 @require_analysis_access
 def sync_phones_from_consolidation(request):
-    """POST – met à jour les téléphones vides des Appel existants depuis la feuille Consolidation.
+    """POST – met à jour les champs vides des Appel existants depuis la feuille Consolidation.
+
+    Seuls les champs manquants sont complétés ; aucune donnée déjà présente n'est écrasée.
 
     Retourne :
         {
@@ -4955,38 +4966,136 @@ def sync_phones_from_consolidation(request):
     if not consol_bundle:
         return JsonResponse({"error": "Feuille Consolidation non disponible."}, status=400)
 
-    # Index code → téléphone depuis la feuille Consolidation
-    consol_phones: dict[str, str] = {}
+    def _is_blank(value: str | None) -> bool:
+        return not bool(str(value or "").strip())
+
+    def _normalize_code(value: str | None) -> str:
+        return str(value or "").strip()
+
+    def _normalize_phone(rec: dict) -> str:
+        return str(
+            (rec.get("telephone1") or rec.get("telephone2") or rec.get("numero") or "")
+        ).strip()
+
+    consol_by_code: dict[str, dict] = {}
     for rec in consol_bundle.get("records", []):
-        code = (rec.get("code") or "").strip()
+        code = _normalize_code(rec.get("code"))
         if not code:
             continue
-        numero = (rec.get("telephone1") or rec.get("telephone2") or rec.get("numero") or "").strip()
-        if _PHONE_RE_IMPORT.search(numero):
-            consol_phones[code] = numero
+        consol_by_code[code] = rec
 
-    # Récupère tous les Appel actifs sans téléphone
-    appels_sans_tel = list(
+    local_classes_map: dict[str, Classe] = {
+        normalize_network_lookup(c.code): c
+        for c in Classe.objects.select_related("prestation", "formation")
+    }
+
+    appels_to_check = list(
         Appel.objects.filter(is_active=True)
-        .exclude(telephone1__regex=r"[0-9]{7,}")
-        .only("id", "code", "classe_label", "telephone1")
+        .filter(
+            Q(telephone1="")
+            | Q(telephone2="")
+            | Q(nom="")
+            | Q(prestataire="")
+            | Q(beneficiaire="")
+            | Q(lieu="")
+            | Q(classe_label="")
+            | Q(fenetre="")
+            | Q(formation_padesce="")
+            | Q(classe__isnull=True)
+        )
+        .only(
+            "id",
+            "code",
+            "nom",
+            "prestataire",
+            "beneficiaire",
+            "lieu",
+            "classe_label",
+            "fenetre",
+            "formation_padesce",
+            "telephone1",
+            "telephone2",
+            "classe_id",
+        )
     )
 
     updated_count = 0
     classes_touched: set[str] = set()
-    to_update: list = []
+    to_update: list[Appel] = []
 
-    for appel in appels_sans_tel:
-        new_tel = consol_phones.get(appel.code, "")
-        if new_tel:
-            appel.telephone1 = new_tel
+    for appel in appels_to_check:
+        source_record = consol_by_code.get(_normalize_code(appel.code))
+        if not source_record:
+            continue
+
+        updated = False
+        if _is_blank(appel.telephone1):
+            new_tel = _normalize_phone(source_record)
+            if _PHONE_RE_IMPORT.search(new_tel):
+                appel.telephone1 = new_tel
+                updated = True
+
+        if _is_blank(appel.telephone2):
+            telephone2 = str(source_record.get("telephone2") or "").strip()
+            if telephone2 and telephone2 != appel.telephone1:
+                appel.telephone2 = telephone2
+                updated = True
+
+        if _is_blank(appel.nom):
+            nom_individu = str(source_record.get("nom_individu") or "").strip()
+            if nom_individu:
+                appel.nom = nom_individu
+                updated = True
+
+        for field_name, source_key in [
+            ("prestataire", "prestataire"),
+            ("beneficiaire", "beneficiaire"),
+            ("lieu", "lieu"),
+            ("classe_label", "classe_label"),
+            ("fenetre", "fenetre"),
+            ("formation_padesce", "formation"),
+        ]:
+            if _is_blank(getattr(appel, field_name)):
+                value = str(source_record.get(source_key) or "").strip()
+                if value:
+                    setattr(appel, field_name, value)
+                    updated = True
+
+        if appel.classe is None:
+            class_key = normalize_network_lookup(
+                source_record.get("classe_id") or source_record.get("classe_label") or ""
+            )
+            if class_key:
+                local_classe = local_classes_map.get(class_key)
+                if local_classe:
+                    appel.classe = local_classe
+                    updated = True
+
+        if updated:
             to_update.append(appel)
             if appel.classe_label:
                 classes_touched.add(appel.classe_label)
+            elif appel.classe:
+                classes_touched.add(appel.classe.code)
 
     if to_update:
         try:
-            Appel.objects.bulk_update(to_update, ["telephone1"], batch_size=200)
+            Appel.objects.bulk_update(
+                to_update,
+                [
+                    "telephone1",
+                    "telephone2",
+                    "nom",
+                    "prestataire",
+                    "beneficiaire",
+                    "lieu",
+                    "classe_label",
+                    "fenetre",
+                    "formation_padesce",
+                    "classe",
+                ],
+                batch_size=200,
+            )
             updated_count = len(to_update)
         except Exception as exc:
             return JsonResponse({"error": f"Erreur mise à jour : {exc}"}, status=500)
@@ -4994,14 +5103,14 @@ def sync_phones_from_consolidation(request):
     classes_list = sorted(classes_touched)
     if updated_count > 0:
         _push_import_notif(
-            f"{updated_count} téléphone(s) mis à jour depuis la feuille Consolidation.",
+            f"{updated_count} enregistrement(s) mis à jour depuis la feuille Consolidation.",
             classes_list,
         )
 
     return JsonResponse(
         {
             "updated": updated_count,
-            "total_checked": len(appels_sans_tel),
+            "total_checked": len(appels_to_check),
             "classes": classes_list,
             "done": True,
         }

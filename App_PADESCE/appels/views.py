@@ -40,6 +40,15 @@ from App_PADESCE.appels.models import (
 )
 from App_PADESCE.apprenants.models import Apprenant
 from App_PADESCE.core.analysis_rules import analysis_threshold_label, analysis_threshold_target
+from App_PADESCE.core.analysis_materialization import (
+    active_appels_fingerprint,
+    appels_list_metrics_cache_key,
+    appels_list_metrics_cache_timeout_seconds,
+    get_or_build_appel_optimization_snapshot,
+    load_materialized_dashboard_payload,
+    save_materialized_dashboard_payload,
+    workbook_source_fingerprint,
+)
 from App_PADESCE.core.cache_versions import get_analysis_cache_version
 from App_PADESCE.core.call_metrics import (
     count_callable_source_records_by_class,
@@ -1256,14 +1265,31 @@ def appels_index(request):
             )
         return redirect(request.path_info)
 
-    optimization_snapshot = _build_appel_class_progress_snapshot(_safe_build_padesce_source_index())
+    optimization_snapshot = get_or_build_appel_optimization_snapshot()
     appels_qs, filters = _build_filtered_appels_queryset(
         request,
         hidden_class_labels=optimization_snapshot["hidden_class_labels"],
     )
 
-    appels_count = appels_qs.count()
-    stats = _build_progress_metrics(appels_qs)
+    metrics_ttl = appels_list_metrics_cache_timeout_seconds()
+    metrics_key = appels_list_metrics_cache_key(
+        request,
+        appels_data_fingerprint=active_appels_fingerprint(),
+        source_workbook_fingerprint=workbook_source_fingerprint(
+            optimization_snapshot.get("source_bundle")
+        ),
+        hidden_class_labels=optimization_snapshot["hidden_class_labels"],
+    )
+    stats = cache.get(metrics_key)
+    if stats is None:
+        stats = load_materialized_dashboard_payload(metrics_key)
+        if stats is not None:
+            cache.set(metrics_key, stats, metrics_ttl)
+    if stats is None:
+        stats = _build_progress_metrics(appels_qs)
+        save_materialized_dashboard_payload(metrics_key, stats, metrics_ttl)
+        cache.set(metrics_key, stats, metrics_ttl)
+    appels_count = int(stats.get("total") or 0)
     appels_qs = appels_qs.order_by("status", "nom")
 
     # ── Pagination: 30 lignes par page ──
@@ -1338,7 +1364,7 @@ def appels_index(request):
 
 @login_required
 def appels_export_filtered_csv(request):
-    optimization_snapshot = _build_appel_class_progress_snapshot(_safe_build_padesce_source_index())
+    optimization_snapshot = get_or_build_appel_optimization_snapshot()
     appels_qs, _ = _build_filtered_appels_queryset(
         request,
         hidden_class_labels=optimization_snapshot["hidden_class_labels"],

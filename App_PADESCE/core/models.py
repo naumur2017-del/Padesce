@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from django.conf import settings
 from django.db import models
 
@@ -121,3 +123,48 @@ class UserActivityEvent(models.Model):
 
     def __str__(self) -> str:
         return f"{self.user} {self.event_type} {self.page_path}"
+
+
+class AppelOptimizationSnapshot(models.Model):
+    """
+    Snapshot JSON de la progression par classe pour la liste d'appels PADESCE.
+    Une seule ligne (pk=1) ; invalidation par empreinte appels actifs + métadonnées classeur.
+    """
+
+    id = models.PositiveSmallIntegerField(primary_key=True, default=1, editable=False)
+    appels_fingerprint = models.CharField(max_length=320, default="", blank=True)
+    source_fingerprint = models.CharField(max_length=640, default="", blank=True)
+    payload = models.JSONField(default=dict, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Snapshot optimisation appels PADESCE"
+
+    def __str__(self) -> str:
+        return "AppelOptimizationSnapshot"
+
+    @classmethod
+    def get_singleton(cls) -> AppelOptimizationSnapshot:
+        obj, _ = cls.objects.get_or_create(
+            id=1,
+            defaults={
+                "appels_fingerprint": "",
+                "source_fingerprint": "",
+                "payload": {},
+            },
+        )
+        return obj
+
+
+class MaterializedDashboardPayload(models.Model):
+    """Copie persistante du contexte dashboard satisfaction (clé = SHA256 du cache_key Django)."""
+
+    cache_key_hash = models.CharField(max_length=64, primary_key=True)
+    payload = models.JSONField()
+    valid_until = models.DateTimeField(db_index=True)
+
+    class Meta:
+        verbose_name = "Payload dashboard matérialisé"
+
+    def __str__(self) -> str:
+        return self.cache_key_hash[:12] + "…"

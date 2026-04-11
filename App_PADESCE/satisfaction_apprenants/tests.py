@@ -2,6 +2,7 @@ import io
 import json
 import shutil
 import tempfile
+import zipfile
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -46,6 +47,7 @@ from App_PADESCE.satisfaction_apprenants.views import (
     _source_class_apprenant_counts,
     _terminated_prestation_codes_from_source,
     satisfaction_dashboard_export_chapeau,
+    satisfaction_dashboard_export_class_lists_zip,
     satisfaction_dashboard_rag,
 )
 
@@ -94,6 +96,89 @@ class SatisfactionDashboardSourceTests(SimpleTestCase):
             document.tables[0].rows[0].cells[0].text,
             _dashboard_chapeau_title(class_label),
         )
+
+    @patch("App_PADESCE.satisfaction_apprenants.views._build_satisfaction_dashboard_data")
+    def test_export_class_lists_zip_builds_one_csv_per_class_without_operator_column(
+        self, mock_dashboard
+    ):
+        mock_dashboard.return_value = {
+            "filters": {"classe": "", "prestataire": "", "beneficiaire": "", "cohorte": ""},
+            "rows": [
+                {
+                    "source_apprenant_id": "APP001",
+                    "apprenant_nom": "Amina",
+                    "beneficiaire": "Beneficiaire A",
+                    "prestataire": "Prestataire A",
+                    "formation_intitule": "Formation A",
+                    "classe_intitule": "Formation A",
+                    "inspecteur_code": "INS001",
+                    "source_inspecteur_id": "",
+                    "source_inspecteur_label": "",
+                    "classe_code": "CLA001",
+                    "commentaire": "Tres bien",
+                    "recommandations": "Continuer",
+                    "source_enquete_id": "E001",
+                    "survey_date": "2026-04-01",
+                    "survey_time": "08:30:00",
+                    "q1_clarte_exposes": 4,
+                    "q2_interaction_formateur": 5,
+                    "q3_maitrise_contenu": 4,
+                    "q4_salle_adequate": 5,
+                    "q5_materiel_disponible": 4,
+                    "q6_organisation_temps": 5,
+                    "q7_utilite_formation": 4,
+                    "q8_adequation_besoins": 5,
+                    "q9_satisfaction_globale": 5,
+                    "enqueteur": "agent-a",
+                },
+                {
+                    "source_apprenant_id": "APP002",
+                    "apprenant_nom": "Bello",
+                    "beneficiaire": "Beneficiaire B",
+                    "prestataire": "Prestataire B",
+                    "formation_intitule": "Formation B",
+                    "classe_intitule": "Formation B",
+                    "inspecteur_code": "INS002",
+                    "source_inspecteur_id": "",
+                    "source_inspecteur_label": "",
+                    "classe_code": "CLA002",
+                    "commentaire": "Correct",
+                    "recommandations": "RAS",
+                    "source_enquete_id": "E002",
+                    "survey_date": "2026-04-02",
+                    "survey_time": "09:15:00",
+                    "q1_clarte_exposes": 3,
+                    "q2_interaction_formateur": 3,
+                    "q3_maitrise_contenu": 3,
+                    "q4_salle_adequate": 3,
+                    "q5_materiel_disponible": 3,
+                    "q6_organisation_temps": 3,
+                    "q7_utilite_formation": 3,
+                    "q8_adequation_besoins": 3,
+                    "q9_satisfaction_globale": 3,
+                    "enqueteur": "agent-b",
+                },
+            ],
+            "context": {},
+        }
+        request = RequestFactory().get("/satisfaction-apprenants/analyse/export/classes-zip/")
+        request.user = SimpleNamespace(is_authenticated=True, is_superuser=True)
+
+        response = satisfaction_dashboard_export_class_lists_zip(request)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "application/zip")
+        with zipfile.ZipFile(io.BytesIO(response.content)) as archive:
+            self.assertEqual(sorted(archive.namelist()), ["CLA001.csv", "CLA002.csv"])
+            cla001_content = archive.read("CLA001.csv").decode("utf-8")
+            cla002_content = archive.read("CLA002.csv").decode("utf-8")
+
+        self.assertIn("APP001", cla001_content)
+        self.assertIn("Amina", cla001_content)
+        self.assertIn("APP002", cla002_content)
+        self.assertNotIn("agent-a", cla001_content)
+        self.assertNotIn("Utilisateur", cla001_content)
+        self.assertNotIn("Enqueteur", cla001_content)
 
     @patch("App_PADESCE.satisfaction_apprenants.views.build_padesce_source_index")
     def test_attach_network_source_to_rows_adds_apprenant_id_and_coherence(
@@ -370,7 +455,9 @@ class SatisfactionDashboardSourceTests(SimpleTestCase):
         self.assertTrue(classe_stats[0]["threshold_reached"])
         self.assertEqual(threshold_codes, {"CLA099"})
 
-    def test_qualified_prestation_codes_from_source_requires_all_source_classes(self):
+    def test_qualified_prestation_codes_from_source_accepts_one_threshold_class_on_terminated_prestation(
+        self,
+    ):
         qualified = _qualified_prestation_codes_from_source(
             {
                 "prestation": "",
@@ -401,7 +488,7 @@ class SatisfactionDashboardSourceTests(SimpleTestCase):
             },
         )
 
-        self.assertEqual(qualified, {"presta002"})
+        self.assertEqual(qualified, {"presta001", "presta002"})
 
     def test_qualified_prestation_codes_from_source_excludes_arrete_status(self):
         qualified = _qualified_prestation_codes_from_source(
@@ -895,6 +982,154 @@ class SatisfactionDashboardRegressionTests(SimpleTestCase):
         self.assertEqual(dashboard["context"]["analyzed_prestations_ratio"], "47/75")
         _mock_source_index.assert_called_once_with(source_key="cutoff")
 
+    def test_build_satisfaction_dashboard_data_counts_only_prestataires_from_qualified_prestations(
+        self,
+    ):
+        row_qualified = {
+            "fenetre": "2",
+            "prestation_code": "PRESTA001",
+            "prestataire": "Prestataire A",
+            "beneficiaire": "Beneficiaire A",
+            "classe_code": "CLA001",
+            "formation_intitule": "Formation A",
+            "classe_intitule": "Formation A",
+            "cohorte": "1",
+            "ville": "Garoua",
+            "user": "agent-a",
+            "modified_at": 1,
+            "q1_clarte_exposes": 5,
+            "q2_interaction_formateur": 4,
+            "q3_maitrise_contenu": 4,
+            "q4_salle_adequate": 5,
+            "q5_materiel_disponible": 4,
+            "q6_organisation_temps": 5,
+            "q7_utilite_formation": 4,
+            "q8_adequation_besoins": 5,
+            "q9_satisfaction_globale": 5,
+        }
+        row_non_qualified = {
+            **row_qualified,
+            "prestation_code": "PRESTA002",
+            "prestataire": "Prestataire B",
+            "beneficiaire": "Beneficiaire B",
+            "classe_code": "CLA002",
+        }
+
+        with (
+            patch(
+                "App_PADESCE.satisfaction_apprenants.views._build_table_details_context",
+                return_value={},
+            ),
+            patch(
+                "App_PADESCE.satisfaction_apprenants.views._build_missing_prestations_analysis",
+                return_value={
+                    "available": True,
+                    "total_source": 2,
+                    "total_qualified": 1,
+                    "total_missing": 1,
+                },
+            ),
+            patch(
+                "App_PADESCE.satisfaction_apprenants.views._build_dashboard_active_filters_summary",
+                return_value=[],
+            ),
+            patch(
+                "App_PADESCE.satisfaction_apprenants.views._build_class_filter_options",
+                return_value=[],
+            ),
+            patch(
+                "App_PADESCE.satisfaction_apprenants.views._build_dashboard_filter_options",
+                return_value={
+                    "prestation": [],
+                    "fenetre": [],
+                    "ville": [],
+                    "user": [],
+                    "classe": [],
+                    "prestataire": [],
+                    "beneficiaire": [],
+                    "cohorte": [],
+                    "status": [],
+                },
+            ),
+            patch(
+                "App_PADESCE.satisfaction_apprenants.views._assign_enquete_ids",
+                side_effect=lambda rows: rows,
+            ),
+            patch(
+                "App_PADESCE.satisfaction_apprenants.views._attach_network_source_to_rows",
+                side_effect=lambda rows, **kwargs: (rows, {"available": False}),
+            ),
+            patch(
+                "App_PADESCE.satisfaction_apprenants.views.build_padesce_source_index",
+                return_value=None,
+            ),
+            patch(
+                "App_PADESCE.satisfaction_apprenants.views.get_workbook_source_options",
+                return_value=[],
+            ),
+            patch(
+                "App_PADESCE.satisfaction_apprenants.views._qualified_prestation_codes_from_source",
+                return_value={"presta001"},
+            ),
+            patch(
+                "App_PADESCE.satisfaction_apprenants.views._status_threshold_class_codes",
+                return_value={"cla001", "cla002"},
+            ),
+            patch(
+                "App_PADESCE.satisfaction_apprenants.views._terminated_prestation_codes_from_source",
+                return_value={"presta001", "presta002"},
+            ),
+            patch(
+                "App_PADESCE.satisfaction_apprenants.views._thresholded_dashboard_rows",
+                return_value=(
+                    [row_qualified, row_non_qualified],
+                    [
+                        {
+                            "code": "CLA001",
+                            "intitule": "Formation A",
+                            "prestation": "PRESTA001",
+                            "cohorte": "1",
+                            "nb": 1,
+                            "avgs": [4.56] * 9,
+                            "total_apprenants": 2,
+                            "threshold_reached": True,
+                        },
+                        {
+                            "code": "CLA002",
+                            "intitule": "Formation B",
+                            "prestation": "PRESTA002",
+                            "cohorte": "1",
+                            "nb": 1,
+                            "avgs": [4.0] * 9,
+                            "total_apprenants": 2,
+                            "threshold_reached": True,
+                        },
+                    ],
+                ),
+            ),
+            patch(
+                "App_PADESCE.satisfaction_apprenants.views._dashboard_row_from_answer",
+                side_effect=[row_qualified, row_non_qualified],
+            ),
+            patch(
+                "App_PADESCE.satisfaction_apprenants.views._satisfaction_dashboard_base_queryset",
+                return_value=[object(), object()],
+            ),
+            patch(
+                "App_PADESCE.satisfaction_apprenants.views._local_analysis_class_counts",
+                return_value={"cla001": 2, "cla002": 2},
+            ),
+        ):
+            dashboard = _build_satisfaction_dashboard_data(
+                SimpleNamespace(GET=QueryDict("", mutable=True))
+            )
+
+        self.assertEqual(dashboard["context"]["analyzed_prestataires_count"], 1)
+        self.assertEqual(
+            dashboard["context"]["analyzed_prestataires"],
+            [{"label": "Prestataire A", "nb": 1}],
+        )
+
 
 class SatisfactionMissingPrestationsAnalysisTests(TestCase):
     def test_missing_analysis_ignores_non_callable_classes_for_category(self):
@@ -1350,7 +1585,9 @@ class SatisfactionGeneralPageTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Classe attendue CLA999 differente de la classe trouvee CLA001.")
+        self.assertContains(
+            response, "Classe attendue CLA999 differente de la classe trouvee CLA001."
+        )
 
         self.eligible_appel.refresh_from_db()
         answers = AppelAnswers.objects.get(appel=self.eligible_appel)

@@ -2,6 +2,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
+from django.test import RequestFactory
 from django.contrib.auth.models import Group
 from django.db import OperationalError
 from django.test import SimpleTestCase, TestCase, override_settings
@@ -879,3 +880,98 @@ class ConsultantAnalysisSnapshotTests(SimpleTestCase):
         fake_request = mock_build_dashboard_data.call_args[0][0]
         self.assertEqual(fake_request.GET.get("classe"), "CLA012")
         self.assertEqual(fake_request.GET.get("prestataire"), "Prestataire Alpha")
+
+
+class AnalysisMaterializationTests(TestCase):
+    @patch("App_PADESCE.appels.views._safe_build_padesce_source_index", return_value=None)
+    @patch("App_PADESCE.appels.views._build_appel_class_progress_snapshot")
+    def test_appel_optimization_reuses_db_when_fingerprint_unchanged(self, mock_build, _src):
+        from App_PADESCE.core.analysis_materialization import get_or_build_appel_optimization_snapshot
+
+        mock_build.return_value = {
+            "source_bundle": None,
+            "source_summary": {},
+            "classe_progress": [],
+            "classe_progress_all": [],
+            "progress_by_key": {},
+            "hidden_class_labels": [],
+            "hidden_class_count": 0,
+            "hidden_appel_count": 0,
+            "classes_without_callable_phone_count": 0,
+            "recommended_classes": [],
+            "analysis_prestations_count": 0,
+        }
+        get_or_build_appel_optimization_snapshot()
+        get_or_build_appel_optimization_snapshot()
+        self.assertEqual(mock_build.call_count, 1)
+
+    def test_materialized_dashboard_roundtrip(self):
+        from App_PADESCE.core.analysis_materialization import (
+            load_materialized_dashboard_payload,
+            save_materialized_dashboard_payload,
+        )
+
+        key = "test-key-materialized"
+        payload = {"rows": [], "filters": {"a": 1}, "context": {"n": 2}}
+        save_materialized_dashboard_payload(key, payload, 3600)
+        loaded = load_materialized_dashboard_payload(key)
+        self.assertEqual(loaded, payload)
+
+    def test_appels_list_metrics_cache_key_ignores_page(self):
+        from App_PADESCE.core.analysis_materialization import appels_list_metrics_cache_key
+
+        rf = RequestFactory()
+        r1 = rf.get("/appels/", {"page": "1", "status": "termine"})
+        r2 = rf.get("/appels/", {"page": "2", "status": "termine"})
+        fp = "0::0"
+        common = dict(
+            appels_data_fingerprint=fp,
+            source_workbook_fingerprint="none",
+            hidden_class_labels=["A", "B"],
+        )
+        self.assertEqual(
+            appels_list_metrics_cache_key(r1, **common),
+            appels_list_metrics_cache_key(r2, **common),
+        )
+
+
+class FormateursDashboardMaterializationTests(TestCase):
+    @patch("App_PADESCE.satisfaction_formateurs.views.build_fast_stats_context", return_value={})
+    @patch("App_PADESCE.satisfaction_formateurs.views.render")
+    @patch("App_PADESCE.satisfaction_formateurs.views._build_formateurs_dashboard_context")
+    def test_dashboard_reuses_cache_between_requests(self, mock_build, mock_render, _fs):
+        from django.contrib.auth.models import Group
+        from django.core.cache import cache
+
+        from App_PADESCE.satisfaction_formateurs.views import satisfaction_formateurs_dashboard
+
+        cache.clear()
+        mock_render.return_value = None
+        mock_build.return_value = {
+            "total": 0,
+            "termines": 0,
+            "with_scores": 0,
+            "global_avgs": {},
+            "q_labels": [],
+            "prestataire_stats": [],
+            "beneficiaire_stats": [],
+            "cohorte_stats": [],
+            "status_counts": {},
+            "prestataires": [],
+            "beneficiaires": [],
+            "cohortes": [],
+            "f_prestataire": "",
+            "f_beneficiaire": "",
+            "f_cohorte": "",
+            "rows": [],
+        }
+        user_model = get_user_model()
+        user = user_model.objects.create_user(username="dash-form-f", password="pw-test-12")
+        mgr, _ = Group.objects.get_or_create(name="manager_padesce")
+        user.groups.add(mgr)
+        rf = RequestFactory()
+        request = rf.get("/satisfaction-formateurs/dashboard/")
+        request.user = user
+        satisfaction_formateurs_dashboard(request)
+        satisfaction_formateurs_dashboard(request)
+        self.assertEqual(mock_build.call_count, 1)

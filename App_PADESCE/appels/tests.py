@@ -714,6 +714,72 @@ class AppelsIndexFilterTests(TestCase):
         self.assertEqual(recommendations[0]["classe"], "CLA012")
         self.assertEqual(recommendations[0]["priority_label"], "Prestation a finir")
 
+    @patch("App_PADESCE.appels.views.build_padesce_source_index")
+    def test_appels_index_counts_terminated_prestation_when_one_class_reaches_analysis_threshold(
+        self, mock_build_source_index
+    ):
+        mock_build_source_index.return_value = {
+            "source": {"label": "Fichier consolide", "modified_label": "27/03/2026 a 12:20"},
+            "classes": {
+                "cla100": {
+                    "classe_id": "CLA100",
+                    "prestation_id": "PRESTA100",
+                    "prestataire": "Prestataire A",
+                    "beneficiaire": "Beneficiaire A",
+                    "statut_prestation": "TERMINE",
+                },
+                "cla101": {
+                    "classe_id": "CLA101",
+                    "prestation_id": "PRESTA100",
+                    "prestataire": "Prestataire A",
+                    "beneficiaire": "Beneficiaire A",
+                    "statut_prestation": "TERMINE",
+                },
+                "cla200": {
+                    "classe_id": "CLA200",
+                    "prestation_id": "PRESTA200",
+                    "prestataire": "Prestataire B",
+                    "beneficiaire": "Beneficiaire B",
+                    "statut_prestation": "EN COURS",
+                },
+            },
+            "prestations": {
+                "presta100": {
+                    "prestation_id": "PRESTA100",
+                    "prestataire": "Prestataire A",
+                    "beneficiaire": "Beneficiaire A",
+                    "statut_prestation": "TERMINE",
+                },
+                "presta200": {
+                    "prestation_id": "PRESTA200",
+                    "prestataire": "Prestataire B",
+                    "beneficiaire": "Beneficiaire B",
+                    "statut_prestation": "EN COURS",
+                },
+            },
+            "records": {
+                "a1": {"classe_id": "CLA100", "telephone1": "690001100"},
+                "a2": {"classe_id": "CLA101", "telephone1": "690001101"},
+                "b1": {"classe_id": "CLA200", "telephone1": "690002200"},
+            },
+        }
+
+        Appel.objects.create(
+            code="APP-100-1",
+            nom="Alpha",
+            classe_label="CLA100",
+            telephone1="690001100",
+            status="termine",
+        )
+
+        response = self.client.get(reverse("appels_index"))
+
+        self.assertEqual(response.status_code, 200)
+        summary = response.context["hidden_class_summary"]
+        self.assertEqual(summary["analysis_prestations_count"], 1)
+        self.assertEqual(summary["analysis_prestations_total_count"], 1)
+        self.assertEqual(summary["analysis_prestations_ratio"], "1/1")
+
 
 class AppelActionFlagTests(TestCase):
     def setUp(self):
