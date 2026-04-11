@@ -1000,7 +1000,7 @@ def _source_class_is_finished(source_class: dict) -> bool:
     status = normalize_network_lookup(source_class.get("statut_prestation", ""))
     if not status:
         return True
-    return status in {"termine", "terminee"}
+    return status in {"termine", "terminee", "arrete"}
 
 
 def _sorted_unique(values):
@@ -1613,9 +1613,6 @@ def _source_prestation_classes_from_source(
     if not source_classes:
         return {}
 
-    callable_class_counts = _normalize_class_count_map(
-        _source_class_apprenant_counts(source_bundle)
-    )
     prestation_classes: dict[str, dict[str, dict]] = {}
     for source_class in source_classes:
         if not _source_class_matches_filters(source_class, filters):
@@ -1623,8 +1620,6 @@ def _source_prestation_classes_from_source(
         prestation_key = normalize_network_lookup(source_class.get("prestation_id", ""))
         classe_key = normalize_network_lookup(source_class.get("classe_id", ""))
         if not prestation_key or not classe_key:
-            continue
-        if int(callable_class_counts.get(classe_key) or 0) <= 0:
             continue
         prestation_classes.setdefault(prestation_key, {})[classe_key] = source_class
     return prestation_classes
@@ -1672,12 +1667,19 @@ def _qualified_prestation_codes_from_source(
     if not terminated_prestation_codes:
         return set()
 
+    # Classes sans apprenants joignables (source) sont auto-qualifiées : rien de plus à faire.
+    callable_class_counts = _normalize_class_count_map(_source_class_apprenant_counts(source_bundle))
+
     qualified_codes = set()
     for prestation_key, class_map in prestation_classes.items():
         if prestation_key not in terminated_prestation_codes:
             continue
         class_keys = set(class_map)
-        if class_keys and all(threshold_by_class.get(class_key, False) for class_key in class_keys):
+        if class_keys and all(
+            threshold_by_class.get(class_key, False)
+            or int(callable_class_counts.get(class_key, 0)) == 0
+            for class_key in class_keys
+        ):
             qualified_codes.add(prestation_key)
     return qualified_codes
 
@@ -2638,10 +2640,12 @@ def _build_satisfaction_dashboard_data(request):
                 "prestataire": row["prestataire"],
                 "beneficiaire": row["beneficiaire"],
                 "associated_classes": set(),
+                "fenetres": set(),
                 "metrics": _dashboard_bucket(),
             },
         )
         prestation_groups[prestation_key]["associated_classes"].add(classe_key)
+        prestation_groups[prestation_key]["fenetres"].add(row.get("fenetre", ""))
         _dashboard_bucket_add(prestation_groups[prestation_key]["metrics"], row)
 
         fenetre_groups.setdefault(
@@ -2695,62 +2699,152 @@ def _build_satisfaction_dashboard_data(request):
     )
     classe_stats_seuil = classe_stats
 
-    prestation_stats = sorted(
-        [
-            {
-                "code": item["code"],
-                "prestataire": item["prestataire"],
-                "beneficiaire": item["beneficiaire"],
-                "nb": item["metrics"]["nb"],
-                "avg": _dashboard_bucket_avg(item["metrics"], "q9_satisfaction_globale"),
-                "avgs": _dashboard_bucket_avgs(item["metrics"]),
-                "effectif": sum(
-                    _analysis_class_count(classe_apprenant_counts, c)
-                    for c in item["associated_classes"]
-                ),
-            }
-            for item in prestation_groups.values()
-            if normalize_network_lookup(item["code"]) in qualified_prestation_codes
-        ],
-        key=lambda item: (item["code"], item["prestataire"], item["beneficiaire"]),
-    )
+    # Index des infos source par clé normalisée de prestation (fenêtre, statut, formation).
+    source_prestations_index: dict[str, dict] = {}
+    if source_bundle:
+        for p_key, p_info in (source_bundle.get("prestations") or {}).items():
+            source_prestations_index[p_key] = p_info
+        # Compléter avec les infos de classes (certaines prestations n'ont pas de feuille dédiée).
+        for src_cls in (source_bundle.get("classes") or {}).values():
+            p_key = normalize_network_lookup(src_cls.get("prestation_id", ""))
+            if p_key and p_key not in source_prestations_index:
+                source_prestations_index[p_key] = {
+                    "prestation_id": src_cls.get("prestation_id", ""),
+                    "prestataire": src_cls.get("prestataire", ""),
+                    "beneficiaire": src_cls.get("beneficiaire", ""),
+                    "formation": src_cls.get("formation", ""),
+                    "fenetre": src_cls.get("fenetre", ""),
+                    "statut_prestation": src_cls.get("statut_prestation", ""),
+                }
+
+    def _enrich_prestation_entry(item: dict, p_norm_code: str) -> dict:
+        src = source_prestations_index.get(p_norm_code, {})
+        raw_fenetres = item.get("fenetres", set()) or set()
+        # Priorité : fenêtre issues des lignes d'analyse, sinon source.
+        fenetre_values = {f for f in raw_fenetres if str(f or "").strip() and f not in {"-", ""}}
+        if not fenetre_values:
+            src_fenetre = str(src.get("fenetre", "") or "").strip()
+            if src_fenetre:
+                fenetre_values = {src_fenetre}
+        fenetre_display = " / ".join(sorted(fenetre_values)) if fenetre_values else ""
+        return {
+            **item,
+            "fenetre": fenetre_display,
+            "source_statut": str(src.get("statut_prestation", "") or "").strip(),
+            "source_formation": str(src.get("formation", "") or "").strip(),
+        }
+
     qualified_prestation_keys = {
         key
         for key, item in prestation_groups.items()
         if normalize_network_lookup(item["code"]) in qualified_prestation_codes
     }
+    terminated_prestation_keys = {
+        key
+        for key, item in prestation_groups.items()
+        if normalize_network_lookup(item["code"]) in terminated_prestation_codes
+    }
+    # Prestations terminées = qualifiées + celles qui ne le sont pas encore (fenêtres/seuil).
+    combined_prestation_keys = qualified_prestation_keys | terminated_prestation_keys
+
+    def _make_prestation_stat(item: dict, p_norm_code: str) -> dict:
+        enriched = _enrich_prestation_entry(item, p_norm_code)
+        return {
+            "code": item["code"],
+            "prestataire": item["prestataire"],
+            "beneficiaire": item["beneficiaire"],
+            "fenetre": enriched["fenetre"],
+            "source_statut": enriched["source_statut"],
+            "source_formation": enriched["source_formation"],
+            "nb": item["metrics"]["nb"],
+            "avg": _dashboard_bucket_avg(item["metrics"], "q9_satisfaction_globale"),
+            "avgs": _dashboard_bucket_avgs(item["metrics"]),
+            "effectif": sum(
+                _analysis_class_count(classe_apprenant_counts, c)
+                for c in item["associated_classes"]
+            ),
+            "is_qualified": p_norm_code in qualified_prestation_codes,
+            "is_terminated": p_norm_code in terminated_prestation_codes,
+        }
+
+    prestation_stats = sorted(
+        [
+            _make_prestation_stat(item, normalize_network_lookup(item["code"]))
+            for item in prestation_groups.values()
+            if normalize_network_lookup(item["code"]) in combined_prestation_keys
+        ],
+        key=lambda item: (
+            0 if item["is_qualified"] else 1,
+            item["code"],
+            item["prestataire"],
+            item["beneficiaire"],
+        ),
+    )
+
+    # Inclure aussi les prestations terminées dans la source mais sans lignes d'analyse.
+    represented_codes = {
+        (normalize_network_lookup(item["code"]), item["prestataire"], item["beneficiaire"])
+        for item in prestation_stats
+    }
+    if source_bundle:
+        _src_prestation_classes = _source_prestation_classes_from_source(
+            analysis_scope_filters, source_bundle
+        )
+        for p_key in sorted(terminated_prestation_codes):
+            p_info = source_prestations_index.get(p_key, {})
+            prestataire = str(p_info.get("prestataire", "") or "").strip()
+            beneficiaire = str(p_info.get("beneficiaire", "") or "").strip()
+            if not prestataire and not beneficiaire:
+                # Chercher dans les classes source
+                for src_cls in (_src_prestation_classes.get(p_key) or {}).values():
+                    prestataire = prestataire or str(src_cls.get("prestataire", "") or "").strip()
+                    beneficiaire = beneficiaire or str(src_cls.get("beneficiaire", "") or "").strip()
+            key_tuple = (p_key, prestataire, beneficiaire)
+            if key_tuple in represented_codes:
+                continue
+            src_fenetre = str(p_info.get("fenetre", "") or "").strip()
+            src_statut = str(p_info.get("statut_prestation", "") or "").strip()
+            source_class_count = len(_src_prestation_classes.get(p_key, {}))
+            prestation_stats.append(
+                {
+                    "code": p_key,
+                    "prestataire": prestataire,
+                    "beneficiaire": beneficiaire,
+                    "fenetre": src_fenetre,
+                    "source_statut": src_statut,
+                    "source_formation": str(p_info.get("formation", "") or "").strip(),
+                    "nb": 0,
+                    "avg": None,
+                    "avgs": {},
+                    "effectif": 0,
+                    "is_qualified": p_key in qualified_prestation_codes,
+                    "is_terminated": True,
+                    "source_only": True,
+                    "source_class_count": source_class_count,
+                }
+            )
+
     qualified_class_codes = {
         normalize_network_lookup(class_code)
-        for key in qualified_prestation_keys
+        for key in combined_prestation_keys
         for class_code in prestation_groups.get(key, {}).get("associated_classes", set())
         if str(class_code or "").strip()
     }
     qualified_prestataire_labels = {
         prestation_groups.get(key, {}).get("prestataire", "")
-        for key in qualified_prestation_keys
+        for key in combined_prestation_keys
         if str(prestation_groups.get(key, {}).get("prestataire", "") or "").strip()
     }
     qualified_beneficiaire_labels = {
         prestation_groups.get(key, {}).get("beneficiaire", "")
-        for key in qualified_prestation_keys
+        for key in combined_prestation_keys
         if str(prestation_groups.get(key, {}).get("beneficiaire", "") or "").strip()
     }
 
     # Full list (unfiltered by qualified) — used for ranking/map features
     prestation_stats_all = sorted(
         [
-            {
-                "code": item["code"],
-                "prestataire": item["prestataire"],
-                "beneficiaire": item["beneficiaire"],
-                "nb": item["metrics"]["nb"],
-                "avg": _dashboard_bucket_avg(item["metrics"], "q9_satisfaction_globale"),
-                "avgs": _dashboard_bucket_avgs(item["metrics"]),
-                "effectif": sum(
-                    _analysis_class_count(classe_apprenant_counts, c)
-                    for c in item["associated_classes"]
-                ),
-            }
+            _make_prestation_stat(item, normalize_network_lookup(item["code"]))
             for item in prestation_groups.values()
         ],
         key=lambda item: (item["code"], item["prestataire"], item["beneficiaire"]),
@@ -2809,6 +2903,8 @@ def _build_satisfaction_dashboard_data(request):
             "label": f"{item['code']} - {item['intitule']}",
             "nb": item["nb"],
             "fenetre": item.get("fenetre", ""),
+            "prestation": item.get("prestation", ""),
+            "cohorte": item.get("cohorte", ""),
         }
         for item in classe_stats_seuil
         if normalize_network_lookup(item.get("code", "")) in qualified_class_codes
@@ -2818,10 +2914,26 @@ def _build_satisfaction_dashboard_data(request):
             "code": item["code"],
             "label": f"{item['code']} | {item['prestataire']} | {item['beneficiaire']}",
             "nb": item["nb"],
+            "fenetre": item.get("fenetre", ""),
+            "source_statut": item.get("source_statut", ""),
+            "is_qualified": item.get("is_qualified", True),
+            "is_terminated": item.get("is_terminated", True),
         }
         for item in prestation_stats
     ]
-    analyzed_fenetres = [{"label": item["label"], "nb": item["nb"]} for item in fenetre_stats]
+    # Fenêtres : stats depuis les lignes d'analyse + complément source pour terminées sans lignes.
+    fenetre_nb_map: dict[str, int] = {item["label"]: item["nb"] for item in fenetre_stats}
+    if source_bundle:
+        for p_key in terminated_prestation_codes:
+            src_fen = str((source_prestations_index.get(p_key) or {}).get("fenetre", "") or "").strip()
+            if src_fen and src_fen not in fenetre_nb_map:
+                fenetre_nb_map[src_fen] = 0
+    analyzed_fenetres = [
+        {"label": lbl, "nb": nb}
+        for lbl, nb in sorted(fenetre_nb_map.items())
+        if lbl
+    ]
+    # Prestataires et bénéficiaires : inclure les terminés (pas seulement qualifiés).
     analyzed_prestataires = [
         {"label": label, "nb": item["metrics"]["nb"]}
         for label, item in sorted(prestataire_groups.items(), key=lambda pair: pair[0])
