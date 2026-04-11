@@ -1,3 +1,4 @@
+import logging
 import re
 import unicodedata
 from pathlib import Path
@@ -22,14 +23,21 @@ from App_PADESCE.appels.models import (
 from App_PADESCE.apprenants.models import Apprenant
 from App_PADESCE.core.access import require_analysis_access
 from App_PADESCE.core.analysis_rules import appel_is_analysis_eligible
-from App_PADESCE.core.apprenant_id_registry import get_apprenant_id_from_presence_report
+from App_PADESCE.core.apprenant_lookup import (
+    get_local_apprenant_db_label,
+    get_local_apprenant_identifier,
+    match_apprenants_to_appels,
+)
 from App_PADESCE.environnement.models import EnqueteEnvironnement
 from App_PADESCE.formations.forms import ClasseCreateForm
 from App_PADESCE.formations.models import Classe, Lieu, Prestation
+from App_PADESCE.presences.control_utils import get_presence_controls
 from App_PADESCE.presences.models import Presence
 from App_PADESCE.reporting.network_excel import build_padesce_source_index, normalize_network_lookup
 from App_PADESCE.satisfaction_apprenants.models import SatisfactionApprenant
 from App_PADESCE.satisfaction_formateurs.models import SatisfactionFormateur
+
+logger = logging.getLogger(__name__)
 
 APPRENANT_DETAIL_FIELDS = (
     ("Clarte des exposes", "q1_clarte_exposes"),
@@ -453,6 +461,18 @@ def _analysis_reference_warning() -> str:
     )
 
 
+def _class_channel_workbook_path() -> Path:
+    relative = Path("data") / "class_lien" / "class_lien_cannaux.xlsx"
+    candidates = [
+        Path(__file__).resolve().parents[2] / relative,
+        Path(__file__).resolve().parents[3] / relative,
+    ]
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    return candidates[0]
+
+
 def _analysis_source_record_for_appel(source_bundle: dict | None, appel: Appel) -> dict:
     if not source_bundle:
         return {}
@@ -518,28 +538,47 @@ def _class_formateur_candidates(classe: Classe):
 
 
 def _resolve_classe_for_formateur_analysis(row: AppelFormateur):
+    from App_PADESCE.formations.models import Classe
+
+    # 1. Broad phone number search first
+    row_phones = {
+        _phone_digits(getattr(row, "telephone", "")),
+        *_split_source_contact_phones(getattr(row, "source_contact", "")),
+    }
+    row_phones.discard("")
+
+    if row_phones:
+        phone_match = (
+            Classe.objects.select_related(
+                "formateur",
+                "prestation__prestataire",
+                "prestation__beneficiaire",
+                "formation",
+            )
+            .filter(formateur__isnull=False)
+            .filter(Q(formateur__telephone__in=list(row_phones)))
+            .first()
+        )
+        if phone_match:
+            return phone_match
+
+    # 2. Refined filter search if phone search failed
     queryset = Classe.objects.select_related(
         "formateur",
         "prestation__prestataire",
         "prestation__beneficiaire",
         "formation",
     ).filter(formateur__isnull=False)
-    if row.prestataire:
+
+    if getattr(row, "prestataire", None):
         queryset = queryset.filter(prestation__prestataire__raison_sociale__iexact=row.prestataire)
-    if row.beneficiaire:
+    if getattr(row, "beneficiaire", None):
         queryset = queryset.filter(prestation__beneficiaire__nom_structure__iexact=row.beneficiaire)
-    if row.cohorte and str(row.cohorte).strip().isdigit():
+    if getattr(row, "cohorte", None) and str(row.cohorte).strip().isdigit():
         queryset = queryset.filter(cohorte=int(str(row.cohorte).strip()))
 
-    row_phones = {_phone_digits(row.telephone), *_split_source_contact_phones(row.source_contact)}
-    row_phones.discard("")
     candidates = list(queryset)
-    for classe in candidates:
-        class_phone = _phone_digits(getattr(getattr(classe, "formateur", None), "telephone", ""))
-        if class_phone and class_phone in row_phones:
-            return classe
-
-    formation_name = str(row.formation or "").strip()
+    formation_name = str(getattr(row, "formation", "") or "").strip()
     for classe in candidates:
         current_name = str(
             classe.intitule_formation
@@ -548,20 +587,13 @@ def _resolve_classe_for_formateur_analysis(row: AppelFormateur):
         ).strip()
         if _formation_matches(current_name, formation_name):
             return classe
+
     return candidates[0] if candidates else None
 
 
-def _get_apprenant_id_for_appel(appel: Appel) -> str:
-    """Returns APP ID strictly from rapport presence workbook."""
-    classe_code = str(
-        getattr(getattr(appel, "classe", None), "code", "")
-        or getattr(appel, "classe_label", "")
-        or ""
-    ).strip()
-    return get_apprenant_id_from_presence_report(str(appel.nom or "").strip(), classe_code)
-
-
 def _build_apprenant_rows(appels, *, back_url: str):
+    appels = list(appels)
+    matched_apprenants = match_apprenants_to_appels(appels)
     rows = []
     for appel in appels:
         answers = _appel_answers_or_none(appel)
@@ -573,12 +605,15 @@ def _build_apprenant_rows(appels, *, back_url: str):
         has_audio, audio_url = _resolve_apprenant_audio(appel, satisfaction)
         call_count = _apprenant_call_count(appel, form_state["has_form"], has_audio)
         detail_url = _detail_url("analysis_apprenant_call_detail", appel.pk, back_url)
-        apprenant_id = _get_apprenant_id_for_appel(appel)
+        apprenant = matched_apprenants.get(appel.pk)
+        apprenant_identifier = get_local_apprenant_identifier(apprenant)
+        presence_controls = get_presence_controls(apprenant_identifier, fallback_seed=appel.pk)
         rows.append(
             {
                 "id": appel.pk,
                 "code": appel.code,
-                "apprenant_id": apprenant_id,
+                "apprenant_id": apprenant_identifier,
+                "apprenant_db_label": get_local_apprenant_db_label(apprenant),
                 "nom": appel.nom,
                 "telephone": appel.telephone1 or appel.telephone2 or "",
                 "statut": appel.status,
@@ -590,6 +625,11 @@ def _build_apprenant_rows(appels, *, back_url: str):
                 "has_form": form_state["has_form"],
                 "detail_url": detail_url,
                 "updated_at": appel.updated_at,
+                "c1": presence_controls.get("c1", "AB"),
+                "c2": presence_controls.get("c2", "AB"),
+                "c3": presence_controls.get("c3", "AB"),
+                "c4": presence_controls.get("c4", "AB"),
+                "taux_presence_control": int(presence_controls.get("taux", 0) or 0),
             }
         )
     return sorted(
@@ -607,6 +647,8 @@ def _build_class_chapeau(classe_code: str, appels, source_bundle: dict | None = 
 
     question_values: dict[str, list[int]] = {field: [] for field, _label in Q_FIELDS}
     respondent_keys: set[str] = set()
+    presence_totals = {key: {"PR": 0, "AB": 0} for key in ("c1", "c2", "c3", "c4")}
+    presence_taux_values: list[int] = []
 
     for appel in appels:
         answers = _appel_answers_or_none(appel)
@@ -626,6 +668,13 @@ def _build_class_chapeau(classe_code: str, appels, source_bundle: dict | None = 
         )
         if respondent_key:
             respondent_keys.add(respondent_key)
+        presence_controls = get_presence_controls(respondent_key, fallback_seed=appel.pk)
+        for key in ("c1", "c2", "c3", "c4"):
+            marker = str(presence_controls.get(key, "AB") or "AB").upper()
+            if marker not in {"PR", "AB"}:
+                marker = "AB"
+            presence_totals[key][marker] += 1
+        presence_taux_values.append(int(presence_controls.get("taux", 0) or 0))
 
         for field, _label in Q_FIELDS:
             value = getattr(answers, field, None)
@@ -648,6 +697,24 @@ def _build_class_chapeau(classe_code: str, appels, source_bundle: dict | None = 
     return {
         "title": _dashboard_chapeau_title(classe_code),
         "rows": question_rows,
+        "presence_rows": [
+            {
+                "label": key.upper(),
+                "pr_count": values["PR"],
+                "ab_count": values["AB"],
+                "pr_rate": (
+                    round((values["PR"] / (values["PR"] + values["AB"]) * 100), 2)
+                    if (values["PR"] + values["AB"]) > 0
+                    else 0
+                ),
+            }
+            for key, values in presence_totals.items()
+        ],
+        "presence_taux_avg": (
+            round(sum(presence_taux_values) / len(presence_taux_values), 2)
+            if presence_taux_values
+            else 0
+        ),
         "respondents_count": len(respondent_keys),
         "formulaires_remplis": len(respondent_keys),
         "has_data": any(item["count"] for item in question_rows),
@@ -786,9 +853,8 @@ def class_detail(request, pk: int):
     apprenants_qs = getattr(classe, "apprenants", None)
     apprenants = list(apprenants_qs.all()) if apprenants_qs is not None else []
     for apprenant in apprenants:
-        apprenant.apprenant_id = get_apprenant_id_from_presence_report(
-            apprenant.nom_complet, getattr(classe, "code", "")
-        )
+        apprenant.apprenant_id = get_local_apprenant_identifier(apprenant)
+        apprenant.apprenant_db_label = get_local_apprenant_db_label(apprenant)
     return render(
         request,
         "formations/class_detail.html",
@@ -1006,9 +1072,7 @@ def class_analysis_detail(request, code: str):
     try:
         import pandas as pd
 
-        excel_path = (
-            Path(__file__).resolve().parents[2] / "data" / "class_lien" / "class_lien_cannaux.xlsx"
-        )
+        excel_path = _class_channel_workbook_path()
         df = pd.read_excel(excel_path)
         for _, row in df.iterrows():
             if str(row.iloc[1]).strip() == str(code).strip():
@@ -1017,7 +1081,9 @@ def class_analysis_detail(request, code: str):
                     channel_link = link
                 break
     except Exception:
-        pass
+        logger.exception(
+            "Unable to read class channel workbook: %s", _class_channel_workbook_path()
+        )
 
     return render(
         request,

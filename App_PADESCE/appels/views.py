@@ -2,8 +2,6 @@ import csv
 import datetime
 import io
 import logging
-import os
-import threading
 import unicodedata
 import zipfile
 from collections import Counter, defaultdict
@@ -24,10 +22,6 @@ from django.utils.text import slugify
 from django.views.decorators.http import require_POST
 
 from App_PADESCE.appels.models import (
-    CALL_ANALYSIS_THRESHOLD_STATUSES,
-    CALL_COMPLETED_STATUSES,
-    CALL_FORM_STATUSES,
-    CALL_SUCCESS_STATUSES,
     Appel,
     AppelAnswers,
     AppelCGA,
@@ -35,32 +29,20 @@ from App_PADESCE.appels.models import (
     AppelImportArchive,
     appel_answers_completed_q,
     appel_answers_modified_completion_q,
-    is_call_success_status,
     padesce_form_tracking_cutoff,
 )
 from App_PADESCE.apprenants.models import Apprenant
-from App_PADESCE.core.analysis_rules import analysis_threshold_label, analysis_threshold_target
-from App_PADESCE.core.analysis_materialization import (
-    active_appels_fingerprint,
-    appels_list_metrics_cache_key,
-    appels_list_metrics_cache_timeout_seconds,
-    get_or_build_appel_optimization_snapshot,
-    load_materialized_dashboard_payload,
-    save_materialized_dashboard_payload,
-    workbook_source_fingerprint,
+from App_PADESCE.core.analysis_rules import (
+    ANALYSIS_THRESHOLD_PERCENT,
+    analysis_threshold_label,
+    analysis_threshold_target,
 )
-from App_PADESCE.core.cache_versions import get_analysis_cache_version
 from App_PADESCE.core.call_metrics import (
     count_callable_source_records_by_class,
     has_usable_phone,
     normalize_phone_digits,
     phone_variants,
     summarize_source_class_phone_coverage,
-)
-from App_PADESCE.core.analysis_rules import (
-    ANALYSIS_THRESHOLD_PERCENT,
-    analysis_threshold_label,
-    analysis_threshold_target,
 )
 from App_PADESCE.formations.models import Classe
 from App_PADESCE.reporting.network_excel import build_padesce_source_index, normalize_network_lookup
@@ -640,7 +622,20 @@ def _callable_phone_summary_from_appel_rows(appel_rows: list[dict]) -> dict[str,
     return summary
 
 
+_SNAPSHOT_CACHE_KEY = "appel_class_progress_snapshot"
+_SNAPSHOT_CACHE_TTL = 120  # secondes
+
+
 def _build_appel_class_progress_snapshot(source_bundle: dict | None = None) -> dict:
+    cached = cache.get(_SNAPSHOT_CACHE_KEY)
+    if cached is not None:
+        return cached
+    result = _compute_appel_class_progress_snapshot(source_bundle)
+    cache.set(_SNAPSHOT_CACHE_KEY, result, timeout=_SNAPSHOT_CACHE_TTL)
+    return result
+
+
+def _compute_appel_class_progress_snapshot(source_bundle: dict | None = None) -> dict:
     appel_rows = list(
         Appel.objects.filter(is_active=True)
         .exclude(classe_label="")
@@ -870,7 +865,7 @@ def _build_appel_class_progress_snapshot(source_bundle: dict | None = None) -> d
     # classe_progress_all contains ALL classes including those already hidden (50% reached)
     classe_progress_all = list(progress_by_key.values())
 
-    # Count prestations where ALL classes reached the 25% analysis threshold
+    # Count prestations where all classes reached the analysis threshold
     analysis_threshold_pct = ANALYSIS_THRESHOLD_PERCENT
     analysis_prestations_count = 0
     if source_bundle:
@@ -936,12 +931,15 @@ def _build_filtered_appels_queryset(request, *, hidden_class_labels: list[str] |
     normalized_fenetre_filter = _normalize_dashboard_fenetre(fenetre_filter)
     if fenetre_filter:
         if normalized_fenetre_filter:
-            matching_ids = [
-                pk
-                for pk, value in appels_qs.values_list("pk", "fenetre")
+            # Match only against distinct fenetre strings (small set), not all PKs.
+            matching_fenetres = [
+                value
+                for value in appels_qs.exclude(fenetre="")
+                .values_list("fenetre", flat=True)
+                .distinct()
                 if _normalize_dashboard_fenetre(value) == normalized_fenetre_filter
             ]
-            appels_qs = appels_qs.filter(pk__in=matching_ids)
+            appels_qs = appels_qs.filter(fenetre__in=matching_fenetres)
         else:
             appels_qs = appels_qs.filter(fenetre__icontains=fenetre_filter)
     if agent_filter:
@@ -1026,6 +1024,38 @@ def _build_filtered_appels_queryset(request, *, hidden_class_labels: list[str] |
         )
     )
 
+    # Collect all dropdown values in a single query instead of 5 separate ones.
+    _dropdown_rows = appels_qs.values(
+        "prestataire", "beneficiaire", "classe_label", "fenetre", "locked_by__username"
+    ).distinct()
+    _prestataires: set[str] = set()
+    _beneficiaires: set[str] = set()
+    _classes: set[str] = set()
+    _fenetres: set[str] = set()
+    _agents: set[str] = set()
+    for _row in _dropdown_rows:
+        if _row["prestataire"]:
+            _prestataires.add(_row["prestataire"].strip())
+        if _row["beneficiaire"]:
+            _beneficiaires.add(_row["beneficiaire"].strip())
+        if _row["classe_label"]:
+            _classes.add(_row["classe_label"].strip())
+        if _row["fenetre"]:
+            _nf = _normalize_dashboard_fenetre(_row["fenetre"])
+            if _nf:
+                _fenetres.add(_nf)
+        if _row["locked_by__username"]:
+            _agents.add(_row["locked_by__username"].strip())
+
+    # modified_by requires a join on answers – keep as a separate lightweight query.
+    _modified_bys: set[str] = {
+        u.strip()
+        for u in appels_qs.exclude(answers__modified_by__isnull=True).values_list(
+            "answers__modified_by__username", flat=True
+        )
+        if u
+    }
+
     filters = {
         "status": status_filter,
         "prestataire": prestataire_filter,
@@ -1036,56 +1066,12 @@ def _build_filtered_appels_queryset(request, *, hidden_class_labels: list[str] |
         "formulaire": formulaire_filter,
         "modified_by": modified_by_filter,
         "q": search,
-        "prestataires": sorted(
-            {
-                p.strip()
-                for p in appels_qs.exclude(prestataire="").values_list("prestataire", flat=True)
-                if p
-            }
-        ),
-        "beneficiaires": sorted(
-            {
-                b.strip()
-                for b in appels_qs.exclude(beneficiaire="").values_list("beneficiaire", flat=True)
-                if b
-            }
-        ),
-        "classes": sorted(
-            {
-                c.strip()
-                for c in appels_qs.exclude(classe_label="").values_list("classe_label", flat=True)
-                if c
-            }
-        ),
-        "fenetres": sorted(
-            {
-                normalized
-                for normalized in (
-                    _normalize_dashboard_fenetre(value)
-                    for value in appels_qs.exclude(fenetre="").values_list("fenetre", flat=True)
-                )
-                if normalized
-            }
-        ),
-        "agents": sorted(
-            {
-                u.strip()
-                for u in appels_qs.exclude(locked_by__isnull=True).values_list(
-                    "locked_by__username", flat=True
-                )
-                if u
-            }
-        ),
-        "modified_bys": sorted(
-            {
-                u.strip()
-                for u in appels_qs.exclude(answers__modified_by__isnull=True).values_list(
-                    "answers__modified_by__username",
-                    flat=True,
-                )
-                if u
-            }
-        ),
+        "prestataires": sorted(_prestataires),
+        "beneficiaires": sorted(_beneficiaires),
+        "classes": sorted(_classes),
+        "fenetres": sorted(_fenetres),
+        "agents": sorted(_agents),
+        "modified_bys": sorted(_modified_bys),
         "taux_min": taux_filter,
         "date_from": date_from_str,
         "date_to": date_to_str,
@@ -1265,32 +1251,15 @@ def appels_index(request):
             )
         return redirect(request.path_info)
 
-    optimization_snapshot = get_or_build_appel_optimization_snapshot()
+    optimization_snapshot = _build_appel_class_progress_snapshot(_safe_build_padesce_source_index())
     appels_qs, filters = _build_filtered_appels_queryset(
         request,
         hidden_class_labels=optimization_snapshot["hidden_class_labels"],
     )
 
-    metrics_ttl = appels_list_metrics_cache_timeout_seconds()
-    metrics_key = appels_list_metrics_cache_key(
-        request,
-        appels_data_fingerprint=active_appels_fingerprint(),
-        source_workbook_fingerprint=workbook_source_fingerprint(
-            optimization_snapshot.get("source_bundle")
-        ),
-        hidden_class_labels=optimization_snapshot["hidden_class_labels"],
-    )
-    stats = cache.get(metrics_key)
-    if stats is None:
-        stats = load_materialized_dashboard_payload(metrics_key)
-        if stats is not None:
-            cache.set(metrics_key, stats, metrics_ttl)
-    if stats is None:
-        stats = _build_progress_metrics(appels_qs)
-        save_materialized_dashboard_payload(metrics_key, stats, metrics_ttl)
-        cache.set(metrics_key, stats, metrics_ttl)
-    appels_count = int(stats.get("total") or 0)
-    appels_qs = appels_qs.order_by("status", "nom")
+    appels_count = appels_qs.count()
+    stats = _build_progress_metrics(appels_qs)
+    appels_qs = appels_qs.select_related("locked_by").order_by("status", "nom")
 
     # ── Pagination: 30 lignes par page ──
     paginator = Paginator(appels_qs, 30)
@@ -1364,7 +1333,7 @@ def appels_index(request):
 
 @login_required
 def appels_export_filtered_csv(request):
-    optimization_snapshot = get_or_build_appel_optimization_snapshot()
+    optimization_snapshot = _build_appel_class_progress_snapshot(_safe_build_padesce_source_index())
     appels_qs, _ = _build_filtered_appels_queryset(
         request,
         hidden_class_labels=optimization_snapshot["hidden_class_labels"],

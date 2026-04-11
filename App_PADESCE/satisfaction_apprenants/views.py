@@ -61,11 +61,12 @@ from App_PADESCE.core.analysis_rules import (
     set_appel_manual_exclusion,
     toggle_appel_manual_exclusion,
 )
-from App_PADESCE.core.analysis_materialization import (
-    load_materialized_dashboard_payload,
-    save_materialized_dashboard_payload,
+from App_PADESCE.core.apprenant_lookup import (
+    get_local_apprenant_db_label,
+    get_local_apprenant_identifier,
+    match_apprenants_to_appels,
+    resolve_apprenant_for_appel,
 )
-from App_PADESCE.core.apprenant_id_registry import get_apprenant_id_from_presence_report
 from App_PADESCE.core.cache_versions import get_analysis_cache_version
 from App_PADESCE.core.call_metrics import (
     count_callable_source_records_by_class,
@@ -74,6 +75,7 @@ from App_PADESCE.core.call_metrics import (
 )
 from App_PADESCE.core.fast_stats import build_fast_stats_context
 from App_PADESCE.formations.models import Classe
+from App_PADESCE.presences.control_utils import get_presence_controls, upsert_presence_controls
 from App_PADESCE.reporting.network_excel import (
     build_consolidation_call_candidates,
     build_padesce_source_index,
@@ -674,7 +676,9 @@ def _autosize_worksheet(worksheet, max_width: int = 40):
         )
 
 
-def _dashboard_row_from_answer(answer_or_appel) -> dict:
+def _dashboard_row_from_answer(
+    answer_or_appel, *, matched_apprenant: Apprenant | None = None
+) -> dict:
     if hasattr(answer_or_appel, "appel"):
         answer = answer_or_appel
         appel = answer.appel
@@ -682,7 +686,8 @@ def _dashboard_row_from_answer(answer_or_appel) -> dict:
         answer = None
         appel = answer_or_appel
 
-    classe = appel.classe
+    apprenant = matched_apprenant or resolve_apprenant_for_appel(appel)
+    classe = appel.classe or getattr(apprenant, "classe", None)
     prestation = getattr(classe, "prestation", None) if classe else None
     survey = getattr(appel, "satisfaction_apprenant", None)
     prestataire = (
@@ -734,10 +739,17 @@ def _dashboard_row_from_answer(answer_or_appel) -> dict:
     has_form = q_filled_count >= 9
 
     classe_code = getattr(classe, "code", "") or appel.classe_label or ""
-    apprenant_code = appel.code or ""
-    apprenant_id = get_apprenant_id_from_presence_report(
-        str(appel.nom or "").strip(), str(classe_code)
+    apprenant_code = getattr(apprenant, "code", "") or appel.code or ""
+    apprenant_id = get_local_apprenant_identifier(apprenant)
+    presence_controls = get_presence_controls(
+        apprenant_id, fallback_seed=apprenant_code or appel.code
     )
+    score_values = [
+        getattr(answer, field, None) if answer else getattr(survey, field, None) if survey else None
+        for field, _ in Q_FIELDS
+    ]
+    numeric_scores = [float(value) for value in score_values if value is not None]
+    moyenne_generale = round(sum(numeric_scores) / len(numeric_scores), 2) if numeric_scores else 0
 
     return {
         "id": getattr(answer, "id", None),
@@ -760,7 +772,8 @@ def _dashboard_row_from_answer(answer_or_appel) -> dict:
         "ville": ville,
         "apprenant_code": apprenant_code,
         "apprenant_id": apprenant_id,
-        "apprenant_nom": appel.nom or "",
+        "apprenant_db_label": get_local_apprenant_db_label(apprenant),
+        "apprenant_nom": getattr(apprenant, "nom_complet", "") or appel.nom or "",
         "telephone1": appel.telephone1 or "",
         "telephone2": appel.telephone2 or "",
         "has_phone": has_phone,
@@ -771,8 +784,10 @@ def _dashboard_row_from_answer(answer_or_appel) -> dict:
             if answer
             else "Non renseigné"
         ),
-        "commentaire": getattr(answer, "commentaire", "") if answer else "",
-        "recommandations": getattr(answer, "recommandations", "") if answer else "",
+        "commentaire": getattr(answer or survey, "commentaire", "") if (answer or survey) else "",
+        "recommandations": (
+            getattr(answer or survey, "recommandations", "") if (answer or survey) else ""
+        ),
         "analysis_scope": analysis_scope,
         "analysis_eligible": analysis_eligible,
         "analysis_included": has_form and analysis_eligible,
@@ -781,6 +796,12 @@ def _dashboard_row_from_answer(answer_or_appel) -> dict:
         "analysis_exclusion_reason": analysis_exclusion_reason,
         "formulaire_all_three": answer_has_all_three_scores(answer),
         "exclude_from_analysis": appel_is_manually_excluded(appel),
+        "c1": presence_controls["c1"],
+        "c2": presence_controls["c2"],
+        "c3": presence_controls["c3"],
+        "c4": presence_controls["c4"],
+        "taux_presence_control": presence_controls["taux_presence"],
+        "moyenne_generale": moyenne_generale,
         **{field: getattr(answer, field, None) if answer else None for field, _ in Q_FIELDS},
     }
 
@@ -979,7 +1000,7 @@ def _source_class_is_finished(source_class: dict) -> bool:
     status = normalize_network_lookup(source_class.get("statut_prestation", ""))
     if not status:
         return True
-    return status in {"termine", "terminee"}
+    return status in {"termine", "terminee", "arrete"}
 
 
 def _sorted_unique(values):
@@ -1592,9 +1613,6 @@ def _source_prestation_classes_from_source(
     if not source_classes:
         return {}
 
-    callable_class_counts = _normalize_class_count_map(
-        _source_class_apprenant_counts(source_bundle)
-    )
     prestation_classes: dict[str, dict[str, dict]] = {}
     for source_class in source_classes:
         if not _source_class_matches_filters(source_class, filters):
@@ -1603,20 +1621,46 @@ def _source_prestation_classes_from_source(
         classe_key = normalize_network_lookup(source_class.get("classe_id", ""))
         if not prestation_key or not classe_key:
             continue
-        if int(callable_class_counts.get(classe_key) or 0) <= 0:
-            continue
         prestation_classes.setdefault(prestation_key, {})[classe_key] = source_class
     return prestation_classes
 
 
+def _terminated_source_apprenant_count(
+    filters: dict,
+    source_bundle: dict | None,
+    terminated_prestation_codes: set[str] | None = None,
+) -> int:
+    """Total apprenants source appartenant aux prestations dont toutes les classes sont terminées."""
+    if not source_bundle:
+        return 0
+    if terminated_prestation_codes is None:
+        terminated_prestation_codes = _terminated_prestation_codes_from_source(filters, source_bundle)
+    if not terminated_prestation_codes:
+        return 0
+    return sum(
+        1
+        for record in (source_bundle.get("records") or {}).values()
+        if normalize_network_lookup(record.get("prestation_id", "")) in terminated_prestation_codes
+    )
+
+
 def _terminated_prestation_codes_from_source(filters: dict, source_bundle: dict | None) -> set[str]:
+    if not source_bundle:
+        return set()
+
     prestation_classes = _source_prestation_classes_from_source(filters, source_bundle)
-    return {
+    # Prestations terminées via la feuille Classes (toutes les classes ont statut terminé)
+    terminated = {
         prestation_key
         for prestation_key, class_map in prestation_classes.items()
         if class_map
         and all(_source_class_is_finished(source_class) for source_class in class_map.values())
     }
+    # Complément via la feuille Prestations (au cas où une prestation n'a pas de classe listée)
+    for p_key, p_info in (source_bundle.get("prestations") or {}).items():
+        if p_key and _source_class_is_finished(p_info):
+            terminated.add(p_key)
+    return terminated
 
 
 def _qualified_prestation_codes_from_source(
@@ -1651,12 +1695,19 @@ def _qualified_prestation_codes_from_source(
     if not terminated_prestation_codes:
         return set()
 
+    # Classes sans apprenants joignables (source) sont auto-qualifiées : rien de plus à faire.
+    callable_class_counts = _normalize_class_count_map(_source_class_apprenant_counts(source_bundle))
+
     qualified_codes = set()
     for prestation_key, class_map in prestation_classes.items():
         if prestation_key not in terminated_prestation_codes:
             continue
         class_keys = set(class_map)
-        if class_keys and all(threshold_by_class.get(class_key, False) for class_key in class_keys):
+        if class_keys and all(
+            threshold_by_class.get(class_key, False)
+            or int(callable_class_counts.get(class_key, 0)) == 0
+            for class_key in class_keys
+        ):
             qualified_codes.add(prestation_key)
     return qualified_codes
 
@@ -2182,7 +2233,11 @@ def _attach_network_source_to_rows(
         "consistent_count": consistent_count,
         "mismatch_count": mismatch_count,
         "apprenant_id_count": apprenant_id_count,
-        "source_apprenant_count": sum(_source_class_apprenant_counts(source_bundle).values()),
+        # Total apprenants dans la source (tous, pas seulement ceux avec téléphone)
+        "source_apprenant_count": (
+            source_bundle.get("counts", {}).get("apprenants")
+            or sum(_source_class_apprenant_counts(source_bundle).values())
+        ),
         "duplicate_code_count": len(source_bundle["duplicate_codes"]),
         "mismatch_rows": mismatch_rows,
     }
@@ -2341,17 +2396,21 @@ def _build_missing_prestations_analysis(
             "available": False,
             "total_source": 0,
             "total_qualified": 0,
+            "total_analyzed": 0,
             "total_missing": 0,
             "by_category": {},
             "details": [],
         }
 
+    # Prestations analysées = terminées ET ayant atteint le seuil (intersection)
+    analyzed_keys = terminated_prestation_codes & qualified_prestation_codes
     missing_keys = terminated_prestation_codes - qualified_prestation_codes
     if not missing_keys:
         return {
             "available": True,
             "total_source": len(terminated_prestation_codes),
             "total_qualified": len(qualified_prestation_codes),
+            "total_analyzed": len(analyzed_keys),
             "total_missing": 0,
             "by_category": {
                 "pas_disponible": 0,
@@ -2474,6 +2533,7 @@ def _build_missing_prestations_analysis(
         "available": True,
         "total_source": len(terminated_prestation_codes),
         "total_qualified": len(qualified_prestation_codes),
+        "total_analyzed": len(analyzed_keys),
         "total_missing": len(missing_keys),
         "total_importable": total_importable,
         "by_category": by_category,
@@ -2501,7 +2561,13 @@ def _build_satisfaction_dashboard_data(request):
 
     try:
         source_bundle = build_padesce_source_index(source_key=selected_source)
-    except Exception:
+    except Exception as _src_exc:
+        logger.warning(
+            "Source bundle indisponible (source=%s): %s: %s",
+            selected_source,
+            type(_src_exc).__name__,
+            _src_exc,
+        )
         source_bundle = None
     cache_key = _analysis_cache_key(
         "dashboard-data",
@@ -2515,14 +2581,20 @@ def _build_satisfaction_dashboard_data(request):
     cached_payload = cache.get(cache_key)
     if cached_payload is not None:
         return cached_payload
-    materialized_payload = load_materialized_dashboard_payload(cache_key)
-    if materialized_payload is not None:
-        cache.set(cache_key, materialized_payload, timeout=ANALYSIS_CACHE_TIMEOUT)
-        return materialized_payload
     threshold_class_codes = _status_threshold_class_codes(source_bundle)
 
+    answers = list(_satisfaction_dashboard_base_queryset())
+    matched_apprenants = match_apprenants_to_appels(
+        [answer.appel if hasattr(answer, "appel") else answer for answer in answers]
+    )
     all_rows = [
-        _dashboard_row_from_answer(answer) for answer in _satisfaction_dashboard_base_queryset()
+        _dashboard_row_from_answer(
+            answer,
+            matched_apprenant=matched_apprenants.get(
+                getattr(getattr(answer, "appel", answer), "pk", None)
+            ),
+        )
+        for answer in answers
     ]
     all_rows = [
         row for row in all_rows if row["fenetre"] in {"2", "3"} and row.get("analysis_included")
@@ -2560,6 +2632,10 @@ def _build_satisfaction_dashboard_data(request):
         classe_stats_all,
         source_bundle,
         threshold_class_codes=threshold_class_codes,
+    )
+    # Apprenants Vague 1 = tous les apprenants source des prestations dont toutes les classes sont terminées
+    vague1_apprenants_count = _terminated_source_apprenant_count(
+        analysis_scope_filters, source_bundle, terminated_prestation_codes
     )
 
     global_bucket = _dashboard_bucket()
@@ -2611,10 +2687,12 @@ def _build_satisfaction_dashboard_data(request):
                 "prestataire": row["prestataire"],
                 "beneficiaire": row["beneficiaire"],
                 "associated_classes": set(),
+                "fenetres": set(),
                 "metrics": _dashboard_bucket(),
             },
         )
         prestation_groups[prestation_key]["associated_classes"].add(classe_key)
+        prestation_groups[prestation_key]["fenetres"].add(row.get("fenetre", ""))
         _dashboard_bucket_add(prestation_groups[prestation_key]["metrics"], row)
 
         fenetre_groups.setdefault(
@@ -2668,41 +2746,152 @@ def _build_satisfaction_dashboard_data(request):
     )
     classe_stats_seuil = classe_stats
 
+    # Index des infos source par clé normalisée de prestation (fenêtre, statut, formation).
+    source_prestations_index: dict[str, dict] = {}
+    if source_bundle:
+        for p_key, p_info in (source_bundle.get("prestations") or {}).items():
+            source_prestations_index[p_key] = p_info
+        # Compléter avec les infos de classes (certaines prestations n'ont pas de feuille dédiée).
+        for src_cls in (source_bundle.get("classes") or {}).values():
+            p_key = normalize_network_lookup(src_cls.get("prestation_id", ""))
+            if p_key and p_key not in source_prestations_index:
+                source_prestations_index[p_key] = {
+                    "prestation_id": src_cls.get("prestation_id", ""),
+                    "prestataire": src_cls.get("prestataire", ""),
+                    "beneficiaire": src_cls.get("beneficiaire", ""),
+                    "formation": src_cls.get("formation", ""),
+                    "fenetre": src_cls.get("fenetre", ""),
+                    "statut_prestation": src_cls.get("statut_prestation", ""),
+                }
+
+    def _enrich_prestation_entry(item: dict, p_norm_code: str) -> dict:
+        src = source_prestations_index.get(p_norm_code, {})
+        raw_fenetres = item.get("fenetres", set()) or set()
+        # Priorité : fenêtre issues des lignes d'analyse, sinon source.
+        fenetre_values = {f for f in raw_fenetres if str(f or "").strip() and f not in {"-", ""}}
+        if not fenetre_values:
+            src_fenetre = str(src.get("fenetre", "") or "").strip()
+            if src_fenetre:
+                fenetre_values = {src_fenetre}
+        fenetre_display = " / ".join(sorted(fenetre_values)) if fenetre_values else ""
+        return {
+            **item,
+            "fenetre": fenetre_display,
+            "source_statut": str(src.get("statut_prestation", "") or "").strip(),
+            "source_formation": str(src.get("formation", "") or "").strip(),
+        }
+
+    qualified_prestation_keys = {
+        key
+        for key, item in prestation_groups.items()
+        if normalize_network_lookup(item["code"]) in qualified_prestation_codes
+    }
+    terminated_prestation_keys = {
+        key
+        for key, item in prestation_groups.items()
+        if normalize_network_lookup(item["code"]) in terminated_prestation_codes
+    }
+    # Prestations terminées = qualifiées + celles qui ne le sont pas encore (fenêtres/seuil).
+    combined_prestation_keys = qualified_prestation_keys | terminated_prestation_keys
+
+    def _make_prestation_stat(item: dict, p_norm_code: str) -> dict:
+        enriched = _enrich_prestation_entry(item, p_norm_code)
+        return {
+            "code": item["code"],
+            "prestataire": item["prestataire"],
+            "beneficiaire": item["beneficiaire"],
+            "fenetre": enriched["fenetre"],
+            "source_statut": enriched["source_statut"],
+            "source_formation": enriched["source_formation"],
+            "nb": item["metrics"]["nb"],
+            "avg": _dashboard_bucket_avg(item["metrics"], "q9_satisfaction_globale"),
+            "avgs": _dashboard_bucket_avgs(item["metrics"]),
+            "effectif": sum(
+                _analysis_class_count(classe_apprenant_counts, c)
+                for c in item["associated_classes"]
+            ),
+            "is_qualified": p_norm_code in qualified_prestation_codes,
+            "is_terminated": p_norm_code in terminated_prestation_codes,
+        }
+
     prestation_stats = sorted(
         [
-            {
-                "code": item["code"],
-                "prestataire": item["prestataire"],
-                "beneficiaire": item["beneficiaire"],
-                "nb": item["metrics"]["nb"],
-                "avg": _dashboard_bucket_avg(item["metrics"], "q9_satisfaction_globale"),
-                "avgs": _dashboard_bucket_avgs(item["metrics"]),
-                "effectif": sum(
-                    _analysis_class_count(classe_apprenant_counts, c)
-                    for c in item["associated_classes"]
-                ),
-            }
+            _make_prestation_stat(item, normalize_network_lookup(item["code"]))
             for item in prestation_groups.values()
-            if normalize_network_lookup(item["code"]) in qualified_prestation_codes
+            if normalize_network_lookup(item["code"]) in combined_prestation_keys
         ],
-        key=lambda item: (item["code"], item["prestataire"], item["beneficiaire"]),
+        key=lambda item: (
+            0 if item["is_qualified"] else 1,
+            item["code"],
+            item["prestataire"],
+            item["beneficiaire"],
+        ),
     )
+
+    # Inclure aussi les prestations terminées dans la source mais sans lignes d'analyse.
+    represented_codes = {
+        (normalize_network_lookup(item["code"]), item["prestataire"], item["beneficiaire"])
+        for item in prestation_stats
+    }
+    if source_bundle:
+        _src_prestation_classes = _source_prestation_classes_from_source(
+            analysis_scope_filters, source_bundle
+        )
+        for p_key in sorted(terminated_prestation_codes):
+            p_info = source_prestations_index.get(p_key, {})
+            prestataire = str(p_info.get("prestataire", "") or "").strip()
+            beneficiaire = str(p_info.get("beneficiaire", "") or "").strip()
+            if not prestataire and not beneficiaire:
+                # Chercher dans les classes source
+                for src_cls in (_src_prestation_classes.get(p_key) or {}).values():
+                    prestataire = prestataire or str(src_cls.get("prestataire", "") or "").strip()
+                    beneficiaire = beneficiaire or str(src_cls.get("beneficiaire", "") or "").strip()
+            key_tuple = (p_key, prestataire, beneficiaire)
+            if key_tuple in represented_codes:
+                continue
+            src_fenetre = str(p_info.get("fenetre", "") or "").strip()
+            src_statut = str(p_info.get("statut_prestation", "") or "").strip()
+            source_class_count = len(_src_prestation_classes.get(p_key, {}))
+            prestation_stats.append(
+                {
+                    "code": p_key,
+                    "prestataire": prestataire,
+                    "beneficiaire": beneficiaire,
+                    "fenetre": src_fenetre,
+                    "source_statut": src_statut,
+                    "source_formation": str(p_info.get("formation", "") or "").strip(),
+                    "nb": 0,
+                    "avg": None,
+                    "avgs": {},
+                    "effectif": 0,
+                    "is_qualified": p_key in qualified_prestation_codes,
+                    "is_terminated": True,
+                    "source_only": True,
+                    "source_class_count": source_class_count,
+                }
+            )
+
+    qualified_class_codes = {
+        normalize_network_lookup(class_code)
+        for key in combined_prestation_keys
+        for class_code in prestation_groups.get(key, {}).get("associated_classes", set())
+        if str(class_code or "").strip()
+    }
+    qualified_prestataire_labels = {
+        prestation_groups.get(key, {}).get("prestataire", "")
+        for key in combined_prestation_keys
+        if str(prestation_groups.get(key, {}).get("prestataire", "") or "").strip()
+    }
+    qualified_beneficiaire_labels = {
+        prestation_groups.get(key, {}).get("beneficiaire", "")
+        for key in combined_prestation_keys
+        if str(prestation_groups.get(key, {}).get("beneficiaire", "") or "").strip()
+    }
 
     # Full list (unfiltered by qualified) — used for ranking/map features
     prestation_stats_all = sorted(
         [
-            {
-                "code": item["code"],
-                "prestataire": item["prestataire"],
-                "beneficiaire": item["beneficiaire"],
-                "nb": item["metrics"]["nb"],
-                "avg": _dashboard_bucket_avg(item["metrics"], "q9_satisfaction_globale"),
-                "avgs": _dashboard_bucket_avgs(item["metrics"]),
-                "effectif": sum(
-                    _analysis_class_count(classe_apprenant_counts, c)
-                    for c in item["associated_classes"]
-                ),
-            }
+            _make_prestation_stat(item, normalize_network_lookup(item["code"]))
             for item in prestation_groups.values()
         ],
         key=lambda item: (item["code"], item["prestataire"], item["beneficiaire"]),
@@ -2761,25 +2950,46 @@ def _build_satisfaction_dashboard_data(request):
             "label": f"{item['code']} - {item['intitule']}",
             "nb": item["nb"],
             "fenetre": item.get("fenetre", ""),
+            "prestation": item.get("prestation", ""),
+            "cohorte": item.get("cohorte", ""),
         }
         for item in classe_stats_seuil
+        if normalize_network_lookup(item.get("code", "")) in qualified_class_codes
     ]
     analyzed_prestations = [
         {
             "code": item["code"],
             "label": f"{item['code']} | {item['prestataire']} | {item['beneficiaire']}",
             "nb": item["nb"],
+            "fenetre": item.get("fenetre", ""),
+            "source_statut": item.get("source_statut", ""),
+            "is_qualified": item.get("is_qualified", True),
+            "is_terminated": item.get("is_terminated", True),
         }
         for item in prestation_stats
     ]
-    analyzed_fenetres = [{"label": item["label"], "nb": item["nb"]} for item in fenetre_stats]
+    # Fenêtres : stats depuis les lignes d'analyse + complément source pour terminées sans lignes.
+    fenetre_nb_map: dict[str, int] = {item["label"]: item["nb"] for item in fenetre_stats}
+    if source_bundle:
+        for p_key in terminated_prestation_codes:
+            src_fen = str((source_prestations_index.get(p_key) or {}).get("fenetre", "") or "").strip()
+            if src_fen and src_fen not in fenetre_nb_map:
+                fenetre_nb_map[src_fen] = 0
+    analyzed_fenetres = [
+        {"label": lbl, "nb": nb}
+        for lbl, nb in sorted(fenetre_nb_map.items())
+        if lbl
+    ]
+    # Prestataires et bénéficiaires : inclure les terminés (pas seulement qualifiés).
     analyzed_prestataires = [
         {"label": label, "nb": item["metrics"]["nb"]}
         for label, item in sorted(prestataire_groups.items(), key=lambda pair: pair[0])
+        if label in qualified_prestataire_labels
     ]
     analyzed_beneficiaires = [
         {"label": label, "nb": item["metrics"]["nb"]}
         for label, item in sorted(beneficiaire_groups.items(), key=lambda pair: pair[0])
+        if label in qualified_beneficiaire_labels
     ]
     analyzed_cohortes = [{"label": item["label"], "nb": item["nb"]} for item in cohorte_stats]
 
@@ -2842,11 +3052,13 @@ def _build_satisfaction_dashboard_data(request):
     )
 
     filter_query_string = request.GET.copy().urlencode()
+    # Prestations analysées = terminées ET ayant atteint le seuil (intersection)
     analyzed_prestations_count = (
-        int(missing_analysis.get("total_qualified") or 0)
+        int(missing_analysis.get("total_analyzed") or 0)
         if missing_analysis.get("available")
         else len(analyzed_prestations)
     )
+    # Total des prestations terminées (dénominateur du ratio)
     analyzed_prestations_total_count = (
         int(missing_analysis.get("total_source") or 0)
         if missing_analysis.get("available")
@@ -2883,6 +3095,7 @@ def _build_satisfaction_dashboard_data(request):
         "analyzed_prestations_count": analyzed_prestations_count,
         "analyzed_prestations_total_count": analyzed_prestations_total_count,
         "analyzed_prestations_ratio": analyzed_prestations_ratio,
+        "vague1_apprenants_count": vague1_apprenants_count,
         "analyzed_fenetres_count": len(analyzed_fenetres),
         "analyzed_prestataires_count": len(analyzed_prestataires),
         "analyzed_beneficiaires_count": len(analyzed_beneficiaires),
@@ -2978,7 +3191,6 @@ def _build_satisfaction_dashboard_data(request):
     context["audios_enregistres_appels"] = _appel_stats["audios_enregistres"]
     context["tab_details"] = _build_table_details_context(context, rows)
     payload = {"rows": rows, "filters": filters, "context": context}
-    save_materialized_dashboard_payload(cache_key, payload, ANALYSIS_CACHE_TIMEOUT)
     cache.set(cache_key, payload, timeout=ANALYSIS_CACHE_TIMEOUT)
     return payload
 
@@ -3800,8 +4012,13 @@ def _build_update_form_candidate_row(
     selection_value = appel.code
     if classe_code and classe_code != "-":
         selection_value = f"{appel.code}|{classe_code}"
+    presence_controls = get_presence_controls(
+        get_local_apprenant_identifier(apprenant), fallback_seed=appel.code
+    )
     return {
         "code": appel.code,
+        "apprenant_id": get_local_apprenant_identifier(apprenant),
+        "apprenant_db_label": get_local_apprenant_db_label(apprenant),
         "nom": str(appel.nom or getattr(apprenant, "nom_complet", "") or "-").strip() or "-",
         "classe_code": classe_code,
         "prestation_code": prestation_code,
@@ -3815,6 +4032,11 @@ def _build_update_form_candidate_row(
         "computed_status_label": _batch_update_status_display(computed_status),
         "commentaire": getattr(answer or survey, "commentaire", "") or "-",
         "recommandations": getattr(answer or survey, "recommandations", "") or "-",
+        "c1": presence_controls["c1"],
+        "c2": presence_controls["c2"],
+        "c3": presence_controls["c3"],
+        "c4": presence_controls["c4"],
+        "taux_presence_control": presence_controls["taux_presence"],
         "selection_value": selection_value,
         "has_complete_form": has_complete_form,
     }
@@ -3849,22 +4071,13 @@ def _form_status_issue_queryset():
 
 
 def _build_update_form_rows_for_appels(appels) -> list[dict]:
-    apprenant_codes = [
-        str(appel.code or "").strip() for appel in appels if str(appel.code or "").strip()
-    ]
-    apprenants_by_code = {
-        str(apprenant.code or "").strip().casefold(): apprenant
-        for apprenant in Apprenant.objects.select_related("classe", "classe__prestation").filter(
-            code__in=apprenant_codes
-        )
-    }
+    appels = list(appels)
+    apprenants_by_appel = match_apprenants_to_appels(appels)
     rows: list[dict] = []
     for appel in appels:
         answer = _linked_one_to_one(appel, "answers")
         survey = _linked_one_to_one(appel, "satisfaction_apprenant")
-        apprenant = apprenants_by_code.get(str(appel.code or "").strip().casefold())
-        if apprenant is None:
-            apprenant = _resolve_batch_update_apprenant(appel)
+        apprenant = apprenants_by_appel.get(appel.pk)
         rows.append(_build_update_form_candidate_row(appel, apprenant, answer, survey))
     return rows
 
@@ -3913,24 +4126,73 @@ def _paginate_update_form_rows(
     return page_obj, _build_update_form_rows_for_appels(list(page_obj.object_list))
 
 
+def _apply_update_form_table_filters(queryset, classe_id_filter: str, prestation_id_filter: str):
+    filtered_qs = queryset
+    if classe_id_filter:
+        filtered_qs = filtered_qs.filter(
+            Q(classe__code__icontains=classe_id_filter)
+            | Q(classe_label__icontains=classe_id_filter)
+        )
+    if prestation_id_filter:
+        filtered_qs = filtered_qs.filter(classe__prestation__code__icontains=prestation_id_filter)
+    return filtered_qs
+
+
+def _normalize_presence_marker(value: str) -> str:
+    marker = str(value or "").strip().upper()
+    return marker if marker in {"PR", "AB"} else "AB"
+
+
+def _import_presence_controls_from_excel(uploaded_file) -> tuple[int, list[str]]:
+    workbook = openpyxl.load_workbook(uploaded_file, data_only=True)
+    worksheet = workbook.active
+    if worksheet is None:
+        return 0, ["Le fichier Excel ne contient aucune feuille."]
+
+    headers = []
+    for cell_value in next(worksheet.iter_rows(min_row=1, max_row=1, values_only=True), []):
+        headers.append(str(cell_value or "").strip().lower())
+    required = ["apprenantid", "c1", "c2", "c3", "c4", "taux"]
+    missing = [field for field in required if field not in headers]
+    if missing:
+        return 0, [f"Colonnes manquantes dans le fichier: {', '.join(missing)}"]
+
+    index = {name: headers.index(name) for name in required}
+    entries = []
+    errors: list[str] = []
+    for row_num, row_values in enumerate(
+        worksheet.iter_rows(min_row=2, max_row=worksheet.max_row, values_only=True), start=2
+    ):
+        apprenant_id = str(row_values[index["apprenantid"]] or "").strip()
+        if not apprenant_id:
+            continue
+        c1 = _normalize_presence_marker(row_values[index["c1"]])
+        c2 = _normalize_presence_marker(row_values[index["c2"]])
+        c3 = _normalize_presence_marker(row_values[index["c3"]])
+        c4 = _normalize_presence_marker(row_values[index["c4"]])
+        taux_raw = row_values[index["taux"]]
+        try:
+            taux_presence = float(taux_raw) if taux_raw not in (None, "") else None
+        except (TypeError, ValueError):
+            errors.append(f"Ligne {row_num}: taux invalide ({taux_raw}).")
+            taux_presence = None
+        entries.append(
+            {
+                "apprenant_id": apprenant_id,
+                "c1": c1,
+                "c2": c2,
+                "c3": c3,
+                "c4": c4,
+                "taux_presence": taux_presence,
+            }
+        )
+
+    updated = upsert_presence_controls(entries)
+    return updated, errors
+
+
 def _resolve_batch_update_apprenant(appel: Appel) -> Apprenant | None:
-    apprenant = (
-        Apprenant.objects.select_related("classe", "formation")
-        .filter(code__iexact=str(appel.code or "").strip())
-        .first()
-    )
-    if apprenant:
-        return apprenant
-    # Temporarily disable expensive fallback search to prevent 500 errors
-    # from App_PADESCE.appels.views import _find_apprenant_for_appel
-    # fallback = _find_apprenant_for_appel(Apprenant.objects.all(), appel)
-    # if fallback is None:
-    #     return None
-    # return (
-    #     Apprenant.objects.select_related("classe", "formation").filter(pk=fallback.pk).first()
-    #     or fallback
-    # )
-    return None
+    return resolve_apprenant_for_appel(appel)
 
 
 def _batch_update_known_class_codes(appel: Appel, apprenant: Apprenant | None) -> list[str]:
@@ -4188,7 +4450,15 @@ def _apply_batch_status_target(target: dict[str, str], target_status: str) -> di
 
 @require_analysis_access
 def satisfaction_update_form_page(request):
+    active_tab = (
+        str(request.GET.get("tab") or request.POST.get("tab") or "formulaires").strip().lower()
+    )
+    if active_tab not in {"formulaires", "presence"}:
+        active_tab = "formulaires"
     selected_source = _analysis_selected_source(request)
+    all_status_filter = str(request.GET.get("all_status", "") or "").strip()
+    all_classe_id_filter = str(request.GET.get("all_classe_id", "") or "").strip()
+    all_prestation_id_filter = str(request.GET.get("all_prestation_id", "") or "").strip()
     initial = {
         "classe_code": str(request.GET.get("classe_code", "") or "").strip(),
         "codes_text": str(request.GET.get("codes", "") or "").strip(),
@@ -4210,74 +4480,104 @@ def satisfaction_update_form_page(request):
 
     if request.method == "POST" and form.is_valid():
         action = str(request.POST.get("action") or "update_form").strip() or "update_form"
-        targets = _merge_batch_update_targets(
-            form.cleaned_data["codes_text"],
-            request.POST.getlist("selected_targets"),
-            form.cleaned_data.get("classe_code", ""),
-        )
-        if not targets:
-            form.add_error(
-                "codes_text",
-                "Ajoutez au moins un code apprenant valide ou selectionnez au moins une ligne.",
-            )
-        else:
-            if action == "update_status":
-                requested_status = str(form.cleaned_data.get("target_status") or "").strip()
-                if not requested_status:
-                    form.add_error("target_status", "Choisissez le statut a appliquer.")
-                else:
-                    results = [
-                        _apply_batch_status_target(target, requested_status) for target in targets
-                    ]
-                    summary = {
-                        "requested_total": len(results),
-                        "updated_total": sum(1 for item in results if item["ok"]),
-                        "error_total": sum(1 for item in results if not item["ok"]),
-                        "synced_total": 0,
-                        "action_label": "statut(s)",
-                    }
-                    if summary["updated_total"]:
-                        messages.success(
-                            request,
-                            f"{summary['updated_total']} statut(s) mis a jour.",
-                        )
-                    if summary["error_total"]:
-                        messages.warning(
-                            request,
-                            f"{summary['error_total']} code(s) n'ont pas pu etre traites.",
-                        )
+        if action == "upload_presence_excel":
+            uploaded_file = request.FILES.get("presence_excel_file")
+            if not uploaded_file:
+                form.add_error(None, "Selectionnez un fichier Excel de presence.")
             else:
-                try:
-                    payloads = _build_batch_update_payloads(form.cleaned_data, len(targets))
-                except ValueError as exc:
-                    form.add_error(None, str(exc))
+                updated, import_errors = _import_presence_controls_from_excel(uploaded_file)
+                if updated:
+                    messages.success(request, f"{updated} ligne(s) de presence mises a jour.")
+                for error in import_errors[:10]:
+                    messages.warning(request, error)
+        else:
+            targets = _merge_batch_update_targets(
+                form.cleaned_data["codes_text"],
+                request.POST.getlist("selected_targets"),
+                form.cleaned_data.get("classe_code", ""),
+            )
+            if not targets:
+                form.add_error(
+                    "codes_text",
+                    "Ajoutez au moins un code apprenant valide ou selectionnez au moins une ligne.",
+                )
+            else:
+                if action == "update_status":
+                    requested_status = str(form.cleaned_data.get("target_status") or "").strip()
+                    if not requested_status:
+                        form.add_error("target_status", "Choisissez le statut a appliquer.")
+                    else:
+                        results = [
+                            _apply_batch_status_target(target, requested_status)
+                            for target in targets
+                        ]
+                        summary = {
+                            "requested_total": len(results),
+                            "updated_total": sum(1 for item in results if item["ok"]),
+                            "error_total": sum(1 for item in results if not item["ok"]),
+                            "synced_total": 0,
+                            "action_label": "statut(s)",
+                        }
+                        if summary["updated_total"]:
+                            messages.success(
+                                request,
+                                f"{summary['updated_total']} statut(s) mis a jour.",
+                            )
+                        if summary["error_total"]:
+                            messages.warning(
+                                request,
+                                f"{summary['error_total']} code(s) n'ont pas pu etre traites.",
+                            )
                 else:
-                    results = [
-                        _apply_batch_update_target(target, payload, request.user)
-                        for target, payload in zip(targets, payloads)
-                    ]
-                    summary = {
-                        "requested_total": len(results),
-                        "updated_total": sum(1 for item in results if item["ok"]),
-                        "error_total": sum(1 for item in results if not item["ok"]),
-                        "synced_total": sum(1 for item in results if item["survey_synced"]),
-                        "action_label": "formulaire(s)",
-                    }
-                    if summary["updated_total"]:
-                        messages.success(
-                            request,
-                            f"{summary['updated_total']} formulaire(s) mis a jour.",
-                        )
-                    if summary["error_total"]:
-                        messages.warning(
-                            request,
-                            f"{summary['error_total']} code(s) n'ont pas pu etre traites.",
-                        )
+                    try:
+                        payloads = _build_batch_update_payloads(form.cleaned_data, len(targets))
+                    except ValueError as exc:
+                        form.add_error(None, str(exc))
+                    else:
+                        results = [
+                            _apply_batch_update_target(target, payload, request.user)
+                            for target, payload in zip(targets, payloads)
+                        ]
+                        summary = {
+                            "requested_total": len(results),
+                            "updated_total": sum(1 for item in results if item["ok"]),
+                            "error_total": sum(1 for item in results if not item["ok"]),
+                            "synced_total": sum(1 for item in results if item["survey_synced"]),
+                            "action_label": "formulaire(s)",
+                        }
+                        if summary["updated_total"]:
+                            messages.success(
+                                request,
+                                f"{summary['updated_total']} formulaire(s) mis a jour.",
+                            )
+                        if summary["error_total"]:
+                            messages.warning(
+                                request,
+                                f"{summary['error_total']} code(s) n'ont pas pu etre traites.",
+                            )
 
-    termine_qs = _termine_without_form_queryset()
-    form_status_qs = _form_status_issue_queryset()
+    termine_qs = _apply_update_form_table_filters(
+        _termine_without_form_queryset(),
+        all_classe_id_filter,
+        all_prestation_id_filter,
+    )
+    form_status_qs = _apply_update_form_table_filters(
+        _form_status_issue_queryset(),
+        all_classe_id_filter,
+        all_prestation_id_filter,
+    )
+    all_apprenants_base_qs = _apply_update_form_table_filters(
+        _update_form_candidate_base_queryset(),
+        all_classe_id_filter,
+        all_prestation_id_filter,
+    )
+    all_apprenants_qs = all_apprenants_base_qs
+    if all_status_filter:
+        all_apprenants_qs = all_apprenants_qs.filter(status=all_status_filter)
     termine_without_form_total = termine_qs.count()
     form_status_issue_total = form_status_qs.count()
+    all_apprenants_total = all_apprenants_base_qs.count()
+    all_apprenants_filtered_total = all_apprenants_qs.count()
     termine_page_obj, termine_without_form_rows = _paginate_update_form_rows(
         request,
         termine_qs,
@@ -4288,9 +4588,19 @@ def satisfaction_update_form_page(request):
         form_status_qs,
         page_param="status_page",
     )
+    all_apprenants_page_obj, all_apprenants_rows = _paginate_update_form_rows(
+        request,
+        all_apprenants_qs,
+        page_param="all_page",
+    )
+    all_status_choices = [(value, label) for value, label in Appel.STATUS_CHOICES if value]
+    known_status_values = {value for value, _label in all_status_choices}
+    if all_status_filter and all_status_filter not in known_status_values:
+        all_status_choices.append((all_status_filter, all_status_filter))
 
     context = {
         "form": form,
+        "active_tab": active_tab,
         "results": results,
         "summary": summary,
         "question_fields": Q_FIELDS,
@@ -4301,6 +4611,14 @@ def satisfaction_update_form_page(request):
         "form_status_issue_rows": form_status_issue_rows,
         "form_status_issue_total": form_status_issue_total,
         "form_status_issue_page_obj": form_status_page_obj,
+        "all_apprenants_rows": all_apprenants_rows,
+        "all_apprenants_total": all_apprenants_total,
+        "all_apprenants_filtered_total": all_apprenants_filtered_total,
+        "all_apprenants_page_obj": all_apprenants_page_obj,
+        "all_status_choices": all_status_choices,
+        "all_status_filter": all_status_filter,
+        "all_classe_id_filter": all_classe_id_filter,
+        "all_prestation_id_filter": all_prestation_id_filter,
         "candidate_total": termine_without_form_total + form_status_issue_total,
         "selected_source": selected_source,
         "general_url": f"{reverse('satisfaction_general_page')}?source={selected_source}",
@@ -4586,8 +4904,18 @@ def apprenants_manquants_page(request):
         source_bundle = None
 
     # -- Calcul des prestations manquantes ---------------------------------
+    answers = list(_satisfaction_dashboard_base_queryset())
+    matched_apprenants = match_apprenants_to_appels(
+        [answer.appel if hasattr(answer, "appel") else answer for answer in answers]
+    )
     all_rows = [
-        _dashboard_row_from_answer(answer) for answer in _satisfaction_dashboard_base_queryset()
+        _dashboard_row_from_answer(
+            answer,
+            matched_apprenant=matched_apprenants.get(
+                getattr(getattr(answer, "appel", answer), "pk", None)
+            ),
+        )
+        for answer in answers
     ]
     all_rows = [row for row in all_rows if row["fenetre"] in {"2", "3"}]
     classe_apprenant_counts = dict(
@@ -4939,9 +5267,7 @@ def import_missing_apprenants(request):
 
 @require_analysis_access
 def sync_phones_from_consolidation(request):
-    """POST – met à jour les champs vides des Appel existants depuis la feuille Consolidation.
-
-    Seuls les champs manquants sont complétés ; aucune donnée déjà présente n'est écrasée.
+    """POST – met à jour les téléphones vides des Appel existants depuis la feuille Consolidation.
 
     Retourne :
         {
@@ -4966,136 +5292,38 @@ def sync_phones_from_consolidation(request):
     if not consol_bundle:
         return JsonResponse({"error": "Feuille Consolidation non disponible."}, status=400)
 
-    def _is_blank(value: str | None) -> bool:
-        return not bool(str(value or "").strip())
-
-    def _normalize_code(value: str | None) -> str:
-        return str(value or "").strip()
-
-    def _normalize_phone(rec: dict) -> str:
-        return str(
-            (rec.get("telephone1") or rec.get("telephone2") or rec.get("numero") or "")
-        ).strip()
-
-    consol_by_code: dict[str, dict] = {}
+    # Index code → téléphone depuis la feuille Consolidation
+    consol_phones: dict[str, str] = {}
     for rec in consol_bundle.get("records", []):
-        code = _normalize_code(rec.get("code"))
+        code = (rec.get("code") or "").strip()
         if not code:
             continue
-        consol_by_code[code] = rec
+        numero = (rec.get("telephone1") or rec.get("telephone2") or rec.get("numero") or "").strip()
+        if _PHONE_RE_IMPORT.search(numero):
+            consol_phones[code] = numero
 
-    local_classes_map: dict[str, Classe] = {
-        normalize_network_lookup(c.code): c
-        for c in Classe.objects.select_related("prestation", "formation")
-    }
-
-    appels_to_check = list(
+    # Récupère tous les Appel actifs sans téléphone
+    appels_sans_tel = list(
         Appel.objects.filter(is_active=True)
-        .filter(
-            Q(telephone1="")
-            | Q(telephone2="")
-            | Q(nom="")
-            | Q(prestataire="")
-            | Q(beneficiaire="")
-            | Q(lieu="")
-            | Q(classe_label="")
-            | Q(fenetre="")
-            | Q(formation_padesce="")
-            | Q(classe__isnull=True)
-        )
-        .only(
-            "id",
-            "code",
-            "nom",
-            "prestataire",
-            "beneficiaire",
-            "lieu",
-            "classe_label",
-            "fenetre",
-            "formation_padesce",
-            "telephone1",
-            "telephone2",
-            "classe_id",
-        )
+        .exclude(telephone1__regex=r"[0-9]{7,}")
+        .only("id", "code", "classe_label", "telephone1")
     )
 
     updated_count = 0
     classes_touched: set[str] = set()
-    to_update: list[Appel] = []
+    to_update: list = []
 
-    for appel in appels_to_check:
-        source_record = consol_by_code.get(_normalize_code(appel.code))
-        if not source_record:
-            continue
-
-        updated = False
-        if _is_blank(appel.telephone1):
-            new_tel = _normalize_phone(source_record)
-            if _PHONE_RE_IMPORT.search(new_tel):
-                appel.telephone1 = new_tel
-                updated = True
-
-        if _is_blank(appel.telephone2):
-            telephone2 = str(source_record.get("telephone2") or "").strip()
-            if telephone2 and telephone2 != appel.telephone1:
-                appel.telephone2 = telephone2
-                updated = True
-
-        if _is_blank(appel.nom):
-            nom_individu = str(source_record.get("nom_individu") or "").strip()
-            if nom_individu:
-                appel.nom = nom_individu
-                updated = True
-
-        for field_name, source_key in [
-            ("prestataire", "prestataire"),
-            ("beneficiaire", "beneficiaire"),
-            ("lieu", "lieu"),
-            ("classe_label", "classe_label"),
-            ("fenetre", "fenetre"),
-            ("formation_padesce", "formation"),
-        ]:
-            if _is_blank(getattr(appel, field_name)):
-                value = str(source_record.get(source_key) or "").strip()
-                if value:
-                    setattr(appel, field_name, value)
-                    updated = True
-
-        if appel.classe is None:
-            class_key = normalize_network_lookup(
-                source_record.get("classe_id") or source_record.get("classe_label") or ""
-            )
-            if class_key:
-                local_classe = local_classes_map.get(class_key)
-                if local_classe:
-                    appel.classe = local_classe
-                    updated = True
-
-        if updated:
+    for appel in appels_sans_tel:
+        new_tel = consol_phones.get(appel.code, "")
+        if new_tel:
+            appel.telephone1 = new_tel
             to_update.append(appel)
             if appel.classe_label:
                 classes_touched.add(appel.classe_label)
-            elif appel.classe:
-                classes_touched.add(appel.classe.code)
 
     if to_update:
         try:
-            Appel.objects.bulk_update(
-                to_update,
-                [
-                    "telephone1",
-                    "telephone2",
-                    "nom",
-                    "prestataire",
-                    "beneficiaire",
-                    "lieu",
-                    "classe_label",
-                    "fenetre",
-                    "formation_padesce",
-                    "classe",
-                ],
-                batch_size=200,
-            )
+            Appel.objects.bulk_update(to_update, ["telephone1"], batch_size=200)
             updated_count = len(to_update)
         except Exception as exc:
             return JsonResponse({"error": f"Erreur mise à jour : {exc}"}, status=500)
@@ -5103,14 +5331,14 @@ def sync_phones_from_consolidation(request):
     classes_list = sorted(classes_touched)
     if updated_count > 0:
         _push_import_notif(
-            f"{updated_count} enregistrement(s) mis à jour depuis la feuille Consolidation.",
+            f"{updated_count} téléphone(s) mis à jour depuis la feuille Consolidation.",
             classes_list,
         )
 
     return JsonResponse(
         {
             "updated": updated_count,
-            "total_checked": len(appels_to_check),
+            "total_checked": len(appels_sans_tel),
             "classes": classes_list,
             "done": True,
         }

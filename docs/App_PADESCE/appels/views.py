@@ -1544,7 +1544,11 @@ def appel_transcription_detail(request, pk: int):
     try:
         obj, generated = _ensure_appel_transcription(appel)  # noqa: F821
         return JsonResponse(
-            {"ok": True, "generated": generated, "transcription": _transcription_to_payload(obj)}  # noqa: F821
+            {
+                "ok": True,
+                "generated": generated,
+                "transcription": _transcription_to_payload(obj),
+            }  # noqa: F821
         )
     except Exception as exc:
         return JsonResponse({"ok": False, "error": str(exc)}, status=400)

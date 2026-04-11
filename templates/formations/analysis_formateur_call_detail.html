@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+{% extends request.GET.modal|yesno:"base_modal.html,base.html" %}
 {% block title %}Appel formateur {{ row.reference_code }}{% endblock %}
 {% block content %}
 <style>
@@ -95,7 +95,7 @@
 
   <div class="meta-grid">
     <div class="meta-card">
-      <div class="label">Telephone</div>
+      <div class="label">Téléphone</div>
       <div class="value">{{ row.telephone|default:"-" }}</div>
     </div>
     <div class="meta-card">
@@ -118,15 +118,15 @@
       </div>
     </div>
     <div class="meta-card">
-      <div class="label">Classe rapprochee</div>
+      <div class="label">Classe rapprochée</div>
       <div class="value">{% if resolved_classe %}{{ resolved_classe.code }}{% else %}-{% endif %}</div>
     </div>
     <div class="meta-card">
-      <div class="label">Operateur</div>
+      <div class="label">Opérateur</div>
       <div class="value">{{ row.locked_by.username|default:"-" }}</div>
     </div>
     <div class="meta-card">
-      <div class="label">Questions notees</div>
+      <div class="label">Questions notées</div>
       <div class="value">{{ filled_score_count }}/3</div>
     </div>
   </div>
@@ -178,7 +178,7 @@
       </tbody>
     </table>
   {% else %}
-    <p class="subtitle">Aucune reponse de formulaire disponible sur cet appel.</p>
+    <p class="subtitle">Aucune réponse de formulaire disponible sur cet appel.</p>
   {% endif %}
 </section>
 {% endblock %}

@@ -213,6 +213,7 @@ class LoginRequiredMiddleware:
                     "/dashboard/",
                     "/consultant/",
                     "/deploiement/live/",
+                    "/reporting/documentation/",
                     "/satisfaction-apprenants/analyse/",
                     "/accounts/logout/",
                     "/messages/support/",
@@ -221,7 +222,7 @@ class LoginRequiredMiddleware:
                     _normalize_prefix(getattr(settings, "STATIC_URL", "")),
                     _normalize_prefix(getattr(settings, "MEDIA_URL", "")),
                 ]
-                if path != "/dashboard/" and not any(
+                if path not in {"/", "/dashboard/"} and not any(
                     path.startswith(p) for p in allowed_prefixes if p
                 ):
                     return HttpResponseRedirect(reverse("home"))

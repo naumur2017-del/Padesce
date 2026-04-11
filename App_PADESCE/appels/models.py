@@ -369,7 +369,13 @@ def formateur_has_any_form_data(row: "AppelFormateur") -> bool:
 
 
 def formateur_has_any_audio(row: "AppelFormateur") -> bool:
-    return _file_field_has_name(getattr(row, "audio_file", None))
+    f = getattr(row, "audio_file", None)
+    if not f or not f.name:
+        return False
+    try:
+        return f.storage.exists(f.name)
+    except Exception:
+        return False
 
 
 def derive_formateur_status(row: "AppelFormateur") -> str:

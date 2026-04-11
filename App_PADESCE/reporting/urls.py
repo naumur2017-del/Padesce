@@ -17,6 +17,16 @@ urlpatterns = [
         name="application_report_view",
     ),
     path(
+        "documentation/",
+        lazy_view("App_PADESCE.reporting.views.reporting_manual_view"),
+        name="reporting_manual",
+    ),
+    path(
+        "documentation/download/",
+        lazy_view("App_PADESCE.reporting.views.reporting_manual_download_view"),
+        name="reporting_manual_download",
+    ),
+    path(
         "rapport/export/excel/",
         lazy_view("App_PADESCE.reporting.views.application_report_export_excel"),
         name="application_report_export_excel",

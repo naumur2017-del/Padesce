@@ -57,7 +57,7 @@ jobs:
           GANDI_SFTP_TOKEN: ${{ secrets.GANDI_SFTP_TOKEN }}
           GANDI_SFTP_REMOTE_PATH: ${{ secrets.GANDI_SFTP_REMOTE_PATH }}
           GANDI_DEPLOY_VERIFY_URL: https://call.naumur.com
-          GANDI_DEPLOY_INCLUDE_PATHS: App_PADESCE,templates,static,admin,data,manage.py,requirements.txt,Dockerfile,docker-compose.yml,start-command
+          GANDI_DEPLOY_INCLUDE_PATHS: App_PADESCE,templates,static,admin,data,docs,manage.py,requirements.txt,Dockerfile,docker-compose.yml,start-command
           MICROSOFT_GRAPH_CLIENT_ID: b375cd25-86a8-4f59-8d14-10436238957d
           MICROSOFT_GRAPH_CLIENT_SECRET: ${{ secrets.MICROSOFT_GRAPH_CLIENT_SECRET }}
           MICROSOFT_GRAPH_TENANT_ID: 2c91375e-f3f5-486e-8fdd-c8273053bd5d
@@ -88,7 +88,7 @@ jobs:
           GANDI_SFTP_TOKEN: ${{ secrets.GANDI_SFTP_TOKEN }}
           GANDI_SFTP_REMOTE_PATH: ${{ secrets.GANDI_SFTP_REMOTE_PATH }}
           GANDI_DEPLOY_VERIFY_URL: https://call.naumur.com
-          GANDI_DEPLOY_INCLUDE_PATHS: App_PADESCE,templates,static,admin,data,manage.py,requirements.txt,Dockerfile,docker-compose.yml,start-command
+          GANDI_DEPLOY_INCLUDE_PATHS: App_PADESCE,templates,static,admin,data,docs,manage.py,requirements.txt,Dockerfile,docker-compose.yml,start-command
           MICROSOFT_GRAPH_CLIENT_ID: b375cd25-86a8-4f59-8d14-10436238957d
           MICROSOFT_GRAPH_CLIENT_SECRET: ${{ secrets.MICROSOFT_GRAPH_CLIENT_SECRET }}
           MICROSOFT_GRAPH_TENANT_ID: 2c91375e-f3f5-486e-8fdd-c8273053bd5d
@@ -119,7 +119,7 @@ jobs:
           GANDI_SFTP_TOKEN: ${{ secrets.GANDI_SFTP_TOKEN }}
           GANDI_SFTP_REMOTE_PATH: ${{ secrets.GANDI_SFTP_REMOTE_PATH }}
           GANDI_DEPLOY_VERIFY_URL: https://call.naumur.com
-          GANDI_DEPLOY_INCLUDE_PATHS: App_PADESCE,templates,static,admin,data,manage.py,requirements.txt,Dockerfile,docker-compose.yml,start-command
+          GANDI_DEPLOY_INCLUDE_PATHS: App_PADESCE,templates,static,admin,data,docs,manage.py,requirements.txt,Dockerfile,docker-compose.yml,start-command
           MICROSOFT_GRAPH_CLIENT_ID: b375cd25-86a8-4f59-8d14-10436238957d
           MICROSOFT_GRAPH_CLIENT_SECRET: ${{ secrets.MICROSOFT_GRAPH_CLIENT_SECRET }}
           MICROSOFT_GRAPH_TENANT_ID: 2c91375e-f3f5-486e-8fdd-c8273053bd5d

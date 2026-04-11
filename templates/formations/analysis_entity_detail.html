@@ -514,6 +514,43 @@
       </table>
     </div>
   </section>
+  <section class="panel tab-panel{% if active_tab == 'apprenants' %} active{% endif %}" data-panel="apprenants-chapeau">
+    <div class="panel-head">
+      <div>
+        <strong>Chapeau contrôle de présence</strong>
+        <div class="row-meta">{{ class_chapeau.title }}</div>
+      </div>
+      <span class="badge badge-ok">
+        Taux moyen: {{ class_chapeau.presence_taux_avg }}%
+      </span>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Contrôle</th>
+            <th>PR</th>
+            <th>AB</th>
+            <th>Taux PR</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in class_chapeau.presence_rows %}
+            <tr>
+              <td>{{ item.label }}</td>
+              <td>{{ item.pr_count }}</td>
+              <td>{{ item.ab_count }}</td>
+              <td>{{ item.pr_rate }}%</td>
+            </tr>
+          {% endfor %}
+          <tr>
+            <td><strong>Taux global</strong></td>
+            <td colspan="3"><strong>{{ class_chapeau.presence_taux_avg }}%</strong></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
   <section class="panel tab-panel{% if active_tab == 'formateurs' %} active{% endif %}" data-panel="formateurs-chapeau">
     <div class="panel-head">
       <div>
@@ -562,6 +599,11 @@
           <th>Apprenant ID</th>
           <th>Nom</th>
           <th>Téléphone</th>
+          <th>C1</th>
+          <th>C2</th>
+          <th>C3</th>
+          <th>C4</th>
+          <th>Taux présence</th>
           <th>Statut</th>
           <th>Audio</th>
           <th>Dernière activité</th>
@@ -571,12 +613,22 @@
       <tbody>
         {% for row in apprenant_rows %}
           <tr data-status-id="{{ row.statut }}" data-has-audio="{{ row.has_audio|yesno:'1,0' }}" data-has-form="{{ row.has_form|yesno:'1,0' }}" class="js-apprenant-row">
-            <td><strong>{{ row.apprenant_id|default:"-" }}</strong></td>
+            <td>
+              <strong>{{ row.apprenant_id|default:"-" }}</strong>
+              {% if row.apprenant_db_label %}
+                <div class="row-meta">{{ row.apprenant_db_label }}</div>
+              {% endif %}
+            </td>
             <td>
               <strong>{{ row.nom|default:"-" }}</strong>
               {% if row.locked_by %}<div class="row-meta">Opérateur: {{ row.locked_by }}</div>{% endif %}
             </td>
             <td>{{ row.telephone|default:"-" }}</td>
+            <td>{{ row.c1|default:"AB" }}</td>
+            <td>{{ row.c2|default:"AB" }}</td>
+            <td>{{ row.c3|default:"AB" }}</td>
+            <td>{{ row.c4|default:"AB" }}</td>
+            <td>{{ row.taux_presence_control|default:0 }}%</td>
             <td>{{ row.statut_label }}</td>
             <td>
               {% if row.has_audio %}
@@ -598,7 +650,7 @@
           </tr>
         {% empty %}
           <tr>
-            <td colspan="7" style="text-align:center;color:var(--muted);">Aucun appel apprenant rattaché à cette entité.</td>
+            <td colspan="12" style="text-align:center;color:var(--muted);">Aucun appel apprenant rattaché à cette entité.</td>
           </tr>
         {% endfor %}
       </tbody>

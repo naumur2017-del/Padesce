@@ -43,6 +43,8 @@
   .batch-actions { display:flex; gap:10px; flex-wrap:wrap; margin-top:16px; }
   .pager { display:flex; align-items:center; justify-content:flex-end; gap:8px; flex-wrap:wrap; margin-top:12px; }
   .pager .meta { color:var(--muted); font-size:0.84rem; }
+  .inline-filter-bar { display:flex; gap:10px; flex-wrap:wrap; align-items:end; margin:0 0 16px; }
+  .inline-filter-bar .field { min-width:220px; flex:1; }
   .scope-switch { display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:18px; }
   .scope-tabs { display:inline-flex; align-items:center; gap:6px; padding:6px; border-radius:999px; border:1px solid var(--border); background:rgba(111,60,195,0.05); }
   .scope-tab { display:inline-flex; align-items:center; justify-content:center; min-width:120px; padding:9px 18px; border-radius:999px; font-size:0.85rem; font-weight:700; color:var(--muted); text-decoration:none; transition:background .15s, color .15s, box-shadow .15s; }
@@ -74,6 +76,14 @@
   <div class="scope-note">Basculer entre les ecrans batch apprenants et formateurs.</div>
 </div>
 
+<div class="scope-switch" style="margin-top:-4px;">
+  <div class="scope-tabs" role="tablist" aria-label="Mode UPDATE FORM formateurs">
+    <a class="scope-tab {% if active_tab == 'classes' %}active{% endif %}" href="?tab=classes">Classes</a>
+    <a class="scope-tab {% if active_tab == 'formulaires' %}active{% endif %}" href="?tab=formulaires">Formulaires</a>
+  </div>
+  <div class="scope-note">La tab Classes sert uniquement a modifier les donnees classe liees.</div>
+</div>
+
 <section class="panel">
   <div class="section-title">
     <div>
@@ -86,7 +96,8 @@
     <li>Vous pouvez laisser <code>References d'appel formateur</code> vide et selectionner directement les lignes plus bas.</li>
     <li>Une valeur unique s'applique a tout le lot. Une liste entre crochets doit avoir exactement le meme nombre de valeurs que le lot cible.</li>
     <li>Si Q1-Q3 sont vides, la valeur par defaut appliquee est <code>3</code>. Si Q4-Q6, commentaires ou recommandations sont vides, la valeur par defaut est <code>RAS</code>.</li>
-    <li>Le bouton <strong>Mettre a jour le formulaire</strong> ecrit les reponses ouvertes, les scores et les commentaires. Le bouton <strong>Changer le statut</strong> ne modifie pas les reponses.</li>
+    <li>Dans <strong>Classes</strong>, utilisez seulement les champs classe/prestation/prestataire/beneficiaire/formation/cohorte.</li>
+    <li>Dans <strong>Formulaires</strong>, le bouton <strong>Mettre a jour le formulaire</strong> ecrit les reponses ouvertes, les scores et les commentaires. Le bouton <strong>Changer le statut</strong> ne modifie pas les reponses.</li>
   </ul>
 </section>
 
@@ -102,6 +113,10 @@
   <article class="card">
     <div class="label">Cibles Totales Affichees</div>
     <div class="value">{{ candidate_total }}</div>
+  </article>
+  <article class="card">
+    <div class="label">Tous Les Appels Formateurs Actifs</div>
+    <div class="value">{{ all_formateurs_total }}</div>
   </article>
 </section>
 
@@ -123,8 +138,28 @@
     {% endif %}
   {% endfor %}
 
+  {% if active_tab == "formulaires" %}
+  <form method="get" class="inline-filter-bar">
+    <input type="hidden" name="tab" value="formulaires">
+    <div class="field">
+      <label for="all-status-filter">Filtrer Tous Les Appels Formateurs Actifs par statut actuel</label>
+      <select id="all-status-filter" name="all_status">
+        <option value="">Tous les statuts</option>
+        {% for value, label in all_status_choices %}
+          <option value="{{ value }}" {% if all_status_filter == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+      <small>Ce filtre agit uniquement sur la table complete des appels formateurs actifs.</small>
+    </div>
+    <div class="actions">
+      <button class="btn btn-ghost" type="submit">Filtrer</button>
+      <a class="btn btn-subtle" href="{% url 'satisfaction_formateurs_update_form_page' %}">Reinitialiser</a>
+    </div>
+  </form>
+
   <form method="post">
     {% csrf_token %}
+    <input type="hidden" name="tab" value="formulaires">
     <div class="grid">
       <div class="field full-width">
         <label for="{{ form.reference_codes_text.id_for_label }}">{{ form.reference_codes_text.label }}</label>
@@ -136,6 +171,37 @@
         <label for="{{ form.target_status.id_for_label }}">{{ form.target_status.label }}</label>
         {{ form.target_status }}
         <small>{{ form.target_status.help_text }}</small>
+      </div>
+
+      <div class="field">
+        <label for="{{ form.class_codes_values.id_for_label }}">{{ form.class_codes_values.label }}</label>
+        {{ form.class_codes_values }}
+        <small>{{ form.class_codes_values.help_text }}</small>
+      </div>
+      <div class="field">
+        <label for="{{ form.prestation_codes_values.id_for_label }}">{{ form.prestation_codes_values.label }}</label>
+        {{ form.prestation_codes_values }}
+        <small>{{ form.prestation_codes_values.help_text }}</small>
+      </div>
+      <div class="field full-width">
+        <label for="{{ form.prestataire_values.id_for_label }}">{{ form.prestataire_values.label }}</label>
+        {{ form.prestataire_values }}
+        <small>{{ form.prestataire_values.help_text }}</small>
+      </div>
+      <div class="field full-width">
+        <label for="{{ form.beneficiaire_values.id_for_label }}">{{ form.beneficiaire_values.label }}</label>
+        {{ form.beneficiaire_values }}
+        <small>{{ form.beneficiaire_values.help_text }}</small>
+      </div>
+      <div class="field full-width">
+        <label for="{{ form.formation_values.id_for_label }}">{{ form.formation_values.label }}</label>
+        {{ form.formation_values }}
+        <small>{{ form.formation_values.help_text }}</small>
+      </div>
+      <div class="field">
+        <label for="{{ form.cohorte_values.id_for_label }}">{{ form.cohorte_values.label }}</label>
+        {{ form.cohorte_values }}
+        <small>{{ form.cohorte_values.help_text }}</small>
       </div>
 
       <div class="field">
@@ -203,6 +269,7 @@
                 </th>
                 <th>Reference</th>
                 <th>Classe</th>
+                <th>Prestation ID</th>
                 <th>Formateur</th>
                 <th>Prestataire</th>
                 <th>Beneficiaire</th>
@@ -232,6 +299,7 @@
                   </td>
                   <td><strong>{{ row.reference_code }}</strong></td>
                   <td>{{ row.classe_code }}</td>
+                  <td>{{ row.prestation_code }}</td>
                   <td>{{ row.formateur_label }}</td>
                   <td>{{ row.prestataire }}</td>
                   <td>{{ row.beneficiaire }}</td>
@@ -253,10 +321,10 @@
           <div class="pager">
             <div class="meta">Page {{ termine_without_form_page_obj.number }} / {{ termine_without_form_page_obj.paginator.num_pages }}</div>
             {% if termine_without_form_page_obj.has_previous %}
-              <a class="btn btn-ghost" href="?termine_page={{ termine_without_form_page_obj.previous_page_number }}&status_page={{ form_status_issue_page_obj.number }}">Precedent</a>
+              <a class="btn btn-ghost" href="?all_status={{ all_status_filter|urlencode }}&termine_page={{ termine_without_form_page_obj.previous_page_number }}&status_page={{ form_status_issue_page_obj.number }}&all_page={{ all_formateurs_page_obj.number }}">Precedent</a>
             {% endif %}
             {% if termine_without_form_page_obj.has_next %}
-              <a class="btn btn-ghost" href="?termine_page={{ termine_without_form_page_obj.next_page_number }}&status_page={{ form_status_issue_page_obj.number }}">Suivant</a>
+              <a class="btn btn-ghost" href="?all_status={{ all_status_filter|urlencode }}&termine_page={{ termine_without_form_page_obj.next_page_number }}&status_page={{ form_status_issue_page_obj.number }}&all_page={{ all_formateurs_page_obj.number }}">Suivant</a>
             {% endif %}
           </div>
         {% endif %}
@@ -283,6 +351,7 @@
                 </th>
                 <th>Reference</th>
                 <th>Classe</th>
+                <th>Prestation ID</th>
                 <th>Formateur</th>
                 <th>Prestataire</th>
                 <th>Beneficiaire</th>
@@ -312,6 +381,7 @@
                   </td>
                   <td><strong>{{ row.reference_code }}</strong></td>
                   <td>{{ row.classe_code }}</td>
+                  <td>{{ row.prestation_code }}</td>
                   <td>{{ row.formateur_label }}</td>
                   <td>{{ row.prestataire }}</td>
                   <td>{{ row.beneficiaire }}</td>
@@ -333,10 +403,10 @@
           <div class="pager">
             <div class="meta">Page {{ form_status_issue_page_obj.number }} / {{ form_status_issue_page_obj.paginator.num_pages }}</div>
             {% if form_status_issue_page_obj.has_previous %}
-              <a class="btn btn-ghost" href="?termine_page={{ termine_without_form_page_obj.number }}&status_page={{ form_status_issue_page_obj.previous_page_number }}">Precedent</a>
+              <a class="btn btn-ghost" href="?all_status={{ all_status_filter|urlencode }}&termine_page={{ termine_without_form_page_obj.number }}&status_page={{ form_status_issue_page_obj.previous_page_number }}&all_page={{ all_formateurs_page_obj.number }}">Precedent</a>
             {% endif %}
             {% if form_status_issue_page_obj.has_next %}
-              <a class="btn btn-ghost" href="?termine_page={{ termine_without_form_page_obj.number }}&status_page={{ form_status_issue_page_obj.next_page_number }}">Suivant</a>
+              <a class="btn btn-ghost" href="?all_status={{ all_status_filter|urlencode }}&termine_page={{ termine_without_form_page_obj.number }}&status_page={{ form_status_issue_page_obj.next_page_number }}&all_page={{ all_formateurs_page_obj.number }}">Suivant</a>
             {% endif %}
           </div>
         {% endif %}
@@ -345,11 +415,216 @@
       {% endif %}
     </div>
 
+    <div class="panel" style="margin-top:16px;">
+      <div class="section-title">
+        <div>
+          <h2>Tous Les Appels Formateurs Actifs</h2>
+          <p>Vue complete de toutes les lignes formateurs actives, y compris les classes incompletes (sans prestation/formation). Cochez les lignes pour les mettre a jour avec les champs du haut.</p>
+        </div>
+        <button class="btn btn-subtle" type="button" data-select-all="all-formateurs">Tout selectionner</button>
+      </div>
+      {% if all_formateurs_rows %}
+        {% if all_status_filter %}
+          <p class="muted" style="margin:0 0 12px;">{{ all_formateurs_filtered_total }} ligne(s) correspondent au statut actuel filtre, sur {{ all_formateurs_total }} ligne(s) active(s).</p>
+        {% endif %}
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th class="checkbox-cell">
+                  <input type="checkbox" data-master-checkbox="all-formateurs" aria-label="Selectionner tous les appels formateurs actifs affiches">
+                </th>
+                <th>Reference</th>
+                <th>Classe</th>
+                <th>Prestation ID</th>
+                <th>Formateur</th>
+                <th>Prestataire</th>
+                <th>Beneficiaire</th>
+                <th>Formation</th>
+                <th>Cohorte</th>
+                <th>Telephone</th>
+                <th>Statut actuel</th>
+                <th>Statut calcule</th>
+                <th>Audio</th>
+                <th>Formulaire</th>
+                <th>Commentaires</th>
+                <th>Recommandations</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in all_formateurs_rows %}
+                <tr>
+                  <td class="checkbox-cell">
+                    <input
+                      type="checkbox"
+                      name="selected_targets"
+                      value="{{ row.selection_value }}"
+                      data-checkbox-group="all-formateurs"
+                      {% if row.selection_value in selected_target_values %}checked{% endif %}
+                      aria-label="Selectionner {{ row.reference_code }}"
+                    >
+                  </td>
+                  <td><strong>{{ row.reference_code }}</strong></td>
+                  <td>{{ row.classe_code }}</td>
+                  <td>{{ row.prestation_code }}</td>
+                  <td>{{ row.formateur_label }}</td>
+                  <td>{{ row.prestataire }}</td>
+                  <td>{{ row.beneficiaire }}</td>
+                  <td>{{ row.formation }}</td>
+                  <td>{{ row.cohorte }}</td>
+                  <td>{{ row.telephone }}</td>
+                  <td><span class="pill pill-no">{{ row.current_status_label }}</span></td>
+                  <td><span class="pill pill-soft">{{ row.computed_status_label }}</span></td>
+                  <td>{{ row.audio_label }}</td>
+                  <td>{{ row.formulaire_label }}</td>
+                  <td>{{ row.commentaires }}</td>
+                  <td>{{ row.recommandations }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% if all_formateurs_page_obj.paginator.num_pages > 1 %}
+          <div class="pager">
+            <div class="meta">Page {{ all_formateurs_page_obj.number }} / {{ all_formateurs_page_obj.paginator.num_pages }}</div>
+            {% if all_formateurs_page_obj.has_previous %}
+              <a class="btn btn-ghost" href="?all_status={{ all_status_filter|urlencode }}&termine_page={{ termine_without_form_page_obj.number }}&status_page={{ form_status_issue_page_obj.number }}&all_page={{ all_formateurs_page_obj.previous_page_number }}">Precedent</a>
+            {% endif %}
+            {% if all_formateurs_page_obj.has_next %}
+              <a class="btn btn-ghost" href="?all_status={{ all_status_filter|urlencode }}&termine_page={{ termine_without_form_page_obj.number }}&status_page={{ form_status_issue_page_obj.number }}&all_page={{ all_formateurs_page_obj.next_page_number }}">Suivant</a>
+            {% endif %}
+          </div>
+        {% endif %}
+      {% else %}
+        <div class="empty">Aucun appel formateur actif disponible.</div>
+      {% endif %}
+    </div>
+
     <div class="batch-actions">
       <button class="btn btn-primary" type="submit" name="action" value="update_form">Mettre a jour le formulaire</button>
+      <button class="btn btn-subtle" type="submit" name="action" value="update_class_data">Mettre a jour les donnees classe</button>
       <button class="btn btn-warning" type="submit" name="action" value="update_status">Changer le statut</button>
     </div>
   </form>
+  {% else %}
+  <form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    <input type="hidden" name="tab" value="classes">
+    <div class="grid">
+      <div class="field">
+        <label for="{{ form.class_codes_values.id_for_label }}">{{ form.class_codes_values.label }}</label>
+        {{ form.class_codes_values }}
+        <small>{{ form.class_codes_values.help_text }}</small>
+      </div>
+      <div class="field">
+        <label for="{{ form.prestation_codes_values.id_for_label }}">{{ form.prestation_codes_values.label }}</label>
+        {{ form.prestation_codes_values }}
+        <small>{{ form.prestation_codes_values.help_text }}</small>
+      </div>
+      <div class="field">
+        <label for="{{ form.cohorte_values.id_for_label }}">{{ form.cohorte_values.label }}</label>
+        {{ form.cohorte_values }}
+        <small>{{ form.cohorte_values.help_text }}</small>
+      </div>
+      <div class="field full-width">
+        <label for="{{ form.prestataire_values.id_for_label }}">{{ form.prestataire_values.label }}</label>
+        {{ form.prestataire_values }}
+        <small>{{ form.prestataire_values.help_text }}</small>
+      </div>
+      <div class="field full-width">
+        <label for="{{ form.beneficiaire_values.id_for_label }}">{{ form.beneficiaire_values.label }}</label>
+        {{ form.beneficiaire_values }}
+        <small>{{ form.beneficiaire_values.help_text }}</small>
+      </div>
+      <div class="field full-width">
+        <label for="{{ form.formation_values.id_for_label }}">{{ form.formation_values.label }}</label>
+        {{ form.formation_values }}
+        <small>{{ form.formation_values.help_text }}</small>
+      </div>
+      <div class="field full-width">
+        <label for="classes_excel_file">Import Excel Classes (Sheet1)</label>
+        <input id="classes_excel_file" name="classes_excel_file" type="file" accept=".xlsx,.xlsm,.xltx,.xltm">
+        <small>Colonnes attendues (comme votre capture): Classe ID, Prestation ID, Nom du Prestataire, Nom du beneficiaire, Cohorte, FORMATION (et variantes proches acceptees).</small>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-top:16px;">
+      <div class="section-title">
+        <div>
+          <h2>Classes du systeme</h2>
+          <p>Selectionnez les classes a mettre a jour. Le seuil d'analyse affiche est {{ analysis_threshold_label }} des appels cibles termines/formulaires.</p>
+        </div>
+        <button class="btn btn-subtle" type="button" data-select-all="all-classes">Tout selectionner</button>
+      </div>
+      {% if classes_rows %}
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th class="checkbox-cell">
+                  <input type="checkbox" data-master-checkbox="all-classes" aria-label="Selectionner toutes les classes affichees">
+                </th>
+                <th>Code classe</th>
+                <th>Prestation ID</th>
+                <th>Prestataire</th>
+                <th>Beneficiaire</th>
+                <th>Titre de formation</th>
+                <th>Cohorte</th>
+                <th>Appels cibles</th>
+                <th>Termines/formulaires</th>
+                <th>Seuil cible</th>
+                <th>Seuil atteint</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in classes_rows %}
+                <tr>
+                  <td class="checkbox-cell">
+                    <input type="checkbox" name="selected_classes" value="{{ row.selection_value }}" data-checkbox-group="all-classes" {% if row.selection_value in selected_class_values %}checked{% endif %}>
+                  </td>
+                  <td><strong>{{ row.classe_code }}</strong></td>
+                  <td>{{ row.prestation_code }}</td>
+                  <td>{{ row.prestataire }}</td>
+                  <td>{{ row.beneficiaire }}</td>
+                  <td>{{ row.formation_title }}</td>
+                  <td>{{ row.cohorte }}</td>
+                  <td>{{ row.appels_total }}</td>
+                  <td>{{ row.threshold_done }}</td>
+                  <td>{{ row.threshold_target }}</td>
+                  <td>
+                    {% if row.threshold_reached %}
+                      <span class="pill pill-ok">Oui</span>
+                    {% else %}
+                      <span class="pill pill-no">Non</span>
+                    {% endif %}
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% if classes_page_obj.paginator.num_pages > 1 %}
+          <div class="pager">
+            <div class="meta">Page {{ classes_page_obj.number }} / {{ classes_page_obj.paginator.num_pages }}</div>
+            {% if classes_page_obj.has_previous %}
+              <a class="btn btn-ghost" href="?tab=classes&classes_page={{ classes_page_obj.previous_page_number }}">Precedent</a>
+            {% endif %}
+            {% if classes_page_obj.has_next %}
+              <a class="btn btn-ghost" href="?tab=classes&classes_page={{ classes_page_obj.next_page_number }}">Suivant</a>
+            {% endif %}
+          </div>
+        {% endif %}
+      {% else %}
+        <div class="empty">Aucune classe disponible.</div>
+      {% endif %}
+    </div>
+
+    <div class="batch-actions">
+      <button class="btn btn-primary" type="submit" name="action" value="update_classes">Mettre a jour les classes</button>
+      <button class="btn btn-subtle" type="submit" name="action" value="upload_classes_excel">Uploader Excel et completer les donnees manquantes</button>
+    </div>
+  </form>
+  {% endif %}
 </section>
 
 {% if summary.requested_total %}

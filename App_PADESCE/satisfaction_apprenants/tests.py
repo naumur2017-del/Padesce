@@ -26,9 +26,12 @@ from App_PADESCE.formations.models import (
     Prestataire,
     Prestation,
 )
+from App_PADESCE.satisfaction_apprenants.cutoff_sync import sync_cutoff_reference_data
 from App_PADESCE.satisfaction_apprenants.management.commands.import_satisfaction_excel import (
     _sync_source_models,
 )
+from App_PADESCE.satisfaction_apprenants.models import SatisfactionApprenant
+from App_PADESCE.satisfaction_apprenants.services import get_prestations_ranking
 from App_PADESCE.satisfaction_apprenants.views import (
     _analysis_selected_source,
     _assign_enquete_ids,
@@ -41,6 +44,7 @@ from App_PADESCE.satisfaction_apprenants.views import (
     _dashboard_chapeau_title,
     _dashboard_export_filename,
     _dashboard_export_filename_from_rows,
+    _dashboard_row_from_answer,
     _merge_class_apprenant_counts,
     _qualified_prestation_codes_from_source,
     _safe_import_appel_code,
@@ -1451,6 +1455,42 @@ class SatisfactionGeneralPageTests(TestCase):
         self.assertContains(filtered_response, "NET002")
         self.assertNotContains(filtered_response, "NET001")
 
+    def test_dashboard_row_from_answer_counts_all_scores_and_uses_apprenant_class_fallback(self):
+        appel = Appel.objects.create(
+            code="CALL200",
+            nom="Amina Analyse",
+            classe_label="CLA001",
+            prestataire="Prestataire A",
+            beneficiaire="Beneficiaire A",
+            telephone1="690009999",
+            fenetre="2",
+            status="termine",
+            is_active=True,
+        )
+        answer = AppelAnswers.objects.create(
+            appel=appel,
+            q1_clarte_exposes=4,
+            q2_interaction_formateur=4,
+            q3_maitrise_contenu=4,
+            q4_salle_adequate=4,
+            q5_materiel_disponible=4,
+            q6_organisation_temps=4,
+            q7_utilite_formation=4,
+            q8_adequation_besoins=4,
+            q9_satisfaction_globale=4,
+            commentaire="RAS",
+            recommandations="Suivi",
+            modified_by=self.user,
+        )
+
+        row = _dashboard_row_from_answer(answer, matched_apprenant=self.eligible_apprenant)
+
+        self.assertTrue(row["has_form"])
+        self.assertTrue(row["analysis_included"])
+        self.assertEqual(row["classe_code"], "CLA001")
+        self.assertEqual(row["prestation_code"], "PRESTA001")
+        self.assertEqual(row["apprenant_id"], self.eligible_apprenant.code)
+
     @patch("App_PADESCE.satisfaction_apprenants.views.get_workbook_source_options", return_value=[])
     @patch(
         "App_PADESCE.satisfaction_apprenants.views.build_padesce_source_index",
@@ -1521,6 +1561,22 @@ class SatisfactionGeneralPageTests(TestCase):
         self.assertContains(response, "APP102")
         self.assertContains(response, "APP103")
         self.assertContains(response, "CALL104")
+
+    def test_update_form_page_filters_all_active_rows_by_status(self):
+        response = self.client.get(
+            reverse("satisfaction_update_form_page"),
+            {"all_status": "formulaire_rempli"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["all_status_filter"], "formulaire_rempli")
+        self.assertTrue(response.context["all_apprenants_rows"])
+        self.assertTrue(
+            all(
+                row["current_status"] == "formulaire_rempli"
+                for row in response.context["all_apprenants_rows"]
+            )
+        )
 
     def test_update_form_page_updates_batch_codes_in_declared_order(self):
         response = self.client.post(
@@ -1652,6 +1708,25 @@ class SatisfactionGeneralPageTests(TestCase):
         self.assertEqual(survey.apprenant, self.termine_without_form_apprenant)
         self.assertEqual(survey.classe, self.classe)
 
+    def test_update_form_page_updates_selected_rows_from_all_active_table(self):
+        response = self.client.post(
+            reverse("satisfaction_update_form_page"),
+            {
+                "selected_targets": [f"{self.fallback_lookup_appel.code}|CLA001"],
+                "action": "update_form",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "1 formulaire(s) mis a jour.")
+
+        answers = AppelAnswers.objects.get(appel=self.fallback_lookup_appel)
+        self.assertEqual(answers.q1_clarte_exposes, 3)
+        self.assertEqual(answers.q9_satisfaction_globale, 3)
+        survey = SatisfactionApprenant.objects.get(appel=self.fallback_lookup_appel)
+        self.assertEqual(survey.apprenant, self.fallback_lookup_apprenant)
+        self.assertEqual(survey.classe, self.classe)
+
     def test_update_form_page_changes_status_for_rows_with_existing_form(self):
         response = self.client.post(
             reverse("satisfaction_update_form_page"),
@@ -1767,6 +1842,112 @@ class SatisfactionImportExcelSyncTests(TestCase):
         self.assertEqual(second_sync["apprenant"].pk, apprenant.pk)
         self.assertEqual(second_sync["apprenant"].code, "APP001")
         self.assertEqual(second_sync["apprenant"].classe.code, "CLA001")
+
+
+class SatisfactionCutoffSyncTests(TestCase):
+    def setUp(self):
+        self.factory = RequestFactory()
+
+    @patch("App_PADESCE.satisfaction_apprenants.cutoff_sync.build_padesce_source_index")
+    def test_sync_cutoff_reference_data_updates_calls_and_deactivates_missing_entities(
+        self, mock_source_index
+    ):
+        stale_prestataire = Prestataire.objects.create(
+            code="PST-OLD",
+            raison_sociale="Prestataire Historique",
+        )
+        stale_formation = Formation.objects.create(code="FOR-OLD", nom="Formation Historique")
+        stale_beneficiaire = Beneficiaire.objects.create(nom_structure="Beneficiaire Historique")
+        stale_prestation = Prestation.objects.create(
+            code="PRESTA-OLD",
+            prestataire=stale_prestataire,
+            formation=stale_formation,
+            beneficiaire=stale_beneficiaire,
+        )
+        stale_classe = Classe.objects.create(
+            code="CLA-OLD",
+            prestation=stale_prestation,
+            formation=stale_formation,
+            intitule_formation="Formation Historique",
+        )
+        stale_apprenant = Apprenant.objects.create(
+            code="OLD001",
+            classe=stale_classe,
+            formation=stale_formation,
+            nom_complet="Ancien Apprenant",
+        )
+        stale_appel = Appel.objects.create(
+            code="OLD-CALL",
+            nom="Ancien Appel",
+            classe_label="CLA-OLD",
+            is_active=True,
+            status="en_attente",
+        )
+        target_appel = Appel.objects.create(
+            code="TGOX",
+            nom="FADIMATOU HAMADOU HARDFO",
+            classe_label="CLA002",
+            is_active=True,
+            status="formulaire_rempli",
+        )
+
+        mock_source_index.return_value = {
+            "records": {
+                "tgox": {
+                    "code": "TGOX",
+                    "apprenant_id": "APP040",
+                    "nom_individu": "FADIMATOU HAMADOU HARDFO",
+                    "classe_id": "CLA002",
+                    "prestation_id": "PRESTA072",
+                    "prestataire": "CENTRE DE FORMATION PROFESSIONNELLE PONTAAH",
+                    "beneficiaire": "SCOOP YILLAGA YAOURT DU MAYO-KANI (COOP SYYMK)",
+                    "fenetre": "3",
+                    "cohorte": "2",
+                    "statut_apprenant": "Actif",
+                    "statut_prestation": "ARRETE",
+                    "formation": "Transformation des produits laitiers",
+                    "lieu": "COMMUNE DE MINDIF",
+                    "ville": "Mindif",
+                    "region": "EXTREME-NORD",
+                    "numero": "40",
+                    "sexe": "F",
+                    "inspecteur_id": "INS002",
+                    "inspecteur_label": "Charles Xavier",
+                }
+            }
+        }
+
+        summary = sync_cutoff_reference_data(
+            source_key="cutoff",
+            sync_appels=True,
+            deactivate_missing=True,
+        )
+
+        self.assertEqual(summary["source_records"], 1)
+        self.assertEqual(summary["synced_apprenants"], 1)
+        self.assertEqual(summary["synced_classes"], 1)
+        self.assertEqual(summary["synced_prestations"], 1)
+        self.assertGreaterEqual(summary["appels_updated"], 1)
+        self.assertGreaterEqual(summary["appels_deactivated"], 1)
+
+        target_appel.refresh_from_db()
+        self.assertTrue(target_appel.is_active)
+        self.assertEqual(target_appel.classe.code, "CLA002")
+        self.assertEqual(target_appel.classe.prestation.code, "PRESTA072")
+        self.assertEqual(target_appel.nom, "FADIMATOU HAMADOU HARDFO")
+
+        synced_apprenant = Apprenant.objects.get(code="APP040")
+        self.assertEqual(synced_apprenant.classe.code, "CLA002")
+        self.assertTrue(synced_apprenant.actif)
+
+        stale_appel.refresh_from_db()
+        stale_apprenant.refresh_from_db()
+        stale_classe.refresh_from_db()
+        stale_prestation.refresh_from_db()
+        self.assertFalse(stale_appel.is_active)
+        self.assertFalse(stale_apprenant.actif)
+        self.assertFalse(stale_classe.actif)
+        self.assertFalse(stale_prestation.actif)
 
     @patch("App_PADESCE.satisfaction_apprenants.views.answer_dashboard_prompt")
     @patch("App_PADESCE.satisfaction_apprenants.views._build_satisfaction_dashboard_data")

@@ -10,6 +10,7 @@ from django.db import OperationalError, connection, transaction
 from django.db.models import Avg, Count, Q, Sum
 from django.http import Http404, HttpResponse
 from django.shortcuts import render
+from django.utils.safestring import mark_safe
 from django.utils.text import slugify
 from openpyxl import Workbook, load_workbook
 
@@ -27,6 +28,11 @@ from App_PADESCE.formations.models import (
 )
 from App_PADESCE.presences.models import Presence
 from App_PADESCE.reporting.forms import ConsolidationUploadForm
+from App_PADESCE.reporting.manuals import (
+    get_reporting_manual_path,
+    load_reporting_manual_markdown,
+    render_reporting_manual_html,
+)
 from App_PADESCE.reporting.models import ConsolidationRecord
 from App_PADESCE.satisfaction_apprenants.models import SatisfactionApprenant
 from App_PADESCE.satisfaction_formateurs.models import SatisfactionFormateur
@@ -1806,12 +1812,12 @@ def reporting_embed_table(request, code: str):
 # Section 7 – Vues Rapport Application
 # ---------------------------------------------------------------------------
 
-from django.contrib.auth import get_user_model as _get_user_model  # noqa: E402
-from django.contrib.auth.models import Group  # noqa: E402
-from django.shortcuts import redirect  # noqa: E402
-from django.urls import reverse  # noqa: E402
+from django.contrib.auth import get_user_model as _get_user_model
+from django.contrib.auth.models import Group
+from django.shortcuts import redirect
+from django.urls import reverse
 
-from App_PADESCE.reporting.app_report import (  # noqa: E402
+from App_PADESCE.reporting.app_report import (
     build_application_report,
     export_application_report_csv,
     export_application_report_excel,
@@ -1822,7 +1828,7 @@ from App_PADESCE.reporting.app_report import (  # noqa: E402
 )
 
 
-def safe_rate(num: float, den: float) -> float:  # noqa: F811
+def safe_rate(num: float, den: float) -> float:
     return round((num / den) * 100, 2) if den else 0.0
 
 
@@ -1908,3 +1914,32 @@ def application_report_send_mail_view(request):
         messages.warning(request, result["detail"])
     query = urlencode({"start": start_date.isoformat(), "end": end_date.isoformat()})
     return redirect(f"{reverse('application_report')}?{query}")
+
+
+@require_analysis_access
+def reporting_manual_view(request):
+    try:
+        manual_path = get_reporting_manual_path()
+        markdown_text = load_reporting_manual_markdown()
+    except FileNotFoundError as exc:
+        raise Http404("Le manuel de reporting est introuvable.") from exc
+
+    context = {
+        "manual_filename": manual_path.name,
+        "manual_html": mark_safe(render_reporting_manual_html(markdown_text)),
+        "manual_download_url": reverse("reporting_manual_download"),
+    }
+    return render(request, "reporting/documentation.html", context)
+
+
+@require_analysis_access
+def reporting_manual_download_view(request):
+    try:
+        manual_path = get_reporting_manual_path()
+        payload = manual_path.read_bytes()
+    except FileNotFoundError as exc:
+        raise Http404("Le manuel de reporting est introuvable.") from exc
+
+    response = HttpResponse(payload, content_type="text/markdown; charset=utf-8")
+    response["Content-Disposition"] = f'attachment; filename="{manual_path.name}"'
+    return response

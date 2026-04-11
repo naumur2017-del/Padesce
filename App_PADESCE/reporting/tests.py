@@ -6,6 +6,7 @@ from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
+from django.core.cache import cache
 from django.test import SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 from openpyxl import Workbook
@@ -396,6 +397,35 @@ class NetworkExcelApiTests(TestCase):
         self.assertEqual(record["apprenant_id"], "APPCUT001")
         self.assertEqual(record["prestation_id"], "PRESTACUT001")
         self.assertEqual(record["fenetre"], "3")
+
+    def test_ensure_cached_workbook_reuses_cached_metadata_without_touching_network_share(self):
+        cache.clear()
+        network_excel._build_padesce_source_index_cached.cache_clear()
+        network_excel._build_consolidation_call_candidates_cached.cache_clear()
+
+        with patch.object(
+            network_excel,
+            "_resolve_network_workbook",
+            return_value=self.source_path,
+        ) as first_resolve:
+            first_source = network_excel._ensure_cached_workbook(
+                source_key="main",
+                force_refresh=True,
+            )
+
+        self.assertEqual(first_resolve.call_count, 1)
+        self.assertTrue(first_source.cached_path.exists())
+
+        with patch.object(
+            network_excel,
+            "_resolve_network_workbook",
+            side_effect=AssertionError("network share should not be queried again"),
+        ):
+            cached_source = network_excel._ensure_cached_workbook(source_key="main")
+
+        self.assertEqual(cached_source.cached_path, first_source.cached_path)
+        self.assertEqual(cached_source.source_path, first_source.source_path)
+        self.assertEqual(cached_source.modified_at, first_source.modified_at)
 
     def test_api_forbids_authenticated_user_without_analysis_role(self):
         self.client.force_login(self.regular_user)

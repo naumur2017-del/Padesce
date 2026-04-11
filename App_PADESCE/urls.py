@@ -10,10 +10,8 @@ from App_PADESCE.core.lazy_urls import lazy_view
 app_urlpatterns = [
     path(
         "",
-        auth_views.LoginView.as_view(
-            template_name="registration/login.html", redirect_authenticated_user=True
-        ),
-        name="login",
+        lazy_view("App_PADESCE.core.public_views.public_space"),
+        name="public_space",
     ),
     path(
         "service-worker.js",
@@ -118,6 +116,13 @@ app_urlpatterns = [
         name="fast_stats_api",
     ),
     path("accounts/", include("django.contrib.auth.urls")),
+    path(
+        "login/",
+        auth_views.LoginView.as_view(
+            template_name="registration/login.html", redirect_authenticated_user=True
+        ),
+        name="login",
+    ),
     path("formations/", include("App_PADESCE.formations.urls")),
     path("apprenants/", include("App_PADESCE.apprenants.urls")),
     path("presences/", include("App_PADESCE.presences.urls")),

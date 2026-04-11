@@ -2,7 +2,6 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
-from django.test import RequestFactory
 from django.contrib.auth.models import Group
 from django.db import OperationalError
 from django.test import SimpleTestCase, TestCase, override_settings
@@ -588,6 +587,39 @@ class FriendlyErrorPagesTests(TestCase):
         self.assertEqual(response.json(), {"error": "keep-json"})
 
 
+class PublicSpaceTests(TestCase):
+    @patch("App_PADESCE.core.views._consultant_analysis_snapshot")
+    def test_root_redirects_to_public_espace_padesce(self, mock_snapshot):
+        mock_snapshot.return_value = {
+            "class_options": [],
+            "prestataire_options": [],
+            "beneficiaire_options": [],
+            "fenetre_options": [],
+            "counts": {
+                "analyzed_classes_count": 0,
+                "analyzed_prestations_count": 0,
+                "analyzed_prestataires_count": 0,
+                "analyzed_beneficiaires_count": 0,
+                "analyzed_learners_count": 0,
+            },
+        }
+
+        response = self.client.get(reverse("public_space"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Espace PADESCE")
+        self.assertContains(response, "Page principale")
+        self.assertContains(response, "Apercu")
+        self.assertContains(response, "Stats")
+        self.assertContains(response, reverse("login"))
+
+    def test_login_page_is_served_under_login_path(self):
+        response = self.client.get(reverse("login"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(reverse("login"), "/login/")
+
+
 class PublicConsultantAccessTests(TestCase):
     @override_settings(PUBLIC_CONSULTANT_ACCESS=True)
     @patch("App_PADESCE.core.views._consultant_analysis_snapshot")
@@ -621,7 +653,7 @@ class PublicConsultantAccessTests(TestCase):
         response = self.client.get(reverse("consultant_dashboard"))
 
         self.assertEqual(response.status_code, 302)
-        self.assertIn("/", response["Location"])
+        self.assertIn(reverse("login"), response["Location"])
 
     @override_settings(PUBLIC_CONSULTANT_ACCESS=True)
     def test_login_page_shows_consultant_direct_button(self):
@@ -629,7 +661,7 @@ class PublicConsultantAccessTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Espace PADESCE")
-        self.assertContains(response, reverse("consultant_dashboard"))
+        self.assertContains(response, reverse("public_space"))
 
     @override_settings(PUBLIC_CONSULTANT_ACCESS=True)
     @patch("App_PADESCE.core.views._consultant_analysis_snapshot")
@@ -836,10 +868,24 @@ class ConsultantAnalysisSnapshotTests(SimpleTestCase):
                 "analyzed_prestations_count": 49,
                 "analyzed_prestataires_count": 12,
                 "analyzed_beneficiaires_count": 10,
+                "appels_cibles": 190,
+                "appels_tentes": 175,
+                "appels_reussis": 160,
+                "formulaires_remplis_appels": 150,
+                "formulaires_remplis_sans_audio_appels": 40,
+                "formulaires_avec_audio_appels": 110,
+                "audios_enregistres_appels": 112,
                 "classe_stats": [
                     {"code": "CLA012", "intitule": "Gestion d'entreprise"},
                     {"code": "CLA014", "intitule": "Elevage"},
                 ],
+                "class_options": [
+                    {"value": "CLA012", "label": "CLA012 - Gestion d'entreprise"},
+                    {"value": "CLA014", "label": "CLA014 - Elevage"},
+                ],
+                "prestataires": ["Prestataire Alpha", "Prestataire Beta"],
+                "beneficiaires": ["Beneficiaire A", "Beneficiaire B"],
+                "fenetres": ["2", "3"],
                 "analyzed_prestataires": [
                     {"label": "Prestataire Alpha", "nb": 70},
                     {"label": "Prestataire Beta", "nb": 12},
@@ -852,6 +898,7 @@ class ConsultantAnalysisSnapshotTests(SimpleTestCase):
                     {"label": "2", "nb": 100},
                     {"label": "3", "nb": 100},
                 ],
+                "source_summary": {"source_apprenant_count": 320},
             }
         }
 
@@ -859,6 +906,8 @@ class ConsultantAnalysisSnapshotTests(SimpleTestCase):
             SimpleNamespace(is_authenticated=True),
             classe_filter="CLA012",
             prestataire_filter="Prestataire Alpha",
+            beneficiaire_filter="Beneficiaire A",
+            fenetre_filter="2",
         )
 
         self.assertEqual(snapshot["counts"]["analyzed_classes_count"], 174)
@@ -866,6 +915,14 @@ class ConsultantAnalysisSnapshotTests(SimpleTestCase):
         self.assertEqual(snapshot["counts"]["analyzed_prestataires_count"], 12)
         self.assertEqual(snapshot["counts"]["analyzed_beneficiaires_count"], 10)
         self.assertEqual(snapshot["counts"]["total_apprenants"], 200)
+        self.assertEqual(snapshot["counts"]["source_apprenant_count"], 320)
+        self.assertEqual(snapshot["counts"]["appels_cibles"], 190)
+        self.assertEqual(snapshot["counts"]["appels_tentes"], 175)
+        self.assertEqual(snapshot["counts"]["appels_reussis"], 160)
+        self.assertEqual(snapshot["counts"]["formulaires_remplis"], 150)
+        self.assertEqual(snapshot["counts"]["formulaires_remplis_sans_audio"], 40)
+        self.assertEqual(snapshot["counts"]["formulaires_avec_audio"], 110)
+        self.assertEqual(snapshot["counts"]["audios_enregistres"], 112)
         self.assertEqual(
             snapshot["class_options"],
             [
@@ -880,98 +937,5 @@ class ConsultantAnalysisSnapshotTests(SimpleTestCase):
         fake_request = mock_build_dashboard_data.call_args[0][0]
         self.assertEqual(fake_request.GET.get("classe"), "CLA012")
         self.assertEqual(fake_request.GET.get("prestataire"), "Prestataire Alpha")
-
-
-class AnalysisMaterializationTests(TestCase):
-    @patch("App_PADESCE.appels.views._safe_build_padesce_source_index", return_value=None)
-    @patch("App_PADESCE.appels.views._build_appel_class_progress_snapshot")
-    def test_appel_optimization_reuses_db_when_fingerprint_unchanged(self, mock_build, _src):
-        from App_PADESCE.core.analysis_materialization import get_or_build_appel_optimization_snapshot
-
-        mock_build.return_value = {
-            "source_bundle": None,
-            "source_summary": {},
-            "classe_progress": [],
-            "classe_progress_all": [],
-            "progress_by_key": {},
-            "hidden_class_labels": [],
-            "hidden_class_count": 0,
-            "hidden_appel_count": 0,
-            "classes_without_callable_phone_count": 0,
-            "recommended_classes": [],
-            "analysis_prestations_count": 0,
-        }
-        get_or_build_appel_optimization_snapshot()
-        get_or_build_appel_optimization_snapshot()
-        self.assertEqual(mock_build.call_count, 1)
-
-    def test_materialized_dashboard_roundtrip(self):
-        from App_PADESCE.core.analysis_materialization import (
-            load_materialized_dashboard_payload,
-            save_materialized_dashboard_payload,
-        )
-
-        key = "test-key-materialized"
-        payload = {"rows": [], "filters": {"a": 1}, "context": {"n": 2}}
-        save_materialized_dashboard_payload(key, payload, 3600)
-        loaded = load_materialized_dashboard_payload(key)
-        self.assertEqual(loaded, payload)
-
-    def test_appels_list_metrics_cache_key_ignores_page(self):
-        from App_PADESCE.core.analysis_materialization import appels_list_metrics_cache_key
-
-        rf = RequestFactory()
-        r1 = rf.get("/appels/", {"page": "1", "status": "termine"})
-        r2 = rf.get("/appels/", {"page": "2", "status": "termine"})
-        fp = "0::0"
-        common = dict(
-            appels_data_fingerprint=fp,
-            source_workbook_fingerprint="none",
-            hidden_class_labels=["A", "B"],
-        )
-        self.assertEqual(
-            appels_list_metrics_cache_key(r1, **common),
-            appels_list_metrics_cache_key(r2, **common),
-        )
-
-
-class FormateursDashboardMaterializationTests(TestCase):
-    @patch("App_PADESCE.satisfaction_formateurs.views.build_fast_stats_context", return_value={})
-    @patch("App_PADESCE.satisfaction_formateurs.views.render")
-    @patch("App_PADESCE.satisfaction_formateurs.views._build_formateurs_dashboard_context")
-    def test_dashboard_reuses_cache_between_requests(self, mock_build, mock_render, _fs):
-        from django.contrib.auth.models import Group
-        from django.core.cache import cache
-
-        from App_PADESCE.satisfaction_formateurs.views import satisfaction_formateurs_dashboard
-
-        cache.clear()
-        mock_render.return_value = None
-        mock_build.return_value = {
-            "total": 0,
-            "termines": 0,
-            "with_scores": 0,
-            "global_avgs": {},
-            "q_labels": [],
-            "prestataire_stats": [],
-            "beneficiaire_stats": [],
-            "cohorte_stats": [],
-            "status_counts": {},
-            "prestataires": [],
-            "beneficiaires": [],
-            "cohortes": [],
-            "f_prestataire": "",
-            "f_beneficiaire": "",
-            "f_cohorte": "",
-            "rows": [],
-        }
-        user_model = get_user_model()
-        user = user_model.objects.create_user(username="dash-form-f", password="pw-test-12")
-        mgr, _ = Group.objects.get_or_create(name="manager_padesce")
-        user.groups.add(mgr)
-        rf = RequestFactory()
-        request = rf.get("/satisfaction-formateurs/dashboard/")
-        request.user = user
-        satisfaction_formateurs_dashboard(request)
-        satisfaction_formateurs_dashboard(request)
-        self.assertEqual(mock_build.call_count, 1)
+        self.assertEqual(fake_request.GET.get("beneficiaire"), "Beneficiaire A")
+        self.assertEqual(fake_request.GET.get("fenetre"), "2")

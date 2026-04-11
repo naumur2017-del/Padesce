@@ -199,6 +199,7 @@
       </form>
     </div>
     <div class="actions">
+      <a class="btn btn-ghost" href="{% url 'reporting_manual' %}">Documentation</a>
       <a class="btn btn-primary" href="{% url 'application_report_export_word' %}?{{ download_query }}">Telecharger Word</a>
       <a class="btn btn-ghost" href="{% url 'application_report_export_excel' %}?{{ download_query }}">Telecharger Excel</a>
       <a class="btn btn-soft" href="{% url 'application_report_export_csv' %}?{{ download_query }}">Telecharger CSV</a>

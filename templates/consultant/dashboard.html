@@ -1,405 +1,51 @@
 {% extends "base.html" %}
-{% block title %}Enquête de satisfaction - PADESCE{% endblock %}
+{% block title %}Tableau de bord - PADESCE{% endblock %}
 {% block content %}
 <style>
-  .hero { border:1px solid var(--border); border-radius:18px; padding:18px; background:linear-gradient(135deg,#faf7ff,#fff); box-shadow:var(--shadow); margin-bottom:16px; }
-  .hero h1 { margin:0 0 6px; color:var(--accent-strong); }
+  .hero { border:1px solid var(--border); border-radius:18px; padding:18px; background:linear-gradient(135deg,#faf7ff,#fff); box-shadow:var(--shadow); margin-bottom:24px; }
+  .hero h1 { margin:0 0 6px; color:var(--accent-strong); font-size:2rem; }
   .hero p { margin:0; color:var(--muted); }
-  .cards { display:flex; flex-direction:column; gap:12px; margin:16px 0; }
-  .cards-row { display:grid; gap:12px; }
-  .cards-row.top { grid-template-columns: repeat(5, minmax(0, 1fr)); }
-  .cards-row.bottom { grid-template-columns: repeat(7, minmax(0, 1fr)); }
-  .card { border:1px solid var(--border); border-radius:16px; background:#fff; padding:16px; box-shadow:var(--shadow); }
-  .card .value { font-size:1.6rem; font-weight:800; color:var(--accent-strong); }
-  .card .label { color:var(--muted); font-weight:600; }
-  .panel { border:1px solid var(--border); border-radius:16px; background:#fff; padding:14px; box-shadow:var(--shadow); }
-  .panel-head { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:12px; }
-  .panel-head p { margin:0; color:var(--muted); }
-  .toolbar { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px; }
-  .input, select { padding:10px 12px; border-radius:12px; border:1px solid var(--border); background:#fff; }
-  .btn { display:inline-flex; align-items:center; justify-content:center; padding:10px 14px; border-radius:12px; border:1px solid var(--border); background:#faf7ff; color:var(--accent-strong); font-weight:700; text-decoration:none; cursor:pointer; }
-  .btn-primary { background:var(--accent); color:#fff; border-color:var(--accent); }
-  .table-wrap { max-height:62vh; overflow:auto; }
-  table { width:100%; border-collapse:collapse; }
-  th, td { border:1px solid var(--border); padding:8px; text-align:left; }
-  thead { background:#faf7ff; position:sticky; top:0; }
-  .clickable-row { cursor:pointer; }
-  .clickable-row:hover { background:rgba(111,60,195,0.05); }
-  .promoted-row { background:rgba(111,60,195,0.06); }
-  .badge.info { background:#eef2ff; color:#4338ca; border-color:#c7d2fe; }
-  .modal-backdrop { position:fixed; inset:0; background:rgba(15,23,42,0.55); display:flex; align-items:center; justify-content:center; z-index:1200; }
-  .modal-backdrop[hidden] { display:none; }
-  .modal-panel { width:min(1100px, 96vw); max-height:92vh; background:var(--panel); border-radius:18px; padding:18px; box-shadow:0 20px 60px rgba(15,23,42,0.35); border:1px solid var(--border); }
-  .modal-content { width:100%; max-height:min(82vh, 840px); overflow:auto; border-radius:14px; background:#fff; }
-  .pagination { display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; margin-top:12px; }
-  .pagination-info { color:var(--muted); font-weight:600; }
-  .pagination-actions { display:flex; gap:8px; flex-wrap:wrap; }
-  .pagination-actions { display:flex; gap:8px; flex-wrap:wrap; }
-  .card[data-filter] { cursor:pointer; border:2px solid transparent; transition:border-color .2s ease; }
-  .card[data-filter]:hover { border-color:var(--accent); }
-  .card[data-filter].active { border-color:var(--accent); box-shadow:0 0 0 4px rgba(124,58,237,0.12); }
+  .nav-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(320px, 1fr)); gap:16px; margin-bottom:24px; }
+  .nav-card { border:1px solid var(--border); border-radius:16px; background:#fff; padding:20px; box-shadow:var(--shadow); text-decoration:none; color:inherit; transition:all .2s ease; display:flex; flex-direction:column; }
+  .nav-card:hover { border-color:var(--accent); box-shadow:0 8px 24px rgba(111,60,195,0.12); transform:translateY(-2px); }
+  .nav-card h3 { margin:0 0 8px; color:var(--accent-strong); font-size:1.3rem; }
+  .nav-card-stat { font-size:1.8rem; font-weight:800; color:var(--accent); margin:8px 0; }
+  .nav-card-stat-sub { font-size:1.4rem; font-weight:700; color:#666; margin:6px 0; }
+  .nav-card-desc { color:var(--muted); font-size:0.9rem; margin:8px 0; line-height:1.5; flex-grow:1; }
+  .nav-card-action { color:var(--accent); font-weight:700; margin-top:12px; font-size:0.9rem; }
+  .nav-card-action::after { content:" →"; }
   @media (max-width:1200px) {
-    .cards-row.top, .cards-row.bottom { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+    .nav-grid { grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); }
   }
 </style>
 
 <section class="hero">
-  <h1>Enquête de satisfaction</h1>
-  <p>Padesce</p>
+  <h1>PADESCE</h1>
+  <p>Tableau de bord centralisé des appels et analyses</p>
 </section>
 
-<section class="cards">
-  <div class="cards-row top">
-    <article class="card">
-      <div class="value">{{ card_prestations_count }}</div>
-      <div class="label">Prestations analysées</div>
-    </article>
-    <article class="card">
-      <div class="value">{{ card_classes_count }}</div>
-      <div class="label">
-        Classes analysées
-        {% if card_fenetres %}
-        <div style="font-size:0.75rem; color:var(--muted); font-weight:normal;">Fenetre: {{ card_fenetres|join:", " }}</div>
-        {% endif %}
-      </div>
-    </article>
-    <article class="card">
-      <div class="value">{{ card_prestataires_count }}</div>
-      <div class="label">Prestataires analysés</div>
-    </article>
-    <article class="card">
-      <div class="value">{{ card_beneficiaires_count }}</div>
-      <div class="label">Bénéficiaires analysés</div>
-    </article>
-    <article class="card">
-      <div class="value">{{ card_apprenants_count }}</div>
-      <div class="label">Apprenants analysés</div>
-    </article>
-  </div>
-  <div class="cards-row bottom">
-    <article class="card" style="border-top: 3px solid #0f766e;">
-      <div class="value">{{ summary_appels_cibles }}</div>
-      <div class="label">Appels cibles</div>
-    </article>
-    <article class="card" style="border-top: 3px solid #f59e0b;" data-filter="tente">
-      <div class="value">{{ summary_tentes }}</div>
-      <div class="label">Appels tentés</div>
-    </article>
-    <article class="card" style="border-top: 3px solid #10b981;" data-filter="reussi">
-      <div class="value">{{ summary_reussis }}</div>
-      <div class="label">Appels réussis</div>
-    </article>
-    <article class="card" style="border-top: 3px solid #6366f1;" data-filter="form">
-      <div class="value">{{ summary_form_remplis }}</div>
-      <div class="label">Formulaires remplis : Total</div>
-    </article>
-    <article class="card" style="border-top: 3px solid #2563eb;">
-      <div class="value">{{ summary_form_sans_audio }}</div>
-      <div class="label">Formulaires remplis sans audios</div>
-    </article>
-    <article class="card" style="border-top: 3px solid #8b5cf6;" data-filter="form-audio">
-      <div class="value">{{ summary_form_audio }}</div>
-      <div class="label">Formulaires remplis avec audios</div>
-    </article>
-    <article class="card" style="border-top: 3px solid #14b8a6;" data-filter="audio">
-      <div class="value">{{ summary_audios }}</div>
-      <div class="label">Audios enregistrés</div>
-    </article>
-  </div>
-</section>
-
-<section class="panel">
-  <div class="panel-head">
-    <div>
-      <h2 style="margin:0 0 4px; color:var(--accent-strong);">Appels PADESCE termines</h2>
-      <p>Les audios de plus d'une minute remontent en tete. Clique sur une ligne pour ouvrir le dossier complet.</p>
+<div class="nav-grid">
+  <a href="https://call.naumur.com/appels/" target="_blank" class="nav-card">
+    <h3>Appel Padesce</h3>
+    <div style="margin:8px 0;">
+      <div><strong>Apprenants</strong></div>
+      <div class="nav-card-stat">4989 / 6379</div>
+      <div class="nav-card-stat-sub">appels tentés</div>
     </div>
-
-  </div>
-  <div class="toolbar">
-    <input class="input" type="text" name="q" id="f-q" form="consultant-filter-form" placeholder="Recherche apprenant..." value="{{ filters.q }}">
-    <select class="input" name="beneficiaire" id="f-beneficiaire" form="consultant-filter-form">
-      <option value="">Bénéficiaire</option>
-      {% for item in filters.beneficiaires %}
-        <option value="{{ item }}" {% if filters.beneficiaire == item %}selected{% endif %}>{{ item }}</option>
-      {% endfor %}
-    </select>
-    <select class="input" name="prestation" id="f-prestataire" form="consultant-filter-form">
-      <option value="">Prestataire</option>
-      {% for item in filters.prestataires %}
-        <option value="{{ item }}" {% if filters.prestation == item %}selected{% endif %}>{{ item }}</option>
-      {% endfor %}
-    </select>
-    <select class="input" name="classe" id="f-classe" form="consultant-filter-form">
-      <option value="">Classe</option>
-      {% for item in filters.classes %}
-        <option value="{{ item.value }}" {% if filters.classe == item.value %}selected{% endif %}>{{ item.label }}</option>
-      {% endfor %}
-    </select>
-    <select class="input" name="fenetre" id="f-fenetre" form="consultant-filter-form">
-      <option value="">Fenêtre</option>
-      {% for item in filters.fenetres %}
-        <option value="{{ item }}" {% if filters.fenetre == item %}selected{% endif %}>{{ item }}</option>
-      {% endfor %}
-    </select>
-    <form id="consultant-filter-form" method="get"></form>
-    <button class="btn btn-primary" type="submit" form="consultant-filter-form">Filtrer</button>
-    <a class="btn" href="{% url 'consultant_dashboard' %}">Reset</a>
-    <a class="btn" href="{% url 'satisfaction_dashboard' %}">Voir analyse satisfaction</a>
-  </div>
-  <script>
-  (function() {
-    const FILTER_DATA = {{ filter_map_json|safe }};
-    const ACTIVE = {
-      beneficiaire: "{{ filters.beneficiaire|default:""|escapejs }}",
-      prestataire:  "{{ filters.prestation|default:""|escapejs }}",
-      classe:       "{{ filters.classe|default:""|escapejs }}",
-      fenetre:      "{{ filters.fenetre|default:""|escapejs }}",
-    };
-    const SELECTS = {
-      beneficiaire: document.getElementById('f-beneficiaire'),
-      prestataire:  document.getElementById('f-prestataire'),
-      classe:       document.getElementById('f-classe'),
-      fenetre:      document.getElementById('f-fenetre'),
-    };
-    const LABELS = {beneficiaire:'Bénéficiaire', prestataire:'Prestataire', classe:'Classe', fenetre:'Fenêtre'};
-
-    function filteredRows(skipField) {
-      return FILTER_DATA.filter(r => {
-        return Object.keys(SELECTS).every(k => {
-          if (k === skipField) return true;
-          const v = SELECTS[k].value;
-          if (!v) return true;
-          return (k === 'classe' ? r.classe_value : k === 'prestataire' ? r.prestataire : r[k]) === v;
-        });
-      });
-    }
-
-    function rebuildSelect(field) {
-      const sel = SELECTS[field];
-      const current = sel.value;
-      const rows = filteredRows(field);
-      const seen = new Set();
-      const opts = [];
-      rows.forEach(r => {
-        const val = field === 'classe' ? r.classe_value : field === 'prestataire' ? r.prestataire : r[field];
-        const lbl = field === 'classe' ? r.classe_label : val;
-        if (val && !seen.has(val)) { seen.add(val); opts.push({val, lbl}); }
-      });
-      opts.sort((a, b) => a.lbl.localeCompare(b.lbl));
-      sel.innerHTML = `<option value="">${LABELS[field]}</option>`;
-      opts.forEach(({val, lbl}) => {
-        const o = document.createElement('option');
-        o.value = val; o.textContent = lbl;
-        if (val === current) o.selected = true;
-        sel.appendChild(o);
-      });
-    }
-
-    function onFilterChange(changedField) {
-      Object.keys(SELECTS).forEach(f => { if (f !== changedField) rebuildSelect(f); });
-    }
-
-    // Init all dropdowns
-    Object.keys(SELECTS).forEach(f => {
-      rebuildSelect(f);
-      // restore server-side selected value
-      if (ACTIVE[f]) SELECTS[f].value = ACTIVE[f];
-      SELECTS[f].addEventListener('change', () => onFilterChange(f));
-    });
-  })();
-  </script>
-
-  <div class="table-wrap">
-    <table>
-      <thead>
-        <tr>
-          <th>Nom apprenant</th>
-          <th>Apprenant ID</th>
-          <th>Classe</th>
-          <th>Prestataire</th>
-          <th>Beneficiaire</th>
-          <th>Telephone</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for row in rows %}
-          <tr class="clickable-row js-open-modal" 
-              data-detail-url="{% url 'consultant_call_detail' row.id %}" 
-              data-audio-url="{% if row.audio_file %}{{ row.audio_file.url }}{% endif %}"
-              data-status="{{ row.status }}"
-              data-has-form="{{ row.consultant_has_form|yesno:'1,0' }}"
-              data-has-audio="{{ row.consultant_has_audio|yesno:'1,0' }}">
-            <td>{{ row.nom }}</td>
-            <td>{{ row.apprenant_id|default:"-" }}</td>
-            <td>
-              {% if row.classe %}
-                <a href="{% url 'class_detail' row.classe.id %}" style="text-decoration:underline;">{{ row.consultant_class_display|default:row.classe_label|default:"-" }}</a>
-              {% else %}
-                {{ row.consultant_class_display|default:row.classe_label|default:"-" }}
-              {% endif %}
-            </td>
-            <td>{{ row.prestataire|default:"-" }}</td>
-            <td>{{ row.beneficiaire|default:"-" }}</td>
-            <td>{{ row.telephone1|default:row.telephone2|default:"-" }}</td>
-          </tr>
-        {% empty %}
-          <tr><td colspan="6">Aucun appel termine a consulter.</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-
-  {% if page_obj %}
-    <div class="pagination">
-      <div class="pagination-info">
-        Page {{ page_obj.number }} / {{ paginator.num_pages }}
-      </div>
-      <div class="pagination-actions">
-        {% if page_obj.has_previous %}
-          <a class="btn" href="?q={{ filters.q|urlencode }}&classe={{ filters.classe|urlencode }}&prestation={{ filters.prestation|urlencode }}&beneficiaire={{ filters.beneficiaire|urlencode }}&fenetre={{ filters.fenetre|urlencode }}&page={{ page_obj.previous_page_number }}">Precedent</a>
-        {% endif %}
-        {% if page_obj.has_next %}
-          <a class="btn" href="?q={{ filters.q|urlencode }}&classe={{ filters.classe|urlencode }}&prestation={{ filters.prestation|urlencode }}&beneficiaire={{ filters.beneficiaire|urlencode }}&fenetre={{ filters.fenetre|urlencode }}&page={{ page_obj.next_page_number }}">Suivant</a>
-        {% endif %}
-      </div>
+    <div style="margin:8px 0;">
+      <div><strong>Formateurs</strong></div>
+      <div class="nav-card-stat">87 / 91</div>
+      <div class="nav-card-stat-sub">appels tentés</div>
     </div>
-  {% endif %}
-</section>
+    <div class="nav-card-action">Ouvrir appels</div>
+  </a>
 
-<div class="modal-backdrop" id="consultant-modal" hidden>
-  <div class="modal-panel">
-    <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:10px;">
-      <div>
-        <div style="font-size:1rem; font-weight:800; color:var(--accent-strong);">Dossier PADESCE</div>
-        <div style="color:var(--muted); font-size:0.92rem;">Lecture des informations de l'appel, du formulaire et de l'audio.</div>
-      </div>
-      <button class="btn" type="button" id="consultant-modal-close">Fermer</button>
-    </div>
-    <div class="modal-content" id="consultant-modal-content"></div>
-  </div>
+  <a href="{% url 'satisfaction_dashboard' %}" class="nav-card">
+    <h3>CGA</h3>
+    <div class="nav-card-stat">666 / 249883</div>
+    <div class="nav-card-desc">appels effectués<br/>Statut effectué = hors "En attente".</div>
+    <div class="nav-card-action">Ouvrir CGA</div>
+  </a>
 </div>
 
-<script>
-  (function () {
-    const modal = document.getElementById("consultant-modal");
-    const content = document.getElementById("consultant-modal-content");
-    const closeBtn = document.getElementById("consultant-modal-close");
-    const tableBody = document.querySelector(".table-wrap tbody");
-
-    function loadAudioDuration(url) {
-      return new Promise((resolve) => {
-        if (!url) {
-          resolve(0);
-          return;
-        }
-        const audio = document.createElement("audio");
-        const timer = window.setTimeout(() => resolve(0), 8000);
-        audio.preload = "metadata";
-        audio.src = url;
-        audio.addEventListener("loadedmetadata", () => {
-          window.clearTimeout(timer);
-          resolve(Number.isFinite(audio.duration) ? audio.duration : 0);
-        }, { once: true });
-        audio.addEventListener("error", () => {
-          window.clearTimeout(timer);
-          resolve(0);
-        }, { once: true });
-      });
-    }
-
-    async function prioritizeLongAudios() {
-      if (!tableBody) return;
-      const rows = Array.from(tableBody.querySelectorAll(".clickable-row"));
-      await Promise.all(rows.map(async (row, index) => {
-        row.dataset.originalIndex = String(index);
-        row.dataset.audioPriority = row.dataset.audioUrl ? "1" : "0";
-        const duration = await loadAudioDuration(row.dataset.audioUrl || "");
-        row.dataset.audioDuration = String(duration || 0);
-        if (duration >= 60) {
-          row.dataset.audioPriority = "2";
-          row.classList.add("promoted-row");
-        }
-      }));
-
-      rows
-        .sort((left, right) => {
-          const priorityGap = Number(right.dataset.audioPriority || 0) - Number(left.dataset.audioPriority || 0);
-          if (priorityGap !== 0) return priorityGap;
-          return Number(left.dataset.originalIndex || 0) - Number(right.dataset.originalIndex || 0);
-        })
-        .forEach((row) => tableBody.appendChild(row));
-    }
-
-    function closeModal() {
-      modal.hidden = true;
-      content.innerHTML = "";
-    }
-
-    document.querySelectorAll(".js-open-modal").forEach((row) => {
-      row.addEventListener("click", async () => {
-        const url = row.getAttribute("data-detail-url");
-        if (!url) return;
-        content.innerHTML = "<div style='padding:18px; color:var(--muted);'>Chargement...</div>";
-        modal.hidden = false;
-        try {
-          const response = await fetch(`${url}?modal=1`, { headers: { "X-Requested-With": "XMLHttpRequest" } });
-          const html = await response.text();
-          content.innerHTML = html;
-        } catch (error) {
-          content.innerHTML = "<div style='padding:18px; color:#991b1b;'>Impossible de charger les details de l'appel.</div>";
-        }
-      });
-    });
-
-    closeBtn?.addEventListener("click", closeModal);
-    modal?.addEventListener("click", (event) => {
-      if (event.target === modal) closeModal();
-    });
-    document.addEventListener("keydown", (event) => {
-      if (event.key === "Escape" && !modal.hidden) closeModal();
-    });
-
-    prioritizeLongAudios();
-
-    // Table Filtering from Cards
-    const cards = document.querySelectorAll(".card[data-filter]");
-    const rows = document.querySelectorAll(".table-wrap tbody .clickable-row");
-
-    cards.forEach((card) => {
-      card.addEventListener("click", () => {
-        const filterKey = card.getAttribute("data-filter");
-        const isActive = card.classList.contains("active");
-
-        cards.forEach((c) => c.classList.remove("active"));
-
-        if (isActive) {
-          rows.forEach((row) => (row.style.display = ""));
-        } else {
-          card.classList.add("active");
-          rows.forEach((row) => {
-            const rowStatus = row.getAttribute("data-status");
-            const hasForm = row.getAttribute("data-has-form") === "1";
-            const hasAudio = row.getAttribute("data-has-audio") === "1";
-            let show = false;
-
-            if (filterKey === "tente") {
-              show = ["appel_tente", "appel_reussi", "termine", "formulaire_rempli", "formulaire_avec_audio"].includes(rowStatus);
-            } else if (filterKey === "reussi") {
-              show = ["appel_reussi", "termine", "formulaire_rempli", "formulaire_avec_audio"].includes(rowStatus);
-            } else if (filterKey === "form") {
-              show = hasForm;
-            } else if (filterKey === "form-audio") {
-              show = hasForm && hasAudio;
-            } else if (filterKey === "audio") {
-              show = hasAudio;
-            }
-
-            row.style.display = show ? "" : "none";
-          });
-        }
-      });
-    });
-  })();
-</script>
 {% endblock %}

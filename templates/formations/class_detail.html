@@ -88,7 +88,12 @@
                     {% if apprenant.appartenance_beneficiaire %}checked{% endif %}
                   />
                 </td>
-                <td><strong>{{ apprenant.apprenant_id|default:"-" }}</strong></td>
+                <td>
+                  <strong>{{ apprenant.apprenant_id|default:"-" }}</strong>
+                  {% if apprenant.apprenant_db_label %}
+                    <div style="font-size:0.78rem; color: var(--muted);">{{ apprenant.apprenant_db_label }}</div>
+                  {% endif %}
+                </td>
                 <td>{{ apprenant.nom_complet }}</td>
                 <td>{{ apprenant.genre }}</td>
                 <td>{{ apprenant.age }}</td>
