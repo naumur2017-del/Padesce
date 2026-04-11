@@ -438,7 +438,12 @@ def _fallback_consultant_analysis_snapshot(rows: list[Appel]) -> dict:
 
 
 def _consultant_analysis_snapshot(
-    user, *, classe_filter: str = "", prestataire_filter: str = ""
+    user,
+    *,
+    classe_filter: str = "",
+    prestataire_filter: str = "",
+    beneficiaire_filter: str = "",
+    fenetre_filter: str = "",
 ) -> dict | None:
     try:
         from App_PADESCE.satisfaction_apprenants.views import _build_satisfaction_dashboard_data
@@ -449,10 +454,14 @@ def _consultant_analysis_snapshot(
             query["classe"] = classe_filter
         if prestataire_filter:
             query["prestataire"] = prestataire_filter
+        if beneficiaire_filter:
+            query["beneficiaire"] = beneficiaire_filter
+        if fenetre_filter:
+            query["fenetre"] = fenetre_filter
 
         payload = _build_satisfaction_dashboard_data(SimpleNamespace(GET=query, user=user))
         context = payload["context"]
-        class_options = [
+        class_options = context.get("class_options") or [
             {
                 "value": item["code"],
                 "label": f"{item['code']} - {item['intitule']}",
@@ -460,17 +469,17 @@ def _consultant_analysis_snapshot(
             for item in context["classe_stats"]
             if str(item.get("code") or "").strip()
         ]
-        prestataire_options = [
+        prestataire_options = context.get("prestataires") or [
             item["label"]
             for item in context["analyzed_prestataires"]
             if str(item.get("label") or "").strip()
         ]
-        beneficiaire_options = [
+        beneficiaire_options = context.get("beneficiaires") or [
             item["label"]
             for item in context.get("analyzed_beneficiaires", [])
             if str(item.get("label") or "").strip()
         ]
-        fenetre_options = [
+        fenetre_options = context.get("fenetres") or [
             item["label"]
             for item in context.get("analyzed_fenetres", [])
             if str(item.get("label") or "").strip()
@@ -491,6 +500,15 @@ def _consultant_analysis_snapshot(
                 "source_apprenant_count": (context.get("source_summary") or {}).get(
                     "source_apprenant_count", 0
                 ),
+                "appels_cibles": context.get("appels_cibles", 0),
+                "appels_tentes": context.get("appels_tentes", 0),
+                "appels_reussis": context.get("appels_reussis", 0),
+                "formulaires_remplis": context.get("formulaires_remplis_appels", 0),
+                "formulaires_remplis_sans_audio": context.get(
+                    "formulaires_remplis_sans_audio_appels", 0
+                ),
+                "formulaires_avec_audio": context.get("formulaires_avec_audio_appels", 0),
+                "audios_enregistres": context.get("audios_enregistres_appels", 0),
             },
         }
     except Exception:
@@ -1273,7 +1291,13 @@ def _build_consultant_dashboard_context(request):
     )
 
     # Use the existing snapshot helpers
-    card_snapshot = _consultant_analysis_snapshot(request.user)
+    card_snapshot = _consultant_analysis_snapshot(
+        request.user,
+        classe_filter=classe_filter,
+        prestataire_filter=prestation_filter,
+        beneficiaire_filter=beneficiaire_filter,
+        fenetre_filter=fenetre_filter,
+    )
     if not card_snapshot:
         card_snapshot = _fallback_consultant_analysis_snapshot(rows_qs_list)
 
@@ -1356,7 +1380,8 @@ def _build_consultant_dashboard_context(request):
         total_qualified = int(analysis_ctx.get("analyzed_prestations_count") or 0)
         analysis_recovery = {
             "available": bool(missing.get("available")),
-            "ratio": analysis_ctx.get("analyzed_prestations_ratio") or f"{total_qualified}/{total_source}",
+            "ratio": analysis_ctx.get("analyzed_prestations_ratio")
+            or f"{total_qualified}/{total_source}",
             "qualified": total_qualified,
             "total": total_source,
             "remaining": max(total_source - total_qualified, 0),
@@ -1409,20 +1434,57 @@ def _build_consultant_dashboard_context(request):
             if card_snapshot
             else fmt(0)
         ),
-        "card_apprenants_count": fmt(len(rows)),
+        "card_apprenants_count": (
+            fmt(card_snapshot["counts"].get("total_apprenants", len(rows)))
+            if card_snapshot
+            else fmt(len(rows))
+        ),
         "card_vague1_total": (
             fmt(card_snapshot["counts"].get("source_apprenant_count", 0))
             if card_snapshot
             else fmt(0)
         ),
         "card_fenetres": card_snapshot["fenetre_options"] if card_snapshot else [],
-        "summary_appels_cibles": fmt(appels_cibles),
-        "summary_tentes": fmt(tentes),
-        "summary_reussis": fmt(reussis),
-        "summary_form_remplis": fmt(form_remplis),
-        "summary_form_audio": fmt(global_audio_count),
-        "summary_audios": fmt(global_audio_count),
-        "summary_form_sans_audio": fmt(max(form_remplis - global_audio_count, 0)),
+        "summary_appels_cibles": (
+            fmt(card_snapshot["counts"].get("appels_cibles", appels_cibles))
+            if card_snapshot
+            else fmt(appels_cibles)
+        ),
+        "summary_tentes": (
+            fmt(card_snapshot["counts"].get("appels_tentes", tentes))
+            if card_snapshot
+            else fmt(tentes)
+        ),
+        "summary_reussis": (
+            fmt(card_snapshot["counts"].get("appels_reussis", reussis))
+            if card_snapshot
+            else fmt(reussis)
+        ),
+        "summary_form_remplis": (
+            fmt(card_snapshot["counts"].get("formulaires_remplis", form_remplis))
+            if card_snapshot
+            else fmt(form_remplis)
+        ),
+        "summary_form_audio": (
+            fmt(card_snapshot["counts"].get("formulaires_avec_audio", global_audio_count))
+            if card_snapshot
+            else fmt(global_audio_count)
+        ),
+        "summary_audios": (
+            fmt(card_snapshot["counts"].get("audios_enregistres", global_audio_count))
+            if card_snapshot
+            else fmt(global_audio_count)
+        ),
+        "summary_form_sans_audio": (
+            fmt(
+                card_snapshot["counts"].get(
+                    "formulaires_remplis_sans_audio",
+                    max(form_remplis - global_audio_count, 0),
+                )
+            )
+            if card_snapshot
+            else fmt(max(form_remplis - global_audio_count, 0))
+        ),
         "presence_global_avg": presence_avg,
         "presence_global_pr_rate": presence_pr_rate,
         "analysis_recovery": analysis_recovery,
