@@ -267,32 +267,40 @@
     display: flex;
     justify-content: center;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
     margin-top: 12px;
     padding: 12px 0;
+    flex-wrap: wrap;
   }
-  .table-pagination button {
-    padding: 6px 10px;
+  .table-pagination button,
+  .table-pagination .page-btn {
+    padding: 8px 12px;
     border: 1px solid var(--border);
     background: var(--panel);
     border-radius: 4px;
     cursor: pointer;
     font-size: 0.9rem;
     color: var(--accent-strong);
-    transition: background 0.15s ease;
+    transition: all 0.15s ease;
   }
-  .table-pagination button:hover:not(:disabled) {
+  .table-pagination button:hover:not(:disabled),
+  .table-pagination .page-btn:hover {
     background: rgba(124, 58, 237, 0.1);
   }
   .table-pagination button:disabled {
     opacity: 0.5;
     cursor: not-allowed;
   }
-  .table-pagination .page-info {
-    font-size: 0.9rem;
-    color: var(--muted);
-    min-width: 60px;
-    text-align: center;
+  .table-pagination .page-btn.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+    font-weight: 700;
+  }
+  .table-pagination .page-numbers {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
   }
   .stats-table td:last-child,
   .stats-table th:last-child {
@@ -726,6 +734,7 @@
 
   <div class="stats-grid">
     <div class="stack">
+      {% if scope == "apprenant" %}
       <section class="public-panel">
         <h2>Résumé des classes</h2>
         <div class="table-scroll-11" data-table="classes-table">
@@ -758,10 +767,11 @@
         </div>
         <div class="table-pagination" data-controller="classes-table">
           <button class="prev-btn" type="button">Précédent</button>
-          <span class="page-info"><span class="current-page">1</span> / <span class="total-pages">1</span></span>
+          <div class="page-numbers"></div>
           <button class="next-btn" type="button">Suivant</button>
         </div>
       </section>
+      {% endif %}
 
       <section class="public-panel">
         <h2>Résumé des prestations</h2>
@@ -769,29 +779,29 @@
           <table>
             <thead>
               <tr>
-                <th>Prestation ID</th>
+                {% if scope == "formateur" %}<th>Formation</th>{% else %}<th>Prestation ID</th>{% endif %}
                 <th>Prestataire</th>
                 <th>Bénéficiaire</th>
-                {% if scope == "apprenant" %}<th>Moyenne</th>{% endif %}
+                {% if scope == "apprenant" %}<th>Moyenne</th>{% elif scope == "formateur" %}<th>Cohorte</th>{% endif %}
               </tr>
             </thead>
             <tbody>
               {% for item in overview.prestations %}
                 <tr>
-                  <td>{% if item.url %}<a href="{{ item.url }}">{{ item.code }}</a>{% else %}{{ item.code|default:"-" }}{% endif %}</td>
+                  <td>{% if scope == "formateur" %}{{ item.formation|default:"-" }}{% else %}{% if item.url %}<a href="{{ item.url }}">{{ item.code }}</a>{% else %}{{ item.code|default:"-" }}{% endif %}{% endif %}</td>
                   <td>{{ item.prestataire|default:"-" }}</td>
                   <td>{{ item.beneficiaire|default:"-" }}</td>
-                  {% if scope == "apprenant" %}<td>{{ item.avg }}</td>{% endif %}
+                  {% if scope == "apprenant" %}<td>{{ item.avg }}</td>{% elif scope == "formateur" %}<td>{{ item.cohorte|default:"-" }}</td>{% endif %}
                 </tr>
               {% empty %}
-                <tr><td colspan="{% if scope == 'apprenant' %}4{% else %}3{% endif %}" class="muted">Aucune prestation disponible.</td></tr>
+                <tr><td colspan="{% if scope == 'formateur' %}4{% elif scope == 'apprenant' %}4{% else %}3{% endif %}" class="muted">Aucune prestation disponible.</td></tr>
               {% endfor %}
             </tbody>
           </table>
         </div>
         <div class="table-pagination" data-controller="prestations-table">
           <button class="prev-btn" type="button">Précédent</button>
-          <span class="page-info"><span class="current-page">1</span> / <span class="total-pages">1</span></span>
+          <div class="page-numbers"></div>
           <button class="next-btn" type="button">Suivant</button>
         </div>
       </section>
@@ -1003,6 +1013,22 @@
 
       const totalPages = Math.ceil(rows.length / ROWS_PER_PAGE);
       let currentPage = 1;
+      const pageNumbersContainer = controlContainer.querySelector(".page-numbers");
+
+      const renderPageNumbers = () => {
+        pageNumbersContainer.innerHTML = "";
+        for (let i = 1; i <= totalPages; i++) {
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = "page-btn" + (i === currentPage ? " active" : "");
+          btn.textContent = i;
+          btn.addEventListener("click", () => {
+            currentPage = i;
+            updateDisplay();
+          });
+          pageNumbersContainer.appendChild(btn);
+        }
+      };
 
       const updateDisplay = () => {
         const start = (currentPage - 1) * ROWS_PER_PAGE;
@@ -1016,8 +1042,7 @@
           }
         });
 
-        controlContainer.querySelector(".current-page").textContent = currentPage;
-        controlContainer.querySelector(".total-pages").textContent = totalPages;
+        renderPageNumbers();
         controlContainer.querySelector(".prev-btn").disabled = currentPage === 1;
         controlContainer.querySelector(".next-btn").disabled = currentPage === totalPages;
       };

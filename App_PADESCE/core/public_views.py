@@ -397,6 +397,12 @@ def _build_formateur_overview(request) -> dict:
                 prestation_code,
                 {
                     "code": prestation_code,
+                    "formation": str(
+                        getattr(classe, "intitule_formation", "")
+                        or _formateur_record_value(record, "formation")
+                        or "-"
+                    ).strip(),
+                    "cohorte": _formateur_record_value(record, "cohorte") or "-",
                     "prestataire": _formateur_record_value(record, "prestataire") or "-",
                     "beneficiaire": _formateur_record_value(record, "beneficiaire") or "-",
                     "url": (
