@@ -491,15 +491,20 @@ def _consultant_analysis_snapshot(
             "beneficiaire_options": beneficiaire_options,
             "fenetre_options": fenetre_options,
             "counts": {
-                "analyzed_classes_count": context["analyzed_classes_count"],
-                "analyzed_prestations_count": context["analyzed_prestations_count"],
-                "analyzed_prestataires_count": context["analyzed_prestataires_count"],
-                "analyzed_beneficiaires_count": context["analyzed_beneficiaires_count"],
+                "analyzed_classes_count": context.get("analyzed_classes_count", 0),
+                # total_count = toutes les prestations terminées (ex: 75), count = qualifiées seulement
+                "analyzed_prestations_count": (
+                    context.get("analyzed_prestations_total_count")
+                    or context.get("analyzed_prestations_count", 0)
+                ),
+                "analyzed_prestataires_count": context.get("analyzed_prestataires_count", 0),
+                "analyzed_beneficiaires_count": context.get("analyzed_beneficiaires_count", 0),
                 "analysis_audio_count": context.get("analysis_audio_count", 0),
-                "analyzed_learners_count": context["total"],
-                "total_apprenants": context["total"],
-                "source_apprenant_count": (context.get("source_summary") or {}).get(
-                    "source_apprenant_count", 0
+                "analyzed_learners_count": context.get("total", 0),
+                "total_apprenants": context.get("total", 0),
+                "source_apprenant_count": (
+                    (context.get("source_summary") or {}).get("source_apprenant_count")
+                    or context.get("total", 0)
                 ),
                 "appels_cibles": context.get("appels_cibles", 0),
                 "appels_tentes": context.get("appels_tentes", 0),

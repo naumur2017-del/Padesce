@@ -1626,13 +1626,22 @@ def _source_prestation_classes_from_source(
 
 
 def _terminated_prestation_codes_from_source(filters: dict, source_bundle: dict | None) -> set[str]:
+    if not source_bundle:
+        return set()
+
     prestation_classes = _source_prestation_classes_from_source(filters, source_bundle)
-    return {
+    # Prestations terminées via la feuille Classes (toutes les classes ont statut terminé)
+    terminated = {
         prestation_key
         for prestation_key, class_map in prestation_classes.items()
         if class_map
         and all(_source_class_is_finished(source_class) for source_class in class_map.values())
     }
+    # Complément via la feuille Prestations (au cas où une prestation n'a pas de classe listée)
+    for p_key, p_info in (source_bundle.get("prestations") or {}).items():
+        if p_key and _source_class_is_finished(p_info):
+            terminated.add(p_key)
+    return terminated
 
 
 def _qualified_prestation_codes_from_source(
@@ -2205,7 +2214,11 @@ def _attach_network_source_to_rows(
         "consistent_count": consistent_count,
         "mismatch_count": mismatch_count,
         "apprenant_id_count": apprenant_id_count,
-        "source_apprenant_count": sum(_source_class_apprenant_counts(source_bundle).values()),
+        # Total apprenants dans la source (tous, pas seulement ceux avec téléphone)
+        "source_apprenant_count": (
+            source_bundle.get("counts", {}).get("apprenants")
+            or sum(_source_class_apprenant_counts(source_bundle).values())
+        ),
         "duplicate_code_count": len(source_bundle["duplicate_codes"]),
         "mismatch_rows": mismatch_rows,
     }
