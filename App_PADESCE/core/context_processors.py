@@ -75,8 +75,7 @@ def _build_menu_items(user, path: str, consultant_only: bool) -> list[dict[str, 
                 "label": label,
                 "url": url,
                 "active": any(
-                    (prefix == "/" and path == "/")
-                    or (prefix != "/" and path.startswith(prefix))
+                    (prefix == "/" and path == "/") or (prefix != "/" and path.startswith(prefix))
                     for prefix in active_prefixes
                 ),
             }
