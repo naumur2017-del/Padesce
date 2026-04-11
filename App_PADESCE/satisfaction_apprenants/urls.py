@@ -65,6 +65,13 @@ urlpatterns = [
         name="satisfaction_dashboard_export_class_lists_zip",
     ),
     path(
+        "analyse/export/prestations-xlsx/",
+        lazy_view(
+            "App_PADESCE.satisfaction_apprenants.views.satisfaction_dashboard_export_prestation_lists_xlsx"
+        ),
+        name="satisfaction_dashboard_export_prestation_lists_xlsx",
+    ),
+    path(
         "analyse/export/chapeau/",
         lazy_view(
             "App_PADESCE.satisfaction_apprenants.views.satisfaction_dashboard_export_chapeau"
@@ -95,5 +102,10 @@ urlpatterns = [
         "analyse/sync-telephones/",
         lazy_view("App_PADESCE.satisfaction_apprenants.views.sync_phones_from_consolidation"),
         name="sync_phones_from_consolidation",
+    ),
+    path(
+        "analyse/sync-reference/",
+        lazy_view("App_PADESCE.satisfaction_apprenants.views.satisfaction_sync_reference_page"),
+        name="satisfaction_sync_reference_page",
     ),
 ]

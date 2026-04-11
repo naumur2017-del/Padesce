@@ -1,0 +1,302 @@
+{% extends "base.html" %}
+{% load filters %}
+{% block title %}Synchronisation Référentiel BD{% endblock %}
+{% block content %}
+<style>
+  .page-shell { display:grid; gap:18px; max-width:1100px; margin:0 auto; }
+  .hero { border:1px solid var(--border); border-radius:18px; padding:22px 26px;
+          background: radial-gradient(circle at top right, rgba(111,60,195,.12), transparent 36%),
+                      linear-gradient(135deg,#f5f0ff 0%,#fff 72%);
+          box-shadow:var(--shadow); }
+  .hero h1 { margin:0 0 6px; color:var(--accent-strong); font-size:1.55rem; }
+  .hero p  { margin:0; color:var(--muted); font-size:.9rem; }
+  .card { background:#fff; border:1px solid var(--border); border-radius:16px;
+          box-shadow:var(--shadow); padding:20px 22px; }
+  .card-title { font-size:1rem; font-weight:700; color:var(--accent-strong); margin:0 0 14px;
+                display:flex; align-items:center; gap:8px; }
+  .source-bar { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:14px; }
+  .source-pill { display:inline-flex; align-items:center; padding:6px 12px; border-radius:999px;
+                 font-size:.78rem; font-weight:700; white-space:nowrap; gap:5px; }
+  .pill-ok  { background:rgba(34,197,94,.13); color:#166534; }
+  .pill-warn { background:rgba(245,158,11,.16); color:#92400e; }
+  .pill-err  { background:rgba(239,68,68,.13); color:#991b1b; }
+  .pill-muted { background:rgba(107,114,128,.13); color:#4b5563; }
+  .btn { display:inline-flex; align-items:center; gap:6px; padding:10px 18px; border-radius:12px;
+         font-weight:700; border:none; cursor:pointer; font-size:.9rem; transition:transform .15s; }
+  .btn:hover { transform:translateY(-1px); }
+  .btn:disabled { opacity:.5; cursor:not-allowed; transform:none; }
+  .btn-accent { background:var(--accent); color:#fff; }
+  .btn-ghost { background:transparent; border:1px solid var(--border); color:var(--text); }
+  .btn-sm { padding:7px 14px; font-size:.82rem; border-radius:10px; }
+  .form-row { display:flex; gap:14px; flex-wrap:wrap; align-items:flex-end; margin-bottom:14px; }
+  .form-field { display:flex; flex-direction:column; gap:4px; min-width:180px; }
+  .form-field label { font-size:.82rem; font-weight:600; color:var(--muted); }
+  .form-field select { padding:8px 10px; border:1px solid var(--border); border-radius:10px;
+                       background:#fff; color:var(--text); }
+  .check-row { display:flex; gap:6px; align-items:center; font-size:.87rem; cursor:pointer; }
+  .check-row input { width:16px; height:16px; cursor:pointer; accent-color:var(--accent); }
+  .result-grid { display:grid; gap:10px; grid-template-columns:repeat(auto-fit,minmax(170px,1fr));
+                 margin-top:14px; }
+  .result-kpi { text-align:center; padding:14px 10px; border-radius:12px;
+                border:1px solid var(--border); background:rgba(111,60,195,.04); }
+  .result-kpi .val { font-size:1.6rem; font-weight:800; color:var(--accent-strong); }
+  .result-kpi .lbl { font-size:.75rem; color:var(--muted); margin-top:3px; }
+  .result-kpi-warn .val { color:#b45309; }
+  .result-kpi-warn { background:rgba(251,191,36,.07); border-color:rgba(251,191,36,.35); }
+  .result-kpi-ok .val { color:#166534; }
+  .result-kpi-ok { background:rgba(34,197,94,.06); border-color:rgba(34,197,94,.28); }
+  .alert-box { border-radius:12px; padding:14px 18px; font-size:.88rem; line-height:1.55; margin-bottom:10px; }
+  .alert-err { background:rgba(239,68,68,.08); border:1px solid rgba(239,68,68,.25); color:#991b1b; }
+  .alert-ok  { background:rgba(34,197,94,.08); border:1px solid rgba(34,197,94,.25); color:#166534; }
+  .alert-info { background:rgba(111,60,195,.07); border:1px solid rgba(111,60,195,.18); color:var(--accent-strong); }
+  table { width:100%; border-collapse:collapse; }
+  th, td { padding:8px 10px; border:1px solid var(--border); font-size:.83rem; text-align:left; }
+  thead { background:rgba(111,60,195,.06); }
+  th { font-weight:700; color:var(--accent-strong); font-size:.8rem; text-transform:uppercase; letter-spacing:.04em; }
+  .table-scroll { max-height:420px; overflow:auto; border-radius:10px; border:1px solid var(--border); }
+  .badge { display:inline-flex; align-items:center; padding:2px 9px; border-radius:999px;
+           font-size:.75rem; font-weight:700; }
+  .badge-dup  { background:rgba(239,68,68,.12); color:#991b1b; }
+  .badge-ok   { background:rgba(34,197,94,.12); color:#166534; }
+  .badge-miss { background:rgba(245,158,11,.15); color:#92400e; }
+  .section-head { display:flex; justify-content:space-between; align-items:center;
+                  margin-bottom:12px; flex-wrap:wrap; gap:8px; }
+  .collapsible-toggle { background:none; border:none; cursor:pointer; font-size:.82rem;
+                        color:var(--accent); font-weight:600; }
+  .dup-block { border:1px solid var(--border); border-radius:12px; margin-bottom:10px; overflow:hidden; }
+  .dup-header { display:flex; justify-content:space-between; align-items:center; padding:11px 14px;
+                background:rgba(111,60,195,.04); cursor:pointer; gap:10px; }
+  .dup-header:hover { background:rgba(111,60,195,.08); }
+  .dup-body { display:none; border-top:1px solid var(--border); padding:12px 14px; }
+  .dup-body.open { display:block; }
+</style>
+
+<div class="page-shell">
+
+  <!-- Hero -->
+  <div class="hero">
+    <h1>Synchronisation référentiel BD</h1>
+    <p>Met à jour les entités locales (apprenants, classes, prestations, formations…) à partir du fichier source consolidé CutOff, sans modifier les réponses aux enquêtes. Permet aussi de détecter les ApprenantIDs dupliqués dans la source.</p>
+  </div>
+
+  <!-- Source files status -->
+  <div class="card">
+    <div class="card-title">Fichiers source</div>
+    <div class="source-bar">
+      {% if cutoff_file_available %}
+        <span class="source-pill pill-ok">&#10003; Consolidé CutOff présent</span>
+      {% else %}
+        <span class="source-pill pill-err">&#9888; Consolidé CutOff absent</span>
+      {% endif %}
+      {% if main_file_available %}
+        <span class="source-pill pill-ok">&#10003; Fichier consolidé (main) présent</span>
+      {% else %}
+        <span class="source-pill pill-warn">&#9888; Fichier consolidé (main) absent</span>
+      {% endif %}
+      {% if presence_file_available %}
+        <span class="source-pill pill-ok">&#10003; Rapport présence présent</span>
+      {% else %}
+        <span class="source-pill pill-warn">&#9888; Rapport présence absent</span>
+      {% endif %}
+      {% if source_bundle_available %}
+        <span class="source-pill pill-ok">&#10003; Source chargée — {{ source_record_count }} enregistrements{% if source_modified %} ({{ source_modified }}){% endif %}</span>
+      {% else %}
+        <span class="source-pill pill-err">Source indisponible — impossible de charger l'index</span>
+      {% endif %}
+    </div>
+    {% if not cutoff_file_available and not main_file_available %}
+    <div class="alert-box alert-err">Aucun fichier source trouvé. Déposez le fichier <strong>network-fichier-consolide-cutoff.xlsm</strong> dans le répertoire <code>data/network_excel_bundle/</code> avant de lancer la synchronisation.</div>
+    {% endif %}
+  </div>
+
+  <!-- Sync action -->
+  <div class="card">
+    <div class="card-title">Lancer une synchronisation</div>
+    {% if sync_error %}
+    <div class="alert-box alert-err"><strong>Erreur :</strong> {{ sync_error }}</div>
+    {% endif %}
+    {% if sync_result %}
+    <div class="alert-box {% if sync_result.dry_run %}alert-info{% else %}alert-ok{% endif %}">
+      {% if sync_result.dry_run %}<strong>Simulation (dry-run) :</strong>{% else %}<strong>Synchronisation terminée.</strong>{% endif %}
+      Les compteurs ci-dessous reflètent les changements {% if sync_result.dry_run %}qui auraient été{% else %}qui ont été{% endif %} appliqués.
+    </div>
+    <div class="result-grid">
+      <div class="result-kpi result-kpi-ok"><div class="val">{{ sync_result.source_records }}</div><div class="lbl">Enregistrements source</div></div>
+      <div class="result-kpi result-kpi-ok"><div class="val">{{ sync_result.synced_apprenants }}</div><div class="lbl">Apprenants sync.</div></div>
+      <div class="result-kpi result-kpi-ok"><div class="val">{{ sync_result.synced_classes }}</div><div class="lbl">Classes sync.</div></div>
+      <div class="result-kpi result-kpi-ok"><div class="val">{{ sync_result.synced_prestations }}</div><div class="lbl">Prestations sync.</div></div>
+      <div class="result-kpi result-kpi-ok"><div class="val">{{ sync_result.synced_formations }}</div><div class="lbl">Formations sync.</div></div>
+      <div class="result-kpi"><div class="val">{{ sync_result.appels_updated }}</div><div class="lbl">Appels mis à jour</div></div>
+      <div class="result-kpi"><div class="val">{{ sync_result.surveys_linked }}</div><div class="lbl">Enquêtes reliées</div></div>
+      {% if sync_result.appels_deactivated %}
+      <div class="result-kpi result-kpi-warn"><div class="val">{{ sync_result.appels_deactivated }}</div><div class="lbl">Appels désactivés</div></div>
+      {% endif %}
+      {% if sync_result.apprenants_deactivated %}
+      <div class="result-kpi result-kpi-warn"><div class="val">{{ sync_result.apprenants_deactivated }}</div><div class="lbl">Apprenants désactivés</div></div>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="sync">
+      <div class="form-row">
+        <div class="form-field">
+          <label for="id_source">Source</label>
+          <select name="source" id="id_source">
+            {% for opt in source_options %}
+            <option value="{{ opt.value }}" {% if opt.value == selected_source %}selected{% endif %}>{{ opt.label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:8px; justify-content:flex-end; padding-bottom:2px;">
+          <label class="check-row">
+            <input type="checkbox" name="dry_run" value="1"> Simulation (dry-run — sans commit)
+          </label>
+          <label class="check-row">
+            <input type="checkbox" name="skip_appels" value="1"> Ne pas mettre à jour les Appels
+          </label>
+          <label class="check-row">
+            <input type="checkbox" name="keep_missing" value="1"> Conserver les entités absentes de la source (ne pas désactiver)
+          </label>
+        </div>
+      </div>
+      <button type="submit" class="btn btn-accent" {% if not source_bundle_available %}disabled{% endif %}>
+        Synchroniser la BD depuis la source
+      </button>
+      <a href="{% url 'satisfaction_dashboard' %}" class="btn btn-ghost btn-sm" style="margin-left:8px;">Retour à l'analyse</a>
+    </form>
+  </div>
+
+  <!-- Duplicate ApprenantIDs -->
+  <div class="card">
+    <div class="section-head">
+      <div class="card-title" style="margin:0;">ApprenantIDs en double dans la source</div>
+      {% if duplicate_count %}
+        <span class="badge badge-dup">{{ duplicate_count }} ID{{ duplicate_count|pluralize:"s" }} dupliqué{{ duplicate_count|pluralize:"s" }}</span>
+      {% else %}
+        <span class="badge badge-ok">Aucun doublon détecté</span>
+      {% endif %}
+    </div>
+    <p style="margin:0 0 12px; font-size:.85rem; color:var(--muted);">Un ApprenantID réseau est dupliqué lorsque plusieurs codes d'appel de la source pointent vers le même identifiant réseau. Cela peut indiquer une erreur de saisie dans le classeur source.</p>
+
+    {% if duplicate_apprenant_ids %}
+    <div id="dup-list">
+      {% for dup in duplicate_apprenant_ids %}
+      <div class="dup-block">
+        <div class="dup-header" onclick="toggleDup(this)">
+          <div>
+            <strong>{{ dup.apprenant_id }}</strong>
+            <span class="badge badge-dup" style="margin-left:8px;">{{ dup.count }} entrées</span>
+          </div>
+          <span style="font-size:.78rem; color:var(--muted);">▼</span>
+        </div>
+        <div class="dup-body">
+          <table>
+            <thead><tr>
+              <th>Code appel</th>
+              <th>Nom</th>
+              <th>Classe</th>
+              <th>Prestataire</th>
+              <th>Téléphone</th>
+              <th>Action</th>
+            </tr></thead>
+            <tbody>
+              {% for entry in dup.entries %}
+              <tr>
+                <td><code>{{ entry.code }}</code></td>
+                <td>{{ entry.nom }}</td>
+                <td>{{ entry.classe_id }}</td>
+                <td>{{ entry.prestataire }}</td>
+                <td>{{ entry.telephone1 }}</td>
+                <td>
+                  <a class="btn btn-ghost btn-sm" href="{% url 'satisfaction_update_form_page' %}?source={{ selected_source }}&search={{ entry.code|urlencode }}">
+                    Voir dans Update Form
+                  </a>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="alert-box alert-ok">Aucun ApprenantID réseau en doublon trouvé dans la source sélectionnée.</div>
+    {% endif %}
+  </div>
+
+  <!-- Mapping ApprenantID réseau ↔ Apprenant local -->
+  <div class="card">
+    <div class="section-head">
+      <div class="card-title" style="margin:0;">Mapping ApprenantID réseau ↔ BD locale</div>
+      <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; font-size:.83rem;">
+        <span class="badge badge-ok">{{ matched_id_count }} reliés</span>
+        {% if missing_id_count %}
+        <span class="badge badge-miss">{{ missing_id_count }} sans ID réseau</span>
+        {% endif %}
+        <span class="badge pill-muted" style="background:rgba(107,114,128,.1);">{{ total_map_count }} total</span>
+      </div>
+    </div>
+    <p style="margin:0 0 12px; font-size:.85rem; color:var(--muted);">Correspondance entre les codes d'appel locaux et les ApprenantIDs réseau de la source. Les lignes sans ID réseau indiquent des apprenants non identifiés dans le classeur.</p>
+
+    {% if apprenant_id_map %}
+    <div class="table-scroll">
+      <table>
+        <thead><tr>
+          <th>Code appel</th>
+          <th>ApprenantID réseau</th>
+          <th>Nom (source)</th>
+          <th>Nom (local)</th>
+          <th>Classe</th>
+          <th>BD locale</th>
+          <th>Action</th>
+        </tr></thead>
+        <tbody>
+          {% for row in apprenant_id_map %}
+          <tr>
+            <td><code>{{ row.code }}</code></td>
+            <td>
+              {% if row.apprenant_id %}
+                <strong>{{ row.apprenant_id }}</strong>
+              {% else %}
+                <span style="color:var(--muted); font-size:.8rem;">—</span>
+              {% endif %}
+            </td>
+            <td>{{ row.nom_source }}</td>
+            <td>{{ row.nom_local|default:"—" }}</td>
+            <td>{{ row.classe_id }}</td>
+            <td>
+              {% if row.local_found %}
+                <span class="badge badge-ok">Trouvé (pk={{ row.local_pk }})</span>
+              {% else %}
+                <span class="badge badge-miss">Absent local</span>
+              {% endif %}
+            </td>
+            <td>
+              <a class="btn btn-ghost btn-sm" href="{% url 'satisfaction_update_form_page' %}?source={{ selected_source }}&search={{ row.code|urlencode }}">
+                Update Form
+              </a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="alert-box alert-info">Source non disponible ou aucun enregistrement chargé.</div>
+    {% endif %}
+  </div>
+
+</div><!-- /.page-shell -->
+
+<script>
+function toggleDup(header) {
+  const body = header.nextElementSibling;
+  body.classList.toggle('open');
+  const arrow = header.querySelector('span:last-child');
+  if (arrow) arrow.textContent = body.classList.contains('open') ? '▲' : '▼';
+}
+</script>
+{% endblock %}
