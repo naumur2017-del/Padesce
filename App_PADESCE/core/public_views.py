@@ -392,26 +392,39 @@ def _build_formateur_overview(request) -> dict:
             )
             class_rows[classe_code]["nb"] += 1
 
-        if prestation_code:
+        # Build prestation data directly from record, independent of classe matching
+        # Use prestation from record if classe resolution failed
+        formation_name = str(
+            getattr(classe, "intitule_formation", "")
+            or _formateur_record_value(record, "formation")
+            or "-"
+        ).strip()
+        
+        # Create a unique prestation key from prestataire/beneficiaire combination
+        # Use these directly from record since classe matching may have failed
+        prestataire_val = _formateur_record_value(record, "prestataire") or "-"
+        beneficiaire_val = _formateur_record_value(record, "beneficiaire") or "-"
+        
+        if prestation_code or (prestataire_val != "-" and beneficiaire_val != "-"):
+            # Use prestation_code if available, otherwise create composite key
+            prest_key = prestation_code if prestation_code else f"{prestataire_val}|{beneficiaire_val}"
+            
             prestation_rows.setdefault(
-                prestation_code,
+                prest_key,
                 {
-                    "code": prestation_code,
-                    "formation": str(
-                        getattr(classe, "intitule_formation", "")
-                        or _formateur_record_value(record, "formation")
-                        or "-"
-                    ).strip(),
+                    "code": prestation_code or prest_key,
+                    "formation": formation_name,
                     "cohorte": _formateur_record_value(record, "cohorte") or "-",
-                    "prestataire": _formateur_record_value(record, "prestataire") or "-",
-                    "beneficiaire": _formateur_record_value(record, "beneficiaire") or "-",
+                    "prestataire": prestataire_val,
+                    "beneficiaire": beneficiaire_val,
                     "url": (
                         f"{reverse('prestation_analysis_detail', args=[prestation_code])}?tab=formateurs"
+                        if prestation_code else ""
                     ),
                     "nb": 0,
                 },
             )
-            prestation_rows[prestation_code]["nb"] += 1
+            prestation_rows[prest_key]["nb"] += 1
 
     def fmt(val):
         return f"{int(val or 0):,}".replace(",", " ")

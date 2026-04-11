@@ -246,6 +246,9 @@
   .stats-grid > .stack {
     grid-column: 1 / -1;
   }
+  .stats-grid > .full-width {
+    grid-column: 1 / -1;
+  }
   .table-scroll-11 {
     border-radius: 8px;
     border: 1px solid var(--border);
@@ -818,7 +821,7 @@
   </div>
 
   <div class="stats-grid">
-    <section class="public-panel">
+    <section class="public-panel{% if scope == "formateur" %} full-width{% endif %}">
       <h2>Moyennes générales</h2>
       <div class="table-wrap">
         <table class="stats-table">
@@ -842,11 +845,13 @@
       {% endif %}
     </section>
 
+    {% if scope != "formateur" %}
     <section class="public-panel">
       <h2>Carte des prestations</h2>
       <div id="public-map" class="map-shell"></div>
       {{ stats.map_data|json_script:"public-map-data" }}
     </section>
+    {% endif %}
   </div>
 
   <div class="stats-grid">
