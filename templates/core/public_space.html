@@ -222,6 +222,57 @@
     gap: 16px;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   }
+  .stats-grid > .stack {
+    grid-column: 1 / -1;
+  }
+  .table-scroll-11 {
+    border-radius: 8px;
+    border: 1px solid var(--border);
+  }
+  .table-scroll-11 table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .table-scroll-11 thead {
+    background: var(--panel);
+  }
+  .table-scroll-11 tbody tr {
+    display: none;
+  }
+  .table-scroll-11 tbody tr.pagination-visible {
+    display: table-row;
+  }
+  .table-pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+    margin-top: 12px;
+    padding: 12px 0;
+  }
+  .table-pagination button {
+    padding: 6px 10px;
+    border: 1px solid var(--border);
+    background: var(--panel);
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    color: var(--accent-strong);
+    transition: background 0.15s ease;
+  }
+  .table-pagination button:hover:not(:disabled) {
+    background: rgba(124, 58, 237, 0.1);
+  }
+  .table-pagination button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  .table-pagination .page-info {
+    font-size: 0.9rem;
+    color: var(--muted);
+    min-width: 60px;
+    text-align: center;
+  }
   .stats-table td:last-child,
   .stats-table th:last-child {
     text-align: right;
@@ -365,23 +416,6 @@
   {% if principal.analysis_recovery.available %}
   <section class="public-panel">
     <h2>Pilotage des prestations analysées (Cutoff)</h2>
-    <div class="table-wrap">
-      <table class="stats-table">
-        <thead>
-          <tr>
-            <th>Indicateur</th>
-            <th>Valeur</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr><td>Prestations analysées</td><td>{{ principal.analysis_recovery.ratio }}</td></tr>
-          <tr><td>Prestations restantes à qualifier</td><td>{{ principal.analysis_recovery.remaining }}</td></tr>
-          <tr><td>Bloquées - seuil non atteint</td><td>{{ principal.analysis_recovery.by_category.pas_seuil_atteint|default:0 }}</td></tr>
-          <tr><td>Bloquées - non importées</td><td>{{ principal.analysis_recovery.by_category.pas_disponible|default:0 }}</td></tr>
-          <tr><td>Bloquées - sans numéro</td><td>{{ principal.analysis_recovery.by_category.pas_de_numero|default:0 }}</td></tr>
-        </tbody>
-      </table>
-    </div>
     {% if principal.analysis_recovery.top_missing %}
     <div class="table-wrap" style="margin-top:12px;">
       <table>
@@ -668,11 +702,11 @@
     {% endfor %}
   </div>
 
-  <div class="split-grid">
+  <div class="stats-grid">
     <div class="stack">
       <section class="public-panel">
         <h2>Résumé des classes</h2>
-        <div class="table-wrap">
+        <div class="table-scroll-11" data-table="classes-table">
           <table>
             <thead>
               <tr>
@@ -700,18 +734,22 @@
             </tbody>
           </table>
         </div>
+        <div class="table-pagination" data-controller="classes-table">
+          <button class="prev-btn" type="button">Précédent</button>
+          <span class="page-info"><span class="current-page">1</span> / <span class="total-pages">1</span></span>
+          <button class="next-btn" type="button">Suivant</button>
+        </div>
       </section>
 
       <section class="public-panel">
         <h2>Résumé des prestations</h2>
-        <div class="table-wrap">
+        <div class="table-scroll-11" data-table="prestations-table">
           <table>
             <thead>
               <tr>
                 <th>Prestation ID</th>
                 <th>Prestataire</th>
                 <th>Bénéficiaire</th>
-                <th>Total</th>
                 {% if scope == "apprenant" %}<th>Moyenne</th>{% endif %}
               </tr>
             </thead>
@@ -721,38 +759,18 @@
                   <td>{% if item.url %}<a href="{{ item.url }}">{{ item.code }}</a>{% else %}{{ item.code|default:"-" }}{% endif %}</td>
                   <td>{{ item.prestataire|default:"-" }}</td>
                   <td>{{ item.beneficiaire|default:"-" }}</td>
-                  <td>{{ item.nb }}</td>
                   {% if scope == "apprenant" %}<td>{{ item.avg }}</td>{% endif %}
                 </tr>
               {% empty %}
-                <tr><td colspan="{% if scope == 'apprenant' %}5{% else %}4{% endif %}" class="muted">Aucune prestation disponible.</td></tr>
+                <tr><td colspan="{% if scope == 'apprenant' %}4{% else %}3{% endif %}" class="muted">Aucune prestation disponible.</td></tr>
               {% endfor %}
             </tbody>
           </table>
         </div>
-      </section>
-    </div>
-
-    <div class="stack">
-      <section class="public-panel">
-        <h3>Prestataires</h3>
-        <div class="mini-list">
-          {% for item in overview.prestataires %}
-            <div class="mini-item"><span>{{ item.label }}</span><strong>{{ item.nb }}</strong></div>
-          {% empty %}
-            <div class="mini-item"><span>Aucun prestataire</span><strong>0</strong></div>
-          {% endfor %}
-        </div>
-      </section>
-
-      <section class="public-panel">
-        <h3>Bénéficiaires</h3>
-        <div class="mini-list">
-          {% for item in overview.beneficiaires %}
-            <div class="mini-item"><span>{{ item.label }}</span><strong>{{ item.nb }}</strong></div>
-          {% empty %}
-            <div class="mini-item"><span>Aucun bénéficiaire</span><strong>0</strong></div>
-          {% endfor %}
+        <div class="table-pagination" data-controller="prestations-table">
+          <button class="prev-btn" type="button">Précédent</button>
+          <span class="page-info"><span class="current-page">1</span> / <span class="total-pages">1</span></span>
+          <button class="next-btn" type="button">Suivant</button>
         </div>
       </section>
     </div>
@@ -940,6 +958,71 @@
     })();
   </script>
 {% endif %}
+
+<script>
+  (function () {
+    const ROWS_PER_PAGE = 11;
+
+    function initPagination(tableSelector, controlSelector) {
+      const tableContainer = document.querySelector(`[data-table="${tableSelector}"]`);
+      const controlContainer = document.querySelector(`[data-controller="${tableSelector}"]`);
+
+      if (!tableContainer || !controlContainer) return;
+
+      const tbody = tableContainer.querySelector("tbody");
+      const rows = Array.from(tbody.querySelectorAll("tr")).filter(
+        (tr) => !tr.querySelector("td.muted") || tr.querySelectorAll("td").length > 1
+      );
+
+      if (rows.length === 0) {
+        controlContainer.style.display = "none";
+        return;
+      }
+
+      const totalPages = Math.ceil(rows.length / ROWS_PER_PAGE);
+      let currentPage = 1;
+
+      const updateDisplay = () => {
+        const start = (currentPage - 1) * ROWS_PER_PAGE;
+        const end = start + ROWS_PER_PAGE;
+
+        rows.forEach((row, idx) => {
+          if (idx >= start && idx < end) {
+            row.classList.add("pagination-visible");
+          } else {
+            row.classList.remove("pagination-visible");
+          }
+        });
+
+        controlContainer.querySelector(".current-page").textContent = currentPage;
+        controlContainer.querySelector(".total-pages").textContent = totalPages;
+        controlContainer.querySelector(".prev-btn").disabled = currentPage === 1;
+        controlContainer.querySelector(".next-btn").disabled = currentPage === totalPages;
+      };
+
+      controlContainer.querySelector(".prev-btn").addEventListener("click", () => {
+        if (currentPage > 1) {
+          currentPage--;
+          updateDisplay();
+        }
+      });
+
+      controlContainer.querySelector(".next-btn").addEventListener("click", () => {
+        if (currentPage < totalPages) {
+          currentPage++;
+          updateDisplay();
+        }
+      });
+
+      updateDisplay();
+    }
+
+    // Initialize pagination for both tables
+    initPagination("classes-table", "classes-table");
+    initPagination("prestations-table", "prestations-table");
+  })();
+</script>
+
 <div class="modal-backdrop" id="public-modal" hidden>
   <div class="modal-panel">
     <div class="modal-head">
