@@ -448,12 +448,13 @@ def _bundled_terminated_prestations_count(source_key: str = "cutoff") -> int:
         return 0
 
 
-def _bundled_total_apprenants_count(source_key: str = "cutoff") -> int:
-    """Fallback: nombre total d'apprenants depuis métadonnées embarquées (sans openpyxl)."""
+def _bundled_vague1_apprenants_count(source_key: str = "cutoff") -> int:
+    """Fallback: apprenants source des prestations terminées (Vague 1), depuis métadonnées embarquées."""
     try:
         from App_PADESCE.reporting.network_excel import load_bundled_source_meta
 
-        return int(load_bundled_source_meta(source_key).get("total_apprenants") or 0)
+        meta = load_bundled_source_meta(source_key)
+        return int(meta.get("vague1_apprenants_count") or meta.get("total_apprenants") or 0)
     except Exception:
         return 0
 
@@ -512,11 +513,10 @@ def _consultant_analysis_snapshot(
             "fenetre_options": fenetre_options,
             "counts": {
                 "analyzed_classes_count": context.get("analyzed_classes_count", 0),
-                # total_count = toutes les prestations terminées (ex: 75), count = qualifiées seulement
-                # Fallback sur métadonnées embarquées si la source ne charge pas (prod sans openpyxl).
+                # Prestations analysées = terminées ET ayant atteint le seuil (intersection)
+                # Fallback sur métadonnées embarquées si la source ne charge pas (prod).
                 "analyzed_prestations_count": (
-                    context.get("analyzed_prestations_total_count")
-                    or context.get("analyzed_prestations_count", 0)
+                    context.get("analyzed_prestations_count", 0)
                     or _bundled_terminated_prestations_count("cutoff")
                 ),
                 "analyzed_prestataires_count": context.get("analyzed_prestataires_count", 0),
@@ -524,10 +524,10 @@ def _consultant_analysis_snapshot(
                 "analysis_audio_count": context.get("analysis_audio_count", 0),
                 "analyzed_learners_count": context.get("total", 0),
                 "total_apprenants": context.get("total", 0),
+                # Vague 1 = apprenants source des prestations dont toutes les classes sont terminées
                 "source_apprenant_count": (
-                    (context.get("source_summary") or {}).get("source_apprenant_count")
-                    or context.get("total", 0)
-                    or _bundled_total_apprenants_count("cutoff")
+                    context.get("vague1_apprenants_count")
+                    or _bundled_vague1_apprenants_count("cutoff")
                 ),
                 "appels_cibles": context.get("appels_cibles", 0),
                 "appels_tentes": context.get("appels_tentes", 0),

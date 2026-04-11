@@ -1625,6 +1625,25 @@ def _source_prestation_classes_from_source(
     return prestation_classes
 
 
+def _terminated_source_apprenant_count(
+    filters: dict,
+    source_bundle: dict | None,
+    terminated_prestation_codes: set[str] | None = None,
+) -> int:
+    """Total apprenants source appartenant aux prestations dont toutes les classes sont terminées."""
+    if not source_bundle:
+        return 0
+    if terminated_prestation_codes is None:
+        terminated_prestation_codes = _terminated_prestation_codes_from_source(filters, source_bundle)
+    if not terminated_prestation_codes:
+        return 0
+    return sum(
+        1
+        for record in (source_bundle.get("records") or {}).values()
+        if normalize_network_lookup(record.get("prestation_id", "")) in terminated_prestation_codes
+    )
+
+
 def _terminated_prestation_codes_from_source(filters: dict, source_bundle: dict | None) -> set[str]:
     if not source_bundle:
         return set()
@@ -2377,17 +2396,21 @@ def _build_missing_prestations_analysis(
             "available": False,
             "total_source": 0,
             "total_qualified": 0,
+            "total_analyzed": 0,
             "total_missing": 0,
             "by_category": {},
             "details": [],
         }
 
+    # Prestations analysées = terminées ET ayant atteint le seuil (intersection)
+    analyzed_keys = terminated_prestation_codes & qualified_prestation_codes
     missing_keys = terminated_prestation_codes - qualified_prestation_codes
     if not missing_keys:
         return {
             "available": True,
             "total_source": len(terminated_prestation_codes),
             "total_qualified": len(qualified_prestation_codes),
+            "total_analyzed": len(analyzed_keys),
             "total_missing": 0,
             "by_category": {
                 "pas_disponible": 0,
@@ -2510,6 +2533,7 @@ def _build_missing_prestations_analysis(
         "available": True,
         "total_source": len(terminated_prestation_codes),
         "total_qualified": len(qualified_prestation_codes),
+        "total_analyzed": len(analyzed_keys),
         "total_missing": len(missing_keys),
         "total_importable": total_importable,
         "by_category": by_category,
@@ -2608,6 +2632,10 @@ def _build_satisfaction_dashboard_data(request):
         classe_stats_all,
         source_bundle,
         threshold_class_codes=threshold_class_codes,
+    )
+    # Apprenants Vague 1 = tous les apprenants source des prestations dont toutes les classes sont terminées
+    vague1_apprenants_count = _terminated_source_apprenant_count(
+        analysis_scope_filters, source_bundle, terminated_prestation_codes
     )
 
     global_bucket = _dashboard_bucket()
@@ -3024,11 +3052,13 @@ def _build_satisfaction_dashboard_data(request):
     )
 
     filter_query_string = request.GET.copy().urlencode()
+    # Prestations analysées = terminées ET ayant atteint le seuil (intersection)
     analyzed_prestations_count = (
-        int(missing_analysis.get("total_qualified") or 0)
+        int(missing_analysis.get("total_analyzed") or 0)
         if missing_analysis.get("available")
         else len(analyzed_prestations)
     )
+    # Total des prestations terminées (dénominateur du ratio)
     analyzed_prestations_total_count = (
         int(missing_analysis.get("total_source") or 0)
         if missing_analysis.get("available")
@@ -3065,6 +3095,7 @@ def _build_satisfaction_dashboard_data(request):
         "analyzed_prestations_count": analyzed_prestations_count,
         "analyzed_prestations_total_count": analyzed_prestations_total_count,
         "analyzed_prestations_ratio": analyzed_prestations_ratio,
+        "vague1_apprenants_count": vague1_apprenants_count,
         "analyzed_fenetres_count": len(analyzed_fenetres),
         "analyzed_prestataires_count": len(analyzed_prestataires),
         "analyzed_beneficiaires_count": len(analyzed_beneficiaires),
