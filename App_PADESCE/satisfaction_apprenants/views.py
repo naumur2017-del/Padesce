@@ -2537,7 +2537,13 @@ def _build_satisfaction_dashboard_data(request):
 
     try:
         source_bundle = build_padesce_source_index(source_key=selected_source)
-    except Exception:
+    except Exception as _src_exc:
+        logger.warning(
+            "Source bundle indisponible (source=%s): %s: %s",
+            selected_source,
+            type(_src_exc).__name__,
+            _src_exc,
+        )
         source_bundle = None
     cache_key = _analysis_cache_key(
         "dashboard-data",
