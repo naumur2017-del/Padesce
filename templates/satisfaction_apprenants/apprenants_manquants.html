@@ -307,12 +307,11 @@
         <!-- Apprenants chargés mais sans téléphone -->
         {% if presta.apprenants_loaded_no_phone %}
         <div class="sub-section warn-section">
-          <h4>&#9888; Chargés sans téléphone — sync requis ({{ presta.loaded_no_phone_count }})</h4>
+          <h4>&#9888; Chargés avec champs incomplets — sync requis ({{ presta.loaded_no_phone_count }})</h4>
           <p style="font-size:.83rem;color:#92400e;margin:0 0 8px;">
-            Ces apprenants sont dans la base mais leur téléphone est vide.
-            La feuille Consolidation contient
-            {% for appr in presta.apprenants_loaded_no_phone %}{% if appr.telephone_consol %}un numéro{% endif %}{% endfor %}.
-            Utilisez le bouton <em>Synchroniser les téléphones</em> pour les mettre à jour.
+            Ces apprenants sont dans la base mais ont au moins un champ vide (téléphone, prestataire, lieu, classe, etc.).
+            La feuille Consolidation contient les données manquantes.
+            Utilisez le bouton <em>Synchroniser les données manquantes</em> pour les compléter.
           </p>
           <div style="overflow-x:auto;">
             <table class="appr-table">
