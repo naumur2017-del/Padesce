@@ -119,6 +119,27 @@
     grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
     margin-bottom: 16px;
   }
+  .public-grid.v1-reordered > .public-card {
+    order: 10;
+  }
+  .public-grid.v1-reordered > .public-card:nth-child(2) {
+    order: 1;
+  }
+  .public-grid.v1-reordered > .public-card:nth-child(3) {
+    order: 2;
+  }
+  .public-grid.v1-reordered > .public-card:nth-child(4) {
+    order: 3;
+  }
+  .public-grid.v1-reordered > .public-card:nth-child(5) {
+    order: 4;
+  }
+  .public-grid.v1-reordered > .public-card:nth-child(1) {
+    order: 5;
+  }
+  .public-grid.v1-reordered > .public-card:nth-child(6) {
+    order: 6;
+  }
   .public-card {
     padding: 14px;
   }
@@ -445,7 +466,8 @@
   </section>
   {% endif %}
 
-  <div class="public-grid">
+  <div class="public-grid v1-reordered">
+    <article class="public-card"><div class="value">{{ principal.card_vague1_total }}</div><div class="label">Apprenants Vague 1</div></article>
     <article class="public-card"><div class="value">{{ principal.card_prestations_count }}</div><div class="label">Prestations analysées</div></article>
     <article class="public-card"><div class="value">{{ principal.card_classes_count }}</div><div class="label">Classes analysées</div></article>
     <article class="public-card"><div class="value">{{ principal.card_prestataires_count }}</div><div class="label">Prestataires analysés</div></article>
