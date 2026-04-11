@@ -29,6 +29,7 @@ from App_PADESCE.appels.models import (
     AppelAnswers,
     AppelCGA,
     AppelFormateur,
+    is_call_success_status,
     appel_answers_completed_q,
     appel_answers_modified_completion_q,
     padesce_form_tracking_cutoff,
@@ -1301,22 +1302,20 @@ def _build_consultant_dashboard_context(request):
         if rows
         else 0
     )
-    presence_pr_rate = (
-        round(
-            (
-                sum(
-                    1
-                    for item in rows
-                    for marker in [item.c1, item.c2, item.c3, item.c4]
-                    if marker == "PR"
-                )
-                / (len(rows) * 4)
-            )
-            * 100,
-            2,
-        )
-        if rows
-        else 0
+    # Taux de participation: au moins un PR sur les 4 contrôles
+    participation_count = sum(
+        1
+        for item in rows
+        if any(marker == "PR" for marker in [item.c1, item.c2, item.c3, item.c4])
+    )
+    presence_participation_rate = (
+        round((participation_count / len(rows)) * 100, 2) if rows else 0
+    )
+
+    # Taux de personne formé: statut de l'appel est un succès (achevé)
+    success_count = sum(1 for item in rows if is_call_success_status(item.status))
+    presence_person_formed_rate = (
+        round((success_count / len(rows)) * 100, 2) if rows else 0
     )
 
     # Use the existing snapshot helpers
@@ -1515,7 +1514,8 @@ def _build_consultant_dashboard_context(request):
             else fmt(max(form_remplis - global_audio_count, 0))
         ),
         "presence_global_avg": presence_avg,
-        "presence_global_pr_rate": presence_pr_rate,
+        "presence_participation_rate": presence_participation_rate,
+        "presence_person_formed_rate": presence_person_formed_rate,
         "analysis_recovery": analysis_recovery,
         "consultant_mode": "apprenants",
         "card_primary_label": "Prestations analysées",

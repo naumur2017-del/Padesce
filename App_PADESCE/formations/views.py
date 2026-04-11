@@ -694,6 +694,15 @@ def _build_class_chapeau(classe_code: str, appels, source_bundle: dict | None = 
             }
         )
 
+    # Taux de participation: au moins un PR sur les 4 contrôles
+    participation_count = sum(1 for item in presence_taux_values if item > 0)
+    participation_rate = round((participation_count / len(presence_taux_values)) * 100, 2) if presence_taux_values else 0
+
+    # Taux de personne formé: sur la base des appels liés à la classe qui sont en succès
+    total_calls = len(appels)
+    success_calls = sum(1 for a in appels if is_call_success_status(a.status))
+    person_formed_rate = round((success_calls / total_calls) * 100, 2) if total_calls else 0
+
     return {
         "title": _dashboard_chapeau_title(classe_code),
         "rows": question_rows,
@@ -715,6 +724,8 @@ def _build_class_chapeau(classe_code: str, appels, source_bundle: dict | None = 
             if presence_taux_values
             else 0
         ),
+        "participation_rate": participation_rate,
+        "person_formed_rate": person_formed_rate,
         "respondents_count": len(respondent_keys),
         "formulaires_remplis": len(respondent_keys),
         "has_data": any(item["count"] for item in question_rows),

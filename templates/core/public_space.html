@@ -421,8 +421,9 @@
           </tr>
         </thead>
         <tbody>
-          <tr><td>Taux général de présence (C1-C4)</td><td>{{ principal.presence_global_avg|floatformat:2 }}%</td></tr>
-          <tr><td>Ratio global PR</td><td>{{ principal.presence_global_pr_rate|floatformat:2 }}%</td></tr>
+          <tr><td>Taux global de présence</td><td>{{ principal.presence_global_avg|floatformat:2 }}%</td></tr>
+          <tr><td>Taux de participation</td><td>{{ principal.presence_participation_rate|floatformat:2 }}%</td></tr>
+          <tr><td>Taux de personne formé</td><td>{{ principal.presence_person_formed_rate|floatformat:2 }}%</td></tr>
         </tbody>
       </table>
     </div>
