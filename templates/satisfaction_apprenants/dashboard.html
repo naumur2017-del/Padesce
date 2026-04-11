@@ -885,7 +885,7 @@
             <td style="text-align:center;">{{ row.c3 }}</td>
             <td style="text-align:center;">{{ row.c4 }}</td>
             <td style="text-align:center;">{{ row.taux_presence_control }}%</td>
-            <td style="text-align:center;"><strong>{{ row.moyenne_generale }}</strong></td>
+            <td style="text-align:center;"><strong>{{ row.moyenne_generale|floatformat:2 }}</strong></td>
             {% for v in row.q_values %}<td style="text-align:center;">{{ v|default:"-" }}</td>{% endfor %}
             <td style="max-width:180px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="{{ row.commentaire }}">{{ row.commentaire }}</td>
           </tr>
@@ -916,7 +916,7 @@
             <td>{{ c.intitule }}</td>
             <td>{{ c.cohorte }}</td>
             <td><strong>{{ c.nb }}</strong></td>
-            {% for avg in c.avgs %}<td>{{ avg }}</td>{% endfor %}
+            {% for avg in c.avgs %}<td>{{ avg|floatformat:2 }}</td>{% endfor %}
           </tr>
           {% empty %}
           <tr><td colspan="13" style="text-align:center; color:var(--muted);">Aucune donnée</td></tr>
@@ -946,8 +946,8 @@
             <td>{{ p.prestataire }}</td>
             <td>{{ p.beneficiaire }}</td>
             <td><strong>{{ p.nb }}</strong></td>
-            {% for avg in p.avgs %}<td>{{ avg }}</td>{% endfor %}
-            <td><strong>{{ p.avg }} / 5</strong></td>
+            {% for avg in p.avgs %}<td>{{ avg|floatformat:2 }}</td>{% endfor %}
+            <td><strong>{{ p.avg|floatformat:2 }} / 5</strong></td>
           </tr>
           {% empty %}
           <tr><td colspan="15" style="text-align:center; color:var(--muted);">Aucune donnée</td></tr>
@@ -973,8 +973,8 @@
           <tr>
             <td>{{ c.label }}</td>
             <td><strong>{{ c.nb }}</strong></td>
-            {% for avg in c.avgs %}<td>{{ avg }}</td>{% endfor %}
-            <td><strong>{{ c.avg }} / 5</strong></td>
+            {% for avg in c.avgs %}<td>{{ avg|floatformat:2 }}</td>{% endfor %}
+            <td><strong>{{ c.avg|floatformat:2 }} / 5</strong></td>
           </tr>
           {% empty %}
           <tr><td colspan="15" style="text-align:center; color:var(--muted);">Aucune donnée</td></tr>
@@ -1027,7 +1027,7 @@
       <tbody>
         <tr style="font-size:1.2rem; font-weight:800; color:var(--accent-strong);">
           {% for label in q_labels %}
-            <td>{{ global_avgs|get_item:label|default:"0" }} <span style="font-size:0.7rem; color:var(--muted);">/5</span></td>
+            <td>{{ global_avgs|get_item:label|default:"0"|floatformat:2 }} <span style="font-size:0.7rem; color:var(--muted);">/5</span></td>
           {% endfor %}
         </tr>
       </tbody>

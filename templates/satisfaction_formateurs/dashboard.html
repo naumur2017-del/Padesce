@@ -126,7 +126,7 @@
   <div class="kpi-card"><div class="kpi-value">{{ with_scores }}</div><div class="kpi-label">Avec scores Q1-Q3</div></div>
   {% for label, avg in global_avgs.items %}
   <div class="kpi-card">
-    <div class="kpi-value">{{ avg }}<span style="font-size:0.7rem;color:var(--muted);">/5</span></div>
+    <div class="kpi-value">{{ avg|floatformat:2 }}<span style="font-size:0.7rem;color:var(--muted);">/5</span></div>
     <div class="kpi-label">{{ label }}</div>
   </div>
   {% endfor %}
@@ -176,7 +176,7 @@
           <tr>
             <td>{{ item.label }}</td>
             <td style="text-align:center;font-weight:700;">{{ item.nb }}</td>
-            {% for avg in item.avgs %}<td><span class="score-pill">{{ avg }}</span></td>{% endfor %}
+            {% for avg in item.avgs %}<td><span class="score-pill">{{ avg|floatformat:2 }}</span></td>{% endfor %}
           </tr>
           {% empty %}
           <tr><td colspan="5" style="text-align:center;color:var(--muted);">Aucune donnée.</td></tr>
@@ -199,7 +199,7 @@
           <tr>
             <td>{{ item.label }}</td>
             <td style="text-align:center;font-weight:700;">{{ item.nb }}</td>
-            {% for avg in item.avgs %}<td><span class="score-pill">{{ avg }}</span></td>{% endfor %}
+            {% for avg in item.avgs %}<td><span class="score-pill">{{ avg|floatformat:2 }}</span></td>{% endfor %}
           </tr>
           {% empty %}
           <tr><td colspan="5" style="text-align:center;color:var(--muted);">Aucune donnée.</td></tr>
@@ -222,7 +222,7 @@
           <tr>
             <td>{{ item.label }}</td>
             <td style="text-align:center;font-weight:700;">{{ item.nb }}</td>
-            {% for avg in item.avgs %}<td><span class="score-pill">{{ avg }}</span></td>{% endfor %}
+            {% for avg in item.avgs %}<td><span class="score-pill">{{ avg|floatformat:2 }}</span></td>{% endfor %}
           </tr>
           {% empty %}
           <tr><td colspan="5" style="text-align:center;color:var(--muted);">Aucune donnée.</td></tr>
@@ -291,9 +291,9 @@
       <tbody>
         <tr style="font-size:1.2rem; font-weight:800; color:var(--accent-strong);">
           {% for label, avg in global_avgs.items %}
-            <td>{{ avg|default:"0" }} <span style="font-size:0.7rem;color:var(--muted);">/5</span></td>
+            <td>{{ avg|default:"0"|floatformat:2 }} <span style="font-size:0.7rem;color:var(--muted);">/5</span></td>
           {% endfor %}
-          <td>{{ moyenne_generale_globale|default:"0" }} <span style="font-size:0.7rem;color:var(--muted);">/5</span></td>
+          <td>{{ moyenne_generale_globale|default:"0"|floatformat:2 }} <span style="font-size:0.7rem;color:var(--muted);">/5</span></td>
         </tr>
       </tbody>
     </table>
