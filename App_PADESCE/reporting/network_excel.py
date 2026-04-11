@@ -259,18 +259,21 @@ def _ensure_cached_workbook(
     source_path = _resolve_network_workbook(source_key=normalized_source_key)
     source_stat = source_path.stat()
 
-    CACHE_DIRECTORY.mkdir(parents=True, exist_ok=True)
     if source_path != cached_path:
         needs_copy = force_refresh or not cached_path.exists()
         if not needs_copy:
-            local_stat = cached_path.stat()
-            needs_copy = (
-                local_stat.st_size != source_stat.st_size
-                or local_stat.st_mtime_ns != source_stat.st_mtime_ns
-            )
+            try:
+                local_stat = cached_path.stat()
+                needs_copy = (
+                    local_stat.st_size != source_stat.st_size
+                    or local_stat.st_mtime_ns != source_stat.st_mtime_ns
+                )
+            except OSError:
+                needs_copy = True
 
         if needs_copy:
             try:
+                CACHE_DIRECTORY.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(source_path, cached_path)
             except Exception as copy_exc:
                 logger.warning(
@@ -280,7 +283,8 @@ def _ensure_cached_workbook(
                     cached_path,
                     copy_exc,
                 )
-                # Utiliser la source directement si la copie échoue.
+                # Utiliser la source directement si la copie ou la création du
+                # répertoire cache échoue (droits, filesystem en lecture seule…).
                 cached_path = source_path
 
     workbook_source = WorkbookSource(
