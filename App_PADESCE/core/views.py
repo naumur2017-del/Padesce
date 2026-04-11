@@ -10,6 +10,7 @@ from urllib.parse import urlencode
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
 from django.db import OperationalError, ProgrammingError
 from django.db.models import Count, Q
@@ -1802,26 +1803,35 @@ def _count_audit_events_by_user(
     event_name: str | None = None,
     expected_extra: dict[str, str] | None = None,
 ) -> dict[int, int]:
-    counts: dict[int, int] = defaultdict(int)
-    for entry in AuditLog.objects.filter(actor__isnull=False, model_name=model_name).only(
-        "actor_id", "extra"
-    ):
-        extra = entry.extra if isinstance(entry.extra, dict) else {}
-        if event_name and str(extra.get("event", "") or "").strip() != event_name:
-            continue
-        if expected_extra:
-            matches = True
-            for key, value in expected_extra.items():
-                if str(extra.get(key, "") or "").strip() != str(value):
-                    matches = False
-                    break
-            if not matches:
-                continue
-        counts[entry.actor_id] += 1
-    return counts
+    qs = AuditLog.objects.filter(actor__isnull=False, model_name=model_name)
+    # Push JSON key filters to the DB (JSONField lookups work on both PostgreSQL and SQLite >=3.38).
+    if event_name:
+        qs = qs.filter(extra__event=event_name)
+    if expected_extra:
+        for key, value in expected_extra.items():
+            qs = qs.filter(**{f"extra__{key}": value})
+    return dict(
+        qs.values("actor_id").annotate(count=Count("id")).values_list("actor_id", "count")
+    )
+
+
+_TRACKING_CACHE_KEY = "tracking_payload_full"
+_TRACKING_CACHE_TTL = 60  # secondes
 
 
 def _build_tracking_payload(*, user_search: str = "") -> dict[str, object]:
+    # Cache le payload complet (sans filtre) pour eviter de recalculer les agregats a chaque visite.
+    if not user_search:
+        cached = cache.get(_TRACKING_CACHE_KEY)
+        if cached is not None:
+            return cached
+        payload = _compute_tracking_payload(user_search="")
+        cache.set(_TRACKING_CACHE_KEY, payload, timeout=_TRACKING_CACHE_TTL)
+        return payload
+    return _compute_tracking_payload(user_search=user_search)
+
+
+def _compute_tracking_payload(*, user_search: str = "") -> dict[str, object]:
     User = get_user_model()
     cutoff = timezone.now() - timedelta(minutes=10)
     activities, activities_ready = _safe_user_activities_index()
