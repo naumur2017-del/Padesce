@@ -120,9 +120,9 @@
     grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   }
   .class-link {
-    display: block;
-    text-decoration: none;
-    color: inherit;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
     border: 1px solid var(--border);
     border-radius: 14px;
     background: rgba(255, 255, 255, 0.92);
@@ -134,6 +134,41 @@
   }
   .class-link strong {
     color: var(--accent-strong);
+  }
+  .class-link-main {
+    display: block;
+    text-decoration: none;
+    color: inherit;
+  }
+  .class-link-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .class-link-action {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    text-decoration: none;
+    font-weight: 700;
+    border-radius: 999px;
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+  }
+  .class-link-action.analysis {
+    background: rgba(15, 139, 141, 0.08);
+    color: #0f5f61;
+    border-color: rgba(15, 139, 141, 0.2);
+  }
+  .class-link-action.teams {
+    background: rgba(98, 100, 167, 0.12);
+    color: #4f46e5;
+    border-color: rgba(98, 100, 167, 0.24);
+  }
+  .hero-action-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
   }
   .tabbar {
     display: inline-flex;
@@ -301,7 +336,7 @@
       <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 4px;">
         <h1 style="margin: 0;">{{ entity_title }}</h1>
         {% if channel_link %}
-          <a href="{{ channel_link }}" target="_blank" class="badge badge-ok" style="background: rgba(15, 139, 141, 0.1); color: #0f5f61; border-color: rgba(15, 139, 141, 0.28); text-decoration: none; padding: 6px 12px; cursor: pointer; transition: background 0.2s;" onmouseover="this.style.background='rgba(15, 139, 141, 0.2)'" onmouseout="this.style.background='rgba(15, 139, 141, 0.1)'">Ouvrir lien du canal</a>
+          <a href="{{ channel_link }}" target="_blank" class="badge badge-ok hero-action-link" style="background: rgba(98, 100, 167, 0.12); color: #4f46e5; border-color: rgba(98, 100, 167, 0.24); text-decoration: none; padding: 6px 12px; cursor: pointer; transition: background 0.2s;" onmouseover="this.style.background='rgba(98, 100, 167, 0.2)'" onmouseout="this.style.background='rgba(98, 100, 167, 0.12)'"><i class="fa-brands fa-microsoft"></i><span>Ouvrir Teams</span></a>
         {% endif %}
       </div>
       <p class="hero-subtitle" style="margin: 0;">{{ entity_subtitle|default:"Informations de suivi et de consultation." }}</p>
@@ -450,14 +485,28 @@
         <div class="row-meta">Chaque classe ouvre sa propre fiche d'analyse.</div>
       </div>
     </div>
-    <div class="class-links">
-      {% for item in class_links %}
-        <a class="class-link" href="{{ item.url }}">
-          <strong>{{ item.code }}</strong>
-          <div>{{ item.intitule|default:"Sans intitule" }}</div>
-        </a>
-      {% endfor %}
-    </div>
+      <div class="class-links">
+        {% for item in class_links %}
+          <article class="class-link">
+            <a class="class-link-main" href="{{ item.url }}">
+              <strong>{{ item.code }}</strong>
+              <div>{{ item.intitule|default:"Sans intitule" }}</div>
+            </a>
+            <div class="class-link-actions">
+              <a class="class-link-action analysis" href="{{ item.url }}">
+                <i class="fa-solid fa-chart-line"></i>
+                <span>Ouvrir analyse</span>
+              </a>
+              {% if item.teams_url %}
+                <a class="class-link-action teams" href="{{ item.teams_url }}" target="_blank" rel="noreferrer">
+                  <i class="fa-brands fa-microsoft"></i>
+                  <span>Ouvrir Teams</span>
+                </a>
+              {% endif %}
+            </div>
+          </article>
+        {% endfor %}
+      </div>
   </section>
 {% endif %}
 

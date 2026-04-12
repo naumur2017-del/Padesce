@@ -323,6 +323,12 @@ def _analysis_source_classes_for_prestation(
     return sorted(matches, key=lambda item: str(item.get("classe_id", "")).casefold())
 
 
+def _analysis_source_class_channel_link(source_bundle: dict | None, class_code: str) -> str:
+    source_classe = _analysis_source_lookup(source_bundle, "classes", class_code)
+    link = str(source_classe.get("teams_channel_url", "") or "").strip()
+    return link if link.startswith("http") else ""
+
+
 def _analysis_statut_label(value) -> str:
     raw_value = str(value or "").strip()
     mapping = {
@@ -449,6 +455,7 @@ def _analysis_source_class_links(
                 "apprenants_count": call_count,
                 "appels_count": call_count,
                 "url": reverse("class_analysis_detail", args=[class_code]),
+                "teams_url": str(item.get("teams_channel_url", "") or "").strip(),
             }
         )
     return links
@@ -1184,6 +1191,8 @@ def class_analysis_detail(request, code: str):
             .filter(Q(classe=classe) | Q(classe_label__iexact=classe.code))
             .order_by("nom", "code", "pk")
         )
+        source_bundle = _analysis_source_bundle()
+        source_classe = _analysis_source_lookup(source_bundle, "classes", classe.code)
 
     active_tab = (
         request.GET.get("tab")
@@ -1206,22 +1215,7 @@ def class_analysis_detail(request, code: str):
     class_chapeau = _build_class_chapeau(classe.code, apprenant_appels, source_bundle=source_bundle)
     formateur_chapeau = _build_formateur_chapeau(classe.code, formateur_appels)
 
-    channel_link = ""
-    try:
-        import pandas as pd
-
-        excel_path = _class_channel_workbook_path()
-        df = pd.read_excel(excel_path)
-        for _, row in df.iterrows():
-            if str(row.iloc[1]).strip() == str(code).strip():
-                link = str(row.iloc[0]).strip()
-                if link and link.startswith("http"):
-                    channel_link = link
-                break
-    except Exception:
-        logger.exception(
-            "Unable to read class channel workbook: %s", _class_channel_workbook_path()
-        )
+    channel_link = _analysis_source_class_channel_link(source_bundle, classe.code)
 
     return render(
         request,
@@ -1298,6 +1292,7 @@ def prestation_analysis_detail(request, code: str):
         class_links = _analysis_source_class_links(source_classes, apprenant_appels)
         reference_warning = _analysis_reference_warning()
     else:
+        source_bundle = _analysis_source_bundle()
         apprenant_appels = list(
             _analysis_appel_queryset()
             .filter(classe__prestation=prestation)
@@ -1310,6 +1305,7 @@ def prestation_analysis_detail(request, code: str):
                 "apprenants_count": item.apprenants_count,
                 "appels_count": item.appels_count,
                 "url": reverse("class_analysis_detail", args=[item.code]),
+                "teams_url": _analysis_source_class_channel_link(source_bundle, item.code),
             }
             for item in prestation.classes.all()
         ]
