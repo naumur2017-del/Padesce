@@ -17,8 +17,11 @@ from collections import Counter, defaultdict
 from datetime import date as date_cls
 from types import SimpleNamespace
 
+import zipfile
+
 import openpyxl
 import requests
+from django.conf import settings
 from django.contrib import messages
 from django.core.cache import cache
 from django.core.exceptions import ObjectDoesNotExist
@@ -77,6 +80,8 @@ from App_PADESCE.core.fast_stats import build_fast_stats_context
 from App_PADESCE.formations.models import Classe
 from App_PADESCE.presences.control_utils import get_presence_controls, upsert_presence_controls
 from App_PADESCE.reporting.network_excel import (
+    BUNDLED_CUTOFF_WORKBOOK_COPY,
+    BUNDLED_WORKBOOK_COPY,
     build_consolidation_call_candidates,
     build_padesce_source_index,
     get_workbook_source_options,
@@ -3190,6 +3195,15 @@ def _build_satisfaction_dashboard_data(request):
     context["formulaires_avec_audio_appels"] = _appel_stats["formulaires_avec_audio"]
     context["audios_enregistres_appels"] = _appel_stats["audios_enregistres"]
     context["tab_details"] = _build_table_details_context(context, rows)
+
+    # Source file availability indicators for the dashboard banner
+    context["cutoff_file_available"] = BUNDLED_CUTOFF_WORKBOOK_COPY.exists()
+    context["main_file_available"] = BUNDLED_WORKBOOK_COPY.exists()
+    _presence_rel = os.path.join("data", "rapport presence", "rapport presence.xlsx")
+    context["presence_file_available"] = os.path.exists(
+        os.path.join(settings.BASE_DIR, _presence_rel)
+    ) or os.path.exists(os.path.join(os.path.dirname(settings.BASE_DIR), _presence_rel))
+
     payload = {"rows": rows, "filters": filters, "context": context}
     cache.set(cache_key, payload, timeout=ANALYSIS_CACHE_TIMEOUT)
     return payload
@@ -3283,6 +3297,163 @@ def satisfaction_dashboard_export_chapeau(request):
         content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     )
     response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return response
+
+
+@require_analysis_access
+def satisfaction_dashboard_export_class_lists_zip(request):
+    """Export one CSV per class as a ZIP archive (no operator/enqueteur column)."""
+    dashboard = _build_satisfaction_dashboard_data(request)
+    rows = dashboard["rows"]
+
+    # Group rows by classe_code
+    classes: dict[str, list[dict]] = {}
+    for row in _ordered_survey_rows(rows):
+        code = str(row.get("classe_code") or "").strip()
+        if code:
+            classes.setdefault(code, []).append(row)
+
+    headers = [
+        "N°",
+        "ApprenantID réseau",
+        "Apprenant",
+        "Bénéficiaire",
+        "Prestataire",
+        "Formation",
+        "Classe",
+        "Date",
+        *[label for _, label in Q_FIELDS],
+        "Commentaire",
+        "Recommandations",
+    ]
+
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
+        for code, class_rows in sorted(classes.items()):
+            csv_buffer = io.StringIO()
+            writer = csv.writer(csv_buffer)
+            writer.writerow(headers)
+            for idx, row in enumerate(class_rows, start=1):
+                writer.writerow(
+                    [
+                        idx,
+                        row.get("source_apprenant_id", ""),
+                        row.get("apprenant_nom", ""),
+                        row.get("beneficiaire", ""),
+                        row.get("prestataire", ""),
+                        row.get("formation_intitule") or row.get("classe_intitule", ""),
+                        code,
+                        _format_export_date(row.get("survey_date")),
+                        *[row.get(field) for field, _ in Q_FIELDS],
+                        row.get("commentaire", ""),
+                        row.get("recommandations", ""),
+                    ]
+                )
+            safe_code = re.sub(r'[\\/:*?"<>|]', "_", code)
+            zf.writestr(f"{safe_code}.csv", csv_buffer.getvalue().encode("utf-8-sig"))
+
+    zip_buffer.seek(0)
+    response = HttpResponse(zip_buffer.getvalue(), content_type="application/zip")
+    response["Content-Disposition"] = 'attachment; filename="listes-par-classe.zip"'
+    return response
+
+
+@require_analysis_access
+def satisfaction_dashboard_export_prestation_lists_xlsx(request):
+    """Export one sheet per prestation as an XLSX workbook."""
+    dashboard = _build_satisfaction_dashboard_data(request)
+    rows = dashboard["rows"]
+    context = dashboard["context"]
+
+    # Group rows by normalized prestation code
+    prestation_rows: dict[str, list[dict]] = {}
+    prestation_meta: dict[str, dict] = {}
+    for row in _ordered_survey_rows(rows):
+        p_code = str(row.get("source_prestation_id") or row.get("prestation_code") or "").strip() or "-"
+        p_key = normalize_network_lookup(p_code)
+        prestation_rows.setdefault(p_key, []).append(row)
+        if p_key not in prestation_meta:
+            prestation_meta[p_key] = {
+                "code": p_code,
+                "prestataire": row.get("prestataire", ""),
+                "beneficiaire": row.get("beneficiaire", ""),
+                "formation": row.get("formation_intitule") or row.get("classe_intitule", ""),
+            }
+
+    wb = openpyxl.Workbook()
+    # Summary sheet
+    ws_summary = wb.active
+    ws_summary.title = "Synthèse"
+    ws_summary.append(["Listes par prestation — Analyse satisfaction apprenants"])
+    ws_summary.append([])
+    ws_summary.append(["Total enquêtes", context["total"]])
+    ws_summary.append(["Prestations", len(prestation_rows)])
+    ws_summary.append([])
+    ws_summary.append(["Code prestation", "Prestataire", "Bénéficiaire", "Nb enquêtes"])
+    for p_key, meta in sorted(prestation_meta.items()):
+        ws_summary.append(
+            [meta["code"], meta["prestataire"], meta["beneficiaire"], len(prestation_rows[p_key])]
+        )
+    _autosize_worksheet(ws_summary, max_width=48)
+
+    col_headers = [
+        "N°",
+        "ApprenantID réseau",
+        "Apprenant",
+        "Classe",
+        "Formation",
+        "Bénéficiaire",
+        "Cohorte",
+        "C1", "C2", "C3", "C4",
+        "Taux présence",
+        *[label for _, label in Q_FIELDS],
+        "Moyenne",
+        "Commentaire",
+    ]
+
+    for p_key in sorted(prestation_rows):
+        meta = prestation_meta[p_key]
+        sheet_title = re.sub(r'[\\/:*?\[\]]', "_", meta["code"])[:31] or "Prestation"
+        ws = wb.create_sheet(title=sheet_title)
+        # Header block
+        ws.append([f"Prestation : {meta['code']}"])
+        ws.append([f"Prestataire : {meta['prestataire']}  |  Bénéficiaire : {meta['beneficiaire']}"])
+        ws.append([f"Formation : {meta['formation']}"])
+        ws.append([])
+        ws.append(col_headers)
+        for idx, row in enumerate(prestation_rows[p_key], start=1):
+            scores = [row.get(field) for field, _ in Q_FIELDS]
+            valid_scores = [s for s in scores if s is not None]
+            avg = round(sum(valid_scores) / len(valid_scores), 2) if valid_scores else ""
+            ws.append(
+                [
+                    idx,
+                    row.get("source_apprenant_id", ""),
+                    row.get("apprenant_nom", ""),
+                    row.get("classe_code", ""),
+                    row.get("formation_intitule") or row.get("classe_intitule", ""),
+                    row.get("beneficiaire", ""),
+                    row.get("cohorte", ""),
+                    row.get("c1", ""),
+                    row.get("c2", ""),
+                    row.get("c3", ""),
+                    row.get("c4", ""),
+                    row.get("taux_presence_control", ""),
+                    *scores,
+                    avg,
+                    row.get("commentaire", ""),
+                ]
+            )
+        _autosize_worksheet(ws, max_width=40)
+
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+    response = HttpResponse(
+        output.getvalue(),
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+    response["Content-Disposition"] = 'attachment; filename="listes-par-prestation.xlsx"'
     return response
 
 
@@ -5459,3 +5630,157 @@ def import_notifications_poll(request):
 
     notifications = _get_import_notifs_since(since)
     return JsonResponse({"notifications": notifications})
+
+
+# ---------------------------------------------------------------------------
+# Page synchronisation référentiel BD ↔ source
+# ---------------------------------------------------------------------------
+
+def _build_duplicate_apprenant_ids(source_bundle: dict | None) -> list[dict]:
+    """Retourne la liste des apprenant_id réseau présents plusieurs fois dans la source."""
+    if not source_bundle:
+        return []
+    records = source_bundle.get("records") or {}
+    # group by apprenant_id
+    by_apprenant_id: dict[str, list[dict]] = {}
+    for record in records.values():
+        a_id = str(record.get("apprenant_id") or "").strip()
+        if not a_id:
+            continue
+        by_apprenant_id.setdefault(a_id, []).append(record)
+    duplicates = []
+    for a_id, recs in sorted(by_apprenant_id.items()):
+        if len(recs) <= 1:
+            continue
+        duplicates.append(
+            {
+                "apprenant_id": a_id,
+                "count": len(recs),
+                "entries": [
+                    {
+                        "code": r.get("code", ""),
+                        "nom": r.get("nom_individu", ""),
+                        "classe_id": r.get("classe_id", ""),
+                        "prestataire": r.get("prestataire", ""),
+                        "telephone1": r.get("telephone1", ""),
+                    }
+                    for r in recs
+                ],
+            }
+        )
+    return duplicates
+
+
+def _build_local_apprenant_id_map(source_bundle: dict | None) -> list[dict]:
+    """Pour chaque Apprenant local, retrouve son apprenant_id réseau depuis la source."""
+    if not source_bundle:
+        return []
+    records = source_bundle.get("records") or {}
+    # index local apprenants by code
+    from App_PADESCE.apprenants.models import Apprenant as ApprenantModel
+
+    local_apprenants = {
+        str(a.code).strip(): a
+        for a in ApprenantModel.objects.select_related("classe", "formation").filter(actif=True)
+    }
+    rows = []
+    seen_codes = set()
+    for record in records.values():
+        code = str(record.get("code") or "").strip()
+        a_id = str(record.get("apprenant_id") or "").strip()
+        nom = str(record.get("nom_individu") or "").strip()
+        classe_id = str(record.get("classe_id") or "").strip()
+        if not code:
+            continue
+        norm_code = normalize_network_lookup(code)
+        if norm_code in seen_codes:
+            continue
+        seen_codes.add(norm_code)
+        local = local_apprenants.get(norm_code)
+        rows.append(
+            {
+                "code": code,
+                "apprenant_id": a_id,
+                "nom_source": nom,
+                "nom_local": local.nom_complet if local else "",
+                "classe_id": classe_id,
+                "local_found": local is not None,
+                "local_pk": local.pk if local else None,
+            }
+        )
+    rows.sort(key=lambda r: (0 if not r["apprenant_id"] else 1, r["code"]))
+    return rows
+
+
+@require_analysis_access
+def satisfaction_sync_reference_page(request):
+    """Page de synchronisation du référentiel BD depuis les fichiers source."""
+    from App_PADESCE.satisfaction_apprenants.cutoff_sync import sync_cutoff_reference_data
+
+    source_options = get_workbook_source_options()
+    selected_source = request.POST.get("source") or request.GET.get("source") or "cutoff"
+    selected_source = normalize_workbook_source_key(selected_source)
+
+    sync_result = None
+    sync_error = None
+
+    if request.method == "POST" and request.POST.get("action") == "sync":
+        dry_run = request.POST.get("dry_run") == "1"
+        skip_appels = request.POST.get("skip_appels") == "1"
+        keep_missing = request.POST.get("keep_missing") == "1"
+        try:
+            sync_result = sync_cutoff_reference_data(
+                source_key=selected_source,
+                sync_appels=not skip_appels,
+                deactivate_missing=not keep_missing,
+                dry_run=dry_run,
+            )
+        except Exception as exc:
+            sync_error = str(exc)
+
+    # Source file availability
+    cutoff_available = BUNDLED_CUTOFF_WORKBOOK_COPY.exists()
+    main_available = BUNDLED_WORKBOOK_COPY.exists()
+    _presence_rel = os.path.join("data", "rapport presence", "rapport presence.xlsx")
+    presence_available = os.path.exists(
+        os.path.join(settings.BASE_DIR, _presence_rel)
+    ) or os.path.exists(os.path.join(os.path.dirname(settings.BASE_DIR), _presence_rel))
+
+    # Load source bundle for analysis
+    try:
+        source_bundle = build_padesce_source_index(source_key=selected_source)
+        source_bundle_available = True
+        source_record_count = len((source_bundle.get("records") or {}))
+        source_modified = (source_bundle.get("source") or {}).get("modified_label", "")
+    except Exception as exc:
+        source_bundle = None
+        source_bundle_available = False
+        source_record_count = 0
+        source_modified = ""
+        if sync_error is None:
+            sync_error = str(exc)
+
+    duplicate_apprenant_ids = _build_duplicate_apprenant_ids(source_bundle)
+    apprenant_id_map = _build_local_apprenant_id_map(source_bundle)
+    missing_id_count = sum(1 for r in apprenant_id_map if not r["apprenant_id"])
+    matched_id_count = sum(1 for r in apprenant_id_map if r["apprenant_id"] and r["local_found"])
+
+    context = {
+        "source_options": source_options,
+        "selected_source": selected_source,
+        "cutoff_file_available": cutoff_available,
+        "main_file_available": main_available,
+        "presence_file_available": presence_available,
+        "source_bundle_available": source_bundle_available,
+        "source_record_count": source_record_count,
+        "source_modified": source_modified,
+        "sync_result": sync_result,
+        "sync_error": sync_error,
+        "duplicate_apprenant_ids": duplicate_apprenant_ids,
+        "duplicate_count": len(duplicate_apprenant_ids),
+        "apprenant_id_map": apprenant_id_map,
+        "missing_id_count": missing_id_count,
+        "matched_id_count": matched_id_count,
+        "total_map_count": len(apprenant_id_map),
+    }
+    return render(request, "satisfaction_apprenants/sync_reference.html", context)

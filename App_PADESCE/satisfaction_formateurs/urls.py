@@ -39,4 +39,11 @@ urlpatterns = [
         ),
         name="satisfaction_formateurs_update_form_page",
     ),
+    path(
+        "analyse/gestion/",
+        lazy_view(
+            "App_PADESCE.satisfaction_formateurs.views.formateurs_prestataires_management"
+        ),
+        name="formateurs_prestataires_management",
+    ),
 ]

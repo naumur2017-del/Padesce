@@ -520,31 +520,29 @@
         <div class="row-meta">{{ class_chapeau.title }}</div>
       </div>
       <span class="badge badge-ok">
-        Taux moyen: {{ class_chapeau.presence_taux_avg }}%
+        Indicateurs calculés
       </span>
     </div>
     <div class="table-wrap">
       <table>
         <thead>
           <tr>
-            <th>Contrôle</th>
-            <th>PR</th>
-            <th>AB</th>
-            <th>Taux PR</th>
+            <th>Indicateur</th>
+            <th>Valeur</th>
           </tr>
         </thead>
         <tbody>
-          {% for item in class_chapeau.presence_rows %}
-            <tr>
-              <td>{{ item.label }}</td>
-              <td>{{ item.pr_count }}</td>
-              <td>{{ item.ab_count }}</td>
-              <td>{{ item.pr_rate }}%</td>
-            </tr>
-          {% endfor %}
           <tr>
-            <td><strong>Taux global</strong></td>
-            <td colspan="3"><strong>{{ class_chapeau.presence_taux_avg }}%</strong></td>
+            <td>Taux global de présence</td>
+            <td><strong>{{ class_chapeau.presence_taux_avg }}%</strong></td>
+          </tr>
+          <tr>
+            <td>Taux de participation</td>
+            <td><strong>{{ class_chapeau.participation_rate }}%</strong></td>
+          </tr>
+          <tr>
+            <td>Taux de personne formé</td>
+            <td><strong>{{ class_chapeau.person_formed_rate }}%</strong></td>
           </tr>
         </tbody>
       </table>

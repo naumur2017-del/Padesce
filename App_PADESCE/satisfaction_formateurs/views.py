@@ -1968,3 +1968,117 @@ def satisfaction_formateurs_dashboard_export_chapeau(request):
 def satisfaction_formateurs_dashboard(request):
     context = _build_satisfaction_formateurs_dashboard_context(request)
     return render(request, "satisfaction_formateurs/dashboard.html", context)
+
+
+# ---------------------------------------------------------------------------
+# Page de gestion : lier formateurs ↔ prestataires + villes des prestations
+# ---------------------------------------------------------------------------
+
+@require_analysis_access
+def formateurs_prestataires_management(request):
+    """Page de gestion : toggle formateur↔prestations (M2M) + ville des prestations pour la carte."""
+    from App_PADESCE.formations.models import Formateur, Prestation as PrestationModel
+
+    saved_count = 0
+    saved_label = ""
+
+    if request.method == "POST":
+        action = request.POST.get("action", "")
+
+        if action == "save_formateurs":
+            # Met à jour le M2M formateur ↔ prestations
+            prestations_all = {str(p.pk): p for p in PrestationModel.objects.all()}
+            for form in Formateur.objects.prefetch_related("prestations").all():
+                field_name = f"prestations_{form.pk}"
+                selected_pks = set(request.POST.getlist(field_name))
+                current_pks = set(str(pk) for pk in form.prestations.values_list("pk", flat=True))
+                if selected_pks != current_pks:
+                    new_prestations = [
+                        prestations_all[pk] for pk in selected_pks if pk in prestations_all
+                    ]
+                    form.prestations.set(new_prestations)
+                    saved_count += 1
+            saved_label = f"{saved_count} formateur(s) mis à jour."
+
+        elif action == "toggle_prestation":
+            # Toggle rapide via AJAX : lier/délier un formateur d'une prestation
+            formateur_pk = request.POST.get("formateur_pk", "").strip()
+            prestation_pk = request.POST.get("prestation_pk", "").strip()
+            try:
+                form = Formateur.objects.get(pk=formateur_pk)
+                prest = PrestationModel.objects.get(pk=prestation_pk)
+                if form.prestations.filter(pk=prest.pk).exists():
+                    form.prestations.remove(prest)
+                    linked = False
+                else:
+                    form.prestations.add(prest)
+                    linked = True
+                from django.http import JsonResponse as _JsonResponse
+                return _JsonResponse({"ok": True, "linked": linked})
+            except Exception as exc:
+                from django.http import JsonResponse as _JsonResponse
+                return _JsonResponse({"ok": False, "error": str(exc)}, status=400)
+
+        elif action == "save_prestations":
+            # Mise à jour de la ville pour chaque prestation (carte)
+            prestations = list(PrestationModel.objects.select_related("prestataire").all())
+            to_update = []
+            for prest in prestations:
+                new_ville = request.POST.get(f"ville_{prest.pk}", "").strip()
+                if prest.ville != new_ville:
+                    prest.ville = new_ville
+                    to_update.append(prest)
+            if to_update:
+                PrestationModel.objects.bulk_update(to_update, ["ville"], batch_size=200)
+                saved_count = len(to_update)
+            saved_label = f"{saved_count} prestation(s) mise(s) à jour."
+
+        elif action == "save_prestation_ville":
+            # Sauvegarde rapide d'une seule ville via AJAX
+            prestation_pk = request.POST.get("prestation_pk", "").strip()
+            new_ville = request.POST.get("ville", "").strip()
+            try:
+                prest = PrestationModel.objects.get(pk=prestation_pk)
+                prest.ville = new_ville
+                prest.save(update_fields=["ville"])
+                from django.http import JsonResponse as _JsonResponse
+                return _JsonResponse({"ok": True, "ville": new_ville})
+            except Exception as exc:
+                from django.http import JsonResponse as _JsonResponse
+                return _JsonResponse({"ok": False, "error": str(exc)}, status=400)
+
+    # Charger les formateurs avec leurs prestations courantes
+    formateurs = list(
+        Formateur.objects.prefetch_related("prestations", "classes__prestation")
+        .order_by("nom_complet")
+    )
+    # Index des prestations déjà assignées par formateur
+    formateur_prestations = {
+        f.pk: set(f.prestations.values_list("pk", flat=True)) for f in formateurs
+    }
+    # Prestations (pour le toggle et le tableau villes)
+    prestations = list(
+        PrestationModel.objects.select_related("prestataire", "formation", "beneficiaire")
+        .prefetch_related("classes__lieu")
+        .order_by("code")
+    )
+    # Pour chaque prestation, dériver la ville depuis Classe.lieu si ville vide
+    for prest in prestations:
+        if not prest.ville:
+            for cls in prest.classes.all():
+                if cls.lieu and cls.lieu.ville:
+                    prest._ville_derived = cls.lieu.ville
+                    break
+            else:
+                prest._ville_derived = ""
+        else:
+            prest._ville_derived = prest.ville
+
+    context = {
+        "formateurs": formateurs,
+        "formateur_prestations": formateur_prestations,
+        "prestations": prestations,
+        "saved_count": saved_count,
+        "saved_label": saved_label,
+    }
+    return render(request, "satisfaction_formateurs/formateurs_prestataires.html", context)
