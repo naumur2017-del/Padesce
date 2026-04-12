@@ -396,18 +396,6 @@
         <div class="label">Formation</div>
         <div class="value">{{ prestation.formation.nom|default:"-" }}</div>
       </div>
-      <div class="meta-card">
-        <div class="label">Effectif cible</div>
-        <div class="value">{{ prestation.effectif_a_former|default:0 }}</div>
-      </div>
-      <div class="meta-card">
-        <div class="label">Femmes cible</div>
-        <div class="value">{{ prestation.femmes|default:0 }}</div>
-      </div>
-      <div class="meta-card">
-        <div class="label">Duree reelle</div>
-        <div class="value">{{ prestation.duree_reelle_heures|default:"0" }} h</div>
-      </div>
     {% endif %}
   </div>
 </section>
@@ -467,7 +455,6 @@
         <a class="class-link" href="{{ item.url }}">
           <strong>{{ item.code }}</strong>
           <div>{{ item.intitule|default:"Sans intitule" }}</div>
-          <div class="row-meta">{{ item.apprenants_count|default:0 }} apprenant(s) · {{ item.appels_count|default:0 }} appel(s)</div>
         </a>
       {% endfor %}
     </div>
@@ -484,7 +471,7 @@
   </button>
 </div>
 
-{% if entity_type == "classe" and class_chapeau %}
+{% if class_chapeau %}
   <section class="panel tab-panel{% if active_tab == 'apprenants' %} active{% endif %}" data-panel="apprenants-chapeau">
     <div class="panel-head">
       <div>
@@ -521,31 +508,29 @@
         <div class="row-meta">{{ class_chapeau.title }}</div>
       </div>
       <span class="badge badge-ok">
-        Taux moyen: {{ class_chapeau.presence_taux_avg }}%
+        Indicateurs calculés
       </span>
     </div>
     <div class="table-wrap">
       <table>
         <thead>
           <tr>
-            <th>Contrôle</th>
-            <th>PR</th>
-            <th>AB</th>
-            <th>Taux PR</th>
+            <th>Indicateur</th>
+            <th>Valeur</th>
           </tr>
         </thead>
         <tbody>
-          {% for item in class_chapeau.presence_rows %}
-            <tr>
-              <td>{{ item.label }}</td>
-              <td>{{ item.pr_count }}</td>
-              <td>{{ item.ab_count }}</td>
-              <td>{{ item.pr_rate }}%</td>
-            </tr>
-          {% endfor %}
           <tr>
-            <td><strong>Taux global</strong></td>
-            <td colspan="3"><strong>{{ class_chapeau.presence_taux_avg }}%</strong></td>
+            <td>Taux global de présence</td>
+            <td><strong>{{ class_chapeau.presence_taux_avg }}%</strong></td>
+          </tr>
+          <tr>
+            <td>Taux de participation</td>
+            <td><strong>{{ class_chapeau.participation_rate }}%</strong></td>
+          </tr>
+          <tr>
+            <td>Taux de personne formé</td>
+            <td><strong>{{ class_chapeau.person_formed_rate }}%</strong></td>
           </tr>
         </tbody>
       </table>
@@ -554,11 +539,11 @@
   <section class="panel tab-panel{% if active_tab == 'formateurs' %} active{% endif %}" data-panel="formateurs-chapeau">
     <div class="panel-head">
       <div>
-        <strong>Chapeau de satisfaction (Apprenants)</strong>
-        <div class="row-meta">{{ class_chapeau.title }}</div>
+        <strong>Chapeau de satisfaction (Formateurs)</strong>
+        <div class="row-meta">{{ formateur_chapeau.title }}</div>
       </div>
-      <span class="badge{% if class_chapeau.has_data %} badge-ok{% else %} badge-wait{% endif %}">
-        {{ class_chapeau.formulaires_remplis }} formulaire(s) rempli(s)
+      <span class="badge{% if formateur_chapeau.has_data %} badge-ok{% else %} badge-wait{% endif %}">
+        {{ formateur_chapeau.formulaires_remplis }} formulaire(s) rempli(s)
       </span>
     </div>
     <div class="table-wrap">
@@ -570,7 +555,7 @@
           </tr>
         </thead>
         <tbody>
-          {% for item in class_chapeau.rows %}
+          {% for item in formateur_chapeau.rows %}
             <tr>
               <td>{{ item.label }}</td>
               <td>{% if item.count %}{{ item.note }} / 5{% else %}-{% endif %}</td>
@@ -690,7 +675,6 @@
     <table>
       <thead>
         <tr>
-          <th>Nom Formateur</th>
           <th>Téléphone</th>
           <th>Formation</th>
           <th>Cohorte</th>
@@ -704,7 +688,6 @@
       <tbody>
         {% for row in formateur_rows %}
           <tr data-status-id="{{ row.statut }}" data-has-audio="{{ row.has_audio|yesno:'1,0' }}" data-has-form="{{ row.has_form|yesno:'1,0' }}" class="js-formateur-row">
-            <td><strong>{{ row.formateur_nom|default:row.reference_code }}</strong></td>
             <td>{{ row.formateur_telephone|default:row.telephone|default:"-" }}</td>
             <td>{{ row.formation|default:"-" }}</td>
             <td>{{ row.cohorte|default:"-" }}</td>
@@ -748,7 +731,7 @@
           </tr>
         {% empty %}
           <tr>
-            <td colspan="9" style="text-align:center;color:var(--muted);">Aucun appel formateur rattaché à cette entité.</td>
+            <td colspan="8" style="text-align:center;color:var(--muted);">Aucun appel formateur rattaché à cette entité.</td>
           </tr>
         {% endfor %}
       </tbody>

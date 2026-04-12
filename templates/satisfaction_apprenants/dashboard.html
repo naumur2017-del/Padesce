@@ -82,6 +82,7 @@
         <button type="button" class="btn btn-ghost btn-sm" id="js-open-fast-stats">Fast Stats</button>
         <a class="btn btn-ghost btn-sm" href="{% url 'satisfaction_update_form_page' %}?source={{ filter_source|urlencode }}">Update Form</a>
         <a class="btn btn-ghost btn-sm" href="{% url 'satisfaction_general_page' %}{% if request.GET.urlencode %}?{{ request.GET.urlencode }}{% endif %}">General</a>
+        <a class="btn btn-ghost btn-sm" href="{% url 'satisfaction_sync_reference_page' %}?source={{ filter_source|urlencode }}">Sync BD</a>
       </div>
     </div>
     <a class="btn btn-ghost btn-sm" href="{% url 'satisfaction_apprenants_index' %}">Retour enquêtes</a>
@@ -92,9 +93,7 @@
 <div class="scope-switch">
   <div class="scope-tabs" role="tablist" aria-label="Navigation des analyses de satisfaction">
     <a class="scope-tab active" href="{% url 'satisfaction_dashboard' %}" aria-current="page">Apprenant</a>
-    <a class="scope-tab" href="{% url 'satisfaction_formateurs_dashboard' %}">Formateur</a>
   </div>
-  <div class="scope-note">Basculer entre les tableaux apprenants et formateurs depuis le module d'analyse.</div>
 </div>
 
 {% include "includes/fast_stats_modal.html" %}
@@ -831,6 +830,11 @@
         data-base-url="{% url 'satisfaction_dashboard_export_class_lists_zip' %}"
         href="{% url 'satisfaction_dashboard_export_class_lists_zip' %}{% if request.GET.urlencode %}?{{ request.GET.urlencode }}{% endif %}"
       >Télécharger les listes par classe (ZIP)</a>
+      <a
+        class="btn btn-ghost btn-sm"
+        id="js-export-prestation-lists-xlsx"
+        href="{% url 'satisfaction_dashboard_export_prestation_lists_xlsx' %}{% if request.GET.urlencode %}?{{ request.GET.urlencode }}{% endif %}"
+      >Télécharger les listes par prestation (XLSX)</a>
       <a class="btn btn-ghost btn-sm" href="{% url 'satisfaction_dashboard_export_chapeau' %}{% if request.GET.urlencode %}?{{ request.GET.urlencode }}{% endif %}">Exporter le chapeau (DOCX)</a>
     </div>
     <div style="margin-top:12px; font-size:0.92rem; color: var(--muted);">
@@ -840,6 +844,25 @@
       {% endif %}
     </div>
   </div>
+
+  <!-- Source file status banner -->
+  <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:12px; padding:10px 12px; background:rgba(111,60,195,0.04); border-radius:10px; border:1px solid var(--border);">
+    <span style="font-size:0.82rem; font-weight:700; color:var(--muted); margin-right:4px;">Fichiers source :</span>
+    {% if cutoff_file_available %}
+      <span class="source-pill source-pill-success" title="Classeur consolidé CutOff disponible">&#10003; Consolidé CutOff</span>
+    {% else %}
+      <span class="source-pill source-pill-danger" title="Classeur consolidé CutOff absent — les données de prestation ne seront pas disponibles">&#9888; Consolidé CutOff manquant</span>
+    {% endif %}
+    {% if presence_file_available %}
+      <span class="source-pill source-pill-success" title="Rapport de présence disponible (ApprenantID)">&#10003; Rapport présence</span>
+    {% else %}
+      <span class="source-pill source-pill-warning" title="Rapport de présence absent — les ApprenantID réseau ne pourront pas être résolus">&#9888; Rapport présence manquant</span>
+    {% endif %}
+    {% if not source_summary.available %}
+      <span style="font-size:0.8rem; color:#b45309; margin-left:4px;">Source réseau indisponible — {{ source_summary.message|truncatechars:80 }}</span>
+    {% endif %}
+  </div>
+
   <div class="tab-bar">
     <button class="tab-btn {% if active_tab == 'tab-apprenants' %}active{% endif %}" data-tab="tab-apprenants" type="button">Liste enquêtes</button>
     <button class="tab-btn {% if active_tab == 'tab-classe' %}active{% endif %}" data-tab="tab-classe" type="button">Par classe</button>

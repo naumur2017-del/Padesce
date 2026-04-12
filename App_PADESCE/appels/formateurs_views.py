@@ -318,15 +318,7 @@ def _build_filtered_formateurs_queryset(request):
             qs = qs.filter(session_date=datetime.date.fromisoformat(session_date_filter))
         except ValueError:
             pass
-    if search:
-        qs = qs.filter(
-            Q(telephone__icontains=search)
-            | Q(prestataire__icontains=search)
-            | Q(beneficiaire__icontains=search)
-            | Q(formation__icontains=search)
-            | Q(lieu__icontains=search)
-            | Q(reference_code__icontains=search)
-        )
+    # Note: search filter is applied in _build_formateur_principal as post-filter after prestation_code resolution
     if date_from_str:
         try:
             qs = qs.filter(created_at__gte=datetime.datetime.fromisoformat(date_from_str))

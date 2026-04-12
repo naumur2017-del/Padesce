@@ -1,0 +1,407 @@
+{% extends "base.html" %}
+{% block title %}Gestion Formateurs & Prestations{% endblock %}
+{% block content %}
+<style>
+  .page-shell { display:grid; gap:18px; max-width:1200px; margin:0 auto; }
+  .hero { border:1px solid var(--border); border-radius:18px; padding:20px 24px;
+          background: radial-gradient(circle at top right, rgba(111,60,195,.12), transparent 36%),
+                      linear-gradient(135deg,#f5f0ff 0%,#fff 72%);
+          box-shadow:var(--shadow); }
+  .hero h1 { margin:0 0 4px; color:var(--accent-strong); font-size:1.45rem; }
+  .hero p  { margin:0; color:var(--muted); font-size:.88rem; }
+  .card { background:#fff; border:1px solid var(--border); border-radius:16px;
+          box-shadow:var(--shadow); padding:20px 22px; }
+  .btn { display:inline-flex; align-items:center; gap:6px; padding:9px 18px; border-radius:12px;
+         font-weight:700; border:none; cursor:pointer; font-size:.88rem; transition:transform .15s; }
+  .btn:hover { transform:translateY(-1px); }
+  .btn-accent { background:var(--accent); color:#fff; }
+  .btn-ghost { background:transparent; border:1px solid var(--border); color:var(--text); }
+  .btn-sm { padding:6px 12px; font-size:.8rem; border-radius:9px; }
+  .alert-ok  { border-radius:10px; padding:10px 16px; font-size:.86rem;
+               background:rgba(34,197,94,.08); border:1px solid rgba(34,197,94,.25); color:#166534; margin-bottom:14px; }
+  .tab-bar { display:flex; gap:4px; margin-bottom:16px; border-bottom:2px solid var(--border); }
+  .tab-btn { padding:8px 14px; cursor:pointer; font-weight:700; font-size:.85rem; border:none;
+             background:none; color:var(--muted); border-bottom:3px solid transparent; margin-bottom:-2px; }
+  .tab-btn.active { color:var(--accent-strong); border-bottom-color:var(--accent); }
+  .tab-panel { display:none; }
+  .tab-panel.active { display:block; }
+  .search-box { padding:8px 12px; border:1px solid var(--border); border-radius:10px;
+                font-size:.85rem; width:260px; background:#fff; color:var(--text); margin-bottom:12px; }
+  /* Formateur accordion cards */
+  .form-card { border:1px solid var(--border); border-radius:12px; margin-bottom:8px; overflow:hidden; }
+  .form-card-header { display:flex; align-items:center; gap:10px; padding:10px 16px;
+                      background:rgba(111,60,195,.04); cursor:pointer; user-select:none; }
+  .form-card-header:hover { background:rgba(111,60,195,.08); }
+  .form-card-header .form-name { flex:1; font-weight:700; font-size:.9rem; color:var(--text); }
+  .form-card-header .form-code { font-size:.78rem; color:var(--muted); font-family:monospace; }
+  .form-card-body { padding:12px 16px; display:none; background:#fff; }
+  .form-card-body.open { display:block; }
+  .prest-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:8px; }
+  .prest-toggle-row { display:flex; align-items:center; gap:10px; padding:7px 10px;
+                      border:1px solid var(--border); border-radius:8px; background:#fafafa;
+                      transition:background .15s; }
+  .prest-toggle-row:hover { background:rgba(111,60,195,.04); }
+  .prest-toggle-row.linked { background:rgba(34,197,94,.05); border-color:rgba(34,197,94,.3); }
+  .prest-info { flex:1; min-width:0; }
+  .prest-info .prest-code { font-family:monospace; font-size:.77rem; color:var(--muted); }
+  .prest-info .prest-name { font-size:.82rem; font-weight:600; color:var(--text);
+                            white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  /* Toggle switch */
+  .toggle-wrap { position:relative; width:38px; height:22px; flex-shrink:0; }
+  .toggle-wrap input[type=checkbox] { opacity:0; width:0; height:0; position:absolute; }
+  .toggle-track { position:absolute; inset:0; border-radius:999px; background:#d1d5db;
+                  cursor:pointer; transition:background .2s; }
+  .toggle-wrap input:checked + .toggle-track { background:var(--accent); }
+  .toggle-thumb { position:absolute; top:3px; left:3px; width:16px; height:16px;
+                  border-radius:999px; background:#fff; transition:transform .2s;
+                  pointer-events:none; box-shadow:0 1px 3px rgba(0,0,0,.2); }
+  .toggle-wrap input:checked ~ .toggle-thumb { transform:translateX(16px); }
+  .badge { display:inline-flex; align-items:center; padding:2px 9px; border-radius:999px;
+           font-size:.75rem; font-weight:700; }
+  .badge-ok   { background:rgba(34,197,94,.12); color:#166534; }
+  .badge-none { background:rgba(107,114,128,.12); color:#4b5563; }
+  .badge-info { background:rgba(111,60,195,.1); color:var(--accent-strong); }
+  .spinner-inline { display:inline-block; width:14px; height:14px; border:2px solid rgba(111,60,195,.3);
+                    border-top-color:var(--accent); border-radius:50%; animation:spin .7s linear infinite; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  /* Prestations ville table */
+  table { width:100%; border-collapse:collapse; }
+  th, td { padding:8px 10px; border:1px solid var(--border); font-size:.83rem; text-align:left; vertical-align:middle; }
+  thead { background:rgba(111,60,195,.06); position:sticky; top:0; z-index:2; }
+  th { font-weight:700; color:var(--accent-strong); font-size:.79rem; text-transform:uppercase; letter-spacing:.04em; }
+  .table-scroll { max-height:520px; overflow:auto; border-radius:10px; border:1px solid var(--border); }
+  input.inline-input { padding:6px 9px; border:1px solid var(--border); border-radius:8px;
+                       background:#fff; color:var(--text); font-size:.82rem; width:160px; }
+  input.inline-input:focus { outline:2px solid var(--accent); outline-offset:1px; }
+  input.inline-input.saved { border-color:rgba(34,197,94,.5); background:rgba(34,197,94,.04); }
+  input.inline-input.error { border-color:rgba(239,68,68,.5); background:rgba(239,68,68,.04); }
+  .save-bar { position:sticky; bottom:0; background:#fff; border-top:1px solid var(--border);
+              padding:12px 0 0; display:flex; align-items:center; gap:10px; margin-top:14px; z-index:5; }
+  .count-badge { font-size:.8rem; color:var(--muted); }
+  .ville-status { font-size:.75rem; width:20px; text-align:center; }
+</style>
+
+<div class="page-shell">
+
+  <!-- Hero -->
+  <div class="hero">
+    <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:10px;">
+      <div>
+        <h1>Gestion : Formateurs &amp; Prestations</h1>
+        <p>Liez chaque formateur aux prestations correspondantes · Définissez la ville de chaque prestation pour les cartes</p>
+      </div>
+      <div style="display:flex; gap:8px;">
+        <a href="{% url 'satisfaction_formateurs_dashboard' %}" class="btn btn-ghost btn-sm">&#8592; Retour à l'analyse</a>
+      </div>
+    </div>
+  </div>
+
+  {% if saved_label %}
+  <div class="alert-ok">&#10003; {{ saved_label }}</div>
+  {% endif %}
+
+  <!-- Tabs -->
+  <div class="card" style="padding-bottom:0;">
+    <div class="tab-bar">
+      <button class="tab-btn active" data-tab="tab-formateurs" type="button">
+        Formateurs &#8596; Prestations
+        <span class="count-badge">({{ formateurs|length }})</span>
+      </button>
+      <button class="tab-btn" data-tab="tab-prestations" type="button">
+        Villes des prestations
+        <span class="count-badge">({{ prestations|length }})</span>
+      </button>
+    </div>
+
+    <!-- TAB 1 : Formateurs ↔ Prestations (toggle M2M) -->
+    <div class="tab-panel active" id="tab-formateurs" style="padding-bottom:20px;">
+      <p style="margin:0 0 10px; font-size:.85rem; color:var(--muted);">
+        Cliquez sur un formateur pour voir les prestations disponibles. Activez les toggles pour lier le formateur à une prestation. Les modifications sont sauvegardées instantanément.
+      </p>
+      <input type="text" class="search-box" placeholder="Rechercher un formateur…" id="search-formateurs" oninput="filterCards(this.value)">
+
+      <div id="formateurs-list">
+        {% for form in formateurs %}
+        {% with form_linked=form.prestations.all %}
+        <div class="form-card" data-search="{{ form.code|lower }} {{ form.nom_complet|lower }}">
+          <div class="form-card-header" onclick="toggleCard(this)">
+            <div>
+              <span class="form-code">{{ form.code }}</span>
+              <span class="form-name" style="display:block;">{{ form.nom_complet }}</span>
+              {% if form.specialite %}<span style="font-size:.76rem; color:var(--muted);">{{ form.specialite }}</span>{% endif %}
+            </div>
+            <span class="badge badge-info" id="badge-form-{{ form.pk }}">
+              {{ form_linked|length }} prestation{{ form_linked|length|pluralize }}
+            </span>
+            <span style="font-size:.9rem; color:var(--muted); margin-left:4px;">&#9660;</span>
+          </div>
+          <div class="form-card-body" id="body-form-{{ form.pk }}">
+            <div class="prest-grid">
+              {% for prest in prestations %}
+              <div class="prest-toggle-row {% if prest in form_linked %}linked{% endif %}"
+                   id="row-{{ form.pk }}-{{ prest.pk }}">
+                <div class="toggle-wrap">
+                  <input
+                    type="checkbox"
+                    class="js-prest-toggle"
+                    id="tgl-{{ form.pk }}-{{ prest.pk }}"
+                    data-formateur-pk="{{ form.pk }}"
+                    data-prestation-pk="{{ prest.pk }}"
+                    data-badge-id="badge-form-{{ form.pk }}"
+                    {% if prest in form_linked %}checked{% endif %}
+                  >
+                  <label class="toggle-track" for="tgl-{{ form.pk }}-{{ prest.pk }}"></label>
+                  <div class="toggle-thumb"></div>
+                </div>
+                <div class="prest-info">
+                  <div class="prest-code">{{ prest.code }}</div>
+                  <div class="prest-name" title="{{ prest.prestataire.raison_sociale }} — {{ prest.beneficiaire.nom_structure|default:'Bénéficiaire non défini' }}">
+                    {{ prest.prestataire.raison_sociale|truncatechars:30 }}
+                  </div>
+                  <div style="font-size:.73rem; color:var(--muted);">{{ prest.beneficiaire.nom_structure|default:"—"|truncatechars:38 }}</div>
+                </div>
+              </div>
+              {% empty %}
+              <p style="color:var(--muted); font-size:.85rem;">Aucune prestation trouvée.</p>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+        {% endwith %}
+        {% empty %}
+        <p style="color:var(--muted); padding:20px;">Aucun formateur trouvé.</p>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- TAB 2 : Villes des prestations -->
+    <div class="tab-panel" id="tab-prestations" style="padding-bottom:20px;">
+      <p style="margin:0 0 10px; font-size:.85rem; color:var(--muted);">
+        Renseignez la ville de chaque prestation pour la carte géographique. La valeur est sauvegardée automatiquement à la sortie du champ. Si vide, la ville est déduite du lieu de la classe (affichée en gris).
+      </p>
+      <input type="text" class="search-box" placeholder="Rechercher une prestation…" id="search-prestations" oninput="filterTable('tbl-prestations', this.value, [0,1,2])">
+      <form method="post" id="form-prestations">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="save_prestations">
+        <div class="table-scroll">
+          <table id="tbl-prestations">
+            <thead>
+              <tr>
+                <th>Code</th>
+                <th>Prestataire</th>
+                <th>Formation</th>
+                <th>Bénéficiaire</th>
+                <th>Ville prestation</th>
+                <th>Ville déduite</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for prest in prestations %}
+              <tr data-search="{{ prest.code|lower }} {{ prest.prestataire.raison_sociale|lower }} {{ prest.formation.nom|lower }}">
+                <td><code>{{ prest.code }}</code></td>
+                <td>{{ prest.prestataire.raison_sociale }}</td>
+                <td style="max-width:180px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="{{ prest.formation.nom }}">{{ prest.formation.nom }}</td>
+                <td>{{ prest.beneficiaire.nom_structure|default:"—" }}</td>
+                <td>
+                  <input
+                    type="text"
+                    name="ville_{{ prest.pk }}"
+                    value="{{ prest.ville }}"
+                    placeholder="{{ prest.ville_derived|default:'ex: Yaoundé' }}"
+                    class="inline-input js-ville-input"
+                    data-pk="{{ prest.pk }}"
+                    list="cities-list"
+                  >
+                </td>
+                <td style="color:var(--muted); font-size:.8rem;">{{ prest.ville_derived|default:"—" }}</td>
+                <td class="ville-status" id="vstatus-{{ prest.pk }}"></td>
+              </tr>
+              {% empty %}
+              <tr><td colspan="7" style="text-align:center; color:var(--muted); padding:20px;">Aucune prestation trouvée.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <!-- Villes camerounaises suggérées -->
+        <datalist id="cities-list">
+          <option value="Yaoundé">
+          <option value="Douala">
+          <option value="Bafoussam">
+          <option value="Bamenda">
+          <option value="Garoua">
+          <option value="Maroua">
+          <option value="Ngaoundéré">
+          <option value="Bertoua">
+          <option value="Ebolowa">
+          <option value="Kumba">
+          <option value="Limbe">
+          <option value="Buea">
+          <option value="Edéa">
+          <option value="Nkongsamba">
+          <option value="Kribi">
+          <option value="Sangmélima">
+          <option value="Kousséri">
+        </datalist>
+        <div class="save-bar">
+          <button type="submit" class="btn btn-accent">Enregistrer toutes les villes</button>
+          <span class="count-badge" id="prestations-changed-count"></span>
+        </div>
+      </form>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ── Utilities ────────────────────────────────────────────────────────────────
+function getCsrfToken() {
+  const m = document.cookie.match(/csrftoken=([^;]+)/);
+  return m ? m[1] : '';
+}
+
+// ── Tab switching ─────────────────────────────────────────────────────────────
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const tab = btn.dataset.tab;
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById(tab).classList.add('active');
+  });
+});
+
+// ── Accordion cards ───────────────────────────────────────────────────────────
+function toggleCard(header) {
+  const body = header.nextElementSibling;
+  const isOpen = body.classList.contains('open');
+  // Close all others
+  document.querySelectorAll('.form-card-body.open').forEach(b => b.classList.remove('open'));
+  document.querySelectorAll('.form-card-header span:last-child').forEach(s => s.textContent = '▼');
+  if (!isOpen) {
+    body.classList.add('open');
+    header.querySelector('span:last-child').textContent = '▲';
+  }
+}
+
+// ── Search filters ────────────────────────────────────────────────────────────
+function filterCards(query) {
+  const q = query.trim().toLowerCase();
+  document.querySelectorAll('#formateurs-list .form-card').forEach(card => {
+    const text = card.dataset.search || '';
+    card.style.display = (!q || text.includes(q)) ? '' : 'none';
+  });
+}
+
+function filterTable(tableId, query, cols) {
+  const q = query.trim().toLowerCase();
+  document.querySelectorAll(`#${tableId} tbody tr`).forEach(row => {
+    const text = cols.map(i => (row.cells[i] ? row.cells[i].textContent : '')).join(' ').toLowerCase();
+    row.style.display = (!q || text.includes(q)) ? '' : 'none';
+  });
+}
+
+// ── Toggle AJAX (formateur ↔ prestation) ─────────────────────────────────────
+document.addEventListener('change', function(e) {
+  const chk = e.target;
+  if (!chk.classList.contains('js-prest-toggle')) return;
+
+  const formPk = chk.dataset.formateurPk;
+  const prestPk = chk.dataset.prestationPk;
+  const row = document.getElementById(`row-${formPk}-${prestPk}`);
+  const badgeEl = document.getElementById(chk.dataset.badgeId);
+
+  // Optimistic UI: swap linked class immediately
+  if (chk.checked) {
+    row && row.classList.add('linked');
+  } else {
+    row && row.classList.remove('linked');
+  }
+
+  const formData = new FormData();
+  formData.append('action', 'toggle_prestation');
+  formData.append('formateur_pk', formPk);
+  formData.append('prestation_pk', prestPk);
+  formData.append('csrfmiddlewaretoken', getCsrfToken());
+
+  fetch(window.location.href, { method: 'POST', body: formData })
+    .then(r => r.json())
+    .then(data => {
+      if (!data.ok) {
+        // Revert
+        chk.checked = !chk.checked;
+        row && row.classList.toggle('linked', chk.checked);
+        alert('Erreur: ' + (data.error || 'inconnue'));
+        return;
+      }
+      // Update the badge count
+      if (badgeEl) {
+        const cardBody = document.getElementById(`body-form-${formPk}`);
+        if (cardBody) {
+          const count = cardBody.querySelectorAll('.js-prest-toggle:checked').length;
+          badgeEl.textContent = count + ' prestation' + (count !== 1 ? 's' : '');
+        }
+      }
+    })
+    .catch(() => {
+      chk.checked = !chk.checked;
+      row && row.classList.toggle('linked', chk.checked);
+    });
+});
+
+// ── Ville AJAX (auto-save on blur) ────────────────────────────────────────────
+const origVilles = {};
+document.querySelectorAll('.js-ville-input').forEach(inp => {
+  origVilles[inp.dataset.pk] = inp.value;
+
+  inp.addEventListener('blur', function() {
+    const pk = this.dataset.pk;
+    const newVal = this.value.trim();
+    if (newVal === origVilles[pk]) return; // unchanged
+
+    const statusEl = document.getElementById(`vstatus-${pk}`);
+    if (statusEl) statusEl.innerHTML = '<span class="spinner-inline"></span>';
+
+    const formData = new FormData();
+    formData.append('action', 'save_prestation_ville');
+    formData.append('prestation_pk', pk);
+    formData.append('ville', newVal);
+    formData.append('csrfmiddlewaretoken', getCsrfToken());
+
+    fetch(window.location.href, { method: 'POST', body: formData })
+      .then(r => r.json())
+      .then(data => {
+        if (data.ok) {
+          origVilles[pk] = newVal;
+          this.classList.add('saved');
+          this.classList.remove('error');
+          if (statusEl) statusEl.textContent = '✓';
+          setTimeout(() => {
+            this.classList.remove('saved');
+            if (statusEl) statusEl.textContent = '';
+          }, 2500);
+        } else {
+          this.classList.add('error');
+          if (statusEl) statusEl.textContent = '✗';
+        }
+        updateVilleChangedCount();
+      })
+      .catch(() => {
+        this.classList.add('error');
+        if (statusEl) statusEl.textContent = '✗';
+      });
+  });
+
+  inp.addEventListener('input', updateVilleChangedCount);
+});
+
+function updateVilleChangedCount() {
+  let count = 0;
+  document.querySelectorAll('.js-ville-input').forEach(inp => {
+    if (inp.value.trim() !== origVilles[inp.dataset.pk]) count++;
+  });
+  const badge = document.getElementById('prestations-changed-count');
+  if (badge) badge.textContent = count > 0 ? `${count} modification${count > 1 ? 's' : ''} non sauvegardée${count > 1 ? 's' : ''}` : '';
+}
+</script>
+{% endblock %}

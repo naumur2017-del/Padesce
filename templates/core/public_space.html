@@ -421,8 +421,9 @@
           </tr>
         </thead>
         <tbody>
-          <tr><td>Taux général de présence (C1-C4)</td><td>{{ principal.presence_global_avg|floatformat:2 }}%</td></tr>
-          <tr><td>Ratio global PR</td><td>{{ principal.presence_global_pr_rate|floatformat:2 }}%</td></tr>
+          <tr><td>Taux global de présence</td><td>{{ principal.presence_global_avg|floatformat:2 }}%</td></tr>
+          <tr><td>Taux de participation</td><td>{{ principal.presence_participation_rate|floatformat:2 }}%</td></tr>
+          <tr><td>Taux de personne formé</td><td>{{ principal.presence_person_formed_rate|floatformat:2 }}%</td></tr>
         </tbody>
       </table>
     </div>
@@ -456,17 +457,15 @@
             <th>Prestation</th>
             <th>Prestataire</th>
             <th>Bénéficiaire</th>
-            <th>Blocage</th>
             <th>Classes</th>
           </tr>
         </thead>
         <tbody>
           {% for item in principal.analysis_recovery.top_missing %}
           <tr>
-            <td>{{ item.prestation_id }}</td>
+            <td><a href="{% url 'prestation_analysis_detail' item.prestation_id %}">{{ item.prestation_id }}</a></td>
             <td>{{ item.prestataire|default:"-" }}</td>
             <td>{{ item.beneficiaire|default:"-" }}</td>
-            <td>{{ item.category_label|default:item.category }}</td>
             <td>{{ item.classe_count|default:0 }}</td>
           </tr>
           {% endfor %}

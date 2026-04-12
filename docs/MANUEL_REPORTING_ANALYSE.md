@@ -144,11 +144,11 @@ Page de pilotage transversal. Elle donne une vue immediate de l'activite globale
 - **`AppelCGA`** pour le bloc CGA.
 - **`Classe`**, **`Apprenant`**, **`Presence`**, **`SatisfactionApprenant`**, **`SatisfactionFormateur`**, **`EnqueteEnvironnement`** pour les compteurs de volumetrie.
 
-## 3.2 Dashboard consultant - `/consultant/`
+## 3.2 Enquête de satisfaction (Consultant) - `/consultant/`
 
 ### Role
 
-Vue d'analyse qualitative des appels apprenants PADESCE, orientee consultant. Elle sert a prioriser les dossiers disposant d'un **audio exploitable**, d'un **questionnaire complet** et relevant du **bon perimetre analytique**.
+Vue d'analyse qualitative des appels apprenants PADESCE. Elle sert a prioriser les dossiers disposant d'un **audio exploitable**, d'un **questionnaire complet** et relevant du **bon perimetre analytique**.
 
 ### KPI affiches
 
@@ -194,7 +194,8 @@ Page de synthese analytique pour une **classe** donnee. Elle rapproche les appel
 - **Formulaires avec audio**
 - **Audios enregistres**
 - **Formateurs analyses / total formateurs**
-- Chapeau de classe avec **moyennes Q1 a Q9** et nombre de repondants
+- Chapeau de satisfaction avec **moyennes Q1 a Q9**
+- Chapeau contrôle de présence avec **Taux global**, **Participation** et **Personnes formees**
 
 ### Origine des donnees
 
@@ -248,6 +249,7 @@ C'est la page analytique principale du dispositif apprenants. Elle calcule les m
 - **Cohortes analysees**
 - **Fenetres analysees**
 - **Nombre d'audios**
+- **Indicateurs de présence** (Chapeau) : Taux global, Participation, Personnes formees
 - Moyennes globales et par **classe**, **prestation**, **fenetre**, **ville**, **utilisateur**, **cohorte**, **prestataire**, **beneficiaire**
 
 ### Origine des donnees
@@ -868,6 +870,34 @@ Les agregats sont produits :
 - globalement ;
 - par **prestataire**.
 
+## 4.15 Indicateurs de presence et de formation (Chapeau)
+
+Ces indicateurs sont affiches dans le "Chapeau contrôle de présence" de l'espace public et des fiches classes.
+
+### Taux global de presence
+
+Moyenne arithmetique des taux de presence individuels calcules sur les 4 contrôles (C1 a C4).
+
+$$
+Taux\ Global\ Presence = \frac{\sum_{k=1}^{n} TauxIndividual_k}{n}
+$$
+
+### Taux de participation
+
+Pourcentage d'apprenants ayant ete marques presents (PR) au moins une fois sur les 4 sessions de contrôle.
+
+$$
+Taux\ Participation = \frac{\#\{apprenant \mid \exists i \in [1,4], C_i = PR\}}{n} \times 100
+$$
+
+### Taux de personne forme
+
+Pourcentage d'apprenants dont l'appel est considere comme un succes (contact etabli et formation confirmee).
+
+$$
+Taux\ Personne\ Forme = \frac{\#\{appel \mid statut \in CALL\_SUCCESS\_STATUSES\}}{n} \times 100
+$$
+
 \newpage
 
 # 5. Guide d'utilisation generale
@@ -984,7 +1014,7 @@ python manage.py send_daily_app_report --start 2026-04-01 --end 2026-04-09
 
 ### Exports disponibles
 
-- **Word**
+- **Word** (Rapport d'application et Evaluation des classes)
 - **Excel**
 - **CSV**
 

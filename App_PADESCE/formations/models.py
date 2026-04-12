@@ -14,6 +14,13 @@ class Formateur(TimeStampedModel):
     ville_residence = models.CharField(max_length=120, blank=True)
     autres_infos = models.TextField(blank=True)
     actif = models.BooleanField(default=True)
+    # Lien explicite formateur ↔ prestations (toggle géré via l'interface de gestion)
+    prestations = models.ManyToManyField(
+        "Prestation",
+        blank=True,
+        related_name="formateurs_assignes",
+        verbose_name="Prestations associées",
+    )
 
     class Meta:
         ordering = ["nom_complet"]
@@ -96,6 +103,7 @@ class Prestation(TimeStampedModel):
     duree_prevue_heures = models.DecimalField(max_digits=8, decimal_places=2, default=0)
     duree_reelle_heures = models.DecimalField(max_digits=8, decimal_places=2, default=0)
     jalons_contractuels = models.TextField(blank=True)
+    ville = models.CharField(max_length=120, blank=True, verbose_name="Ville de la prestation")
     actif = models.BooleanField(default=True)
 
     class Meta:
