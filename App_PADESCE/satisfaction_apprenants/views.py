@@ -3322,17 +3322,25 @@ def satisfaction_dashboard_export_class_lists_zip(request):
     """Export one CSV per class as a ZIP archive (no operator/enqueteur column)."""
     dashboard = _build_satisfaction_dashboard_data(request)
     rows = dashboard["rows"]
+    context = dashboard["context"]
 
-    # Group rows by classe_code
+    # Only export analyzed classes (those that reached the analysis threshold)
+    analyzed_class_codes = {
+        normalize_network_lookup(item["code"])
+        for item in context.get("analyzed_classes", [])
+        if item.get("code")
+    }
+
+    # Group rows by classe_code — restrict to analyzed classes only
     classes: dict[str, list[dict]] = {}
     for row in _ordered_survey_rows(rows):
         code = str(row.get("classe_code") or "").strip()
-        if code:
+        if code and (not analyzed_class_codes or normalize_network_lookup(code) in analyzed_class_codes):
             classes.setdefault(code, []).append(row)
 
     headers = [
         "N°",
-        "ApprenantID réseau",
+        "Apprenant ID",
         "Apprenant",
         "Bénéficiaire",
         "Prestataire",
@@ -3354,7 +3362,7 @@ def satisfaction_dashboard_export_class_lists_zip(request):
                 writer.writerow(
                     [
                         idx,
-                        row.get("source_apprenant_id", ""),
+                        row.get("apprenant_id") or row.get("apprenant_code", ""),
                         row.get("apprenant_nom", ""),
                         row.get("beneficiaire", ""),
                         row.get("prestataire", ""),
@@ -3382,12 +3390,21 @@ def satisfaction_dashboard_export_prestation_lists_xlsx(request):
     rows = dashboard["rows"]
     context = dashboard["context"]
 
-    # Group rows by normalized prestation code
+    # Only export analyzed prestations (terminated + threshold reached)
+    analyzed_prestation_codes = {
+        normalize_network_lookup(item["code"])
+        for item in context.get("analyzed_prestations", [])
+        if item.get("code")
+    }
+
+    # Group rows by normalized prestation code — restrict to analyzed prestations only
     prestation_rows: dict[str, list[dict]] = {}
     prestation_meta: dict[str, dict] = {}
     for row in _ordered_survey_rows(rows):
         p_code = str(row.get("source_prestation_id") or row.get("prestation_code") or "").strip() or "-"
         p_key = normalize_network_lookup(p_code)
+        if analyzed_prestation_codes and p_key not in analyzed_prestation_codes:
+            continue
         prestation_rows.setdefault(p_key, []).append(row)
         if p_key not in prestation_meta:
             prestation_meta[p_key] = {
