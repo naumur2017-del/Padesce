@@ -3415,7 +3415,7 @@ def satisfaction_dashboard_export_prestation_lists_xlsx(request):
 
     col_headers = [
         "N°",
-        "ApprenantID réseau",
+        "Apprenant ID",
         "Apprenant",
         "Classe",
         "Formation",
@@ -3445,7 +3445,7 @@ def satisfaction_dashboard_export_prestation_lists_xlsx(request):
             ws.append(
                 [
                     idx,
-                    row.get("source_apprenant_id", ""),
+                    row.get("apprenant_id") or row.get("apprenant_code", ""),
                     row.get("apprenant_nom", ""),
                     row.get("classe_code", ""),
                     row.get("formation_intitule") or row.get("classe_intitule", ""),
