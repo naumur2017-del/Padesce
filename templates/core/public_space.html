@@ -457,17 +457,15 @@
             <th>Prestation</th>
             <th>Prestataire</th>
             <th>Bénéficiaire</th>
-            <th>Blocage</th>
             <th>Classes</th>
           </tr>
         </thead>
         <tbody>
           {% for item in principal.analysis_recovery.top_missing %}
           <tr>
-            <td>{{ item.prestation_id }}</td>
+            <td><a href="{% url 'prestation_analysis_detail' item.prestation_id %}">{{ item.prestation_id }}</a></td>
             <td>{{ item.prestataire|default:"-" }}</td>
             <td>{{ item.beneficiaire|default:"-" }}</td>
-            <td>{{ item.category_label|default:item.category }}</td>
             <td>{{ item.classe_count|default:0 }}</td>
           </tr>
           {% endfor %}
