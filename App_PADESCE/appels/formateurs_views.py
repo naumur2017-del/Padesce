@@ -10,7 +10,7 @@ import openpyxl
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
-from django.db.models import Count, Q
+from django.db.models import Avg, Count, Q
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -36,6 +36,24 @@ from App_PADESCE.formations.models import Classe
 from App_PADESCE.satisfaction_formateurs.models import SatisfactionFormateur
 
 FORMATEUR_THRESHOLD_PERCENT = 50
+
+FORMATEUR_SATISFACTION_HEADER_FIELDS = (
+    (
+        "q1_prerequis_apprenants",
+        "Q1 - Niveau des prerequis des apprenants",
+        "Les apprenants avaient-ils les prerequis necessaires pour suivre cette formation ?",
+    ),
+    (
+        "q2_interaction_apprenants",
+        "Q2 - Niveau d'interaction des apprenants",
+        "Les apprenants ont-ils ete suffisamment interactifs, posant des questions et participant activement ?",
+    ),
+    (
+        "q3_competences_acquises",
+        "Q3 - Competences acquises par les apprenants",
+        "Estimez-vous que les apprenants ont acquis les competences cibles a l'issue de la formation ?",
+    ),
+)
 
 
 def _build_formateur_progress_metrics(queryset):
@@ -78,6 +96,31 @@ def _build_formateur_progress_metrics(queryset):
         }
     )
     return stats
+
+
+def _build_formateur_satisfaction_header_metrics(queryset):
+    aggregate_map = {}
+    for index, (field_name, _title, _question) in enumerate(
+        FORMATEUR_SATISFACTION_HEADER_FIELDS,
+        start=1,
+    ):
+        aggregate_map[f"avg_{index}"] = Avg(field_name)
+        aggregate_map[f"count_{index}"] = Count("id", filter=Q(**{f"{field_name}__isnull": False}))
+
+    aggregates = queryset.aggregate(**aggregate_map)
+    return [
+        {
+            "field": field_name,
+            "title": title,
+            "question": question,
+            "average": round(aggregates.get(f"avg_{index}") or 0, 2),
+            "responses": int(aggregates.get(f"count_{index}") or 0),
+        }
+        for index, (field_name, title, question) in enumerate(
+            FORMATEUR_SATISFACTION_HEADER_FIELDS,
+            start=1,
+        )
+    ]
 
 
 IMPORT_BATCH_SIZE = 1000
@@ -318,7 +361,15 @@ def _build_filtered_formateurs_queryset(request):
             qs = qs.filter(session_date=datetime.date.fromisoformat(session_date_filter))
         except ValueError:
             pass
-    # Note: search filter is applied in _build_formateur_principal as post-filter after prestation_code resolution
+    if search:
+        qs = qs.filter(
+            Q(telephone__icontains=search)
+            | Q(prestataire__icontains=search)
+            | Q(beneficiaire__icontains=search)
+            | Q(formation__icontains=search)
+            | Q(lieu__icontains=search)
+            | Q(reference_code__icontains=search)
+        )
     if date_from_str:
         try:
             qs = qs.filter(created_at__gte=datetime.datetime.fromisoformat(date_from_str))
@@ -810,6 +861,7 @@ def formateurs_index(request):
     qs, filters = _build_filtered_formateurs_queryset(request)
     total_count = qs.count()
     stats = _build_formateur_progress_metrics(qs)
+    satisfaction_header_metrics = _build_formateur_satisfaction_header_metrics(qs)
 
     try:
         page_size = int(request.GET.get("page_size") or PAGE_SIZE_DEFAULT)
@@ -837,6 +889,7 @@ def formateurs_index(request):
             "page_size": page_size,
             "querystring_no_page": querystring_no_page,
             "stats": stats,
+            "satisfaction_header_metrics": satisfaction_header_metrics,
         },
     )
 

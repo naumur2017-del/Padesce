@@ -720,17 +720,13 @@ def _build_not_formed_rows(
             continue
         source_record = (source_records or {}).get(normalize_network_lookup(appel.code or "")) or {}
         rows.append(
-            {
-                "call_id": appel.id,
-                "code": appel.code,
-                "apprenant_id": source_record.get("apprenant_id") or "",
-                "name": appel.nom or "-",
-                "phone_display": (appel.telephone1 or "").strip() or "-",
-                "phone_normalized": _normalize_phone_number(appel.telephone1),
-                "class_code": class_code,
-                "class_label": _class_display_label(appel.classe, appel.classe_label),
-                "anomaly_label": "Pas forme",
-            }
+            _build_anomaly_row(
+                appel,
+                source_record,
+                class_code=class_code,
+                anomaly_label="Pas forme",
+                anomaly_detail="Appel marque comme apprenant non forme",
+            )
         )
     return rows
 
@@ -752,17 +748,13 @@ def _build_false_name_rows(
             continue
         source_record = (source_records or {}).get(normalize_network_lookup(appel.code or "")) or {}
         rows.append(
-            {
-                "call_id": appel.id,
-                "code": appel.code,
-                "apprenant_id": source_record.get("apprenant_id") or "",
-                "name": appel.nom or "-",
-                "phone_display": (appel.telephone1 or "").strip() or "-",
-                "phone_normalized": _normalize_phone_number(appel.telephone1),
-                "class_code": class_code,
-                "class_label": _class_display_label(appel.classe, appel.classe_label),
-                "anomaly_label": "Faux nom",
-            }
+            _build_anomaly_row(
+                appel,
+                source_record,
+                class_code=class_code,
+                anomaly_label="Faux nom",
+                anomaly_detail=appel.nom or "-",
+            )
         )
     return rows
 
@@ -787,19 +779,57 @@ def _build_duplicate_phone_rows(
             continue
         source_record = (source_records or {}).get(normalize_network_lookup(appel.code or "")) or {}
         duplicate_rows.append(
-            {
-                "call_id": appel.id,
-                "code": appel.code,
-                "apprenant_id": source_record.get("apprenant_id") or "",
-                "name": appel.nom or "-",
-                "phone_display": (appel.telephone1 or "").strip() or normalized_phone,
-                "phone_normalized": normalized_phone,
-                "class_code": class_code,
-                "class_label": _class_display_label(appel.classe, appel.classe_label),
-                "anomaly_label": "Doublon",
-            }
+            _build_anomaly_row(
+                appel,
+                source_record,
+                class_code=class_code,
+                anomaly_label="Doublon",
+                anomaly_detail=(appel.telephone1 or "").strip() or normalized_phone,
+            )
         )
     return duplicate_rows
+
+
+def _build_anomaly_row(
+    appel,
+    source_record: dict[str, str] | None,
+    *,
+    class_code: str,
+    anomaly_label: str,
+    anomaly_detail: str,
+) -> dict:
+    source_record = source_record or {}
+    phone_display = (appel.telephone1 or "").strip() or "-"
+    return {
+        "call_id": appel.id,
+        "code": appel.code,
+        "apprenant_id": source_record.get("apprenant_id") or "",
+        "individu_id": source_record.get("individu_id") or "",
+        "beneficiaire_id": source_record.get("beneficiaire_id") or "",
+        "name": appel.nom or "-",
+        "source_name": source_record.get("nom_individu") or "",
+        "phone_display": phone_display,
+        "phone_normalized": _normalize_phone_number(appel.telephone1),
+        "phone_source_1": source_record.get("telephone1") or "",
+        "phone_source_2": source_record.get("telephone2") or "",
+        "class_code": class_code,
+        "class_label": _class_display_label(appel.classe, appel.classe_label),
+        "prestation_id": source_record.get("prestation_id") or "",
+        "prestataire": source_record.get("prestataire") or "",
+        "beneficiaire": source_record.get("beneficiaire") or "",
+        "formation": source_record.get("formation") or "",
+        "cohorte": source_record.get("cohorte") or "",
+        "statut_apprenant": source_record.get("statut_apprenant") or "",
+        "fenetre": source_record.get("fenetre") or "",
+        "lieu": source_record.get("lieu") or "",
+        "ville": source_record.get("ville") or "",
+        "arrondissement": source_record.get("arrondissement") or "",
+        "departement": source_record.get("departement") or "",
+        "region": source_record.get("region") or "",
+        "statut_prestation": source_record.get("statut_prestation") or "",
+        "anomaly_label": anomaly_label,
+        "anomaly_detail": anomaly_detail,
+    }
 
 
 def _build_anomaly_summary(selected_class=None, selected_class_code: str | None = None) -> dict:
@@ -1306,6 +1336,56 @@ def _write_header_cell(cell, text: str) -> None:
 # ---------------------------------------------------------------------------
 # Exports CSV / Excel
 # ---------------------------------------------------------------------------
+
+
+ANOMALY_EXPORT_COLUMNS = [
+    ("anomaly_label", "Anomalie"),
+    ("anomaly_detail", "Detail anomalie"),
+    ("apprenant_id", "ApprenantID"),
+    ("individu_id", "IndividuID"),
+    ("beneficiaire_id", "BeneficiaireID"),
+    ("code", "Code appel"),
+    ("name", "Nom sur appel"),
+    ("source_name", "Nom apprenant source"),
+    ("class_code", "Classe"),
+    ("class_label", "Classe libelle"),
+    ("prestation_id", "Prestation ID"),
+    ("prestataire", "Prestataire"),
+    ("beneficiaire", "Beneficiaire"),
+    ("formation", "Formation"),
+    ("cohorte", "Cohorte"),
+    ("statut_apprenant", "Statut apprenant"),
+    ("phone_display", "Telephone appel"),
+    ("phone_source_1", "Telephone source 1"),
+    ("phone_source_2", "Telephone source 2"),
+    ("fenetre", "Fenetre"),
+    ("lieu", "Lieu"),
+    ("ville", "Ville"),
+    ("arrondissement", "Arrondissement"),
+    ("departement", "Departement"),
+    ("region", "Region"),
+    ("statut_prestation", "Statut prestation"),
+]
+
+
+def export_application_report_anomalies_excel(report: dict) -> bytes:
+    from openpyxl import Workbook
+    from openpyxl.styles import Font
+
+    workbook = Workbook()
+    worksheet = workbook.active
+    worksheet.title = "Anomalies"
+
+    worksheet.append([label for _key, label in ANOMALY_EXPORT_COLUMNS])
+    for cell in worksheet[1]:
+        cell.font = Font(bold=True, color="4C1D95")
+
+    for row in report.get("anomalies", {}).get("anomaly_rows", []):
+        worksheet.append([row.get(key, "") for key, _label in ANOMALY_EXPORT_COLUMNS])
+
+    output = io.BytesIO()
+    workbook.save(output)
+    return output.getvalue()
 
 
 def export_application_report_csv(report: dict) -> bytes:
