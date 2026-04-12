@@ -208,13 +208,13 @@
                     type="text"
                     name="ville_{{ prest.pk }}"
                     value="{{ prest.ville }}"
-                    placeholder="{{ prest._ville_derived|default:'ex: Yaoundé' }}"
+                    placeholder="{{ prest.ville_derived|default:'ex: Yaoundé' }}"
                     class="inline-input js-ville-input"
                     data-pk="{{ prest.pk }}"
                     list="cities-list"
                   >
                 </td>
-                <td style="color:var(--muted); font-size:.8rem;">{{ prest._ville_derived|default:"—" }}</td>
+                <td style="color:var(--muted); font-size:.8rem;">{{ prest.ville_derived|default:"—" }}</td>
                 <td class="ville-status" id="vstatus-{{ prest.pk }}"></td>
               </tr>
               {% empty %}

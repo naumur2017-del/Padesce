@@ -2067,12 +2067,12 @@ def formateurs_prestataires_management(request):
         if not prest.ville:
             for cls in prest.classes.all():
                 if cls.lieu and cls.lieu.ville:
-                    prest._ville_derived = cls.lieu.ville
+                    prest.ville_derived = cls.lieu.ville
                     break
             else:
-                prest._ville_derived = ""
+                prest.ville_derived = ""
         else:
-            prest._ville_derived = prest.ville
+            prest.ville_derived = prest.ville
 
     context = {
         "formateurs": formateurs,
