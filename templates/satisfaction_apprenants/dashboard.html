@@ -837,6 +837,12 @@
       >Télécharger les listes par prestation (XLSX)</a>
       <a class="btn btn-ghost btn-sm" href="{% url 'satisfaction_dashboard_export_chapeau' %}{% if request.GET.urlencode %}?{{ request.GET.urlencode }}{% endif %}">Exporter le chapeau (DOCX)</a>
     </div>
+    <div style="margin-top:12px; font-size:0.92rem; color: var(--muted);">
+      Prestations exportées&nbsp;: {{ analyzed_prestations_count }}/{{ analyzed_prestations_total_count }}
+      {% if analyzed_prestations_count %}
+        — voir l'onglet « Par prestation » pour la liste des prestations exportées.
+      {% endif %}
+    </div>
   </div>
 
   <!-- Source file status banner -->

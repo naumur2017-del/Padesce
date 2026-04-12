@@ -6,6 +6,7 @@ import json
 import logging
 import os
 import re
+import zipfile
 
 # ---------------------------------------------------------------------------
 # Import-notification store – in-memory, global, polled by all active sessions
@@ -2848,6 +2849,9 @@ def _build_satisfaction_dashboard_data(request):
         ),
     )
 
+    # Afficher / exporter uniquement les prestations réellement analysées.
+    prestation_stats = [item for item in prestation_stats if item.get("is_qualified")]
+
     # Inclure aussi les prestations terminées dans la source mais sans lignes d'analyse.
     represented_codes = {
         (normalize_network_lookup(item["code"]), item["prestataire"], item["beneficiaire"])
@@ -2900,7 +2904,7 @@ def _build_satisfaction_dashboard_data(request):
 
     qualified_class_codes = {
         normalize_network_lookup(class_code)
-        for key in combined_prestation_keys
+        for key in qualified_prestation_keys
         for class_code in prestation_groups.get(key, {}).get("associated_classes", set())
         if str(class_code or "").strip()
     }
@@ -5074,6 +5078,66 @@ def satisfaction_dashboard_export_csv(request):
     writer.writerow(headers)
     for export_row in export_rows:
         writer.writerow(export_row)
+    return response
+
+
+@require_analysis_access
+def satisfaction_dashboard_export_class_lists_zip(request):
+    dashboard = _build_satisfaction_dashboard_data(request)
+    rows = dashboard["rows"]
+
+    class_rows: dict[str, list[dict]] = {}
+    for row in _ordered_survey_rows(rows):
+        class_code = str(row.get("classe_code") or "").strip()
+        class_rows.setdefault(class_code, []).append(row)
+
+    archive_buffer = io.BytesIO()
+    with zipfile.ZipFile(archive_buffer, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+        for class_code in sorted(class_rows.keys()):
+            csv_buffer = io.StringIO()
+            writer = csv.writer(csv_buffer, lineterminator="\n")
+            writer.writerow(
+                [
+                    "ApprenantID réseau",
+                    "Apprenant",
+                    "Bénéficiaire",
+                    "Prestataire",
+                    "Formation",
+                    "Inspecteur",
+                    "Classe",
+                    *[label for _, label in Q_FIELDS],
+                    "Commentaire",
+                    "Recommandations",
+                    "EnquêteID",
+                    "Date",
+                    "Heure",
+                ]
+            )
+            for row in class_rows[class_code]:
+                writer.writerow(
+                    [
+                        row.get("source_apprenant_id", ""),
+                        row.get("apprenant_nom", ""),
+                        row.get("beneficiaire", ""),
+                        row.get("prestataire", ""),
+                        row.get("formation_intitule") or row.get("classe_intitule", ""),
+                        row.get("inspecteur_code")
+                        or row.get("source_inspecteur_id")
+                        or row.get("source_inspecteur_label", ""),
+                        row.get("classe_code", ""),
+                        *[row.get(field, "") for field, _ in Q_FIELDS],
+                        row.get("commentaire", ""),
+                        row.get("recommandations", ""),
+                        row.get("source_enquete_id", ""),
+                        _format_export_date(row.get("survey_date")),
+                        _format_export_time(row.get("survey_time")),
+                    ]
+                )
+            archive.writestr(f"{class_code}.csv", csv_buffer.getvalue())
+
+    archive_buffer.seek(0)
+    response = HttpResponse(archive_buffer.getvalue(), content_type="application/zip")
+    response["Content-Disposition"] = 'attachment; filename="satisfaction-class-lists.zip"'
     return response
 
 
