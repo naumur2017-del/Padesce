@@ -6,6 +6,7 @@ import json
 import logging
 import os
 import re
+import zipfile
 
 # ---------------------------------------------------------------------------
 # Import-notification store – in-memory, global, polled by all active sessions
@@ -2828,52 +2829,12 @@ def _build_satisfaction_dashboard_data(request):
         ),
     )
 
-    # Inclure aussi les prestations terminées dans la source mais sans lignes d'analyse.
-    represented_codes = {
-        (normalize_network_lookup(item["code"]), item["prestataire"], item["beneficiaire"])
-        for item in prestation_stats
-    }
-    if source_bundle:
-        _src_prestation_classes = _source_prestation_classes_from_source(
-            analysis_scope_filters, source_bundle
-        )
-        for p_key in sorted(terminated_prestation_codes):
-            p_info = source_prestations_index.get(p_key, {})
-            prestataire = str(p_info.get("prestataire", "") or "").strip()
-            beneficiaire = str(p_info.get("beneficiaire", "") or "").strip()
-            if not prestataire and not beneficiaire:
-                # Chercher dans les classes source
-                for src_cls in (_src_prestation_classes.get(p_key) or {}).values():
-                    prestataire = prestataire or str(src_cls.get("prestataire", "") or "").strip()
-                    beneficiaire = beneficiaire or str(src_cls.get("beneficiaire", "") or "").strip()
-            key_tuple = (p_key, prestataire, beneficiaire)
-            if key_tuple in represented_codes:
-                continue
-            src_fenetre = str(p_info.get("fenetre", "") or "").strip()
-            src_statut = str(p_info.get("statut_prestation", "") or "").strip()
-            source_class_count = len(_src_prestation_classes.get(p_key, {}))
-            prestation_stats.append(
-                {
-                    "code": p_key,
-                    "prestataire": prestataire,
-                    "beneficiaire": beneficiaire,
-                    "fenetre": src_fenetre,
-                    "source_statut": src_statut,
-                    "source_formation": str(p_info.get("formation", "") or "").strip(),
-                    "nb": 0,
-                    "avg": None,
-                    "avgs": {},
-                    "effectif": 0,
-                    "is_qualified": p_key in qualified_prestation_codes,
-                    "is_terminated": True,
-                    "source_only": True,
-                    "source_class_count": source_class_count,
-                }
-            )
+    # Afficher / exporter uniquement les prestations réellement analysées.
+    prestation_stats = [item for item in prestation_stats if item.get("is_qualified")]
 
     qualified_class_codes = {
         normalize_network_lookup(class_code)
-        for key in combined_prestation_keys
+        for key in qualified_prestation_keys
         for class_code in prestation_groups.get(key, {}).get("associated_classes", set())
         if str(class_code or "").strip()
     }
@@ -4862,6 +4823,66 @@ def satisfaction_dashboard_export_csv(request):
     writer.writerow(headers)
     for export_row in export_rows:
         writer.writerow(export_row)
+    return response
+
+
+@require_analysis_access
+def satisfaction_dashboard_export_class_lists_zip(request):
+    dashboard = _build_satisfaction_dashboard_data(request)
+    rows = dashboard["rows"]
+
+    class_rows: dict[str, list[dict]] = {}
+    for row in _ordered_survey_rows(rows):
+        class_code = str(row.get("classe_code") or "").strip()
+        class_rows.setdefault(class_code, []).append(row)
+
+    archive_buffer = io.BytesIO()
+    with zipfile.ZipFile(archive_buffer, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+        for class_code in sorted(class_rows.keys()):
+            csv_buffer = io.StringIO()
+            writer = csv.writer(csv_buffer, lineterminator="\n")
+            writer.writerow(
+                [
+                    "ApprenantID réseau",
+                    "Apprenant",
+                    "Bénéficiaire",
+                    "Prestataire",
+                    "Formation",
+                    "Inspecteur",
+                    "Classe",
+                    *[label for _, label in Q_FIELDS],
+                    "Commentaire",
+                    "Recommandations",
+                    "EnquêteID",
+                    "Date",
+                    "Heure",
+                ]
+            )
+            for row in class_rows[class_code]:
+                writer.writerow(
+                    [
+                        row.get("source_apprenant_id", ""),
+                        row.get("apprenant_nom", ""),
+                        row.get("beneficiaire", ""),
+                        row.get("prestataire", ""),
+                        row.get("formation_intitule") or row.get("classe_intitule", ""),
+                        row.get("inspecteur_code")
+                        or row.get("source_inspecteur_id")
+                        or row.get("source_inspecteur_label", ""),
+                        row.get("classe_code", ""),
+                        *[row.get(field, "") for field, _ in Q_FIELDS],
+                        row.get("commentaire", ""),
+                        row.get("recommandations", ""),
+                        row.get("source_enquete_id", ""),
+                        _format_export_date(row.get("survey_date")),
+                        _format_export_time(row.get("survey_time")),
+                    ]
+                )
+            archive.writestr(f"{class_code}.csv", csv_buffer.getvalue())
+
+    archive_buffer.seek(0)
+    response = HttpResponse(archive_buffer.getvalue(), content_type="application/zip")
+    response["Content-Disposition"] = 'attachment; filename="satisfaction-class-lists.zip"'
     return response
 
 
