@@ -268,6 +268,26 @@ def _build_formateur_principal(request) -> dict:
             res_prestataires.add(prest_obj.pk if prest_obj else row.prestataire)
             res_beneficiaires.add(ben_obj.pk if ben_obj else row.beneficiaire)
 
+    # Apply search filter on Formateur fields + Prestation code
+    search = (request.GET.get("q") or "").strip()
+    if search:
+        search_lower = search.lower()
+        filtered_rows = []
+        for row in all_rows:
+            matches = (
+                search_lower in (row.source_contact or "").lower()
+                or search_lower in (row.reference_code or "").lower()
+                or search_lower in (row.telephone or "").lower()
+                or search_lower in (row.formation or "").lower()
+                or search_lower in (row.prestataire or "").lower()
+                or search_lower in (row.beneficiaire or "").lower()
+                or search_lower in (row.lieu or "").lower()
+                or search_lower in (getattr(row, "public_prestation_code", "") or "").lower()
+            )
+            if matches:
+                filtered_rows.append(row)
+        all_rows = filtered_rows
+
     # 2. Sorting: Prioritize records with both form and audio
     from datetime import date
 
