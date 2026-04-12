@@ -18,5 +18,6 @@ db.sqlite3
 token-call-gandi.txt
 staticfiles/
 data/network_excel_cache/
+data/network_excel_bundle/*-fallback.xlsx
 ~$*
 backup_20260402_161523.sqlite3
