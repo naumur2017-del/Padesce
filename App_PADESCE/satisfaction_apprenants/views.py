@@ -2872,6 +2872,13 @@ def _build_satisfaction_dashboard_data(request):
             src_fenetre = str(p_info.get("fenetre", "") or "").strip()
             src_statut = str(p_info.get("statut_prestation", "") or "").strip()
             source_class_count = len(_src_prestation_classes.get(p_key, {}))
+            
+            # Calculate number of filled forms by summing responses from all associated classes
+            formulaires_remplis = 0
+            for classe_info in classe_groups.values():
+                if normalize_network_lookup(classe_info.get("prestation", "")) == p_key:
+                    formulaires_remplis += classe_info["metrics"]["nb"]
+            
             prestation_stats.append(
                 {
                     "code": p_key,
@@ -2880,7 +2887,7 @@ def _build_satisfaction_dashboard_data(request):
                     "fenetre": src_fenetre,
                     "source_statut": src_statut,
                     "source_formation": str(p_info.get("formation", "") or "").strip(),
-                    "nb": 0,
+                    "nb": formulaires_remplis,
                     "avg": None,
                     "avgs": {},
                     "effectif": 0,

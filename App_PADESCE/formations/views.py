@@ -579,7 +579,7 @@ def _class_formateur_candidates(classe: Classe, source_bundle: dict | None = Non
     
     # STRATEGY 2: Fall back to database if no source_bundle or no results
     if not all_rows:
-        all_rows = _prestation_formateur_candidates(prestation)
+        all_rows = _prestation_formateur_candidates(prestation, source_bundle=source_bundle)
     
     if not all_rows:
         return []
