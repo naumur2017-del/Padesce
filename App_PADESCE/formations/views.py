@@ -492,10 +492,11 @@ def _analysis_source_record_for_appel(source_bundle: dict | None, appel: Appel) 
 
 
 def _prestation_formateur_candidates(prestation: Prestation, source_bundle: dict | None = None):
-    """Get all formateurs for a prestation, filtering by prestataire/beneficiaire.
+    """Get all formateurs for a prestation from AppelFormateur.
 
-    First tries to get formateurs from the Excel source data (source_bundle),
-    then falls back to database (AppelFormateur).
+    The cutoff workbook only contains apprenant/consolidation rows. Reusing
+    those records here would produce incomplete objects during class/prestation
+    analysis rendering and can break the page at runtime.
     """
     if not prestation:
         return []
@@ -508,38 +509,20 @@ def _prestation_formateur_candidates(prestation: Prestation, source_bundle: dict
     ).strip()
     formation_name = str(getattr(getattr(prestation, "formation", None), "nom", "") or "").strip()
 
-    rows = []
+    # The source bundle is intentionally ignored here because it does not
+    # expose AppelFormateur-compatible rows.
+    queryset = AppelFormateur.objects.filter(is_active=True).select_related("locked_by")
 
-    # STRATEGY 1: Try to get formateurs from source_bundle (Excel data)
-    if source_bundle:
-        source_records = source_bundle.get("records", {}) or {}
-        for record in source_records.values():
-            record_dict = dict(record) if not isinstance(record, dict) else record
-            record_prestataire = str(record_dict.get("prestataire") or "").strip()
-            record_beneficiaire = str(record_dict.get("beneficiaire") or "").strip()
+    filters = Q()
+    if prestataire_name:
+        filters |= Q(prestataire__iexact=prestataire_name)
+    if beneficiaire_name:
+        filters |= Q(beneficiaire__iexact=beneficiaire_name)
 
-            # Match if prestataire OR beneficiaire matches
-            if (prestataire_name and record_prestataire.lower() == prestataire_name.lower()) or (
-                beneficiaire_name and record_beneficiaire.lower() == beneficiaire_name.lower()
-            ):
-                rows.append(SimpleNamespace(**record_dict))
+    if filters:
+        queryset = queryset.filter(filters)
 
-    # STRATEGY 2: Fall back to database if no source_bundle or no results
-    if not rows:
-        # Get formateurs filtered by prestataire OR beneficiaire (not AND)
-        # This ensures we return all formateurs that match either the prestataire or beneficiaire
-        queryset = AppelFormateur.objects.filter(is_active=True).select_related("locked_by")
-
-        filters = Q()
-        if prestataire_name:
-            filters |= Q(prestataire__iexact=prestataire_name)
-        if beneficiaire_name:
-            filters |= Q(beneficiaire__iexact=beneficiaire_name)
-
-        if filters:
-            queryset = queryset.filter(filters)
-
-        rows = list(queryset.order_by("session_date", "numero_seance", "reference_code"))
+    rows = list(queryset.order_by("session_date", "numero_seance", "reference_code"))
 
     # Optional: Apply formation matching as a secondary filter
     # If we have formation matches, prioritize them; otherwise return all rows
@@ -554,11 +537,7 @@ def _prestation_formateur_candidates(prestation: Prestation, source_bundle: dict
 
 
 def _class_formateur_candidates(classe: Classe, source_bundle: dict | None = None):
-    """Get all formateurs linked to the prestation of this classe.
-
-    First tries to get formateurs from the Excel source data (source_bundle),
-    then falls back to database (AppelFormateur).
-    """
+    """Get all formateurs linked to the prestation of this classe."""
     prestation = getattr(classe, "prestation", None)
     if not prestation:
         return []
@@ -572,25 +551,7 @@ def _class_formateur_candidates(classe: Classe, source_bundle: dict | None = Non
     ).strip()
     formation_name = str(getattr(getattr(prestation, "formation", None), "nom", "") or "").strip()
 
-    all_rows = []
-
-    # STRATEGY 1: Try to get formateurs from source_bundle (Excel data)
-    if source_bundle:
-        source_records = source_bundle.get("records", {}) or {}
-        for record in source_records.values():
-            record_dict = dict(record) if not isinstance(record, dict) else record
-            record_prestataire = str(record_dict.get("prestataire") or "").strip()
-            record_beneficiaire = str(record_dict.get("beneficiaire") or "").strip()
-
-            # Match if prestataire OR beneficiaire matches
-            if (prestataire_name and record_prestataire.lower() == prestataire_name.lower()) or (
-                beneficiaire_name and record_beneficiaire.lower() == beneficiaire_name.lower()
-            ):
-                all_rows.append(SimpleNamespace(**record_dict))
-
-    # STRATEGY 2: Fall back to database if no source_bundle or no results
-    if not all_rows:
-        all_rows = _prestation_formateur_candidates(prestation, source_bundle=source_bundle)
+    all_rows = _prestation_formateur_candidates(prestation, source_bundle=source_bundle)
 
     if not all_rows:
         return []
