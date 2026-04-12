@@ -485,6 +485,10 @@ def _analysis_source_record_for_appel(source_bundle: dict | None, appel: Appel) 
 
 
 def _prestation_formateur_candidates(prestation: Prestation):
+    """Get all formateurs for a prestation, filtering by prestataire/beneficiaire."""
+    if not prestation:
+        return []
+    
     prestataire_name = str(
         getattr(getattr(prestation, "prestataire", None), "raison_sociale", "") or ""
     ).strip()
@@ -492,49 +496,58 @@ def _prestation_formateur_candidates(prestation: Prestation):
         getattr(getattr(prestation, "beneficiaire", None), "nom_structure", "") or ""
     ).strip()
     formation_name = str(getattr(getattr(prestation, "formation", None), "nom", "") or "").strip()
-    if not any((prestataire_name, beneficiaire_name, formation_name)):
-        return []
+    
+    # Get formateurs filtered by prestataire and beneficiaire
+    # Be permissive: if we have prestataire OR beneficiaire, use them
     queryset = AppelFormateur.objects.filter(is_active=True).select_related("locked_by")
     if prestataire_name:
         queryset = queryset.filter(prestataire__iexact=prestataire_name)
     if beneficiaire_name:
         queryset = queryset.filter(beneficiaire__iexact=beneficiaire_name)
+    
     rows = list(queryset.order_by("session_date", "numero_seance", "reference_code"))
-    if formation_name:
+    
+    # Optional: Apply formation matching as a secondary filter
+    # If we have formation matches, prioritize them; otherwise return all rows
+    if formation_name and rows:
         matched_rows = [row for row in rows if _formation_matches(formation_name, row.formation)]
         if matched_rows:
             rows = matched_rows
+    
     return rows
 
 
 def _class_formateur_candidates(classe: Classe):
-    class_phone = _phone_digits(getattr(getattr(classe, "formateur", None), "telephone", ""))
+    """Get all formateurs linked to the prestation of this classe."""
+    prestation = getattr(classe, "prestation", None)
+    if not prestation:
+        return []
+    
+    # Get all formateurs from this prestation (by prestataire/beneficiaire)
+    # This ensures we always show formateurs from the linked prestation
+    all_rows = _prestation_formateur_candidates(prestation)
+    if not all_rows:
+        return []
+    
+    # Optional: Apply additional filtering by cohorte and formation if available
+    # But don't exclude results if there's no match - just prioritize matches
+    class_cohorte = str(getattr(classe, "cohorte", "") or "").strip()
     formation_name = str(
         classe.intitule_formation or getattr(getattr(classe, "formation", None), "nom", "") or ""
     ).strip()
-    if not any(
-        (
-            class_phone,
-            formation_name,
-            str(getattr(classe, "cohorte", "") or "").strip(),
-            str(getattr(getattr(classe, "prestation", None), "code", "") or "").strip(),
-        )
-    ):
-        return []
-    matched_rows = []
-    for row in _prestation_formateur_candidates(classe.prestation):
-        if not _cohorte_matches(row.cohorte, classe.cohorte):
-            continue
-        row_phone_candidates = [
-            _phone_digits(getattr(row, "telephone", "")),
-            *_split_source_contact_phones(row.source_contact),
-        ]
-        if class_phone and class_phone in row_phone_candidates:
-            matched_rows.append(row)
-            continue
-        if _formation_matches(formation_name, row.formation):
-            matched_rows.append(row)
-    return matched_rows
+    
+    # Try to find exact matches first
+    exact_matches = []
+    for row in all_rows:
+        row_cohorte = str(getattr(row, "cohorte", "") or "").strip()
+        if class_cohorte and _cohorte_matches(row_cohorte, class_cohorte):
+            exact_matches.append(row)
+        elif formation_name and _formation_matches(formation_name, row.formation):
+            if row not in exact_matches:
+                exact_matches.append(row)
+    
+    # Return exact matches if available, else return all rows from prestation
+    return exact_matches if exact_matches else all_rows
 
 
 def _resolve_classe_for_formateur_analysis(row: AppelFormateur):
