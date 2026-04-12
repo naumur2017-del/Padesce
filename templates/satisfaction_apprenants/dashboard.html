@@ -260,7 +260,6 @@
     <div class="kpi-value">{{ audios_enregistres_appels }}</div>
     <div class="kpi-label">Audios Enregistrés</div>
   </div>
-
 </div>
 
 <div class="analysis-grid" id="js-analysis-grid">
@@ -879,10 +878,8 @@
       <table>
         <thead>
           <tr>
-            <th>ApprenantID réseau</th>
             <th>Apprenant ID local</th>
             <th>Apprenant</th>
-            <th>Source</th>
             <th>Classe</th>
             <th>Intitulé de la formation</th>
             <th>Prestataire</th>
@@ -901,7 +898,6 @@
         <tbody>
           {% for row in rows %}
           <tr>
-            <td title="Classe source : {{ row.source_classe_id|default:'-' }} | Prestation source : {{ row.source_prestation_id|default:'-' }} | Fenêtre source : {{ row.source_fenetre|default:'-' }}">{{ row.source_apprenant_id|default:"-" }}</td>
             <td>
               <strong>{{ row.apprenant_id|default:"-" }}</strong>
               {% if row.apprenant_db_label %}
@@ -909,10 +905,7 @@
               {% endif %}
             </td>
             <td>{{ row.apprenant_nom }}</td>
-            <td>
-              <span class="source-pill source-pill-{{ row.source_status_tone }}" title="{{ row.source_alerts_label }}">{{ row.source_status_label }}</span>
-            </td>
-            <td>{{ row.classe_code }}</td>
+            <td><a href="{% url 'class_analysis_detail' row.classe_code %}" style="font-weight:700; color:var(--accent-strong); text-decoration:none;">{{ row.classe_code }}</a></td>
             <td>{{ row.formation_intitule }}</td>
             <td>{{ row.prestataire }}</td>
             <td>{{ row.beneficiaire }}</td>
@@ -927,7 +920,7 @@
             <td style="max-width:180px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="{{ row.commentaire }}">{{ row.commentaire }}</td>
           </tr>
           {% empty %}
-          <tr><td colspan="26" style="text-align:center; color:var(--muted); padding:20px;">Aucune donnée. Appliquez un filtre ou vérifiez les réponses saisies.</td></tr>
+          <tr><td colspan="{{ q_labels|length|add:'14' }}" style="text-align:center; color:var(--muted); padding:20px;">Aucune donnée. Appliquez un filtre ou vérifiez les réponses saisies.</td></tr>
           {% endfor %}
         </tbody>
       </table>
@@ -949,7 +942,7 @@
         <tbody>
           {% for c in classe_stats %}
           <tr>
-            <td>{{ c.code }}</td>
+            <td><a href="{% url 'class_analysis_detail' c.code %}" style="font-weight:700; color:var(--accent-strong); text-decoration:none;">{{ c.code }}</a></td>
             <td>{{ c.intitule }}</td>
             <td>{{ c.cohorte }}</td>
             <td><strong>{{ c.nb }}</strong></td>

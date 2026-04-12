@@ -3,6 +3,7 @@ import json
 import shutil
 import tempfile
 import zipfile
+from contextlib import ExitStack
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -37,6 +38,7 @@ from App_PADESCE.satisfaction_apprenants.views import (
     _assign_enquete_ids,
     _attach_network_source_to_rows,
     _build_dashboard_filter_options,
+    _dashboard_tab_headers,
     _build_missing_prestations_analysis,
     _build_satisfaction_dashboard_data,
     _build_threshold_class_stats,
@@ -1284,6 +1286,271 @@ class SatisfactionDashboardRegressionTests(SimpleTestCase):
             "PRESTA002",
             [item["code"] for item in dashboard["context"]["prestation_stats"]],
         )
+
+
+class SatisfactionDashboardScopeTests(SimpleTestCase):
+    def test_dashboard_tab_headers_hide_source_columns_for_apprenant_tab(self):
+        headers = _dashboard_tab_headers("tab-apprenants")
+
+        self.assertNotIn("ApprenantID réseau", headers)
+        self.assertNotIn("Source", headers)
+        self.assertIn("Apprenant ID local", headers)
+        self.assertIn("Taux Presence", headers)
+        self.assertIn("Moyenne generale", headers)
+
+    def test_build_satisfaction_dashboard_data_keeps_all_rows_from_analyzed_prestation_classes(
+        self,
+    ):
+        row_threshold = {
+            "analysis_included": True,
+            "fenetre": "2",
+            "prestation_code": "PRESTA001",
+            "prestataire": "Prestataire A",
+            "beneficiaire": "Beneficiaire A",
+            "classe_code": "CLA001",
+            "formation_intitule": "Formation A",
+            "classe_intitule": "Formation A",
+            "cohorte": "1",
+            "ville": "Garoua",
+            "user": "agent-a",
+            "modified_at": 1,
+            "q1_clarte_exposes": 5,
+            "q2_interaction_formateur": 4,
+            "q3_maitrise_contenu": 4,
+            "q4_salle_adequate": 5,
+            "q5_materiel_disponible": 4,
+            "q6_organisation_temps": 5,
+            "q7_utilite_formation": 4,
+            "q8_adequation_besoins": 5,
+            "q9_satisfaction_globale": 5,
+        }
+        row_same_prestation = {
+            **row_threshold,
+            "classe_code": "CLA002",
+            "modified_at": 2,
+        }
+        row_other_prestation = {
+            **row_threshold,
+            "prestation_code": "PRESTA002",
+            "prestataire": "Prestataire B",
+            "beneficiaire": "Beneficiaire B",
+            "classe_code": "CLA003",
+            "modified_at": 3,
+        }
+        source_summary = {
+            "available": False,
+            "matched_count": 0,
+            "consistent_count": 0,
+            "mismatch_count": 0,
+            "missing_count": 0,
+            "apprenant_id_count": 0,
+        }
+        empty_filter_options = {
+            "prestation": [],
+            "fenetre": [],
+            "ville": [],
+            "user": [],
+            "classe": [],
+            "prestataire": [],
+            "beneficiaire": [],
+            "cohorte": [],
+            "status": [],
+        }
+        summary_counts = {
+            "appels_cibles": 0,
+            "appels_tentes": 0,
+            "appels_reussis": 0,
+            "formulaires_remplis": 0,
+            "formulaires_remplis_sans_audio": 0,
+            "formulaires_avec_audio": 0,
+            "audios_enregistres": 0,
+        }
+
+        with ExitStack() as stack:
+            stack.enter_context(
+                patch(
+                    "App_PADESCE.satisfaction_apprenants.views._build_table_details_context",
+                    return_value={},
+                )
+            )
+            stack.enter_context(
+                patch(
+                    "App_PADESCE.satisfaction_apprenants.views._build_missing_prestations_analysis",
+                    return_value={
+                        "available": True,
+                        "total_source": 2,
+                        "total_qualified": 1,
+                        "total_analyzed": 1,
+                        "total_missing": 1,
+                    },
+                )
+            )
+            stack.enter_context(
+                patch(
+                    "App_PADESCE.satisfaction_apprenants.views._build_dashboard_active_filters_summary",
+                    return_value=[],
+                )
+            )
+            stack.enter_context(
+                patch(
+                    "App_PADESCE.satisfaction_apprenants.views._build_dashboard_filter_options_from_rows",
+                    return_value=empty_filter_options,
+                )
+            )
+            stack.enter_context(
+                patch(
+                    "App_PADESCE.satisfaction_apprenants.views._build_class_filter_options_from_rows",
+                    return_value=[],
+                )
+            )
+            stack.enter_context(
+                patch(
+                    "App_PADESCE.satisfaction_apprenants.views._assign_enquete_ids",
+                    side_effect=lambda rows: rows,
+                )
+            )
+            stack.enter_context(
+                patch(
+                    "App_PADESCE.satisfaction_apprenants.views._attach_network_source_to_rows",
+                    side_effect=lambda rows, **kwargs: (rows, source_summary),
+                )
+            )
+            stack.enter_context(
+                patch(
+                    "App_PADESCE.satisfaction_apprenants.views._attached_rows_source_summary",
+                    return_value=source_summary,
+                )
+            )
+            stack.enter_context(
+                patch(
+                    "App_PADESCE.satisfaction_apprenants.views.build_padesce_source_index",
+                    return_value=None,
+                )
+            )
+            stack.enter_context(
+                patch(
+                    "App_PADESCE.satisfaction_apprenants.views.get_workbook_source_options",
+                    return_value=[],
+                )
+            )
+            stack.enter_context(
+                patch(
+                    "App_PADESCE.satisfaction_apprenants.views._qualified_prestation_codes_from_source",
+                    return_value={"presta001"},
+                )
+            )
+            stack.enter_context(
+                patch(
+                    "App_PADESCE.satisfaction_apprenants.views._status_threshold_class_codes",
+                    return_value={"cla001"},
+                )
+            )
+            stack.enter_context(
+                patch(
+                    "App_PADESCE.satisfaction_apprenants.views._terminated_prestation_codes_from_source",
+                    return_value={"presta001", "presta002"},
+                )
+            )
+            stack.enter_context(
+                patch(
+                    "App_PADESCE.satisfaction_apprenants.views._thresholded_dashboard_rows",
+                    return_value=(
+                        [row_threshold],
+                        [
+                            {
+                                "code": "CLA001",
+                                "intitule": "Formation A",
+                                "prestation": "PRESTA001",
+                                "cohorte": "1",
+                                "nb": 1,
+                                "avgs": [4.56] * 9,
+                                "total_apprenants": 2,
+                                "threshold_reached": True,
+                            },
+                            {
+                                "code": "CLA002",
+                                "intitule": "Formation A",
+                                "prestation": "PRESTA001",
+                                "cohorte": "1",
+                                "nb": 1,
+                                "avgs": [4.2] * 9,
+                                "total_apprenants": 2,
+                                "threshold_reached": False,
+                            },
+                            {
+                                "code": "CLA003",
+                                "intitule": "Formation B",
+                                "prestation": "PRESTA002",
+                                "cohorte": "1",
+                                "nb": 1,
+                                "avgs": [3.8] * 9,
+                                "total_apprenants": 1,
+                                "threshold_reached": True,
+                            },
+                        ],
+                    ),
+                )
+            )
+            stack.enter_context(
+                patch(
+                    "App_PADESCE.satisfaction_apprenants.views._dashboard_row_from_answer",
+                    side_effect=[row_threshold, row_same_prestation, row_other_prestation],
+                )
+            )
+            stack.enter_context(
+                patch(
+                    "App_PADESCE.satisfaction_apprenants.views._satisfaction_dashboard_base_queryset",
+                    return_value=[object(), object(), object()],
+                )
+            )
+            stack.enter_context(
+                patch(
+                    "App_PADESCE.satisfaction_apprenants.views._local_analysis_class_counts",
+                    return_value={"cla001": 2, "cla002": 2, "cla003": 1},
+                )
+            )
+            stack.enter_context(
+                patch(
+                    "App_PADESCE.satisfaction_apprenants.views._build_appel_status_summary",
+                    return_value=summary_counts,
+                )
+            )
+            stack.enter_context(
+                patch(
+                    "App_PADESCE.satisfaction_apprenants.views._analysis_queryset_marker",
+                    return_value="marker",
+                )
+            )
+            stack.enter_context(
+                patch("App_PADESCE.satisfaction_apprenants.views.cache.get", return_value=None)
+            )
+            stack.enter_context(patch("App_PADESCE.satisfaction_apprenants.views.cache.set"))
+            stack.enter_context(
+                patch(
+                    "App_PADESCE.core.analysis_materialization.load_materialized_dashboard_payload",
+                    return_value=None,
+                )
+            )
+            stack.enter_context(
+                patch(
+                    "App_PADESCE.core.analysis_materialization.save_materialized_dashboard_payload"
+                )
+            )
+            dashboard = _build_satisfaction_dashboard_data(
+                SimpleNamespace(GET=QueryDict("", mutable=True))
+            )
+
+        self.assertEqual(dashboard["context"]["total"], 2)
+        self.assertEqual(
+            sorted(row["classe_code"] for row in dashboard["rows"]),
+            ["CLA001", "CLA002"],
+        )
+        self.assertEqual(
+            [item["code"] for item in dashboard["context"]["prestation_stats"]],
+            ["presta001"],
+        )
+        self.assertEqual(dashboard["context"]["prestation_stats"][0]["nb"], 2)
+        self.assertEqual(dashboard["context"]["analyzed_classes_count"], 2)
 
 
 class SatisfactionMissingPrestationsAnalysisTests(TestCase):

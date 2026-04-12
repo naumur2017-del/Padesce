@@ -1451,15 +1451,19 @@ def _dashboard_tab_headers(active_tab: str) -> list[str]:
     if active_tab == "tab-user":
         return ["Utilisateur", "Nombre d'enquêtes", "Moyenne de satisfaction globale (Q9)"]
     return [
-        "ApprenantID réseau",
-        "Code",
+        "Apprenant ID local",
         "Apprenant",
-        "Source",
         "Classe",
         "Intitulé de la formation",
         "Prestataire",
         "Bénéficiaire",
         "Cohorte",
+        "C1",
+        "C2",
+        "C3",
+        "C4",
+        "Taux Presence",
+        "Moyenne generale",
         *[label for _, label in Q_FIELDS],
         "Commentaire",
     ]
@@ -2778,12 +2782,15 @@ def _build_satisfaction_dashboard_data(request):
     classe_apprenant_counts = _local_analysis_class_counts()
     analysis_scope_filters = {key: "" for key in filters}
     analysis_scope_filters["source"] = selected_source
-    analysis_scope_rows, classe_stats_all = _thresholded_dashboard_rows(
+    _threshold_scope_rows, classe_stats_all = _thresholded_dashboard_rows(
         all_rows,
         analysis_scope_filters,
         classe_apprenant_counts,
         threshold_class_codes=threshold_class_codes,
     )
+    analysis_scope_rows = [
+        row for row in all_rows if _row_matches_dashboard_filters(row, analysis_scope_filters)
+    ]
     analysis_scope_rows, _ = _attach_network_source_to_rows(
         analysis_scope_rows,
         source_bundle=source_bundle,
@@ -2919,7 +2926,12 @@ def _build_satisfaction_dashboard_data(request):
                 "nb": item["metrics"]["nb"],
                 "avgs": _dashboard_bucket_avgs(item["metrics"]),
                 "total_apprenants": _analysis_class_count(classe_apprenant_counts, item["code"]),
-                "threshold_reached": True,
+                "threshold_reached": normalize_network_lookup(item["code"])
+                in {
+                    normalize_network_lookup(code)
+                    for code in (threshold_class_codes or set())
+                    if str(code or "").strip()
+                },
             }
             for item in classe_groups.values()
         ],
