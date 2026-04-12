@@ -1661,9 +1661,12 @@ def _terminated_prestation_codes_from_source(filters: dict, source_bundle: dict 
         if class_map
         and all(_source_class_is_finished(source_class) for source_class in class_map.values())
     }
-    # Complément via la feuille Prestations (au cas où une prestation n'a pas de classe listée)
+    # Complément via la feuille Prestations : uniquement pour les prestations
+    # qui n'ont aucune classe listée dans la feuille Classes.
+    # Si une prestation a des classes dans la feuille Classes, c'est la règle
+    # "toutes les classes terminées" qui fait foi (step 1 ci-dessus).
     for p_key, p_info in (source_bundle.get("prestations") or {}).items():
-        if p_key and _source_class_is_finished(p_info):
+        if p_key and p_key not in prestation_classes and _source_class_is_finished(p_info):
             terminated.add(p_key)
     return terminated
 
