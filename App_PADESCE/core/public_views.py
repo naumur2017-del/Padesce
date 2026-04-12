@@ -560,7 +560,7 @@ def public_space(request):
                 "url": _public_space_url(section="principal", scope=scope),
             },
             {
-                "label": "Apercu",
+                "label": "Aperçu",
                 "value": "apercu",
                 "active": section == "apercu",
                 "url": _public_space_url(section="apercu", scope=scope),

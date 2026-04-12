@@ -102,38 +102,37 @@
   <div class="scope-note">Basculer entre les appels apprenants PADESCE et les appels formateurs.</div>
 </div>
 
-<h1 class="h4 mb-2">Appels Formateurs</h1>
 {% if user.is_superuser %}
-  <p class="subtitle" style="margin-bottom:8px;">Importer un ou plusieurs fichiers Excel avec la feuille <strong>Calendrier</strong>. Chaque numero de <strong>CONTACT DU FORMATEUR</strong> est nettoye, dedoublonne et insere comme une ligne d'appel distincte.</p>
+  <p class="subtitle" style="margin-bottom:8px;">Importer un ou plusieurs fichiers Excel avec la feuille <strong>Calendrier</strong>. Chaque numéro de <strong>CONTACT DU FORMATEUR</strong> est nettoyé, dédoublonné et inséré comme une ligne d'appel distincte.</p>
   <div class="panel">
     <form method="post" enctype="multipart/form-data" class="form-inline" style="margin-bottom:10px;">
       {% csrf_token %}
       <input type="hidden" name="update_mode" value="append">
       <div class="input-file">
-        <span class="file-label">Choisir fichiers Excel</span>
+        <span class="file-label">Choisir fichier Excel</span>
         <input type="file" name="files" accept=".xlsx,.xlsm" multiple required />
       </div>
-      <button type="submit" class="btn btn-primary btn-sm">Uploader (ajouter/combiner)</button>
+      <button type="submit" class="btn btn-primary btn-sm">Importer (ajouter/combiner)</button>
     </form>
     <form method="post" enctype="multipart/form-data" class="form-inline">
       {% csrf_token %}
       <input type="hidden" name="update_mode" value="replace">
       <div class="input-file">
-        <span class="file-label">Choisir fichiers Excel</span>
+        <span class="file-label">Choisir fichier Excel</span>
         <input type="file" name="files" accept=".xlsx,.xlsm" multiple required />
       </div>
-      <button type="submit" class="btn btn-secondary btn-sm">Uploader (ecrase l'affichage)</button>
+      <button type="submit" class="btn btn-secondary btn-sm">Importer (écrase l'affichage)</button>
     </form>
   </div>
   <div class="panel">
-    <p class="subtitle" style="margin-bottom:8px;">Nettoyage global des doublons de numeros sur toutes les tables d'appels. Les doublons detectes sont desactives pour conserver l'historique.</p>
+    <p class="subtitle" style="margin-bottom:8px;">Nettoyage global des doublons de numéros sur toutes les tables d'appels. Les doublons détectés sont désactivés pour conserver l'historique.</p>
     <form method="post" action="{% url 'deduplicate_all_call_tables' %}" style="display:flex; gap:8px; flex-wrap:wrap;">
       {% csrf_token %}
-      <button type="submit" class="btn btn-ghost btn-sm">Detecter et supprimer les doublons numeros</button>
+      <button type="submit" class="btn btn-ghost btn-sm">Détecter et supprimer les doublons de numéros</button>
     </form>
     <form method="post" action="{% url 'formateurs_delete_missing_phones' %}" style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
       {% csrf_token %}
-      <button type="submit" class="btn btn-ghost btn-sm">Supprimer les lignes sans telephone</button>
+      <button type="submit" class="btn btn-ghost btn-sm">Supprimer les lignes sans téléphone</button>
     </form>
     <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
       <button type="button" id="js-start-transcription" class="btn btn-ghost btn-sm">Transcrire le tableau filtre</button>
@@ -166,17 +165,17 @@
   </div>
 
   <form method="get" class="form-inline" style="margin-bottom:10px;">
-    <input type="text" name="q" class="input" style="flex:1; min-width:200px;" placeholder="Recherche numero / prestataire / formation..." value="{{ filters.q }}">
+    <input type="text" name="q" class="input" style="flex:1; min-width:200px;" placeholder="Recherche numéro / prestataire / formation..." value="{{ filters.q }}">
     <input type="datetime-local" name="date_from" class="input" value="{{ filters.date_from }}">
     <input type="datetime-local" name="date_to" class="input" value="{{ filters.date_to }}">
     <select name="status" class="input">
       <option value="">Statut</option>
       <option value="en_attente" {% if filters.status == "en_attente" %}selected{% endif %}>En attente</option>
-      <option value="appel_tente" {% if filters.status == "appel_tente" %}selected{% endif %}>Appel tente</option>
+      <option value="appel_tente" {% if filters.status == "appel_tente" %}selected{% endif %}>Appel tenté</option>
       <option value="en_cours" {% if filters.status == "en_cours" %}selected{% endif %}>En cours</option>
       <option value="pause" {% if filters.status == "pause" %}selected{% endif %}>Pause</option>
-      <option value="a_rappeler" {% if filters.status == "a_rappeler" %}selected{% endif %}>A rappeler</option>
-      <option value="appel_reussi" {% if filters.status == "appel_reussi" %}selected{% endif %}>Appel reussi</option>
+      <option value="a_rappeler" {% if filters.status == "a_rappeler" %}selected{% endif %}>À rappeler</option>
+      <option value="appel_reussi" {% if filters.status == "appel_reussi" %}selected{% endif %}>Appel réussi</option>
       <option value="formulaire_rempli" {% if filters.status == "formulaire_rempli" %}selected{% endif %}>Formulaire rempli</option>
       <option value="formulaire_avec_audio" {% if filters.status == "formulaire_avec_audio" %}selected{% endif %}>Formulaire avec audio</option>
       <option value="completed" {% if filters.status == "completed" %}selected{% endif %}>Finalisés</option>
@@ -189,7 +188,7 @@
       {% endfor %}
     </select>
     <select name="beneficiaire" class="input">
-      <option value="">Beneficiaire</option>
+      <option value="">Bénéficiaire</option>
       {% for item in filters.beneficiaires %}
         <option value="{{ item }}" {% if filters.beneficiaire == item %}selected{% endif %}>{{ item }}</option>
       {% endfor %}
@@ -236,8 +235,8 @@
     </p>
     <div style="display:flex; gap:8px; flex-wrap:wrap;">
       <a class="btn btn-ghost btn-sm" href="{% url 'formateurs_export_filtered_csv' %}{% if request.GET.urlencode %}?{{ request.GET.urlencode }}{% endif %}">Exporter le tableau filtre (CSV)</a>
-      <a class="btn btn-ghost btn-sm" href="{% url 'formateurs_export_xlsx' %}">Exporter toutes les donnees (XLSX)</a>
-      <button type="button" id="js-download-audios" class="btn btn-primary btn-sm" disabled>Telecharger les audios selectionnes</button>
+      <a class="btn btn-ghost btn-sm" href="{% url 'formateurs_export_xlsx' %}">Exporter toutes les données (XLSX)</a>
+      <button type="button" id="js-download-audios" class="btn btn-primary btn-sm" disabled>Télécharger les audios sélectionnés</button>
     </div>
   </div>
 
@@ -245,13 +244,13 @@
     <table>
       <thead>
         <tr>
-          <th class="checkbox-cell"><input type="checkbox" id="js-select-all" aria-label="Selectionner tous les audios"></th>
-          <th>Seance</th>
+          <th class="checkbox-cell"><input type="checkbox" id="js-select-all" aria-label="Sélectionner tous les audios"></th>
+          <th>Séance</th>
           <th>Prestataire</th>
           <th>Beneficiaire</th>
           <th>Formation</th>
           <th>Lieu</th>
-          <th>Telephone</th>
+          <th>Téléphone</th>
           <th>Cohorte</th>
           <th>Date</th>
           <th>Heure</th>
@@ -281,7 +280,7 @@
             </td>
             <td>
               <div class="actions js-actions">
-                <button type="button" class="btn-small primary js-start" {% if a.status != "en_attente" and a.status != "a_rappeler" and a.status != "appel_tente" and a.status != "appel_reussi" %}hidden{% endif %}><i class="fa-solid fa-phone"></i><span>Demarrer</span></button>
+                <button type="button" class="btn-small primary js-start" {% if a.status != "en_attente" and a.status != "a_rappeler" and a.status != "appel_tente" and a.status != "appel_reussi" %}hidden{% endif %}><i class="fa-solid fa-phone"></i><span>Démarrer</span></button>
                 <button type="button" class="btn-icon js-pause" title="Mettre l'appel en pause" aria-label="Mettre l'appel en pause" {% if a.status != "en_cours" and a.status != "pause" %}hidden{% endif %} {% if a.status != "en_cours" %}disabled{% endif %}><i class="fa-solid fa-pause"></i></button>
                 <button type="button" class="btn-icon js-resume" title="Reprendre l'appel" aria-label="Reprendre l'appel" {% if a.status != "en_cours" and a.status != "pause" %}hidden{% endif %} {% if a.status != "pause" %}disabled{% endif %}><i class="fa-solid fa-play"></i></button>
                 <button type="button" class="btn-small danger js-terminer" {% if a.status != "en_cours" and a.status != "pause" %}hidden{% endif %}><i class="fa-solid fa-circle-stop"></i><span>Terminer</span></button>
@@ -293,11 +292,11 @@
                   <canvas width="120" height="32" class="js-visual"></canvas>
                 </div>
                 <div class="audio-meta js-audio-controls" {% if not a.has_audio_file %}hidden{% endif %}>
-                  <button type="button" class="btn-small js-play" {% if not a.has_audio_file %}disabled{% endif %}><i class="fa-solid fa-play"></i><span>Play</span></button>
+                  <button type="button" class="btn-small js-play" {% if not a.has_audio_file %}disabled{% endif %}><i class="fa-solid fa-play"></i><span>Lecture</span></button>
                   <button type="button" class="btn-icon js-stop" {% if not a.has_audio_file %}disabled{% endif %} title="Stopper l'audio" aria-label="Stopper l'audio"><i class="fa-solid fa-stop"></i></button>
                   <button type="button" class="btn-small js-transcription" {% if not a.has_audio_file %}disabled{% endif %}><i class="fa-solid fa-file-lines"></i><span>Transcription</span></button>
                   {% if a.has_audio_file %}
-                    <a class="btn-icon js-audio-download" href="{{ a.audio_file_url }}" download="formateur-{{ a.reference_code }}.mp3" title="Telecharger l'audio" aria-label="Telecharger l'audio"><i class="fa-solid fa-download"></i></a>
+                    <a class="btn-icon js-audio-download" href="{{ a.audio_file_url }}" download="formateur-{{ a.reference_code }}.mp3" title="Télécharger l'audio" aria-label="Télécharger l'audio"><i class="fa-solid fa-download"></i></a>
                   {% endif %}
                   <div class="progress"><div class="progress-fill"></div></div>
                   <span class="time-label">0:00</span>
@@ -317,8 +316,8 @@
     <div class="selection-bar" style="margin-top:10px;">
       <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
         {% if page_obj.has_previous %}
-          <a class="btn btn-ghost btn-sm" href="?{% if querystring_no_page %}{{ querystring_no_page }}&{% endif %}page=1">Premiere</a>
-          <a class="btn btn-ghost btn-sm" href="?{% if querystring_no_page %}{{ querystring_no_page }}&{% endif %}page={{ page_obj.previous_page_number }}">Precedente</a>
+          <a class="btn btn-ghost btn-sm" href="?{% if querystring_no_page %}{{ querystring_no_page }}&{% endif %}page=1">Première</a>
+          <a class="btn btn-ghost btn-sm" href="?{% if querystring_no_page %}{{ querystring_no_page }}&{% endif %}page={{ page_obj.previous_page_number }}">Précédente</a>
         {% endif %}
         {% for num in page_obj.paginator.page_range %}
           {% if num >= page_obj.number|add:"-2" and num <= page_obj.number|add:"2" %}
@@ -331,7 +330,7 @@
         {% endfor %}
         {% if page_obj.has_next %}
           <a class="btn btn-ghost btn-sm" href="?{% if querystring_no_page %}{{ querystring_no_page }}&{% endif %}page={{ page_obj.next_page_number }}">Suivante</a>
-          <a class="btn btn-ghost btn-sm" href="?{% if querystring_no_page %}{{ querystring_no_page }}&{% endif %}page={{ page_obj.paginator.num_pages }}">Derniere</a>
+          <a class="btn btn-ghost btn-sm" href="?{% if querystring_no_page %}{{ querystring_no_page }}&{% endif %}page={{ page_obj.paginator.num_pages }}">Dernière</a>
         {% endif %}
       </div>
       <div class="subtitle">Page {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</div>
@@ -346,7 +345,7 @@
     <div id="js-transcription-status" class="subtitle">Chargement...</div>
     <div id="js-transcription-text" class="transcript-box" style="margin-top:10px;">Aucune transcription.</div>
     <div class="modal-actions">
-      <a id="js-transcription-download" class="btn btn-ghost btn-sm" href="#" download>Telecharger</a>
+      <a id="js-transcription-download" class="btn btn-ghost btn-sm" href="#" download>Télécharger</a>
       <button type="button" class="btn btn-primary btn-sm" data-transcription-close>Fermer</button>
     </div>
   </div>
