@@ -92,6 +92,20 @@ class NetworkWorkbookResolutionTests(SimpleTestCase):
 
         self.assertEqual(resolved, override_path)
 
+    def test_resolve_network_workbook_creates_minimal_fallback_when_no_file_found(self):
+        from django.core.cache import cache
+
+        cache.clear()
+        network_excel._build_padesce_source_index_cached.cache_clear()
+
+        resolved = network_excel._resolve_network_workbook(source_key="main")
+        self.assertTrue(resolved.name.endswith("-main-fallback.xlsx"))
+        self.assertTrue(resolved.is_file())
+        payload = network_excel.build_padesce_source_index(force_refresh=True)
+        self.assertIn("records", payload)
+        self.assertEqual(payload["records"], {})
+        self.assertGreaterEqual(payload.get("counts", {}).get("apprenants", 0), 0)
+
 
 class NetworkExcelApiTests(TestCase):
     def setUp(self):

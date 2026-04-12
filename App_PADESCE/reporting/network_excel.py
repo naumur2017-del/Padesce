@@ -20,7 +20,7 @@ from django.http import JsonResponse
 import logging
 
 from django.shortcuts import render
-from openpyxl import load_workbook
+from openpyxl import Workbook, load_workbook
 
 from App_PADESCE.core.access import require_analysis_access
 
@@ -206,6 +206,85 @@ def _resolve_configured_workbook_path(env_var_name: str) -> Path | None:
     return None
 
 
+def _minimal_fallback_workbook_path(source_key: str = DEFAULT_WORKBOOK_SOURCE) -> Path:
+    """Fichier .xlsx minimal généré localement si aucun consolidé n’est disponible."""
+    normalized = normalize_workbook_source_key(source_key)
+    tag = "cutoff" if normalized == "cutoff" else "main"
+    return BUNDLED_DIRECTORY / f"network-fichier-consolide-{tag}-fallback.xlsx"
+
+
+def _write_minimal_consolidated_workbook(path: Path) -> None:
+    """Crée un classeur avec les feuilles attendues par build_padesce_source_index (en-têtes seuls)."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    wb = Workbook()
+    default_sheet = wb.active
+    wb.remove(default_sheet)
+
+    ws_classes = wb.create_sheet("Classes", 0)
+    ws_classes.append(
+        [
+            "Classe ID",
+            "Prestation ID",
+            "Nom du Prestataire",
+            "Nom du bénéficiaire",
+            "Cohorte",
+            "Lieux",
+            "Ville",
+            "FORMATION",
+            "Region",
+            "Statut de la prestation",
+        ]
+    )
+
+    ws_prest = wb.create_sheet("Prestations", 1)
+    ws_prest.append(
+        [
+            "ID Prestation",
+            "Prestataire",
+            "Nom du bénéficiaire",
+            "Formation",
+            "Fenetre",
+            "Region",
+            "Statut de la prestation",
+        ]
+    )
+
+    ws_app = wb.create_sheet("Apprenants", 2)
+    ws_app.append(
+        [
+            "Code",
+            "Classe ID",
+            "Apprenant ID",
+            "Nom_Individu",
+            "Cohorte",
+            "Telephone1",
+            "Telephone2",
+            "Prestation ID",
+        ]
+    )
+
+    wb.save(path)
+
+
+def _ensure_minimal_fallback_workbook(path: Path) -> None:
+    """Garantit un classeur lisible avec Apprenants / Classes / Prestations."""
+    need_write = True
+    if path.exists() and path.stat().st_size > 0:
+        try:
+            with path.open("rb") as fh:
+                probe = load_workbook(
+                    fh, read_only=True, data_only=True, keep_links=False
+                )
+                names = set(probe.sheetnames)
+                probe.close()
+            if {"Apprenants", "Classes", "Prestations"}.issubset(names):
+                need_write = False
+        except Exception as exc:
+            logger.warning("Classeur de secours illisible, recréation (%s): %s", path, exc)
+    if need_write:
+        _write_minimal_consolidated_workbook(path)
+
+
 def _resolve_network_workbook(source_key: str = DEFAULT_WORKBOOK_SOURCE) -> Path:
     config = _workbook_source_config(source_key)
     expected_name = _normalize_lookup(config["name"])
@@ -236,6 +315,26 @@ def _resolve_network_workbook(source_key: str = DEFAULT_WORKBOOK_SOURCE) -> Path
     for bundled_path in config.get("bundled_paths", []):
         if bundled_path.exists() and bundled_path.is_file():
             return bundled_path
+
+    try:
+        fallback_path = _minimal_fallback_workbook_path(source_key)
+        _ensure_minimal_fallback_workbook(fallback_path)
+        if fallback_path.is_file():
+            logger.warning(
+                "Classeur consolidé « %s » introuvable pour la source %s. "
+                "Gabarit vide utilisé : %s. Définissez la variable %s ou placez le fichier "
+                "dans le cache (data/network_excel_cache/) pour les données réelles.",
+                config["name"],
+                normalize_workbook_source_key(source_key),
+                fallback_path,
+                config["env_var"],
+            )
+            return fallback_path
+    except Exception:
+        logger.exception(
+            "Impossible de créer le classeur de secours pour la source %s",
+            normalize_workbook_source_key(source_key),
+        )
 
     raise FileNotFoundError(
         f"Le fichier Excel consolide attendu ({config['name']}) n'a ete trouve ni sur le partage reseau, ni dans le cache local, ni dans le fallback embarque."
