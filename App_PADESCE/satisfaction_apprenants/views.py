@@ -2641,10 +2641,11 @@ def _build_satisfaction_dashboard_data(request):
         source_bundle,
         threshold_class_codes=threshold_class_codes,
     )
-    # Apprenants Vague 1 = tous les apprenants source des prestations dont toutes les classes sont terminées
-    vague1_apprenants_count = _terminated_source_apprenant_count(
-        analysis_scope_filters, source_bundle, terminated_prestation_codes
-    )
+    # Apprenants Vague 1 = tous les apprenants présents dans la feuille consolidée source CutOff
+    # (pas seulement les apprenants des prestations terminées)
+    vague1_apprenants_count = int(
+        ((source_bundle or {}).get("counts") or {}).get("apprenants", 0)
+    ) if source_bundle else 0
 
     global_bucket = _dashboard_bucket()
     classe_groups = {}
