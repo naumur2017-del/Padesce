@@ -396,18 +396,6 @@
         <div class="label">Formation</div>
         <div class="value">{{ prestation.formation.nom|default:"-" }}</div>
       </div>
-      <div class="meta-card">
-        <div class="label">Effectif cible</div>
-        <div class="value">{{ prestation.effectif_a_former|default:0 }}</div>
-      </div>
-      <div class="meta-card">
-        <div class="label">Femmes cible</div>
-        <div class="value">{{ prestation.femmes|default:0 }}</div>
-      </div>
-      <div class="meta-card">
-        <div class="label">Duree reelle</div>
-        <div class="value">{{ prestation.duree_reelle_heures|default:"0" }} h</div>
-      </div>
     {% endif %}
   </div>
 </section>
@@ -483,7 +471,7 @@
   </button>
 </div>
 
-{% if entity_type == "classe" and class_chapeau %}
+{% if class_chapeau %}
   <section class="panel tab-panel{% if active_tab == 'apprenants' %} active{% endif %}" data-panel="apprenants-chapeau">
     <div class="panel-head">
       <div>

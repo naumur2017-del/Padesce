@@ -1319,6 +1319,8 @@ def prestation_analysis_detail(request, code: str):
     apprenant_rows = _build_apprenant_rows(apprenant_appels, back_url=apprenant_back_url)
     formateur_rows = _build_formateur_rows(formateur_appels, back_url=formateur_back_url)
     summary = _entity_summary(apprenant_rows, formateur_rows)
+    class_chapeau = _build_class_chapeau(prestation.code, apprenant_appels, source_bundle=source_bundle)
+    formateur_chapeau = _build_formateur_chapeau(prestation.code, formateur_appels)
 
     return render(
         request,
@@ -1337,6 +1339,8 @@ def prestation_analysis_detail(request, code: str):
             "summary": summary,
             "active_tab": active_tab,
             "class_links": class_links,
+            "class_chapeau": class_chapeau,
+            "formateur_chapeau": formateur_chapeau,
             "matching_note": "Rattachement formateurs via prestataire, beneficiaire et formation.",
             "prestation_detail_url": "",
             "reference_warning": reference_warning,
