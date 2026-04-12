@@ -1178,16 +1178,6 @@ def _build_consultant_dashboard_context(request):
             "satisfaction_apprenant__enqueteur",
         )
     )
-    if search:
-        rows_qs = rows_qs.filter(
-            Q(nom__icontains=search)
-            | Q(code__icontains=search)
-            | Q(telephone1__icontains=search)
-            | Q(telephone2__icontains=search)
-            | Q(classe_label__icontains=search)
-            | Q(prestataire__icontains=search)
-            | Q(beneficiaire__icontains=search)
-        )
     if classe_filter:
         rows_qs = rows_qs.filter(
             Q(classe__code__iexact=classe_filter) | Q(classe_label__icontains=classe_filter)
@@ -1232,6 +1222,22 @@ def _build_consultant_dashboard_context(request):
         app.c3 = presence_controls["c3"]
         app.c4 = presence_controls["c4"]
         app.taux_presence_control = presence_controls["taux_presence"]
+
+        # Search filter on both Appel and Apprenant fields
+        if search:
+            search_lower = search.lower()
+            matches = (
+                search_lower in (app.nom or "").lower()
+                or search_lower in (app.code or "").lower()
+                or search_lower in (app.telephone1 or "").lower()
+                or search_lower in (app.telephone2 or "").lower()
+                or search_lower in (app.classe_label or "").lower()
+                or search_lower in (app.prestataire or "").lower()
+                or search_lower in (app.beneficiaire or "").lower()
+                or search_lower in (app.apprenant_id or "").lower()
+            )
+            if not matches:
+                continue
 
         if (
             apprenant_id_filter
