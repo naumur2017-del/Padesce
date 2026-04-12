@@ -689,7 +689,6 @@
     <table>
       <thead>
         <tr>
-          <th>Nom Formateur</th>
           <th>Téléphone</th>
           <th>Formation</th>
           <th>Cohorte</th>
@@ -703,7 +702,6 @@
       <tbody>
         {% for row in formateur_rows %}
           <tr data-status-id="{{ row.statut }}" data-has-audio="{{ row.has_audio|yesno:'1,0' }}" data-has-form="{{ row.has_form|yesno:'1,0' }}" class="js-formateur-row">
-            <td><strong>{{ row.formateur_nom|default:row.reference_code }}</strong></td>
             <td>{{ row.formateur_telephone|default:row.telephone|default:"-" }}</td>
             <td>{{ row.formation|default:"-" }}</td>
             <td>{{ row.cohorte|default:"-" }}</td>
@@ -747,7 +745,7 @@
           </tr>
         {% empty %}
           <tr>
-            <td colspan="9" style="text-align:center;color:var(--muted);">Aucun appel formateur rattaché à cette entité.</td>
+            <td colspan="8" style="text-align:center;color:var(--muted);">Aucun appel formateur rattaché à cette entité.</td>
           </tr>
         {% endfor %}
       </tbody>
