@@ -1,3 +1,4 @@
+import hashlib
 import json
 import logging
 import os
@@ -35,6 +36,7 @@ from App_PADESCE.appels.models import (
     padesce_form_tracking_cutoff,
 )
 from App_PADESCE.apprenants.models import Apprenant
+from App_PADESCE.core.cache_versions import get_analysis_cache_version
 from App_PADESCE.core.access import (
     has_analysis_access,
     has_consultant_access,
@@ -636,8 +638,20 @@ def home(request):
         ],
     }
     if can_view_padesce_dashboard or can_view_cga_dashboard:
+        _hd_cache_key = "home:dashboard:" + hashlib.sha1("|".join([
+            get_analysis_cache_version("model:appels.appel"),
+            get_analysis_cache_version("model:appels.appelformateur"),
+            get_analysis_cache_version("model:appels.appelcga"),
+            str(can_view_padesce_dashboard),
+            str(can_view_cga_dashboard),
+        ]).encode()).hexdigest()
+        _hd_cached = cache.get(_hd_cache_key)
+        if _hd_cached is not None:
+            context.update(_hd_cached)
+        _hd_skip = _hd_cached is not None
+        _hd_ctx_keys_before = set(context.keys())
         since_24h = timezone.now() - timedelta(hours=24)
-        if can_view_padesce_dashboard:
+        if not _hd_skip and can_view_padesce_dashboard:
             padesce_called_qs = Appel.objects.filter(is_active=True).exclude(status="en_attente")
             padesce_all_qs = Appel.objects.filter(is_active=True)
 
@@ -865,7 +879,7 @@ def home(request):
             )
             context["formateurs_user_ranking"] = formateurs_user_ranking
 
-        if can_view_cga_dashboard:
+        if not _hd_skip and can_view_cga_dashboard:
             cga_called_qs = AppelCGA.objects.filter(is_active=True).exclude(status="en_attente")
 
             cga_regime_ranking = list(
@@ -916,6 +930,9 @@ def home(request):
                 .order_by("-total_termines", "-total_appeles", "locked_by__username")
             )
             context["cga_user_ranking"] = cga_user_ranking
+        if not _hd_skip:
+            _new_ctx = {k: v for k, v in context.items() if k not in _hd_ctx_keys_before}
+            cache.set(_hd_cache_key, _new_ctx, timeout=60)
     return render(request, "home.html", context)
 
 

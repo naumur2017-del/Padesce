@@ -12,6 +12,7 @@ from datetime import date as date_cls
 import openpyxl
 import requests
 from django.contrib import messages
+from django.core.cache import cache
 from django.core.files.storage import default_storage
 from django.core.paginator import Paginator
 from django.db import transaction
@@ -33,6 +34,7 @@ from App_PADESCE.appels.models import (
     sync_formateur_status,
 )
 from App_PADESCE.core.access import require_analysis_access
+from App_PADESCE.core.cache_versions import get_analysis_cache_version
 from App_PADESCE.core.analysis_rules import analysis_threshold_label, analysis_threshold_target
 from App_PADESCE.core.fast_stats import build_fast_stats_context
 from App_PADESCE.formations.models import (
@@ -56,6 +58,13 @@ DEFAULT_TRANSCRIBE_MODEL = "google/gemini-2.5-flash"
 SUPPORTED_AUDIO_FORMATS = {"wav", "mp3", "m4a", "ogg", "webm", "flac"}
 
 logger = logging.getLogger(__name__)
+_FORMATEURS_CACHE_TIMEOUT = int(str(os.getenv("PADESCE_ANALYSIS_CACHE_TIMEOUT", "300") or "300"))
+
+
+def _formateurs_cache_key(*parts) -> str:
+    rendered = [str(p or "").strip() for p in parts]
+    digest = hashlib.sha1("||".join(rendered).encode("utf-8")).hexdigest()
+    return f"satisfaction:formateurs:{digest}"
 
 
 def _normalize_phone(value: str) -> str:
@@ -1702,6 +1711,14 @@ def _build_satisfaction_formateurs_dashboard_context(request) -> dict:
     f_cohorte = (request.GET.get("cohorte") or "").strip()
     active_tab = _active_formateurs_tab(request)
 
+    _formateur_marker = get_analysis_cache_version("model:appels.appelformateur")
+    _cache_key = _formateurs_cache_key(
+        f_prestataire, f_beneficiaire, f_cohorte, _formateur_marker
+    )
+    _cached = cache.get(_cache_key)
+    if _cached is not None:
+        return _cached
+
     qs = AppelFormateur.objects.filter(is_active=True).order_by("session_date", "prestataire")
     if f_prestataire:
         qs = qs.filter(prestataire=f_prestataire)
@@ -1803,6 +1820,7 @@ def _build_satisfaction_formateurs_dashboard_context(request) -> dict:
         "audios_enregistres_appels": appel_summary["audios_enregistres"],
     }
     context.update(build_fast_stats_context(request, default_mode="formateur"))
+    cache.set(_cache_key, context, timeout=_FORMATEURS_CACHE_TIMEOUT)
     return context
 
 
