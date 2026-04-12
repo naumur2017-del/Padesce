@@ -2589,6 +2589,17 @@ def _build_satisfaction_dashboard_data(request):
     cached_payload = cache.get(cache_key)
     if cached_payload is not None:
         return cached_payload
+
+    # DB-backed materialization: survives worker restarts and is shared across all gunicorn workers
+    from App_PADESCE.core.analysis_materialization import (
+        load_materialized_dashboard_payload,
+        save_materialized_dashboard_payload,
+    )
+    db_payload = load_materialized_dashboard_payload(cache_key)
+    if db_payload is not None:
+        cache.set(cache_key, db_payload, timeout=ANALYSIS_CACHE_TIMEOUT)
+        return db_payload
+
     threshold_class_codes = _status_threshold_class_codes(source_bundle)
 
     answers = list(_satisfaction_dashboard_base_queryset())
@@ -3210,6 +3221,8 @@ def _build_satisfaction_dashboard_data(request):
 
     payload = {"rows": rows, "filters": filters, "context": context}
     cache.set(cache_key, payload, timeout=ANALYSIS_CACHE_TIMEOUT)
+    # Also persist to DB so all workers share the result and it survives restarts
+    save_materialized_dashboard_payload(cache_key, payload, ANALYSIS_CACHE_TIMEOUT)
     return payload
 
 
