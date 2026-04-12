@@ -17,10 +17,14 @@ from urllib.parse import parse_qs, unquote, urlparse
 from django.conf import settings
 from django.core.cache import cache
 from django.http import JsonResponse
+import logging
+
 from django.shortcuts import render
 from openpyxl import load_workbook
 
 from App_PADESCE.core.access import require_analysis_access
+
+logger = logging.getLogger(__name__)
 
 NETWORK_WORKBOOK_DIRECTORY = Path(
     r"\\192.168.1.162\naumur - travaux en cours\Projets\PROJET PADESCE\Cellule informatique\Operation"
@@ -255,18 +259,33 @@ def _ensure_cached_workbook(
     source_path = _resolve_network_workbook(source_key=normalized_source_key)
     source_stat = source_path.stat()
 
-    CACHE_DIRECTORY.mkdir(parents=True, exist_ok=True)
     if source_path != cached_path:
         needs_copy = force_refresh or not cached_path.exists()
         if not needs_copy:
-            local_stat = cached_path.stat()
-            needs_copy = (
-                local_stat.st_size != source_stat.st_size
-                or local_stat.st_mtime_ns != source_stat.st_mtime_ns
-            )
+            try:
+                local_stat = cached_path.stat()
+                needs_copy = (
+                    local_stat.st_size != source_stat.st_size
+                    or local_stat.st_mtime_ns != source_stat.st_mtime_ns
+                )
+            except OSError:
+                needs_copy = True
 
         if needs_copy:
-            shutil.copy2(source_path, cached_path)
+            try:
+                CACHE_DIRECTORY.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(source_path, cached_path)
+            except Exception as copy_exc:
+                logger.warning(
+                    "Impossible de copier le classeur vers le cache (%s → %s): %s. "
+                    "Ouverture directe depuis la source.",
+                    source_path,
+                    cached_path,
+                    copy_exc,
+                )
+                # Utiliser la source directement si la copie ou la création du
+                # répertoire cache échoue (droits, filesystem en lecture seule…).
+                cached_path = source_path
 
     workbook_source = WorkbookSource(
         key=config["key"],
@@ -903,6 +922,18 @@ def _build_padesce_source_index_cached(cache_key: tuple[str, int, str, str]) -> 
             "class_enquetes": class_enquetes,
             "duplicate_codes": sorted(code for code in duplicate_codes if code),
         }
+
+
+def load_bundled_source_meta(source_key: str = "cutoff") -> dict:
+    """Load precomputed metadata for the bundled workbook (avoids openpyxl at runtime)."""
+    normalized = normalize_workbook_source_key(source_key)
+    meta_path = BUNDLED_DIRECTORY / f"network-fichier-consolide-{normalized}-meta.json"
+    if meta_path.exists():
+        try:
+            return json.loads(meta_path.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+    return {}
 
 
 def build_padesce_source_index(
