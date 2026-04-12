@@ -553,11 +553,11 @@
   <section class="panel tab-panel{% if active_tab == 'formateurs' %} active{% endif %}" data-panel="formateurs-chapeau">
     <div class="panel-head">
       <div>
-        <strong>Chapeau de satisfaction (Apprenants)</strong>
-        <div class="row-meta">{{ class_chapeau.title }}</div>
+        <strong>Chapeau de satisfaction (Formateurs)</strong>
+        <div class="row-meta">{{ formateur_chapeau.title }}</div>
       </div>
-      <span class="badge{% if class_chapeau.has_data %} badge-ok{% else %} badge-wait{% endif %}">
-        {{ class_chapeau.formulaires_remplis }} formulaire(s) rempli(s)
+      <span class="badge{% if formateur_chapeau.has_data %} badge-ok{% else %} badge-wait{% endif %}">
+        {{ formateur_chapeau.formulaires_remplis }} formulaire(s) rempli(s)
       </span>
     </div>
     <div class="table-wrap">
@@ -569,7 +569,7 @@
           </tr>
         </thead>
         <tbody>
-          {% for item in class_chapeau.rows %}
+          {% for item in formateur_chapeau.rows %}
             <tr>
               <td>{{ item.label }}</td>
               <td>{% if item.count %}{{ item.note }} / 5{% else %}-{% endif %}</td>

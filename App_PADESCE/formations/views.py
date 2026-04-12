@@ -721,6 +721,55 @@ def _build_class_chapeau(classe_code: str, appels, source_bundle: dict | None = 
     }
 
 
+def _build_formateur_chapeau(classe_code: str, formateur_appels) -> dict:
+    """Build a satisfaction summary for formateurs in a class."""
+    from App_PADESCE.satisfaction_apprenants.views import _dashboard_chapeau_title
+    
+    # Use the formateur fields with labels from the current module
+    formateur_fields_with_labels = FORMATEUR_SCORE_FIELDS
+    
+    question_values: dict[str, list[int]] = {field: [] for _, field in formateur_fields_with_labels}
+    respondent_keys: set[str] = set()
+    
+    for row in formateur_appels:
+        # Check if this formateur call has form data
+        if not any(getattr(row, field, None) for _, field in formateur_fields_with_labels):
+            continue
+            
+        respondent_key = str(row.reference_code or row.source_contact or "").strip()
+        if respondent_key:
+            respondent_keys.add(respondent_key)
+        
+        # Collect scores for each field
+        for _, field in formateur_fields_with_labels:
+            value = getattr(row, field, None)
+            if value not in (None, ""):
+                question_values[field].append(int(value))
+    
+    question_rows = []
+    for label, field in formateur_fields_with_labels:
+        values = question_values.get(field, [])
+        average = round(sum(values) / len(values), 2) if values else 0
+        question_rows.append(
+            {
+                "field": field,
+                "label": label,
+                "note": average,
+                "count": len(values),
+            }
+        )
+    
+    return {
+        "title": _dashboard_chapeau_title(classe_code),
+        "rows": question_rows,
+        "presence_rows": [],  # Formateurs don't have presence data
+        "presence_taux_avg": 0,
+        "respondents_count": len(respondent_keys),
+        "formulaires_remplis": len(respondent_keys),
+        "has_data": any(item["count"] for item in question_rows),
+    }
+
+
 def _build_formateur_rows(rows, *, back_url: str):
     count_map = {}
     for row in rows:
@@ -1067,6 +1116,7 @@ def class_analysis_detail(request, code: str):
     formateur_rows = _build_formateur_rows(formateur_appels, back_url=formateur_back_url)
     summary = _entity_summary(apprenant_rows, formateur_rows)
     class_chapeau = _build_class_chapeau(classe.code, apprenant_appels, source_bundle=source_bundle)
+    formateur_chapeau = _build_formateur_chapeau(classe.code, formateur_appels)
 
     channel_link = ""
     try:
@@ -1101,6 +1151,7 @@ def class_analysis_detail(request, code: str):
             "active_tab": active_tab,
             "class_links": [],
             "class_chapeau": class_chapeau,
+            "formateur_chapeau": formateur_chapeau,
             "matching_note": (
                 "Rattachement formateurs via prestataire, " "beneficiaire, cohorte et formation."
             ),
