@@ -486,13 +486,13 @@ def _analysis_source_record_for_appel(source_bundle: dict | None, appel: Appel) 
 
 def _prestation_formateur_candidates(prestation: Prestation, source_bundle: dict | None = None):
     """Get all formateurs for a prestation, filtering by prestataire/beneficiaire.
-    
+
     First tries to get formateurs from the Excel source data (source_bundle),
     then falls back to database (AppelFormateur).
     """
     if not prestation:
         return []
-    
+
     prestataire_name = str(
         getattr(getattr(prestation, "prestataire", None), "raison_sociale", "") or ""
     ).strip()
@@ -500,9 +500,9 @@ def _prestation_formateur_candidates(prestation: Prestation, source_bundle: dict
         getattr(getattr(prestation, "beneficiaire", None), "nom_structure", "") or ""
     ).strip()
     formation_name = str(getattr(getattr(prestation, "formation", None), "nom", "") or "").strip()
-    
+
     rows = []
-    
+
     # STRATEGY 1: Try to get formateurs from source_bundle (Excel data)
     if source_bundle:
         source_records = source_bundle.get("records", {}) or {}
@@ -510,49 +510,52 @@ def _prestation_formateur_candidates(prestation: Prestation, source_bundle: dict
             record_dict = dict(record) if not isinstance(record, dict) else record
             record_prestataire = str(record_dict.get("prestataire") or "").strip()
             record_beneficiaire = str(record_dict.get("beneficiaire") or "").strip()
-            
+
             # Match if prestataire OR beneficiaire matches
-            if (prestataire_name and record_prestataire.lower() == prestataire_name.lower()) or \
-               (beneficiaire_name and record_beneficiaire.lower() == beneficiaire_name.lower()):
+            if (prestataire_name and record_prestataire.lower() == prestataire_name.lower()) or (
+                beneficiaire_name and record_beneficiaire.lower() == beneficiaire_name.lower()
+            ):
                 rows.append(SimpleNamespace(**record_dict))
-    
+
     # STRATEGY 2: Fall back to database if no source_bundle or no results
     if not rows:
         # Get formateurs filtered by prestataire OR beneficiaire (not AND)
         # This ensures we return all formateurs that match either the prestataire or beneficiaire
         queryset = AppelFormateur.objects.filter(is_active=True).select_related("locked_by")
-        
+
         filters = Q()
         if prestataire_name:
             filters |= Q(prestataire__iexact=prestataire_name)
         if beneficiaire_name:
             filters |= Q(beneficiaire__iexact=beneficiaire_name)
-        
+
         if filters:
             queryset = queryset.filter(filters)
-        
+
         rows = list(queryset.order_by("session_date", "numero_seance", "reference_code"))
-    
+
     # Optional: Apply formation matching as a secondary filter
     # If we have formation matches, prioritize them; otherwise return all rows
     if formation_name and rows:
-        matched_rows = [row for row in rows if _formation_matches(formation_name, getattr(row, "formation", ""))]
+        matched_rows = [
+            row for row in rows if _formation_matches(formation_name, getattr(row, "formation", ""))
+        ]
         if matched_rows:
             rows = matched_rows
-    
+
     return rows
 
 
 def _class_formateur_candidates(classe: Classe, source_bundle: dict | None = None):
     """Get all formateurs linked to the prestation of this classe.
-    
+
     First tries to get formateurs from the Excel source data (source_bundle),
     then falls back to database (AppelFormateur).
     """
     prestation = getattr(classe, "prestation", None)
     if not prestation:
         return []
-    
+
     # Get prestataire and beneficiaire names
     prestataire_name = str(
         getattr(getattr(prestation, "prestataire", None), "raison_sociale", "") or ""
@@ -561,9 +564,9 @@ def _class_formateur_candidates(classe: Classe, source_bundle: dict | None = Non
         getattr(getattr(prestation, "beneficiaire", None), "nom_structure", "") or ""
     ).strip()
     formation_name = str(getattr(getattr(prestation, "formation", None), "nom", "") or "").strip()
-    
+
     all_rows = []
-    
+
     # STRATEGY 1: Try to get formateurs from source_bundle (Excel data)
     if source_bundle:
         source_records = source_bundle.get("records", {}) or {}
@@ -571,23 +574,24 @@ def _class_formateur_candidates(classe: Classe, source_bundle: dict | None = Non
             record_dict = dict(record) if not isinstance(record, dict) else record
             record_prestataire = str(record_dict.get("prestataire") or "").strip()
             record_beneficiaire = str(record_dict.get("beneficiaire") or "").strip()
-            
+
             # Match if prestataire OR beneficiaire matches
-            if (prestataire_name and record_prestataire.lower() == prestataire_name.lower()) or \
-               (beneficiaire_name and record_beneficiaire.lower() == beneficiaire_name.lower()):
+            if (prestataire_name and record_prestataire.lower() == prestataire_name.lower()) or (
+                beneficiaire_name and record_beneficiaire.lower() == beneficiaire_name.lower()
+            ):
                 all_rows.append(SimpleNamespace(**record_dict))
-    
+
     # STRATEGY 2: Fall back to database if no source_bundle or no results
     if not all_rows:
         all_rows = _prestation_formateur_candidates(prestation, source_bundle=source_bundle)
-    
+
     if not all_rows:
         return []
-    
+
     # Optional: Apply additional filtering by cohorte and formation if available
     # But don't exclude results if there's no match - just prioritize matches
     class_cohorte = str(getattr(classe, "cohorte", "") or "").strip()
-    
+
     # Try to find exact matches first
     exact_matches = []
     for row in all_rows:
@@ -597,7 +601,7 @@ def _class_formateur_candidates(classe: Classe, source_bundle: dict | None = Non
         elif formation_name and _formation_matches(formation_name, getattr(row, "formation", "")):
             if row not in exact_matches:
                 exact_matches.append(row)
-    
+
     # Return exact matches if available, else return all rows from prestation
     return exact_matches if exact_matches else all_rows
 
@@ -761,7 +765,11 @@ def _build_class_chapeau(classe_code: str, appels, source_bundle: dict | None = 
 
     # Taux de participation: au moins un PR sur les 4 contrôles
     participation_count = sum(1 for item in presence_taux_values if item > 0)
-    participation_rate = round((participation_count / len(presence_taux_values)) * 100, 2) if presence_taux_values else 0
+    participation_rate = (
+        round((participation_count / len(presence_taux_values)) * 100, 2)
+        if presence_taux_values
+        else 0
+    )
 
     # Taux de personne formé: sur la base des appels liés à la classe qui sont en succès
     total_calls = len(appels)
@@ -800,28 +808,28 @@ def _build_class_chapeau(classe_code: str, appels, source_bundle: dict | None = 
 def _build_formateur_chapeau(classe_code: str, formateur_appels) -> dict:
     """Build a satisfaction summary for formateurs in a class."""
     from App_PADESCE.satisfaction_apprenants.views import _dashboard_chapeau_title
-    
+
     # Use the formateur fields with labels from the current module
     formateur_fields_with_labels = FORMATEUR_SCORE_FIELDS
-    
+
     question_values: dict[str, list[int]] = {field: [] for _, field in formateur_fields_with_labels}
     respondent_keys: set[str] = set()
-    
+
     for row in formateur_appels:
         # Check if this formateur call has form data
         if not any(getattr(row, field, None) for _, field in formateur_fields_with_labels):
             continue
-            
+
         respondent_key = str(row.reference_code or row.source_contact or "").strip()
         if respondent_key:
             respondent_keys.add(respondent_key)
-        
+
         # Collect scores for each field
         for _, field in formateur_fields_with_labels:
             value = getattr(row, field, None)
             if value not in (None, ""):
                 question_values[field].append(int(value))
-    
+
     question_rows = []
     for label, field in formateur_fields_with_labels:
         values = question_values.get(field, [])
@@ -834,7 +842,7 @@ def _build_formateur_chapeau(classe_code: str, formateur_appels) -> dict:
                 "count": len(values),
             }
         )
-    
+
     return {
         "title": _dashboard_chapeau_title(classe_code),
         "rows": question_rows,
@@ -1117,7 +1125,6 @@ def formation_list(request):
     return render(request, "formations/end.html", {"prestations": prestations})
 
 
-@require_analysis_access
 def class_analysis_detail(request, code: str):
     classe = (
         Classe.objects.select_related(
@@ -1319,7 +1326,9 @@ def prestation_analysis_detail(request, code: str):
     apprenant_rows = _build_apprenant_rows(apprenant_appels, back_url=apprenant_back_url)
     formateur_rows = _build_formateur_rows(formateur_appels, back_url=formateur_back_url)
     summary = _entity_summary(apprenant_rows, formateur_rows)
-    class_chapeau = _build_class_chapeau(prestation.code, apprenant_appels, source_bundle=source_bundle)
+    class_chapeau = _build_class_chapeau(
+        prestation.code, apprenant_appels, source_bundle=source_bundle
+    )
     formateur_chapeau = _build_formateur_chapeau(prestation.code, formateur_appels)
 
     return render(
