@@ -172,7 +172,12 @@ BENEFICIAIRES = [
 
 
 def clean_invalid_appel_classes(apps, schema_editor):
-    Appel = apps.get_model("appels", "Appel")
+    try:
+        Appel = apps.get_model("appels", "Appel")
+    except LookupError:
+        # Some CI/test contexts load a reduced app registry without "appels".
+        # In that case there is nothing to clean for this relation.
+        return
     Classe = apps.get_model("formations", "Classe")
     valid_ids = set(Classe.objects.values_list("id", flat=True))
     if not valid_ids:
