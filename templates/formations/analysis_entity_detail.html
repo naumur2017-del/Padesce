@@ -894,8 +894,13 @@
           <td>{{ row.formateur_telephone|default:row.telephone|default:"-" }}</td>
           <td>{{ row.formation|default:"-" }}</td>
           <td>{{ row.cohorte|default:"-" }}</td>
-          <td>{% if row.session_date %}{{ row.session_date|date:"d/m/Y" }}{% else %}{{ row.date_label|default:"-" }}{%
-            endif %}</td>
+          <td>
+            {% if row.session_date %}
+            {{ row.session_date|date:"d/m/Y" }}
+            {% else %}
+            {{ row.date_label|default:"-" }}
+            {% endif %}
+          </td>
           <td>{{ row.statut_label }}</td>
           <td>
             {% if row.has_audio %}
@@ -911,8 +916,14 @@
             {% if row.has_form and row.form_state %}
             <div class="synth-block">
               {% for label, value in row.form_state.score_rows %}
-              <div class="synth-row"><span class="synth-label">{{ label }}:</span> {% if value %}{{ value }}/5{% else
-                %}—{% endif %}</div>
+              <div class="synth-row">
+                <span class="synth-label">{{ label }}:</span>
+                {% if value %}
+                {{ value }}/5
+                {% else %}
+                —
+                {% endif %}
+              </div>
               {% endfor %}
               {% for label, value in row.form_state.text_rows %}
               {% if value %}
