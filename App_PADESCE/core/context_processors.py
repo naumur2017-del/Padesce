@@ -6,13 +6,13 @@ from App_PADESCE.core.access import has_analysis_access, has_consultant_access
 from App_PADESCE.core.middleware import strip_path_prefix
 
 PAGE_TITLE_BY_PREFIX: tuple[tuple[str, str], ...] = (
-    ("/appels-formateurs/", "Appel Formateur"),
+    ("/appels-formateurs/", "Appels Padesce"),
     ("/appels/", "Appels Padesce"),
     ("/backup/", "Backup"),
     ("/reporting/documentation/", "Documentation Reporting"),
-    ("/satisfaction-apprenants/analyse/", "Analyse Enquete Apprenants"),
+    ("/satisfaction-apprenants/analyse/", "Analyses de satisfaction"),
     ("/satisfaction-apprenants/", "Enquete Apprenants"),
-    ("/satisfaction-formateurs/analyse/", "Analyse Enquete Formateur"),
+    ("/satisfaction-formateurs/analyse/", "Analyses de satisfaction"),
     ("/satisfaction-formateurs/", "Enquete Formateur"),
     ("/reporting/", "Rapport"),
     ("/suivi-utilisateurs/", "Suivi Utilisateurs"),
@@ -81,19 +81,12 @@ def _build_menu_items(user, path: str, consultant_only: bool) -> list[dict[str, 
             }
         )
 
-    add_item("Appels Padesce", _safe_reverse("appels_index"), "/appels/")
     add_item("Dashboard", _safe_reverse("home"), "/dashboard/")
 
     if superadmin_access:
         add_item("Backup", _safe_reverse("backup_dashboard"), "/backup/")
 
     if analysis_access:
-        add_item(
-            "Analyses de satisfaction",
-            _safe_reverse("satisfaction_dashboard"),
-            "/satisfaction-apprenants/",
-            "/satisfaction-formateurs/",
-        )
         add_item(
             "Documentation Reporting",
             _safe_reverse("reporting_manual"),

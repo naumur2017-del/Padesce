@@ -452,7 +452,7 @@ def _bundled_terminated_prestations_count(source_key: str = "cutoff") -> int:
 
 
 def _bundled_vague1_apprenants_count(source_key: str = "cutoff") -> int:
-    """Fallback: apprenants source des prestations terminées (Vague 1), depuis métadonnées embarquées."""
+    """Fallback: apprenants source des prestations terminées (Vague 1)."""
     try:
         from App_PADESCE.reporting.network_excel import load_bundled_source_meta
 
@@ -1031,7 +1031,7 @@ def _consultant_formateurs_dashboard_context(request):
         if row.audio_file and row.audio_file.name:
             try:
                 row.consultant_has_audio = row.audio_file.storage.exists(row.audio_file.name)
-            except:
+            except Exception:
                 pass
         row.consultant_has_form = formateur_has_any_form_data(row)
         # Normalization for template compatibility
@@ -1139,7 +1139,7 @@ def _consultant_formateurs_dashboard_context(request):
     page_number = request.GET.get("page", 1)
     try:
         page_obj = paginator.page(page_number)
-    except:
+    except Exception:
         page_obj = paginator.page(1)
 
     # Filter Map
@@ -1194,7 +1194,10 @@ def _consultant_formateurs_dashboard_context(request):
         "card_primary_label": "Formations analysées",
         "card_secondary_label": "Cohortes analysées",
         "panel_title": "Appels PADESCE formateurs terminés",
-        "panel_subtitle": "Les audios de plus d'une minute remontent en tête. Cliquez sur une ligne pour ouvrir le dossier complet.",
+        "panel_subtitle": (
+            "Les audios de plus d'une minute remontent en tête. "
+            "Cliquez sur une ligne pour ouvrir le dossier complet."
+        ),
         "search_placeholder": "Recherche formateur.",
         "table_col_name_label": "Nom formateur",
         "table_col_id_label": "ID Formateur",
@@ -1396,7 +1399,7 @@ def _build_consultant_dashboard_context(request):
         if row.audio_file and row.audio_file.name:
             try:
                 row.consultant_has_audio = row.audio_file.storage.exists(row.audio_file.name)
-            except:
+            except Exception:
                 pass
 
     # Global audio check for summary cards
@@ -1406,7 +1409,7 @@ def _build_consultant_dashboard_context(request):
             try:
                 if r.audio_file.storage.exists(r.audio_file.name):
                     global_audio_count += 1
-            except:
+            except Exception:
                 pass
 
     analysis_recovery = {
@@ -1545,7 +1548,10 @@ def _build_consultant_dashboard_context(request):
         "card_primary_label": "Prestations analysées",
         "card_secondary_label": "Classes analysées",
         "panel_title": "Appels PADESCE terminés",
-        "panel_subtitle": "Les audios de plus d'une minute remontent en tête. Cliquez sur une ligne pour ouvrir le dossier complet.",
+        "panel_subtitle": (
+            "Les audios de plus d'une minute remontent en tête. "
+            "Cliquez sur une ligne pour ouvrir le dossier complet."
+        ),
         "search_placeholder": "Recherche apprenant...",
         "table_col_name_label": "Nom apprenant",
         "table_col_id_label": "Apprenant ID",

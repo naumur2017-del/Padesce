@@ -61,6 +61,9 @@
   .badge-ok   { background:rgba(34,197,94,.12); color:#166534; }
   .badge-none { background:rgba(107,114,128,.12); color:#4b5563; }
   .badge-info { background:rgba(111,60,195,.1); color:var(--accent-strong); }
+  .badge-prest { background:rgba(59,130,246,.1); color:#1d4ed8; font-size:.72rem; padding:2px 8px; border-radius:999px; font-weight:600; }
+  .badge-benef { background:rgba(234,88,12,.1); color:#9a3412; font-size:.72rem; padding:2px 8px; border-radius:999px; font-weight:600; }
+  .orgs-row { display:flex; flex-wrap:wrap; gap:4px; margin-top:4px; }
   .spinner-inline { display:inline-block; width:14px; height:14px; border:2px solid rgba(111,60,195,.3);
                     border-top-color:var(--accent); border-radius:50%; animation:spin .7s linear infinite; }
   @keyframes spin { to { transform:rotate(360deg); } }
@@ -90,7 +93,12 @@
         <h1>Gestion : Formateurs &amp; Prestations</h1>
         <p>Liez chaque formateur aux prestations correspondantes · Définissez la ville de chaque prestation pour les cartes</p>
       </div>
-      <div style="display:flex; gap:8px;">
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <form method="post" style="display:inline;" onsubmit="return confirm('Créer les formateurs manquants depuis les appels ?\nLes noms seront à compléter ensuite via l\'admin.')">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="sync_formateurs">
+          <button type="submit" class="btn btn-accent btn-sm">&#x21BB; Sync depuis les appels</button>
+        </form>
         <a href="{% url 'satisfaction_formateurs_dashboard' %}" class="btn btn-ghost btn-sm">&#8592; Retour à l'analyse</a>
       </div>
     </div>
@@ -125,10 +133,17 @@
         {% with form_linked=form.prestations.all %}
         <div class="form-card" data-search="{{ form.code|lower }} {{ form.nom_complet|lower }}">
           <div class="form-card-header" onclick="toggleCard(this)">
-            <div>
+            <div style="flex:1; min-width:0;">
               <span class="form-code">{{ form.code }}</span>
               <span class="form-name" style="display:block;">{{ form.nom_complet }}</span>
               {% if form.specialite %}<span style="font-size:.76rem; color:var(--muted);">{{ form.specialite }}</span>{% endif %}
+              {% if form.telephone %}<span style="font-size:.75rem; color:var(--muted); font-family:monospace;">&#128222; {{ form.telephone }}</span>{% endif %}
+              {% if form.appel_prestataires or form.appel_beneficiaires %}
+              <div class="orgs-row">
+                {% for p in form.appel_prestataires %}<span class="badge-prest">&#127970; {{ p|truncatechars:30 }}</span>{% endfor %}
+                {% for b in form.appel_beneficiaires %}<span class="badge-benef">&#127942; {{ b|truncatechars:30 }}</span>{% endfor %}
+              </div>
+              {% endif %}
             </div>
             <span class="badge badge-info" id="badge-form-{{ form.pk }}">
               {{ form_linked|length }} prestation{{ form_linked|length|pluralize }}

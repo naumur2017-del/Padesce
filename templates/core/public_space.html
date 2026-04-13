@@ -391,7 +391,7 @@
 
 <div class="public-switches">
   <div class="public-switch-group">
-    <div class="public-switch-label">Glissement entre les tables</div>
+    <div class="public-switch-label">Naviguer entre les tables</div>
     <div class="segment-control" role="tablist" aria-label="Choix de la section">
       {% for item in page_tabs %}
         <a class="segment-link{% if item.active %} active{% endif %}" href="{{ item.url }}">{{ item.label }}</a>
@@ -411,7 +411,7 @@
 
 {% if section == "principal" and scope == "apprenant" %}
   <section class="public-panel">
-    <h2>Chapeau contrôle de présence</h2>
+    <div class="title-with-help"><h2>Chapeau contrôle de présence</h2>{% include "includes/help_tooltip.html" with title="Contrôle de présence" text="Indicateurs synthétiques du taux de présence aux formations, calculés sur les appels réussis et les formulaires remplis." section="perimetre-et-sources-de-donnees" %}</div>
     <div class="table-wrap">
       <table class="stats-table">
         <thead>
@@ -430,7 +430,7 @@
   </section>
 
   <section class="public-panel">
-    <h2>Chapeau satisfaction apprenants</h2>
+    <div class="title-with-help"><h2>Chapeau satisfaction apprenants</h2>{% include "includes/help_tooltip.html" with title="Satisfaction apprenants" text="Score moyen de satisfaction calculé sur les 9 questions (Q1-Q9) de l'enquête, échelle 1-5." section="methodologie-de-calcul-et-formules" %}</div>
     <div class="table-wrap">
       <table class="stats-table">
         <thead>
@@ -445,36 +445,6 @@
       </table>
     </div>
   </section>
-
-  {% if principal.analysis_recovery.available %}
-  <section class="public-panel">
-    <h2>Pilotage des prestations analysées (Cutoff)</h2>
-    {% if principal.analysis_recovery.top_missing %}
-    <div class="table-wrap" style="margin-top:12px;">
-      <table>
-        <thead>
-          <tr>
-            <th>Prestation</th>
-            <th>Prestataire</th>
-            <th>Bénéficiaire</th>
-            <th>Classes</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for item in principal.analysis_recovery.top_missing %}
-          <tr>
-            <td><a href="{% url 'prestation_analysis_detail' item.prestation_id %}">{{ item.prestation_id }}</a></td>
-            <td>{{ item.prestataire|default:"-" }}</td>
-            <td>{{ item.beneficiaire|default:"-" }}</td>
-            <td>{{ item.classe_count|default:0 }}</td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-    {% endif %}
-  </section>
-  {% endif %}
 
   <div class="public-grid v1-reordered">
     <article class="public-card"><div class="value">{{ principal.card_vague1_total }}</div><div class="label">Apprenants Vague 1</div></article>
@@ -493,7 +463,7 @@
   </div>
 
   <section class="public-panel">
-    <h2>Page principale apprenant</h2>
+    <div class="title-with-help"><h2>Page principale apprenant</h2>{% include "includes/help_tooltip.html" with title="Page apprenant" text="Tableau détaillé des apprenants avec filtres par bénéficiaire, prestataire, classe et fenêtre. C1-C4 = nombre d'appels à chaque période." section="architecture-des-pages" %}</div>
     <form method="get" class="public-toolbar">
       <input type="hidden" name="scope" value="apprenant">
       <input type="hidden" name="section" value="principal">
@@ -592,17 +562,36 @@
   </section>
 {% elif section == "principal" and scope == "formateur" %}
   <section class="public-panel">
-    <h2>Chapeau satisfaction formateurs</h2>
+    <div class="title-with-help"><h2>Chapeau satisfaction formateurs</h2>{% include "includes/help_tooltip.html" with title="Satisfaction formateurs" text="Évaluation sur 3 questions quantitatives — Q1 Prérequis apprenants, Q2 Interaction apprenants, Q3 Compétences acquises — échelle 1 (insuffisant) à 5 (excellent)." section="methodologie-de-calcul-et-formules" %}</div>
     <div class="table-wrap">
       <table class="stats-table">
         <thead>
           <tr>
-            <th>Indicateur</th>
-            <th>Valeur</th>
+            <th>Question</th>
+            <th title="Moyenne des réponses — échelle 1 à 5">Note /5</th>
           </tr>
         </thead>
         <tbody>
-          <tr><td>Satisfaction compétences</td><td><strong>{{ principal.summary_moyenne_competences|floatformat:2 }}/5</strong></td></tr>
+          <tr>
+            <td>Q1 — Prérequis apprenants <span style="display:block;font-size:.76rem;color:var(--muted);">Les apprenants avaient les prérequis nécessaires</span></td>
+            <td><strong>{{ principal.summary_moyenne_prerequis|floatformat:1 }}</strong></td>
+          </tr>
+          <tr>
+            <td>Q2 — Interaction apprenants <span style="display:block;font-size:.76rem;color:var(--muted);">Qualité des interactions formateur–apprenants</span></td>
+            <td><strong>{{ principal.summary_moyenne_interaction|floatformat:1 }}</strong></td>
+          </tr>
+          <tr>
+            <td>Q3 — Compétences acquises <span style="display:block;font-size:.76rem;color:var(--muted);">Compétences prévues effectivement transmises</span></td>
+            <td><strong>{{ principal.summary_moyenne_competences|floatformat:1 }}</strong></td>
+          </tr>
+          <tr style="background:rgba(111,60,195,.06);">
+            <td><strong>Moyenne générale Q1–Q3</strong></td>
+            <td>
+              <span style="font-weight:700;font-size:1.05rem;color:var(--accent-strong);">
+                {{ principal.summary_moyenne_generale|floatformat:1 }}/5
+              </span>
+            </td>
+          </tr>
         </tbody>
       </table>
     </div>
@@ -623,7 +612,7 @@
   </div>
 
   <section class="public-panel">
-    <h2>Page principale formateur</h2>
+    <div class="title-with-help"><h2>Page principale formateur</h2>{% include "includes/help_tooltip.html" with title="Page formateur" text="Tableau des appels formateurs avec statuts, formulaires et audio. Filtres par statut, prestataire, bénéficiaire, formation et cohorte." section="architecture-des-pages" %}</div>
     <form method="get" class="public-toolbar">
       <input type="hidden" name="scope" value="formateur">
       <input type="hidden" name="section" value="principal">
@@ -738,7 +727,7 @@
     <div class="stack">
       {% if scope == "apprenant" %}
       <section class="public-panel">
-        <h2>Résumé des classes</h2>
+        <div class="title-with-help"><h2>Résumé des classes</h2>{% include "includes/help_tooltip.html" with title="Résumé des classes" text="Vue consolidée par classe avec formation, prestation, cohorte, fenêtre et effectif total." section="perimetre-et-sources-de-donnees" %}</div>
         <div class="table-scroll-11" data-table="classes-table">
           <table>
             <thead>
@@ -748,7 +737,7 @@
                 <th>Prestation ID</th>
                 <th>Cohorte</th>
                 <th>Fenêtre</th>
-                <th>Total</th>
+                <th>Total Formulaire</th>
               </tr>
             </thead>
             <tbody>
@@ -776,7 +765,7 @@
       {% endif %}
 
       <section class="public-panel">
-        <h2>Résumé des prestations</h2>
+        <div class="title-with-help"><h2>Résumé des prestations</h2>{% include "includes/help_tooltip.html" with title="Résumé des prestations" text="Synthèse par prestation avec prestataire, bénéficiaire et moyenne de satisfaction si disponible." section="perimetre-et-sources-de-donnees" %}</div>
         <div class="table-scroll-11" data-table="prestations-table">
           <table>
             <thead>
@@ -784,19 +773,19 @@
                 {% if scope == "formateur" %}<th>Formation</th>{% else %}<th>Prestation ID</th>{% endif %}
                 <th>Prestataire</th>
                 <th>Bénéficiaire</th>
-                {% if scope == "apprenant" %}<th>Moyenne</th>{% elif scope == "formateur" %}<th>Cohorte</th>{% endif %}
+                {% if scope == "formateur" %}<th>Cohorte</th>{% endif %}
               </tr>
             </thead>
             <tbody>
               {% for item in overview.prestations %}
                 <tr>
-                  <td>{% if scope == "formateur" %}{{ item.formation|default:"-" }}{% else %}{% if item.url %}<a href="{{ item.url }}">{{ item.code }}</a>{% else %}{{ item.code|default:"-" }}{% endif %}{% endif %}</td>
+                  <td>{% if scope == "formateur" %}{{ item.formation|default:"-" }}{% else %}{% if item.url %}<a href="{{ item.url }}">{{ item.code|upper }}</a>{% else %}{{ item.code|default:"-"|upper }}{% endif %}{% endif %}</td>
                   <td>{{ item.prestataire|default:"-" }}</td>
                   <td>{{ item.beneficiaire|default:"-" }}</td>
-                  {% if scope == "apprenant" %}<td>{{ item.avg|floatformat:2 }}</td>{% elif scope == "formateur" %}<td>{{ item.cohorte|default:"-" }}</td>{% endif %}
+                  {% if scope == "formateur" %}<td>{{ item.cohorte|default:"-" }}</td>{% endif %}
                 </tr>
               {% empty %}
-                <tr><td colspan="{% if scope == 'formateur' %}4{% elif scope == 'apprenant' %}4{% else %}3{% endif %}" class="muted">Aucune prestation disponible.</td></tr>
+                <tr><td colspan="{% if scope == 'formateur' %}4{% else %}3{% endif %}" class="muted">Aucune prestation disponible.</td></tr>
               {% endfor %}
             </tbody>
           </table>
@@ -821,7 +810,7 @@
 
   <div class="stats-grid">
     <section class="public-panel{% if scope == "formateur" %} full-width{% endif %}">
-      <h2>Moyennes générales</h2>
+      <div class="title-with-help"><h2>Moyennes générales</h2>{% include "includes/help_tooltip.html" with title="Moyennes générales" text="Moyennes par indicateur de satisfaction calculées sur l'ensemble des réponses éligibles (seuil de 25% par classe)." section="methodologie-de-calcul-et-formules" %}</div>
       <div class="table-wrap">
         <table class="stats-table">
           <thead>
@@ -846,7 +835,7 @@
 
     {% if scope != "formateur" %}
     <section class="public-panel">
-      <h2>Carte des prestations</h2>
+      <div class="title-with-help"><h2>Carte des prestations</h2>{% include "includes/help_tooltip.html" with title="Carte géographique" text="Visualisation géographique des prestations par région avec scores de satisfaction. Nécessite données GPS." section="architecture-des-pages" %}</div>
       <div id="public-map" class="map-shell"></div>
       {{ stats.map_data|json_script:"public-map-data" }}
     </section>
@@ -855,7 +844,7 @@
 
   <div class="stats-grid">
     <section class="public-panel">
-      <h2>Top prestations</h2>
+      <div class="title-with-help"><h2>Top prestations</h2>{% include "includes/help_tooltip.html" with title="Top prestations" text="Classement des meilleures prestations par score global de satisfaction, avec région." section="methodologie-de-calcul-et-formules" %}</div>
       <div class="table-wrap">
         <table class="stats-table">
           <thead>
@@ -883,7 +872,7 @@
     </section>
 
     <section class="public-panel">
-      <h2>Prestations à améliorer</h2>
+      <div class="title-with-help"><h2>Prestations à améliorer</h2>{% include "includes/help_tooltip.html" with title="Prestations à améliorer" text="Prestations avec les scores de satisfaction les plus faibles, identifiées pour actions correctives." section="methodologie-de-calcul-et-formules" %}</div>
       <div class="table-wrap">
         <table class="stats-table">
           <thead>
@@ -920,18 +909,51 @@
       }
 
       const rankingData = JSON.parse(dataEl.textContent || "{}");
+      const REGION_ALIASES = {
+        "adamaoua": ["adamaoua"],
+        "centre": ["centre", "center"],
+        "est": ["est", "east"],
+        "extreme nord": ["extreme nord", "extrême nord", "far north"],
+        "littoral": ["littoral"],
+        "nord": ["nord", "north"],
+        "nord ouest": ["nord ouest", "nord-ouest", "north west", "north-west"],
+        "ouest": ["ouest", "west"],
+        "sud": ["sud", "south"],
+        "sud ouest": ["sud ouest", "sud-ouest", "south west", "south-west"],
+      };
+
+      const normalizeRegion = (value) =>
+        String(value || "")
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, " ")
+          .trim();
+
+      // Build a normalized lookup once, so FR/EN/case/accents all match.
+      const rankingDataNormalized = {};
+      Object.entries(rankingData || {}).forEach(([key, value]) => {
+        const normalizedKey = normalizeRegion(key);
+        if (!normalizedKey) return;
+        if (!rankingDataNormalized[normalizedKey]) {
+          rankingDataNormalized[normalizedKey] = [];
+        }
+        rankingDataNormalized[normalizedKey].push(...(Array.isArray(value) ? value : []));
+      });
+
       const lookupRegion = (rawName) => {
-        const normalized = String(rawName || "").trim();
-        const candidates = [
-          normalized,
-          normalized.toUpperCase(),
-          normalized.toLowerCase(),
-          normalized.replace(/\s+/g, " "),
-        ];
-        for (const key of candidates) {
-          if (rankingData[key]) {
-            return rankingData[key];
+        const normalizedRaw = normalizeRegion(rawName);
+        const candidateKeys = new Set();
+        if (normalizedRaw) {
+          candidateKeys.add(normalizedRaw);
+          for (const aliases of Object.values(REGION_ALIASES)) {
+            if (aliases.some((alias) => normalizeRegion(alias) === normalizedRaw)) {
+              aliases.forEach((alias) => candidateKeys.add(normalizeRegion(alias)));
+            }
           }
+        }
+        for (const key of candidateKeys) {
+          if (rankingDataNormalized[key]?.length) return rankingDataNormalized[key];
         }
         return [];
       };

@@ -1819,6 +1819,7 @@ from django.urls import reverse
 
 from App_PADESCE.reporting.app_report import (
     build_application_report,
+    export_application_report_anomalies_excel,
     export_application_report_csv,
     export_application_report_excel,
     export_application_report_word,
@@ -1901,6 +1902,26 @@ def application_report_export_word_view(request):
     return response
 
 
+@require_analysis_access
+def application_report_export_anomalies_excel_view(request):
+    start_date, end_date = parse_report_dates(request.GET.get("start"), request.GET.get("end"))
+    selected_class_code = (request.GET.get("classe") or "").strip()
+    report = build_application_report(
+        start_date,
+        end_date,
+        selected_class_code=selected_class_code,
+    )
+    payload = export_application_report_anomalies_excel(report)
+    class_suffix = f"_{slugify(selected_class_code)}" if selected_class_code else ""
+    filename = f"rapport_anomalies_{start_date}_{end_date}{class_suffix}.xlsx"
+    response = HttpResponse(
+        payload,
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return response
+
+
 @require_superadmin_access
 def application_report_send_mail_view(request):
     if request.method != "POST":
@@ -1943,3 +1964,22 @@ def reporting_manual_download_view(request):
     response = HttpResponse(payload, content_type="text/markdown; charset=utf-8")
     response["Content-Disposition"] = f'attachment; filename="{manual_path.name}"'
     return response
+
+
+def public_reporting_manual_view(request):
+    """Public access to reporting documentation (no login required)."""
+    anchor = request.GET.get("section", "")
+    try:
+        manual_path = get_reporting_manual_path()
+        markdown_text = load_reporting_manual_markdown()
+    except FileNotFoundError as exc:
+        raise Http404("Le manuel de reporting est introuvable.") from exc
+
+    context = {
+        "manual_filename": manual_path.name,
+        "manual_html": mark_safe(render_reporting_manual_html(markdown_text)),
+        "manual_download_url": reverse("reporting_manual_download"),
+        "anchor": anchor,
+        "is_public": True,
+    }
+    return render(request, "reporting/documentation_public.html", context)

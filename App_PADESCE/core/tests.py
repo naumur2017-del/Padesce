@@ -72,9 +72,8 @@ class DashboardVisibilityTests(TestCase):
         response = self.client.get(reverse("home"))
 
         self.assertContains(response, "Appels Padesce")
-        self.assertContains(response, "Appel Formateur")
         self.assertContains(response, "CGA")
-        self.assertNotContains(response, "Analyse Enquete Apprenants")
+        self.assertNotContains(response, "Analyses de satisfaction")
         self.assertNotContains(response, "Backup")
         self.assertNotContains(response, "Admin")
 
@@ -83,9 +82,8 @@ class DashboardVisibilityTests(TestCase):
 
         response = self.client.get(reverse("home"))
 
-        self.assertContains(response, "Analyse Enquete Apprenants")
+        self.assertContains(response, "Analyses de satisfaction")
         self.assertNotContains(response, "Appels Padesce")
-        self.assertNotContains(response, "Appel Formateur")
         self.assertNotContains(response, "Analyse Enquete Formateur")
         self.assertNotContains(response, 'href="/reporting/"', html=False)
         self.assertNotContains(response, 'href="/cga/"', html=False)
@@ -695,7 +693,7 @@ class PublicConsultantAccessTests(TestCase):
             is_active=True,
             audio_file="padesce/tests/prioritaire.mp3",
         )
-        audio_only = Appel.objects.create(
+        Appel.objects.create(
             code="APP951",
             nom="Beta Audio",
             classe_label="CLA001",

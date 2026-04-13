@@ -40,10 +40,53 @@
     display: inline-flex; align-items: center; gap: 10px; padding: 12px 16px; border-radius: 14px;
     border: 1px dashed rgba(111,60,195,0.3); background: rgba(111,60,195,0.08);
   }
-  .input-file input[type="file"] { background: transparent; border: none; padding: 4px; }
-  .input-file input[type="file"]::file-selector-button {
+  .input-file input[type="file"]:not(.file-input-fr-native) { background: transparent; border: none; padding: 4px; }
+  .input-file input[type="file"]:not(.file-input-fr-native)::file-selector-button {
     margin-right: 10px; padding: 8px 12px; border-radius: 10px; border: 1px solid rgba(111,60,195,0.3);
     background: #fff; font-weight: 600; cursor: pointer;
+  }
+  .file-input-fr {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .file-input-fr-native {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+  .file-input-fr-btn {
+    margin: 0;
+    padding: 8px 12px;
+    border-radius: 10px;
+    border: 1px solid rgba(111,60,195,0.3);
+    background: #fff;
+    font-weight: 600;
+    cursor: pointer;
+    font-size: inherit;
+    font-family: inherit;
+    line-height: inherit;
+  }
+  .file-input-fr-btn:hover {
+    background: rgba(111,60,195,0.06);
+  }
+  .file-input-fr-name {
+    font-size: 0.9rem;
+    color: var(--muted);
+    max-width: 240px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .input-file .file-input-fr {
+    position: relative;
   }
   .file-label { font-weight: 700; color: var(--accent-strong); }
   .import-panel { display: grid; gap: 12px; }
@@ -121,8 +164,8 @@
 
 <div class="scope-switch">
   <div class="scope-tabs" role="tablist" aria-label="Navigation des appels">
-    <a class="scope-tab active" href="{% url 'appels_index' %}" aria-current="page">Appels Apprenants</a>
-    <a class="scope-tab" href="{% url 'formateurs_index' %}">Appels Formateurs</a>
+    <a class="scope-tab active" href="{% url 'appels_index' %}" aria-current="page">Appels apprenants</a>
+    <a class="scope-tab" href="{% url 'formateurs_index' %}">Appels formateurs</a>
   </div>
   <div class="scope-note">Basculer entre les appels apprenants PADESCE et les appels formateurs.</div>
 </div>
@@ -142,49 +185,65 @@
 </div> -->
 
 {% if user.is_superuser %}
-  <p class="subtitle" style="color:var(--muted);">Uploader un fichier xlsx/xlsm (Sheet1) pour charger les contacts (Nom et prénom, Bénéficiaires, Prestataire, Lieux, Classe, Téléphones).</p>
+  <p class="subtitle" style="color:var(--muted);">Importer un fichier xlsx/xlsm (Feuil1) pour charger les contacts (Noms et Prénoms, Bénéficiaires, Prestataires, Lieux, Classes, Téléphones).</p>
   <div class="panel import-panel">
-    <div class="import-title">Importation des contacts</div>
+    <div class="import-title">Importer des contacts</div>
     <form method="post" enctype="multipart/form-data" class="form-inline" style="gap:12px; flex-wrap:wrap;">
       {% csrf_token %}
       <input type="hidden" name="update_mode" value="append">
       <div class="input-file">
-        <span class="file-label">Choisir fichier (Sheet1)</span>
-        <input type="file" name="file" accept=".xlsx,.xlsm" required />
+        <span class="file-label">Choisir un fichier (Feuil1)</span>
+        <div class="file-input-fr">
+          <input type="file" id="fr-import-append" name="file" accept=".xlsx,.xlsm" required class="file-input-fr-native js-fr-file-input" />
+          <label for="fr-import-append" class="file-input-fr-btn">Parcourir</label>
+          <span class="file-input-fr-name js-fr-file-name">Aucun fichier sélectionné</span>
+        </div>
       </div>
-      <button type="submit" class="btn btn-primary btn-sm">Uploader (ajouter/combiner)</button>
+      <button type="submit" class="btn btn-primary btn-sm">Importer (ajouter/combiner)</button>
     </form>
     <div class="import-divider"></div>
     <form method="post" enctype="multipart/form-data" class="form-inline" style="gap:12px; flex-wrap:wrap;">
       {% csrf_token %}
       <input type="hidden" name="update_mode" value="replace">
       <div class="input-file">
-        <span class="file-label">Choisir fichier (Sheet1)</span>
-        <input type="file" name="file" accept=".xlsx,.xlsm" required />
+        <span class="file-label">Choisir un fichier (Feuil1)</span>
+        <div class="file-input-fr">
+          <input type="file" id="fr-import-replace" name="file" accept=".xlsx,.xlsm" required class="file-input-fr-native js-fr-file-input" />
+          <label for="fr-import-replace" class="file-input-fr-btn">Parcourir</label>
+          <span class="file-input-fr-name js-fr-file-name">Aucun fichier sélectionné</span>
+        </div>
       </div>
-      <button type="submit" class="btn btn-secondary btn-sm">Uploader (écrase l'existant)</button>
+      <button type="submit" class="btn btn-secondary btn-sm">Importer (écrase l'existant)</button>
     </form>
   </div>
   <div class="panel">
-    <p class="subtitle" style="color:var(--muted); margin-bottom:8px;">Importer un fichier qui met uniquement à jour les colonnes "Type formation déclarée" et "Formation Padesce" pour les apprenants déjà présents sans modifier les autres informations.</p>
+    <p class="subtitle" style="color:var(--muted); margin-bottom:8px;">Importer un fichier qui met uniquement à jour les colonnes « Type formation déclarée » et « Formation Padesce » pour les apprenants déjà présents, sans modifier les autres informations.</p>
     <form method="post" enctype="multipart/form-data" class="form-inline" style="gap:12px; flex-wrap:wrap;">
       {% csrf_token %}
       <input type="hidden" name="update_mode" value="formation_meta">
       <div class="input-file">
-        <span class="file-label">Choisir fichier (Sheet1)</span>
-        <input type="file" name="file" accept=".xlsx,.xlsm" required />
+        <span class="file-label">Choisir un fichier (Feuil1)</span>
+        <div class="file-input-fr">
+          <input type="file" id="fr-import-formation" name="file" accept=".xlsx,.xlsm" required class="file-input-fr-native js-fr-file-input" />
+          <label for="fr-import-formation" class="file-input-fr-btn">Parcourir</label>
+          <span class="file-input-fr-name js-fr-file-name">Aucun fichier sélectionné</span>
+        </div>
       </div>
       <button type="submit" class="btn btn-ghost btn-sm">Mettre à jour les formations</button>
     </form>
   </div>
   <div class="panel import-panel">
-    <div class="import-title">Importations spécifiques</div>
+    <div class="import-title">Imports spécifiques</div>
     <form method="post" enctype="multipart/form-data" class="form-inline" style="gap:12px; flex-wrap:wrap;">
       {% csrf_token %}
       <input type="hidden" name="update_mode" value="non_forme_feuil2">
       <div class="input-file">
         <span class="file-label">Non formés (Feuil2)</span>
-        <input type="file" name="file" accept=".xlsm,.xlsx" required />
+        <div class="file-input-fr">
+          <input type="file" id="fr-import-non-forme" name="file" accept=".xlsm,.xlsx" required class="file-input-fr-native js-fr-file-input" />
+          <label for="fr-import-non-forme" class="file-input-fr-btn">Parcourir</label>
+          <span class="file-input-fr-name js-fr-file-name">Aucun fichier sélectionné</span>
+        </div>
       </div>
       <button type="submit" class="btn btn-primary btn-sm">Importer non formés (Feuil2)</button>
     </form>
@@ -193,18 +252,22 @@
       {% csrf_token %}
       <input type="hidden" name="update_mode" value="capef_sheet1">
       <div class="input-file">
-        <span class="file-label">Formés (Sheet1)</span>
-        <input type="file" name="file" accept=".xlsx" required />
+        <span class="file-label">Formés (Feuil1)</span>
+        <div class="file-input-fr">
+          <input type="file" id="fr-import-capef" name="file" accept=".xlsx" required class="file-input-fr-native js-fr-file-input" />
+          <label for="fr-import-capef" class="file-input-fr-btn">Parcourir</label>
+          <span class="file-input-fr-name js-fr-file-name">Aucun fichier sélectionné</span>
+        </div>
       </div>
-      <button type="submit" class="btn btn-secondary btn-sm">Importer formés (Sheet1)</button>
+      <button type="submit" class="btn btn-secondary btn-sm">Importer formés (Feuil1)</button>
     </form>
     <p class="subtitle" style="color:var(--muted); margin:6px 0 0;">Ces imports mettent à jour les enregistrements existants par code (sans suppression).</p>
   </div>
   <div class="panel">
-    <p class="subtitle" style="color:var(--muted); margin-bottom:8px;">Nettoyage global des doublons de numeros sur toutes les tables d'appels. Les doublons detectes sont desactives pour conserver l'historique.</p>
+    <p class="subtitle" style="color:var(--muted); margin-bottom:8px;">Nettoyage global des doublons de numéros sur toutes les tables d'appels. Les doublons détectés sont désactivés pour conserver l'historique.</p>
     <form method="post" action="{% url 'deduplicate_all_call_tables' %}">
       {% csrf_token %}
-      <button type="submit" class="btn btn-ghost btn-sm">Detecter et supprimer les doublons numeros</button>
+      <button type="submit" class="btn btn-ghost btn-sm">Détecter et supprimer les doublons de numéros</button>
     </form>
   </div>
 {% endif %}
@@ -224,7 +287,7 @@
       <option value="formulaire_avec_audio" {% if filters.status == "formulaire_avec_audio" %}selected{% endif %}>Formulaire avec Audio</option>
       <option value="en_cours" {% if filters.status == "en_cours" %}selected{% endif %}>En cours (ancien)</option>
       <option value="pause" {% if filters.status == "pause" %}selected{% endif %}>Pause (ancien)</option>
-      <option value="a_rappeler" {% if filters.status == "a_rappeler" %}selected{% endif %}>A rappeler (ancien)</option>
+      <option value="a_rappeler" {% if filters.status == "a_rappeler" %}selected{% endif %}>À rappeler (ancien)</option>
       <option value="termine" {% if filters.status == "termine" %}selected{% endif %}>Terminé (ancien)</option>
     </select>
     <select name="prestataire" class="input">
@@ -270,7 +333,7 @@
       {% endfor %}
     </select>
     <button type="submit" class="btn btn-primary btn-sm" style="padding:10px 14px;">Filtrer</button>
-    <a class="btn btn-ghost btn-sm" style="padding:10px 14px;" href="/appels/">Reset</a>
+    <a class="btn btn-ghost btn-sm" style="padding:10px 14px;" href="/appels/">Réinitialiser</a>
   </form>
 
   <div class="selection-bar">
@@ -289,14 +352,14 @@
 
   <div class="ops-summary">
     <div class="ops-tile">
-      <div class="ops-kicker">Classes masquees</div>
+      <div class="ops-kicker">Classes masquées</div>
       <strong>{{ hidden_class_summary.hidden_class_count }}</strong>
-      <div class="subtitle" style="margin:6px 0 0;">Objectif d'appels deja atteint (≥50%), retirees de la table et du filtre.</div>
+      <div class="subtitle" style="margin:6px 0 0;">Objectif d'appels déjà atteint (≥50 %), retirées de la table et du filtre.</div>
     </div>
     <div class="ops-tile">
       <div class="ops-kicker">Lignes allégées</div>
       <strong>{{ hidden_class_summary.hidden_appel_count }}</strong>
-      <div class="subtitle" style="margin:6px 0 0;">Lignes masquees pour garder visibles les classes encore a appeler.</div>
+      <div class="subtitle" style="margin:6px 0 0;">Lignes masquées pour garder visibles les classes encore à appeler.</div>
     </div>
     <div class="ops-tile" style="border-color: rgba(15,139,141,0.3); background: linear-gradient(180deg, rgba(15,139,141,0.1), rgba(255,255,255,0.97));">
       <div class="ops-kicker" style="color: #0f5f61;">Classes analysées ✅</div>
@@ -309,7 +372,7 @@
       <div class="subtitle" style="margin:6px 0 0;">Prestations terminées du consolidé cutoff avec au moins une classe joignable au seuil {{ analysis_threshold_label }}.</div>
     </div>
     <div class="ops-tile">
-      <div class="ops-kicker">Classes sans numero</div>
+      <div class="ops-kicker">Classes sans numéro</div>
       <strong>{{ hidden_class_summary.classes_without_callable_phone_count }}</strong>
       <div class="subtitle" style="margin:6px 0 0;">Elles ne comptent plus dans les objectifs apprenants de la classe.</div>
     </div>
@@ -332,9 +395,9 @@
     <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap;">
       <div>
         <div class="ops-kicker">Recommandations PADESCE</div>
-        <h3 style="margin:4px 0 0;">Classes a appeler pour finir plus vite les prestations</h3>
+        <h3 style="margin:4px 0 0;">Classes à appeler pour finir plus vite les prestations</h3>
       </div>
-      <div class="subtitle" style="margin:0; max-width:360px;">Priorite aux classes qui cloturent une prestation, puis a celles avec peu d'apprenants joignables et sans numeros dupliques.</div>
+      <div class="subtitle" style="margin:0; max-width:360px;">Priorité aux classes qui clôturent une prestation, puis à celles avec peu d'apprenants joignables et sans numéros dupliqués.</div>
     </div>
     {% if recommended_classes %}
       <div class="recommend-grid">
@@ -353,9 +416,9 @@
               <span class="recommend-chip">{{ item.termines }}/{{ item.callable_total }} joignables</span>
               <span class="recommend-chip">Reste {{ item.remaining_to_target }} appel{% if item.remaining_to_target|default:0 > 1 %}s{% endif %}</span>
               {% if item.duplicate_phone_total %}
-                <span class="recommend-chip">{{ item.duplicate_phone_total }} numero{% if item.duplicate_phone_total > 1 %}s{% endif %} duplique{% if item.duplicate_phone_total > 1 %}s{% endif %}</span>
+                <span class="recommend-chip">{{ item.duplicate_phone_total }} numéro{% if item.duplicate_phone_total > 1 %}s{% endif %} dupliqué{% if item.duplicate_phone_total > 1 %}s{% endif %}</span>
               {% else %}
-                <span class="recommend-chip">Aucun numero duplique</span>
+                <span class="recommend-chip">Aucun numéro dupliqué</span>
               {% endif %}
             </div>
             <p class="recommend-copy">{{ item.reason }}</p>
@@ -363,7 +426,7 @@
         {% endfor %}
       </div>
     {% else %}
-      <p class="recommend-empty">Aucune classe prioritaire detectee pour l'instant.</p>
+      <p class="recommend-empty">Aucune classe prioritaire détectée pour l'instant.</p>
     {% endif %}
   </div>
 
@@ -410,7 +473,7 @@
                 type="button"
                 class="btn-small primary js-start"
                 {% if a.status != "en_attente" and a.status != "a_rappeler" %}hidden{% endif %}
-              ><i class="fa-solid fa-phone"></i><span>Demarrer</span></button>
+              ><i class="fa-solid fa-phone"></i><span>Démarrer</span></button>
               <button
                 type="button"
                 class="btn-icon js-pause"
@@ -440,10 +503,10 @@
                 <canvas width="120" height="32" class="js-visual"></canvas>
               </div>
               <div class="audio-meta js-audio-controls" {% if not a.has_audio_file %}hidden{% endif %}>
-                <button type="button" class="btn-small js-play" {% if not a.has_audio_file %}disabled{% endif %}><i class="fa-solid fa-play"></i><span>Play</span></button>
+                <button type="button" class="btn-small js-play" {% if not a.has_audio_file %}disabled{% endif %}><i class="fa-solid fa-play"></i><span>Lecture</span></button>
                 <button type="button" class="btn-icon js-stop" {% if not a.has_audio_file %}disabled{% endif %} title="Stopper l'audio" aria-label="Stopper l'audio"><i class="fa-solid fa-stop"></i></button>
                 {% if a.has_audio_file %}
-                  <a class="btn-icon js-audio-download" href="{{ a.audio_file_url }}" download="{{ a.code }}-{{ a.nom|slugify }}.mp3" title="Telecharger l'audio" aria-label="Telecharger l'audio"><i class="fa-solid fa-download"></i></a>
+                  <a class="btn-icon js-audio-download" href="{{ a.audio_file_url }}" download="{{ a.code }}-{{ a.nom|slugify }}.mp3" title="Télécharger l'audio" aria-label="Télécharger l'audio"><i class="fa-solid fa-download"></i></a>
                 {% endif %}
                 <div class="progress"><div class="progress-fill"></div></div>
                 <span class="time-label">0:00</span>
@@ -453,7 +516,7 @@
           </td>
         </tr>
         {% empty %}
-        <tr><td colspan="14" style="text-align:center; color:var(--muted);">Aucun appel.</td></tr>
+        <tr><td colspan="15" style="text-align:center; color:var(--muted);">Aucun appel.</td></tr>
         {% endfor %}
       </tbody>
     </table>
@@ -473,7 +536,7 @@
       <!-- Numéros de pages -->
       <span style="color: var(--muted); font-size: 0.9rem; margin: 0 8px;">
         Page <strong>{{ page_obj.number }}</strong> sur <strong>{{ paginator.num_pages }}</strong>
-        ({{ appels_count }} appels total)
+        ({{ appels_count }} appels au total)
       </span>
       
       <!-- Bouton Suivant -->
@@ -572,12 +635,12 @@
     </div>
     <label class="modal-field">
       <input type="checkbox" id="js-modal-rappel" />
-      A rappeler
+      À rappeler
     </label>
     <label class="modal-field">
       <span>Quand :</span>
-      <input type="datetime-local" id="js-modal-rappel-at" disabled placeholder="mm/dd/yyyy --:-- --">
-      <span class="modal-hint">mm/dd/yyyy --:-- --</span>
+      <input type="datetime-local" id="js-modal-rappel-at" disabled placeholder="jj/mm/aaaa — hh:mm">
+      <span class="modal-hint">jj/mm/aaaa — hh:mm</span>
     </label>
     <label class="modal-field">
       <input type="checkbox" id="js-modal-deja-forme" />
@@ -626,7 +689,7 @@
         </label>
     </div>
     <div id="js-sat-vrai-nom-wrap" style="display:none; margin-bottom:10px;">
-       <input type="text" id="js-sat-vrai-nom" class="input" style="width:100%; padding:6px;" placeholder="Entrez le vrai nom...">
+       <input type="text" id="js-sat-vrai-nom" class="input" style="width:100%; padding:6px;" placeholder="Saisir le vrai nom…">
     </div>
 <div id="js-sat-questions">
         <div class="form-inline" style="justify-content:space-between; margin-bottom:4px;">
@@ -679,11 +742,11 @@
     <div style="border-top: 1px solid var(--border); padding-top: 8px;">
         <label class="modal-field" style="flex-direction:row; align-items:center;">
           <input type="checkbox" id="js-sat-modal-rappel" />
-          A rappeler
+          À rappeler
         </label>
         <label class="modal-field" style="flex-direction:row; align-items:center;">
           <span style="width:60px;">Quand :</span>
-          <input type="datetime-local" id="js-sat-modal-rappel-at" disabled placeholder="mm/dd/yyyy --:-- --">
+          <input type="datetime-local" id="js-sat-modal-rappel-at" disabled placeholder="jj/mm/aaaa — hh:mm">
         </label>
         <label class="modal-field" style="flex-direction:row; align-items:center;">
           <input type="checkbox" id="js-sat-modal-deja-forme" />
@@ -694,7 +757,7 @@
     <div class="modal-actions">
       <button type="button" class="btn btn-ghost btn-sm" id="js-sat-stop-record">Arrêter l'enregistrement</button>
       <button type="button" class="btn btn-ghost btn-sm" id="js-sat-hide">Masquer</button>
-      <button type="button" class="btn btn-danger btn-sm" id="js-sat-terminer">Terminer l'appel et Sauvegarder</button>
+      <button type="button" class="btn btn-danger btn-sm" id="js-sat-terminer">Terminer l'appel et sauvegarder</button>
     </div>
   </div>
 </div>
@@ -708,6 +771,16 @@
       return "";
     }
     const csrfToken = getCookie("csrftoken");
+    document.querySelectorAll(".js-fr-file-input").forEach((input) => {
+      const nameEl = input.closest(".file-input-fr")?.querySelector(".js-fr-file-name");
+      const emptyLabel = "Aucun fichier sélectionné";
+      input.addEventListener("change", () => {
+        if (nameEl) {
+          nameEl.textContent =
+            input.files && input.files.length ? input.files[0].name : emptyLabel;
+        }
+      });
+    });
     const offlineScope = "appels";
     const offlineUserKey = "{{ request.user.pk|default:'anon' }}";
     const consolidationModal = document.getElementById("js-consolidation-modal");
@@ -722,8 +795,8 @@
         en_attente: "En attente",
         en_cours: "En cours",
         pause: "Pause",
-        a_rappeler: "A rappeler",
-        termine: "Termine",
+        a_rappeler: "À rappeler",
+        termine: "Terminé",
       };
       return labels[status] || status || "";
     }
@@ -1214,7 +1287,7 @@
       btn.disabled = !hasAudio;
       btn.innerHTML = isPlaying
         ? '<i class="fa-solid fa-pause"></i><span>Pause</span>'
-        : '<i class="fa-solid fa-play"></i><span>Play</span>';
+        : '<i class="fa-solid fa-play"></i><span>Lecture</span>';
       const title = isPlaying ? "Mettre en pause la lecture" : "Lire l'audio";
       btn.title = title;
       btn.setAttribute("aria-label", title);
@@ -1231,8 +1304,8 @@
         link = document.createElement("a");
         link.className = "btn-icon js-audio-download";
         link.innerHTML = '<i class="fa-solid fa-download"></i>';
-        link.title = "Telecharger l'audio";
-        link.setAttribute("aria-label", "Telecharger l'audio");
+        link.title = "Télécharger l'audio";
+        link.setAttribute("aria-label", "Télécharger l'audio");
         const stopBtn = controls.querySelector(".js-stop");
         if (stopBtn) {
           stopBtn.insertAdjacentElement("afterend", link);
@@ -1676,7 +1749,7 @@
         const payload = await res.json();
         renderFilteredStatus(payload.status);
       } catch (err) {
-        if (filteredSub) filteredSub.textContent = "Impossible de recuperer l'etat de transcription.";
+        if (filteredSub) filteredSub.textContent = "Impossible de récupérer l'état de transcription.";
       }
     }
 
@@ -1707,13 +1780,13 @@
         });
         const payload = await res.json();
         if (!res.ok || !payload.ok) {
-          alert(payload.error || "Arret impossible.");
+          alert(payload.error || "Arrêt impossible.");
           return;
         }
         renderFilteredStatus(payload.status);
         if (!filteredPoller) filteredPoller = setInterval(fetchFilteredStatus, 2000);
       } catch (err) {
-        alert("Arret impossible.");
+        alert("Arrêt impossible.");
       }
     });
 

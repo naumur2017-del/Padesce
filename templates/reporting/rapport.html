@@ -289,19 +289,22 @@
     <article class="panel" style="grid-column: 1 / -1;">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
         <h3 style="margin:0;">Anomalie classe</h3>
-        <form method="get" id="anomaly-filter-form" style="display:flex; gap:10px; align-items:center;">
-          <input type="hidden" name="start" value="{{ start_value }}">
-          <input type="hidden" name="end" value="{{ end_value }}">
-          <label for="id_classe_selector" style="font-size:0.9rem; font-weight:700; color:var(--muted);">Filtrer par classe :</label>
-          <select name="classe" id="id_classe_selector" onchange="this.form.submit()" style="padding:8px 12px; border-radius:10px; border:1px solid var(--border); background:#fff; font-weight:600; color:var(--accent-strong);">
-            <option value="">— Toutes les classes anormales —</option>
-            {% for cl in class_options %}
-            <option value="{{ cl.code }}" {% if selected_class_code == cl.code %}selected{% endif %}>
-              {{ cl.label }}{% if cl.has_not_formed %} &#x1F7E0;{% endif %}{% if cl.has_duplicate %} &#x1F534;{% endif %}{% if cl.has_false_name %} &#x1F7E3;{% endif %}
-            </option>
-            {% endfor %}
-          </select>
-        </form>
+        <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; justify-content:flex-end;">
+          <a class="btn btn-soft" href="{% url 'application_report_export_anomalies_excel' %}?{{ download_query }}">Exporter les anomalies</a>
+          <form method="get" id="anomaly-filter-form" style="display:flex; gap:10px; align-items:center;">
+            <input type="hidden" name="start" value="{{ start_value }}">
+            <input type="hidden" name="end" value="{{ end_value }}">
+            <label for="id_classe_selector" style="font-size:0.9rem; font-weight:700; color:var(--muted);">Filtrer par classe :</label>
+            <select name="classe" id="id_classe_selector" onchange="this.form.submit()" style="padding:8px 12px; border-radius:10px; border:1px solid var(--border); background:#fff; font-weight:600; color:var(--accent-strong);">
+              <option value="">— Toutes les classes anormales —</option>
+              {% for cl in class_options %}
+              <option value="{{ cl.code }}" {% if selected_class_code == cl.code %}selected{% endif %}>
+                {{ cl.label }}{% if cl.has_not_formed %} &#x1F7E0;{% endif %}{% if cl.has_duplicate %} &#x1F534;{% endif %}{% if cl.has_false_name %} &#x1F7E3;{% endif %}
+              </option>
+              {% endfor %}
+            </select>
+          </form>
+        </div>
       </div>
 
       <div class="legend" style="margin-bottom:16px; padding:12px; border-radius:12px; background:#f8fafc; border:1px solid #e2e8f0;">

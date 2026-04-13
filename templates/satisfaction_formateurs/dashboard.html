@@ -35,17 +35,30 @@
   .scope-tab:hover { background:rgba(111,60,195,0.08); color:var(--accent-strong); }
   .scope-tab.active { background:var(--accent); color:#fff; box-shadow:0 8px 18px rgba(76,29,149,0.18); }
   .scope-note { font-size:0.85rem; color:var(--muted); }
+  .actions-menu { position:relative; }
+  .actions-menu-toggle { min-width:42px; padding-inline:10px; }
+  .actions-menu-toggle .gear-icon { font-size:1rem; line-height:1; }
+  .actions-menu-panel { position:absolute; top:calc(100% + 8px); right:0; min-width:180px; display:none; flex-direction:column; gap:6px; padding:8px; border:1px solid var(--border); border-radius:12px; background:var(--panel); box-shadow:var(--shadow); z-index:20; }
+  .actions-menu.open .actions-menu-panel { display:flex; }
+  .actions-menu-panel .btn { width:100%; justify-content:flex-start; }
 </style>
 
 <div class="dash-header">
   <div>
-    <h1 style="margin:0;font-size:1.3rem;">Analyses de Satisfaction</h1>
+    <h1 style="margin:0;font-size:1.3rem;">Analyses enquêtes formateurs</h1>
     <p style="color:var(--muted);margin:4px 0 0;font-size:0.9rem;">Vue formateurs : statistiques Q1-Q3 et résumé qualitatif Q4-Q6 issus des appels plateforme.</p>
   </div>
   <div style="display:flex;gap:8px;flex-wrap:wrap;">
-    <button type="button" class="btn btn-ghost btn-sm" id="js-open-fast-stats">FAST STATS</button>
-    <a class="btn btn-ghost btn-sm" href="{% url 'satisfaction_formateurs_update_form_page' %}">UPDATE FORM</a>
-    <a class="btn btn-ghost btn-sm" href="{% url 'formateurs_prestataires_management' %}">Gestion</a>
+    <div class="actions-menu" id="js-actions-menu">
+      <button type="button" class="btn btn-ghost btn-sm actions-menu-toggle" id="js-actions-menu-toggle" aria-expanded="false" aria-haspopup="true" aria-label="Ouvrir les actions">
+        <span class="gear-icon">&#9881;</span>
+      </button>
+      <div class="actions-menu-panel" id="js-actions-menu-panel">
+        <button type="button" class="btn btn-ghost btn-sm" id="js-open-fast-stats">FAST STATS</button>
+        <a class="btn btn-ghost btn-sm" href="{% url 'satisfaction_formateurs_update_form_page' %}">UPDATE FORM</a>
+        <a class="btn btn-ghost btn-sm" href="{% url 'formateurs_prestataires_management' %}">Gestion</a>
+      </div>
+    </div>
     <a class="btn btn-ghost btn-sm" href="{% url 'satisfaction_formateurs_index' %}">Retour enquêtes</a>
   </div>
 </div>
@@ -324,6 +337,22 @@ function switchTab(name, btn) {
   var nextUrl = new URL(window.location.href);
   nextUrl.searchParams.set('tab', name);
   window.history.replaceState({}, '', nextUrl.pathname + nextUrl.search);
+}
+
+// Menu d'actions toggle
+const menu = document.getElementById('js-actions-menu');
+const toggle = document.getElementById('js-actions-menu-toggle');
+if (toggle && menu) {
+  toggle.addEventListener('click', function(e) {
+    e.stopPropagation();
+    menu.classList.toggle('open');
+    toggle.setAttribute('aria-expanded', menu.classList.contains('open'));
+  });
+  
+  document.addEventListener('click', function() {
+    menu.classList.remove('open');
+    toggle.setAttribute('aria-expanded', 'false');
+  });
 }
 </script>
 {% endblock %}
