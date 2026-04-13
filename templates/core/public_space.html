@@ -446,36 +446,6 @@
     </div>
   </section>
 
-  {% if principal.analysis_recovery.available %}
-  <section class="public-panel">
-    <h2>Pilotage des prestations analysées (Cutoff)</h2>
-    {% if principal.analysis_recovery.top_missing %}
-    <div class="table-wrap" style="margin-top:12px;">
-      <table>
-        <thead>
-          <tr>
-            <th>Prestation</th>
-            <th>Prestataire</th>
-            <th>Bénéficiaire</th>
-            <th>Classes</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for item in principal.analysis_recovery.top_missing %}
-          <tr>
-            <td><a href="{% url 'prestation_analysis_detail' item.prestation_id %}">{{ item.prestation_id }}</a></td>
-            <td>{{ item.prestataire|default:"-" }}</td>
-            <td>{{ item.beneficiaire|default:"-" }}</td>
-            <td>{{ item.classe_count|default:0 }}</td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-    {% endif %}
-  </section>
-  {% endif %}
-
   <div class="public-grid v1-reordered">
     <article class="public-card"><div class="value">{{ principal.card_vague1_total }}</div><div class="label">Apprenants Vague 1</div></article>
     <article class="public-card"><div class="value">{{ principal.card_prestations_count }}</div><div class="label">Prestations analysées</div></article>
