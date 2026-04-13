@@ -1,9 +1,10 @@
-from django.test.client import RequestFactory
 from django.contrib.auth import get_user_model
-from django.core.files.uploadedfile import SimpleUploadedFile
-from App_PADESCE.appels.views import finalize_appel
-from App_PADESCE.appels.models import Appel
 from django.contrib.messages.storage.fallback import FallbackStorage
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.test.client import RequestFactory
+
+from App_PADESCE.appels.models import Appel
+from App_PADESCE.appels.views import finalize_appel
 
 User = get_user_model()
 user = User.objects.filter(is_active=True).first()

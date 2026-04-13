@@ -1,8 +1,9 @@
 #!/usr/bin/env python
 """Analyze the Classeur.xlsx file structure"""
 
-import openpyxl
 import sys
+
+import openpyxl
 
 try:
     wb = openpyxl.load_workbook("Classeur.xlsx", data_only=True)
@@ -23,7 +24,7 @@ try:
         print(f"  {i}: {h}")
 
     # Read first 10 data rows
-    print(f"\nFirst 10 data rows:")
+    print("\nFirst 10 data rows:")
     row_count = 0
     for row_idx, row in enumerate(
         ws.iter_rows(min_row=2, max_row=ws.max_row, values_only=True), start=2

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import math
 import os
 import re
@@ -17,8 +18,6 @@ from urllib.parse import parse_qs, unquote, urlparse
 from django.conf import settings
 from django.core.cache import cache
 from django.http import JsonResponse
-import logging
-
 from django.shortcuts import render
 from openpyxl import Workbook, load_workbook
 
