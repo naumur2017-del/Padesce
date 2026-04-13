@@ -3097,40 +3097,7 @@ def _build_satisfaction_dashboard_data(request):
     )
     analyzed_prestations_ratio = f"{analyzed_prestations_count}/{analyzed_prestations_total_count}"
     
-    # Calculate global presence values
-    global_presence_totals = {"C1": {"PR": 0, "AB": 0}, "C2": {"PR": 0, "AB": 0}, "C3": {"PR": 0, "AB": 0}, "C4": {"PR": 0, "AB": 0}}
-    for row in rows:
-        for c_idx in [1, 2, 3, 4]:
-            val = str(row.get(f"c{c_idx}") or "").upper()
-            if val in ("PR", "AB"):
-                global_presence_totals[f"C{c_idx}"][val] += 1
-    
-    global_presence_rows = []
-    global_presence_rates = []
-    for key in ["C1", "C2", "C3", "C4"]:
-        pr = global_presence_totals[key]["PR"]
-        ab = global_presence_totals[key]["AB"]
-        tot = pr + ab
-        rate = round((pr / tot * 100), 2) if tot > 0 else 0
-        global_presence_rows.append({
-            "label": key,
-            "pr_count": pr,
-            "ab_count": ab,
-            "pr_rate": rate,
-        })
-        if tot > 0:
-            global_presence_rates.append(rate)
-            
-    global_presence_taux_avg = round(sum(global_presence_rates) / len(global_presence_rates), 2) if global_presence_rates else 0
-    total_apprenants_glob = sum(c.get("total_apprenants", 0) for c in classe_stats_seuil)
-    global_participation_rate = round((len(rows) / total_apprenants_glob * 100), 2) if total_apprenants_glob > 0 else 0
-    global_moyenne_participation_presence = round((global_presence_taux_avg + global_participation_rate) / 2)
-
     context = {
-        "global_presence_rows": global_presence_rows,
-        "global_presence_taux_avg": global_presence_taux_avg,
-        "global_participation_rate": global_participation_rate,
-        "global_moyenne_participation_presence": global_moyenne_participation_presence,
         "total": total,
         "global_avgs": global_avgs,
         "q_labels": [label for _, label in Q_FIELDS],

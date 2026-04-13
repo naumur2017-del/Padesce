@@ -424,38 +424,6 @@
           <tr><td>Taux global de présence</td><td>{{ principal.presence_global_avg|floatformat:2 }}%</td></tr>
           <tr><td>Taux de participation</td><td>{{ principal.presence_participation_rate|floatformat:2 }}%</td></tr>
           <tr><td>Taux de personne formé</td><td>{{ principal.presence_person_formed_rate|floatformat:2 }}%</td></tr>
-          <tr style="background: rgba(15,139,141,0.06);">
-            <td><strong>Moyenne participation &amp; présence</strong></td>
-            <td><strong>{{ principal.moyenne_participation_presence|floatformat:0 }}%</strong></td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-  </section>
-
-  <section class="public-panel">
-    <h2>Synthèse des présences dans l'espace</h2>
-    <div class="table-wrap">
-      <table class="stats-table">
-        <thead>
-          <tr>
-            <th>Contrôle</th>
-            <th>Présents (PR)</th>
-            <th>Absents (AB)</th>
-            <th>Taux de présence</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for row in principal.presence_rows %}
-            <tr>
-              <td><strong>{{ row.label }}</strong></td>
-              <td>{{ row.pr_count }}</td>
-              <td>{{ row.ab_count }}</td>
-              <td><strong>{{ row.pr_rate }}%</strong></td>
-            </tr>
-          {% empty %}
-            <tr><td colspan="4" class="muted">Aucune donnée de présence</td></tr>
-          {% endfor %}
         </tbody>
       </table>
     </div>
