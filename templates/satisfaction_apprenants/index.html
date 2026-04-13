@@ -323,7 +323,12 @@
 </div>
 
 <div class="panel" style="margin-top:14px;">
-  <div class="title-with-help"><h5>Dernieres enquetes</h5>{% include "includes/help_tooltip.html" with title="Dernières enquêtes" text="Historique des enquêtes enregistrées avec pagination. Colonnes : Date, Classe, Apprenant, Inspecteur, Enquêteur, Q9 (satisfaction globale), Commentaire." section="guide-dutilisation-generale" %}</div>
+  <div class="title-with-help" style="justify-content:space-between; flex-wrap:wrap; gap:8px;">
+    <div style="display:flex; align-items:center; gap:4px;">
+      <h5>Dernieres enquetes</h5>{% include "includes/help_tooltip.html" with title="Dernières enquêtes" text="Historique des enquêtes enregistrées avec pagination. Colonnes : Date, Classe, Apprenant, Inspecteur, Enquêteur, Q9 (satisfaction globale), Commentaire." section="guide-dutilisation-generale" %}
+    </div>
+    <a class="btn btn-outline btn-sm" href="{% url 'satisfaction_apprenants_export_comments_xlsx' %}{% if filter_classe %}?classe={{ filter_classe }}{% endif %}">📥 Export Excel (Commentaires)</a>
+  </div>
   <div style="max-height:420px; overflow:auto;">
     <table>
       <thead>

@@ -628,6 +628,62 @@ def satisfaction_apprenants_export_csv(request):
     return response
 
 
+def satisfaction_apprenants_export_comments_xlsx(request):
+    """Export Excel avec commentaires et recommandations des apprenants."""
+    filter_classe = request.GET.get("classe")
+    qs = SatisfactionApprenant.objects.select_related(
+        "classe", "apprenant", "appel", "inspecteur", "enqueteur"
+    ).order_by("-date")
+    if filter_classe:
+        qs = qs.filter(classe_id=filter_classe)
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Commentaires et Recommandations"
+
+    headers = [
+        "Date",
+        "Classe",
+        "Apprenant ID",
+        "Nom Apprenant",
+        "Inspecteur",
+        "Enqueteur",
+        "Q9 Satisfaction",
+        "Commentaire",
+        "Recommandations",
+    ]
+    ws.append(headers)
+
+    for s in qs:
+        apprenant_id = ""
+        nom_apprenant = ""
+        if s.apprenant:
+            apprenant_id = s.apprenant.code if hasattr(s.apprenant, 'code') else str(s.apprenant.id)
+            nom_apprenant = str(s.apprenant)
+        elif s.appel:
+            apprenant_id = s.appel.code if hasattr(s.appel, 'code') else ""
+            nom_apprenant = s.appel.nom if hasattr(s.appel, 'nom') else ""
+
+        ws.append([
+            s.date,
+            str(s.classe) if s.classe else "",
+            apprenant_id,
+            nom_apprenant,
+            str(s.inspecteur) if s.inspecteur else "",
+            str(s.enqueteur) if s.enqueteur else "",
+            s.q9_satisfaction_globale,
+            s.commentaire or "",
+            s.recommandations or "",
+        ])
+
+    response = HttpResponse(
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+    response["Content-Disposition"] = "attachment; filename=commentaires_recommandations_apprenants.xlsx"
+    wb.save(response)
+    return response
+
+
 Q_FIELDS = [
     ("q1_clarte_exposes", "Clarté des exposés"),
     ("q2_interaction_formateur", "Interaction avec le formateur"),
