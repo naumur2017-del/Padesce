@@ -30,13 +30,12 @@ from App_PADESCE.appels.models import (
     AppelAnswers,
     AppelCGA,
     AppelFormateur,
-    is_call_success_status,
     appel_answers_completed_q,
     appel_answers_modified_completion_q,
+    is_call_success_status,
     padesce_form_tracking_cutoff,
 )
 from App_PADESCE.apprenants.models import Apprenant
-from App_PADESCE.core.cache_versions import get_analysis_cache_version
 from App_PADESCE.core.access import (
     has_analysis_access,
     has_consultant_access,
@@ -52,6 +51,7 @@ from App_PADESCE.core.apprenant_lookup import (
     get_local_apprenant_identifier,
     match_apprenants_to_appels,
 )
+from App_PADESCE.core.cache_versions import get_analysis_cache_version
 from App_PADESCE.core.call_metrics import has_usable_phone
 from App_PADESCE.core.fast_stats import (
     build_fast_stats_api_response,
@@ -452,7 +452,7 @@ def _bundled_terminated_prestations_count(source_key: str = "cutoff") -> int:
 
 
 def _bundled_vague1_apprenants_count(source_key: str = "cutoff") -> int:
-    """Fallback: apprenants source des prestations terminées (Vague 1), depuis métadonnées embarquées."""
+    """Fallback: apprenants source des prestations terminées (Vague 1)."""
     try:
         from App_PADESCE.reporting.network_excel import load_bundled_source_meta
 
@@ -638,13 +638,20 @@ def home(request):
         ],
     }
     if can_view_padesce_dashboard or can_view_cga_dashboard:
-        _hd_cache_key = "home:dashboard:" + hashlib.sha1("|".join([
-            get_analysis_cache_version("model:appels.appel"),
-            get_analysis_cache_version("model:appels.appelformateur"),
-            get_analysis_cache_version("model:appels.appelcga"),
-            str(can_view_padesce_dashboard),
-            str(can_view_cga_dashboard),
-        ]).encode()).hexdigest()
+        _hd_cache_key = (
+            "home:dashboard:"
+            + hashlib.sha1(
+                "|".join(
+                    [
+                        get_analysis_cache_version("model:appels.appel"),
+                        get_analysis_cache_version("model:appels.appelformateur"),
+                        get_analysis_cache_version("model:appels.appelcga"),
+                        str(can_view_padesce_dashboard),
+                        str(can_view_cga_dashboard),
+                    ]
+                ).encode()
+            ).hexdigest()
+        )
         _hd_cached = cache.get(_hd_cache_key)
         if _hd_cached is not None:
             context.update(_hd_cached)
@@ -1024,7 +1031,7 @@ def _consultant_formateurs_dashboard_context(request):
         if row.audio_file and row.audio_file.name:
             try:
                 row.consultant_has_audio = row.audio_file.storage.exists(row.audio_file.name)
-            except:
+            except Exception:
                 pass
         row.consultant_has_form = formateur_has_any_form_data(row)
         # Normalization for template compatibility
@@ -1132,7 +1139,7 @@ def _consultant_formateurs_dashboard_context(request):
     page_number = request.GET.get("page", 1)
     try:
         page_obj = paginator.page(page_number)
-    except:
+    except Exception:
         page_obj = paginator.page(1)
 
     # Filter Map
@@ -1187,7 +1194,10 @@ def _consultant_formateurs_dashboard_context(request):
         "card_primary_label": "Formations analysées",
         "card_secondary_label": "Cohortes analysées",
         "panel_title": "Appels PADESCE formateurs terminés",
-        "panel_subtitle": "Les audios de plus d'une minute remontent en tête. Cliquez sur une ligne pour ouvrir le dossier complet.",
+        "panel_subtitle": (
+            "Les audios de plus d'une minute remontent en tête. "
+            "Cliquez sur une ligne pour ouvrir le dossier complet."
+        ),
         "search_placeholder": "Recherche formateur.",
         "table_col_name_label": "Nom formateur",
         "table_col_id_label": "ID Formateur",
@@ -1327,19 +1337,13 @@ def _build_consultant_dashboard_context(request):
     )
     # Taux de participation: au moins un PR sur les 4 contrôles
     participation_count = sum(
-        1
-        for item in rows
-        if any(marker == "PR" for marker in [item.c1, item.c2, item.c3, item.c4])
+        1 for item in rows if any(marker == "PR" for marker in [item.c1, item.c2, item.c3, item.c4])
     )
-    presence_participation_rate = (
-        round((participation_count / len(rows)) * 100, 2) if rows else 0
-    )
+    presence_participation_rate = round((participation_count / len(rows)) * 100, 2) if rows else 0
 
     # Taux de personne formé: statut de l'appel est un succès (achevé)
     success_count = sum(1 for item in rows if is_call_success_status(item.status))
-    presence_person_formed_rate = (
-        round((success_count / len(rows)) * 100, 2) if rows else 0
-    )
+    presence_person_formed_rate = round((success_count / len(rows)) * 100, 2) if rows else 0
 
     # Use the existing snapshot helpers
     card_snapshot = _consultant_analysis_snapshot(
@@ -1395,7 +1399,7 @@ def _build_consultant_dashboard_context(request):
         if row.audio_file and row.audio_file.name:
             try:
                 row.consultant_has_audio = row.audio_file.storage.exists(row.audio_file.name)
-            except:
+            except Exception:
                 pass
 
     # Global audio check for summary cards
@@ -1405,7 +1409,7 @@ def _build_consultant_dashboard_context(request):
             try:
                 if r.audio_file.storage.exists(r.audio_file.name):
                     global_audio_count += 1
-            except:
+            except Exception:
                 pass
 
     analysis_recovery = {
@@ -1544,7 +1548,10 @@ def _build_consultant_dashboard_context(request):
         "card_primary_label": "Prestations analysées",
         "card_secondary_label": "Classes analysées",
         "panel_title": "Appels PADESCE terminés",
-        "panel_subtitle": "Les audios de plus d'une minute remontent en tête. Cliquez sur une ligne pour ouvrir le dossier complet.",
+        "panel_subtitle": (
+            "Les audios de plus d'une minute remontent en tête. "
+            "Cliquez sur une ligne pour ouvrir le dossier complet."
+        ),
         "search_placeholder": "Recherche apprenant...",
         "table_col_name_label": "Nom apprenant",
         "table_col_id_label": "Apprenant ID",
@@ -1861,9 +1868,7 @@ def _count_audit_events_by_user(
     if expected_extra:
         for key, value in expected_extra.items():
             qs = qs.filter(**{f"extra__{key}": value})
-    return dict(
-        qs.values("actor_id").annotate(count=Count("id")).values_list("actor_id", "count")
-    )
+    return dict(qs.values("actor_id").annotate(count=Count("id")).values_list("actor_id", "count"))
 
 
 _TRACKING_CACHE_KEY = "tracking_payload_full"

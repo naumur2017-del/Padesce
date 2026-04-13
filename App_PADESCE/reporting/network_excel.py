@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import math
 import os
 import re
@@ -17,8 +18,6 @@ from urllib.parse import parse_qs, unquote, urlparse
 from django.conf import settings
 from django.core.cache import cache
 from django.http import JsonResponse
-import logging
-
 from django.shortcuts import render
 from openpyxl import Workbook, load_workbook
 
@@ -272,9 +271,7 @@ def _ensure_minimal_fallback_workbook(path: Path) -> None:
     if path.exists() and path.stat().st_size > 0:
         try:
             with path.open("rb") as fh:
-                probe = load_workbook(
-                    fh, read_only=True, data_only=True, keep_links=False
-                )
+                probe = load_workbook(fh, read_only=True, data_only=True, keep_links=False)
                 names = set(probe.sheetnames)
                 probe.close()
             if {"Apprenants", "Classes", "Prestations"}.issubset(names):
