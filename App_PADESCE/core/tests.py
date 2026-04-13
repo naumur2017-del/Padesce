@@ -693,7 +693,7 @@ class PublicConsultantAccessTests(TestCase):
             is_active=True,
             audio_file="padesce/tests/prioritaire.mp3",
         )
-        audio_only = Appel.objects.create(
+        Appel.objects.create(
             code="APP951",
             nom="Beta Audio",
             classe_label="CLA001",
