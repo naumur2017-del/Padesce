@@ -2067,8 +2067,10 @@ def formateurs_prestataires_management(request):
 
         elif action == "sync_formateurs":
             # Crée les enregistrements Formateur manquants depuis les AppelFormateur
+            # Codes générés sous la forme FORMA001, FORMA002, …
             from App_PADESCE.appels.models import AppelFormateur as _AppelFormateur
             import re as _re
+            from collections import defaultdict as _defaultdict
 
             def _normalize_phone(p):
                 return _re.sub(r"\D", "", p or "")[:20]
@@ -2078,45 +2080,76 @@ def formateurs_prestataires_management(request):
                 _normalize_phone(t)
                 for t in Formateur.objects.exclude(telephone="").values_list("telephone", flat=True)
             }
-            # Codes déjà pris
+
+            # Déterminer le prochain numéro FORMA###
+            forma_nums = []
+            for c in Formateur.objects.filter(code__startswith="FORMA").values_list("code", flat=True):
+                m = _re.match(r"FORMA(\d+)$", c)
+                if m:
+                    forma_nums.append(int(m.group(1)))
+            next_num = max(forma_nums, default=0) + 1
+
+            # Codes déjà pris (pour éviter les doublons)
             existing_codes = set(Formateur.objects.values_list("code", flat=True))
 
-            phones_seen = set()
-            to_create = []
-            appel_phones = (
+            # Regrouper les appels par téléphone → prestataires + bénéficiaires uniques
+            phone_orgs: dict = _defaultdict(lambda: {"prestataires": set(), "beneficiaires": set()})
+            for row in (
                 _AppelFormateur.objects.filter(is_active=True)
                 .exclude(telephone="")
-                .values_list("telephone", flat=True)
-                .distinct()
-            )
-            for raw_phone in appel_phones:
-                raw_phone = (raw_phone or "").strip()
+                .values("telephone", "prestataire", "beneficiaire")
+            ):
+                ph = (row["telephone"] or "").strip()
+                if ph:
+                    if row["prestataire"]:
+                        phone_orgs[ph]["prestataires"].add(row["prestataire"].strip())
+                    if row["beneficiaire"]:
+                        phone_orgs[ph]["beneficiaires"].add(row["beneficiaire"].strip())
+
+            phones_seen: set = set()
+            to_create = []
+            for raw_phone in sorted(phone_orgs.keys()):
+                raw_phone = raw_phone.strip()
                 if not raw_phone:
                     continue
                 norm = _normalize_phone(raw_phone)
                 if not norm or norm in existing_normalized or norm in phones_seen:
                     continue
                 phones_seen.add(norm)
-                # Générer un code unique (max 20 chars)
-                code_candidate = norm[:20]
-                suffix = 1
+
+                # Code FORMA###
+                code_candidate = f"FORMA{next_num:03d}"
                 while code_candidate in existing_codes:
-                    code_candidate = f"{norm[:17]}-{suffix}"
-                    suffix += 1
+                    next_num += 1
+                    code_candidate = f"FORMA{next_num:03d}"
                 existing_codes.add(code_candidate)
+
+                # Résumé prestataires/bénéficiaires dans autres_infos
+                orgs = phone_orgs[raw_phone]
+                prest_str = ", ".join(sorted(orgs["prestataires"]))
+                benef_str = ", ".join(sorted(orgs["beneficiaires"]))
+                autres = ""
+                if prest_str:
+                    autres += f"Prestataire(s): {prest_str}"
+                if benef_str:
+                    autres += (" | " if autres else "") + f"Bénéficiaire(s): {benef_str}"
+
                 to_create.append(
                     Formateur(
                         code=code_candidate,
                         nom_complet=f"[À compléter] {raw_phone}",
                         telephone=raw_phone,
+                        autres_infos=autres,
                     )
                 )
+                next_num += 1
 
             if to_create:
                 Formateur.objects.bulk_create(to_create, ignore_conflicts=True)
             saved_count = len(to_create)
             saved_label = (
-                f"{saved_count} formateur(s) créé(s) depuis les appels. Complétez les noms via l'admin."
+                f"{saved_count} formateur(s) créé(s) (FORMA{max(forma_nums, default=0) + 1:03d}…)."
+                " Complétez les noms via l'admin."
                 if saved_count
                 else "Aucun nouveau formateur à créer — tous les numéros sont déjà enregistrés."
             )
@@ -2130,6 +2163,28 @@ def formateurs_prestataires_management(request):
     formateur_prestations = {
         f.pk: set(f.prestations.values_list("pk", flat=True)) for f in formateurs
     }
+
+    # Enrichir chaque formateur avec les prestataires/bénéficiaires de ses appels
+    from App_PADESCE.appels.models import AppelFormateur as _AF
+    from collections import defaultdict as _dd
+
+    _phone_orgs: dict = _dd(lambda: {"prestataires": set(), "beneficiaires": set()})
+    for _row in (
+        _AF.objects.filter(is_active=True)
+        .exclude(telephone="")
+        .values("telephone", "prestataire", "beneficiaire")
+    ):
+        _ph = (_row["telephone"] or "").strip()
+        if _ph:
+            if _row["prestataire"]:
+                _phone_orgs[_ph]["prestataires"].add(_row["prestataire"].strip())
+            if _row["beneficiaire"]:
+                _phone_orgs[_ph]["beneficiaires"].add(_row["beneficiaire"].strip())
+
+    for _f in formateurs:
+        _orgs = _phone_orgs.get((_f.telephone or "").strip(), {})
+        _f.appel_prestataires = sorted(_orgs.get("prestataires", set()))
+        _f.appel_beneficiaires = sorted(_orgs.get("beneficiaires", set()))
     # Prestations (pour le toggle et le tableau villes)
     prestations = list(
         PrestationModel.objects.select_related("prestataire", "formation", "beneficiaire")
