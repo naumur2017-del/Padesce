@@ -84,7 +84,8 @@ def _build_apprenant_overview(request) -> dict:
                     else ""
                 ),
                 "prestation_url": (
-                    f"{reverse('prestation_analysis_detail', args=[prestation_code])}?tab=apprenants"
+                    f"{reverse('prestation_analysis_detail', args=[prestation_code])}"
+                    "?tab=apprenants"
                     if prestation_code
                     else ""
                 ),
@@ -380,7 +381,11 @@ def _build_formateur_overview(request) -> dict:
             res_cohortes.add(
                 classe.pk
                 if classe
-                else f"{_formateur_record_value(record, 'prestataire')}-{_formateur_record_value(record, 'beneficiaire')}-{_formateur_record_value(record, 'cohorte')}"
+                else (
+                    f"{_formateur_record_value(record, 'prestataire')}"
+                    f"-{_formateur_record_value(record, 'beneficiaire')}"
+                    f"-{_formateur_record_value(record, 'cohorte')}"
+                )
             )
             res_prestataires.add(
                 prest_obj.pk if prest_obj else _formateur_record_value(record, "prestataire")
@@ -403,7 +408,8 @@ def _build_formateur_overview(request) -> dict:
                     "prestation_code": prestation_code or "-",
                     "url": f"{reverse('class_analysis_detail', args=[classe_code])}?tab=formateurs",
                     "prestation_url": (
-                        f"{reverse('prestation_analysis_detail', args=[prestation_code])}?tab=formateurs"
+                        f"{reverse('prestation_analysis_detail', args=[prestation_code])}"
+                        "?tab=formateurs"
                         if prestation_code
                         else ""
                     ),
@@ -419,16 +425,18 @@ def _build_formateur_overview(request) -> dict:
             or _formateur_record_value(record, "formation")
             or "-"
         ).strip()
-        
+
         # Create a unique prestation key from prestataire/beneficiaire combination
         # Use these directly from record since classe matching may have failed
         prestataire_val = _formateur_record_value(record, "prestataire") or "-"
         beneficiaire_val = _formateur_record_value(record, "beneficiaire") or "-"
-        
+
         if prestation_code or (prestataire_val != "-" and beneficiaire_val != "-"):
             # Use prestation_code if available, otherwise create composite key
-            prest_key = prestation_code if prestation_code else f"{prestataire_val}|{beneficiaire_val}"
-            
+            prest_key = (
+                prestation_code if prestation_code else f"{prestataire_val}|{beneficiaire_val}"
+            )
+
             prestation_rows.setdefault(
                 prest_key,
                 {
@@ -438,8 +446,10 @@ def _build_formateur_overview(request) -> dict:
                     "prestataire": prestataire_val,
                     "beneficiaire": beneficiaire_val,
                     "url": (
-                        f"{reverse('prestation_analysis_detail', args=[prestation_code])}?tab=formateurs"
-                        if prestation_code else ""
+                        f"{reverse('prestation_analysis_detail', args=[prestation_code])}"
+                        "?tab=formateurs"
+                        if prestation_code
+                        else ""
                     ),
                     "nb": 0,
                 },
@@ -524,20 +534,20 @@ def _build_formateur_stats(request) -> dict:
 
     best_rankings = get_prestations_ranking(prestation_stats, order="desc")
     improve_rankings = get_prestations_ranking(prestation_stats, order="asc")
+    # Align "Moyenne Q1-Q3" with the values displayed in "Moyennes generales".
+    global_q_values = [
+        float(value)
+        for value in (ctx.get("global_avgs", {}) or {}).values()
+        if value not in (None, "")
+    ]
+    q1_q3_average = round(sum(global_q_values) / len(global_q_values), 2) if global_q_values else 0
     return {
         "global_avgs": ctx.get("global_avgs", {}),
         "best_rankings": best_rankings[:10],
         "improve_rankings": improve_rankings[:10],
         "map_data": _region_map_from_rankings(best_rankings),
         "summary_cards": [
-            (
-                (
-                    "Moyenne Q1-Q3",
-                    round(sum(item["avg"] for item in prestation_stats) / len(prestation_stats), 2),
-                )
-                if prestation_stats
-                else ("Moyenne Q1-Q3", 0)
-            ),
+            ("Moyenne Q1-Q3", q1_q3_average),
             ("Appels", ctx.get("total", 0)),
             ("Appels ciblés", ctx.get("appels_cibles", 0)),
             ("Avec scores", ctx.get("with_scores", 0)),
@@ -594,7 +604,8 @@ def public_space(request):
             ctx = _build_consultant_dashboard_context(request)
             # Calculate Average satisfaction for the current filtered set
 
-            # Build queryset from the same logic (simple enough here as we use Appel.objects.filter(is_active=True))
+            # Build queryset from the same logic
+            # (simple enough here as we use Appel.objects.filter(is_active=True)).
             # But we should ideally reuse the filtering logic.
             # For simplicity, we can sometimes manually calculate from rows if small,
             # but for 30000 learners, we need a query.

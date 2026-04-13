@@ -239,6 +239,8 @@ class LoginRequiredMiddleware:
             "/beneficiaire/",
             "/classe/",
             "/prestation/",
+            "/analyse/appels/apprenant/",
+            "/analyse/appels/formateur/",
             "/deploiement/live/",
             "/backup/api/trigger/",
             "/service-worker.js",
