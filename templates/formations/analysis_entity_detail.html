@@ -304,8 +304,7 @@
           <a href="{{ channel_link }}" target="_blank" class="badge badge-ok" style="background: rgba(15, 139, 141, 0.1); color: #0f5f61; border-color: rgba(15, 139, 141, 0.28); text-decoration: none; padding: 6px 12px; cursor: pointer; transition: background 0.2s;" onmouseover="this.style.background='rgba(15, 139, 141, 0.2)'" onmouseout="this.style.background='rgba(15, 139, 141, 0.1)'">Ouvrir lien du canal</a>
         {% endif %}
       </div>
-      <p class="hero-subtitle" style="margin: 0;">{{ entity_subtitle|default:"Informations de suivi et de consultation." }}</p>
-    </div>
+      </div>
     {% if summary.has_analysis %}
       <span class="badge badge-ok">Analyse disponible</span>
     {% else %}
@@ -379,22 +378,22 @@
         <div class="label">TOTAL DES PARTICIPANTS A LA FORMATION</div>
         <div class="value">{{ summary.apprenants_total|default:0 }}</div>
       </div>
-      <div class="meta-card">
-        <div class="label">Taux global de présence</div>
-        <div class="value">0,0%</div>
-      </div>
-      <div class="meta-card">
-        <div class="label">Taux de participation</div>
-        <div class="value">0,0%</div>
-      </div>
-      <div class="meta-card">
-        <div class="label">Taux de personne formé</div>
-        <div class="value">93,33%</div>
-      </div>
-      <div class="meta-card">
-        <div class="label">Moyenne participation & présence</div>
-        <div class="value">0%</div>
-      </div>
+      <table class="presence-stats-table" style="width: 100%; margin: 10px 0; border-collapse: collapse; font-size: 14px;">
+        <thead>
+          <tr style="background: #f8f9fa;">
+            <th style="padding: 8px; text-align: left; border: 1px solid #dee2e6;">Taux de personne formé</th>
+            <th style="padding: 8px; text-align: left; border: 1px solid #dee2e6;">Taux de participation</th>
+            <th style="padding: 8px; text-align: left; border: 1px solid #dee2e6;">Taux de présence globale</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style="padding: 8px; border: 1px solid #dee2e6;">{{ summary.person_formed_rate|default:0 }}%</td>
+            <td style="padding: 8px; border: 1px solid #dee2e6;">{{ summary.participation_rate|default:0 }}%</td>
+            <td style="padding: 8px; border: 1px solid #dee2e6;">{{ summary.presence_taux_avg|default:0 }}%</td>
+          </tr>
+        </tbody>
+      </table>
     {% else %}
       <div class="meta-card">
         <div class="label">Prestataire</div>

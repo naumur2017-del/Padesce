@@ -1200,6 +1200,9 @@ def class_analysis_detail(request, code: str):
     formateur_rows = _build_formateur_rows(formateur_appels, back_url=formateur_back_url)
     summary = _entity_summary(apprenant_rows, formateur_rows)
     class_chapeau = _build_class_chapeau(classe.code, apprenant_appels, source_bundle=source_bundle)
+    summary["person_formed_rate"] = class_chapeau.get("person_formed_rate", 0)
+    summary["participation_rate"] = class_chapeau.get("participation_rate", 0)
+    summary["presence_taux_avg"] = class_chapeau.get("presence_taux_avg", 0)
     formateur_chapeau = _build_formateur_chapeau(classe.code, formateur_appels)
 
     channel_link = ""
@@ -1237,7 +1240,7 @@ def class_analysis_detail(request, code: str):
             "class_chapeau": class_chapeau,
             "formateur_chapeau": formateur_chapeau,
             "matching_note": (
-                "Rattachement formateurs via prestataire, " "beneficiaire, cohorte et formation."
+                "Rattachement formateurs via prestataire, beneficiaire, cohorte et formation."
             ),
             "prestation_detail_url": prestation_detail_url,
             "reference_warning": reference_warning,
@@ -1330,6 +1333,9 @@ def prestation_analysis_detail(request, code: str):
     class_chapeau = _build_class_chapeau(
         prestation.code, apprenant_appels, source_bundle=source_bundle
     )
+    summary["person_formed_rate"] = class_chapeau.get("person_formed_rate", 0)
+    summary["participation_rate"] = class_chapeau.get("participation_rate", 0)
+    summary["presence_taux_avg"] = class_chapeau.get("presence_taux_avg", 0)
     formateur_chapeau = _build_formateur_chapeau(prestation.code, formateur_appels)
 
     return render(
