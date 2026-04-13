@@ -272,9 +272,7 @@ def _ensure_minimal_fallback_workbook(path: Path) -> None:
     if path.exists() and path.stat().st_size > 0:
         try:
             with path.open("rb") as fh:
-                probe = load_workbook(
-                    fh, read_only=True, data_only=True, keep_links=False
-                )
+                probe = load_workbook(fh, read_only=True, data_only=True, keep_links=False)
                 names = set(probe.sheetnames)
                 probe.close()
             if {"Apprenants", "Classes", "Prestations"}.issubset(names):

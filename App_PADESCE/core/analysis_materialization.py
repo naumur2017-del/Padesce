@@ -19,6 +19,7 @@ from App_PADESCE.core.models import AppelOptimizationSnapshot, MaterializedDashb
 
 logger = logging.getLogger(__name__)
 
+
 # Durées de cache (secondes) — réutilise l’env analyse si non spécifié.
 def _analysis_cache_timeout_seconds() -> int:
     return int(str(os.environ.get("PADESCE_ANALYSIS_CACHE_TIMEOUT", "300") or "300"))
@@ -161,20 +162,14 @@ def get_or_build_appel_optimization_snapshot() -> dict:
     src_fp = _source_workbook_fingerprint(source_bundle)
 
     row = AppelOptimizationSnapshot.get_singleton()
-    if (
-        row.appels_fingerprint == app_fp
-        and row.source_fingerprint == src_fp
-        and row.payload
-    ):
+    if row.appels_fingerprint == app_fp and row.source_fingerprint == src_fp and row.payload:
         return _merge_optimization_snapshot(row.payload, source_bundle)
 
     snapshot = _build_appel_class_progress_snapshot(source_bundle)
     row.appels_fingerprint = app_fp
     row.source_fingerprint = src_fp
     row.payload = _optimization_snapshot_for_storage(snapshot)
-    row.save(
-        update_fields=["appels_fingerprint", "source_fingerprint", "payload", "updated_at"]
-    )
+    row.save(update_fields=["appels_fingerprint", "source_fingerprint", "payload", "updated_at"])
     return snapshot
 
 
