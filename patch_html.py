@@ -9,7 +9,9 @@ chunk1_target = """    <div class="modal-actions">
     </div>
   </div>
 </div>"""  # noqa: E501
-chunk1_replacement = chunk1_target + """
+chunk1_replacement = (
+    chunk1_target
+    + """
 
 <div id="js-satisfaction-modal" class="modal-backdrop" hidden>
   <div class="modal-panel" style="width: 550px; max-height: 90vh; overflow-y: auto;">
@@ -89,13 +91,16 @@ chunk1_replacement = chunk1_target + """
       <button type="button" class="btn btn-danger btn-sm" id="js-sat-terminer">Terminer l'appel et Sauvegarder</button>
     </div>
   </div>
-</div>"""  # noqa: E501
+</div>"""
+)  # noqa: E501
 
 # 2. Add event listeners
 chunk2_target = """    transcriptionModal?.addEventListener("click", (event) => {
       if (event.target === transcriptionModal) transcriptionModal.hidden = true;
     });"""
-chunk2_replacement = chunk2_target + """
+chunk2_replacement = (
+    chunk2_target
+    + """
 
     const satModal = document.getElementById("js-satisfaction-modal");
     const satModalRappel = document.getElementById("js-sat-modal-rappel");
@@ -149,7 +154,8 @@ chunk2_replacement = chunk2_target + """
             });
             updateRow(row, data);
         } catch (err) { alert("Action impossible."); }
-    });"""  # noqa: E501
+    });"""
+)  # noqa: E501
 
 # 3. Update startRecording
 chunk3_target = """    async function startRecording(row) {

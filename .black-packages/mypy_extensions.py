@@ -227,7 +227,9 @@ for _int_type in i64, i32, i16, u8:
 
         * {name}(x[, base=n]) converts a number or string to 'int'
         * isinstance(x, {name}) is the same as isinstance(x, int)
-        """.format(name=_int_type.__name__)
+        """.format(
+        name=_int_type.__name__
+    )
 del _int_type
 
 

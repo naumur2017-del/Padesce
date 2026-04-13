@@ -6,7 +6,6 @@ import json
 import logging
 import os
 import re
-import zipfile
 
 # ---------------------------------------------------------------------------
 # Import-notification store – in-memory, global, polled by all active sessions
@@ -14,11 +13,10 @@ import zipfile
 import threading as _threading
 import time as _time
 import uuid
+import zipfile
 from collections import Counter, defaultdict
 from datetime import date as date_cls
 from types import SimpleNamespace
-
-import zipfile
 
 import openpyxl
 import requests
@@ -1640,7 +1638,9 @@ def _terminated_source_apprenant_count(
     if not source_bundle:
         return 0
     if terminated_prestation_codes is None:
-        terminated_prestation_codes = _terminated_prestation_codes_from_source(filters, source_bundle)
+        terminated_prestation_codes = _terminated_prestation_codes_from_source(
+            filters, source_bundle
+        )
     if not terminated_prestation_codes:
         return 0
     return sum(
@@ -1705,7 +1705,9 @@ def _qualified_prestation_codes_from_source(
         return set()
 
     # Classes sans apprenants joignables (source) sont auto-qualifiées : rien de plus à faire.
-    callable_class_counts = _normalize_class_count_map(_source_class_apprenant_counts(source_bundle))
+    callable_class_counts = _normalize_class_count_map(
+        _source_class_apprenant_counts(source_bundle)
+    )
 
     qualified_codes = set()
     for prestation_key, class_map in prestation_classes.items():
@@ -2596,6 +2598,7 @@ def _build_satisfaction_dashboard_data(request):
         load_materialized_dashboard_payload,
         save_materialized_dashboard_payload,
     )
+
     db_payload = load_materialized_dashboard_payload(cache_key)
     if db_payload is not None:
         cache.set(cache_key, db_payload, timeout=ANALYSIS_CACHE_TIMEOUT)
@@ -2655,9 +2658,11 @@ def _build_satisfaction_dashboard_data(request):
     )
     # Apprenants Vague 1 = tous les apprenants présents dans la feuille consolidée source CutOff
     # (pas seulement les apprenants des prestations terminées)
-    vague1_apprenants_count = int(
-        ((source_bundle or {}).get("counts") or {}).get("apprenants", 0)
-    ) if source_bundle else 0
+    vague1_apprenants_count = (
+        int(((source_bundle or {}).get("counts") or {}).get("apprenants", 0))
+        if source_bundle
+        else 0
+    )
 
     global_bucket = _dashboard_bucket()
     classe_groups = {}
@@ -2869,20 +2874,22 @@ def _build_satisfaction_dashboard_data(request):
                 # Chercher dans les classes source
                 for src_cls in (_src_prestation_classes.get(p_key) or {}).values():
                     prestataire = prestataire or str(src_cls.get("prestataire", "") or "").strip()
-                    beneficiaire = beneficiaire or str(src_cls.get("beneficiaire", "") or "").strip()
+                    beneficiaire = (
+                        beneficiaire or str(src_cls.get("beneficiaire", "") or "").strip()
+                    )
             key_tuple = (p_key, prestataire, beneficiaire)
             if key_tuple in represented_codes:
                 continue
             src_fenetre = str(p_info.get("fenetre", "") or "").strip()
             src_statut = str(p_info.get("statut_prestation", "") or "").strip()
             source_class_count = len(_src_prestation_classes.get(p_key, {}))
-            
+
             # Calculate number of filled forms by summing responses from all associated classes
             formulaires_remplis = 0
             for classe_info in classe_groups.values():
                 if normalize_network_lookup(classe_info.get("prestation", "")) == p_key:
                     formulaires_remplis += classe_info["metrics"]["nb"]
-            
+
             prestation_stats.append(
                 {
                     "code": p_key,
@@ -3003,13 +3010,13 @@ def _build_satisfaction_dashboard_data(request):
     fenetre_nb_map: dict[str, int] = {item["label"]: item["nb"] for item in fenetre_stats}
     if source_bundle:
         for p_key in terminated_prestation_codes:
-            src_fen = str((source_prestations_index.get(p_key) or {}).get("fenetre", "") or "").strip()
+            src_fen = str(
+                (source_prestations_index.get(p_key) or {}).get("fenetre", "") or ""
+            ).strip()
             if src_fen and src_fen not in fenetre_nb_map:
                 fenetre_nb_map[src_fen] = 0
     analyzed_fenetres = [
-        {"label": lbl, "nb": nb}
-        for lbl, nb in sorted(fenetre_nb_map.items())
-        if lbl
+        {"label": lbl, "nb": nb} for lbl, nb in sorted(fenetre_nb_map.items()) if lbl
     ]
     # Prestataires et bénéficiaires : inclure les terminés (pas seulement qualifiés).
     analyzed_prestataires = [
@@ -3346,7 +3353,9 @@ def satisfaction_dashboard_export_class_lists_zip(request):
     classes: dict[str, list[dict]] = {}
     for row in _ordered_survey_rows(rows):
         code = str(row.get("classe_code") or "").strip()
-        if code and (not analyzed_class_codes or normalize_network_lookup(code) in analyzed_class_codes):
+        if code and (
+            not analyzed_class_codes or normalize_network_lookup(code) in analyzed_class_codes
+        ):
             classes.setdefault(code, []).append(row)
 
     headers = [
@@ -3412,7 +3421,9 @@ def satisfaction_dashboard_export_prestation_lists_xlsx(request):
     prestation_rows: dict[str, list[dict]] = {}
     prestation_meta: dict[str, dict] = {}
     for row in _ordered_survey_rows(rows):
-        p_code = str(row.get("source_prestation_id") or row.get("prestation_code") or "").strip() or "-"
+        p_code = (
+            str(row.get("source_prestation_id") or row.get("prestation_code") or "").strip() or "-"
+        )
         p_key = normalize_network_lookup(p_code)
         if analyzed_prestation_codes and p_key not in analyzed_prestation_codes:
             continue
@@ -3449,7 +3460,10 @@ def satisfaction_dashboard_export_prestation_lists_xlsx(request):
         "Formation",
         "Bénéficiaire",
         "Cohorte",
-        "C1", "C2", "C3", "C4",
+        "C1",
+        "C2",
+        "C3",
+        "C4",
         "Taux présence",
         *[label for _, label in Q_FIELDS],
         "Moyenne",
@@ -3458,11 +3472,13 @@ def satisfaction_dashboard_export_prestation_lists_xlsx(request):
 
     for p_key in sorted(prestation_rows):
         meta = prestation_meta[p_key]
-        sheet_title = re.sub(r'[\\/:*?\[\]]', "_", meta["code"])[:31] or "Prestation"
+        sheet_title = re.sub(r"[\\/:*?\[\]]", "_", meta["code"])[:31] or "Prestation"
         ws = wb.create_sheet(title=sheet_title)
         # Header block
         ws.append([f"Prestation : {meta['code']}"])
-        ws.append([f"Prestataire : {meta['prestataire']}  |  Bénéficiaire : {meta['beneficiaire']}"])
+        ws.append(
+            [f"Prestataire : {meta['prestataire']}  |  Bénéficiaire : {meta['beneficiaire']}"]
+        )
         ws.append([f"Formation : {meta['formation']}"])
         ws.append([])
         ws.append(col_headers)
@@ -5740,6 +5756,7 @@ def import_notifications_poll(request):
 # ---------------------------------------------------------------------------
 # Page synchronisation référentiel BD ↔ source
 # ---------------------------------------------------------------------------
+
 
 def _build_duplicate_apprenant_ids(source_bundle: dict | None) -> list[dict]:
     """Retourne la liste des apprenant_id réseau présents plusieurs fois dans la source."""

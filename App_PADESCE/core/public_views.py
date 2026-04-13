@@ -419,16 +419,18 @@ def _build_formateur_overview(request) -> dict:
             or _formateur_record_value(record, "formation")
             or "-"
         ).strip()
-        
+
         # Create a unique prestation key from prestataire/beneficiaire combination
         # Use these directly from record since classe matching may have failed
         prestataire_val = _formateur_record_value(record, "prestataire") or "-"
         beneficiaire_val = _formateur_record_value(record, "beneficiaire") or "-"
-        
+
         if prestation_code or (prestataire_val != "-" and beneficiaire_val != "-"):
             # Use prestation_code if available, otherwise create composite key
-            prest_key = prestation_code if prestation_code else f"{prestataire_val}|{beneficiaire_val}"
-            
+            prest_key = (
+                prestation_code if prestation_code else f"{prestataire_val}|{beneficiaire_val}"
+            )
+
             prestation_rows.setdefault(
                 prest_key,
                 {
@@ -439,7 +441,8 @@ def _build_formateur_overview(request) -> dict:
                     "beneficiaire": beneficiaire_val,
                     "url": (
                         f"{reverse('prestation_analysis_detail', args=[prestation_code])}?tab=formateurs"
-                        if prestation_code else ""
+                        if prestation_code
+                        else ""
                     ),
                     "nb": 0,
                 },

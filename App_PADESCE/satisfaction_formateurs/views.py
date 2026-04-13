@@ -34,8 +34,8 @@ from App_PADESCE.appels.models import (
     sync_formateur_status,
 )
 from App_PADESCE.core.access import require_analysis_access
-from App_PADESCE.core.cache_versions import get_analysis_cache_version
 from App_PADESCE.core.analysis_rules import analysis_threshold_label, analysis_threshold_target
+from App_PADESCE.core.cache_versions import get_analysis_cache_version
 from App_PADESCE.core.fast_stats import build_fast_stats_context
 from App_PADESCE.formations.models import (
     Beneficiaire,
@@ -1712,9 +1712,7 @@ def _build_satisfaction_formateurs_dashboard_context(request) -> dict:
     active_tab = _active_formateurs_tab(request)
 
     _formateur_marker = get_analysis_cache_version("model:appels.appelformateur")
-    _cache_key = _formateurs_cache_key(
-        f_prestataire, f_beneficiaire, f_cohorte, _formateur_marker
-    )
+    _cache_key = _formateurs_cache_key(f_prestataire, f_beneficiaire, f_cohorte, _formateur_marker)
     _cached = cache.get(_cache_key)
     if _cached is not None:
         return _cached
@@ -1992,10 +1990,12 @@ def satisfaction_formateurs_dashboard(request):
 # Page de gestion : lier formateurs ↔ prestataires + villes des prestations
 # ---------------------------------------------------------------------------
 
+
 @require_analysis_access
 def formateurs_prestataires_management(request):
     """Page de gestion : toggle formateur↔prestations (M2M) + ville des prestations pour la carte."""
-    from App_PADESCE.formations.models import Formateur, Prestation as PrestationModel
+    from App_PADESCE.formations.models import Formateur
+    from App_PADESCE.formations.models import Prestation as PrestationModel
 
     saved_count = 0
     saved_label = ""
@@ -2032,9 +2032,11 @@ def formateurs_prestataires_management(request):
                     form.prestations.add(prest)
                     linked = True
                 from django.http import JsonResponse as _JsonResponse
+
                 return _JsonResponse({"ok": True, "linked": linked})
             except Exception as exc:
                 from django.http import JsonResponse as _JsonResponse
+
                 return _JsonResponse({"ok": False, "error": str(exc)}, status=400)
 
         elif action == "save_prestations":
@@ -2060,15 +2062,18 @@ def formateurs_prestataires_management(request):
                 prest.ville = new_ville
                 prest.save(update_fields=["ville"])
                 from django.http import JsonResponse as _JsonResponse
+
                 return _JsonResponse({"ok": True, "ville": new_ville})
             except Exception as exc:
                 from django.http import JsonResponse as _JsonResponse
+
                 return _JsonResponse({"ok": False, "error": str(exc)}, status=400)
 
     # Charger les formateurs avec leurs prestations courantes
     formateurs = list(
-        Formateur.objects.prefetch_related("prestations", "classes__prestation")
-        .order_by("nom_complet")
+        Formateur.objects.prefetch_related("prestations", "classes__prestation").order_by(
+            "nom_complet"
+        )
     )
     # Index des prestations déjà assignées par formateur
     formateur_prestations = {

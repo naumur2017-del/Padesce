@@ -266,7 +266,8 @@ def main():
 
     # ── 9. Resume final ──
     separator("9. RESUME METHODOLOGIQUE")
-    print("""
+    print(
+        """
   FORMULES VERIFIEES:
     % appel effectue  = calls_effectues / apprenant_count
     % appel termine   = calls_termines / calls_effectues
@@ -288,7 +289,8 @@ def main():
 
   APPEL TERMINE  = AppelAnswers existe
                    OU SatisfactionApprenant existe
-    """)
+    """
+    )
 
     if errors:
         separator("ERREURS DETECTEES")
