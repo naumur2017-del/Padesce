@@ -90,7 +90,12 @@
         <h1>Gestion : Formateurs &amp; Prestations</h1>
         <p>Liez chaque formateur aux prestations correspondantes · Définissez la ville de chaque prestation pour les cartes</p>
       </div>
-      <div style="display:flex; gap:8px;">
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <form method="post" style="display:inline;" onsubmit="return confirm('Créer les formateurs manquants depuis les appels ?\nLes noms seront à compléter ensuite via l\'admin.')">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="sync_formateurs">
+          <button type="submit" class="btn btn-accent btn-sm">&#x21BB; Sync depuis les appels</button>
+        </form>
         <a href="{% url 'satisfaction_formateurs_dashboard' %}" class="btn btn-ghost btn-sm">&#8592; Retour à l'analyse</a>
       </div>
     </div>

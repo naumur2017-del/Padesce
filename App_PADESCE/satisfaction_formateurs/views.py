@@ -2065,6 +2065,62 @@ def formateurs_prestataires_management(request):
                 from django.http import JsonResponse as _JsonResponse
                 return _JsonResponse({"ok": False, "error": str(exc)}, status=400)
 
+        elif action == "sync_formateurs":
+            # Crée les enregistrements Formateur manquants depuis les AppelFormateur
+            from App_PADESCE.appels.models import AppelFormateur as _AppelFormateur
+            import re as _re
+
+            def _normalize_phone(p):
+                return _re.sub(r"\D", "", p or "")[:20]
+
+            # Téléphones déjà enregistrés (normalisés)
+            existing_normalized = {
+                _normalize_phone(t)
+                for t in Formateur.objects.exclude(telephone="").values_list("telephone", flat=True)
+            }
+            # Codes déjà pris
+            existing_codes = set(Formateur.objects.values_list("code", flat=True))
+
+            phones_seen = set()
+            to_create = []
+            appel_phones = (
+                _AppelFormateur.objects.filter(is_active=True)
+                .exclude(telephone="")
+                .values_list("telephone", flat=True)
+                .distinct()
+            )
+            for raw_phone in appel_phones:
+                raw_phone = (raw_phone or "").strip()
+                if not raw_phone:
+                    continue
+                norm = _normalize_phone(raw_phone)
+                if not norm or norm in existing_normalized or norm in phones_seen:
+                    continue
+                phones_seen.add(norm)
+                # Générer un code unique (max 20 chars)
+                code_candidate = norm[:20]
+                suffix = 1
+                while code_candidate in existing_codes:
+                    code_candidate = f"{norm[:17]}-{suffix}"
+                    suffix += 1
+                existing_codes.add(code_candidate)
+                to_create.append(
+                    Formateur(
+                        code=code_candidate,
+                        nom_complet=f"[À compléter] {raw_phone}",
+                        telephone=raw_phone,
+                    )
+                )
+
+            if to_create:
+                Formateur.objects.bulk_create(to_create, ignore_conflicts=True)
+            saved_count = len(to_create)
+            saved_label = (
+                f"{saved_count} formateur(s) créé(s) depuis les appels. Complétez les noms via l'admin."
+                if saved_count
+                else "Aucun nouveau formateur à créer — tous les numéros sont déjà enregistrés."
+            )
+
     # Charger les formateurs avec leurs prestations courantes
     formateurs = list(
         Formateur.objects.prefetch_related("prestations", "classes__prestation")
