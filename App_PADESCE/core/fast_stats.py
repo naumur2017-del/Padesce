@@ -651,18 +651,18 @@ def _build_descente_contacts(
 
 def _build_class_link(
     request, classe: Classe, *, source_bundle: dict | None = None
-) -> tuple[str, str]:
+) -> tuple[str, str, str]:
     classe_key = normalize_network_lookup(classe.code)
     source_classe = dict((source_bundle or {}).get("classes", {}).get(classe_key, {}) or {})
     teams_channel_url = _safe_text(source_classe.get("teams_channel_url"))
     if teams_channel_url:
-        return teams_channel_url, f"Ouvrir canal Teams {classe.code}"
+        return teams_channel_url, f"Ouvrir canal Teams {classe.code}", "teams"
 
     relative_url = reverse("class_analysis_detail", args=[classe.code])
     build_absolute_uri = getattr(request, "build_absolute_uri", None)
     if callable(build_absolute_uri):
-        return build_absolute_uri(relative_url), f"Ouvrir analyse {classe.code}"
-    return relative_url, f"Ouvrir analyse {classe.code}"
+        return build_absolute_uri(relative_url), f"Ouvrir analyse {classe.code}", "analysis"
+    return relative_url, f"Ouvrir analyse {classe.code}", "analysis"
 
 
 def _build_formateur_row(
@@ -686,7 +686,7 @@ def _build_formateur_row(
         prestation_calls_cache=prestation_calls_cache,
         limit=4,
     )
-    class_link_url, class_link_label = _build_class_link(
+    class_link_url, class_link_label, class_link_kind = _build_class_link(
         request,
         classe,
         source_bundle=source_bundle,
@@ -698,6 +698,7 @@ def _build_formateur_row(
         "classe_id": _safe_text(classe.code) or "—",
         "class_link_url": class_link_url,
         "class_link_label": class_link_label,
+        "class_link_kind": class_link_kind,
         "beneficiaire_name": _safe_text(
             getattr(getattr(prestation, "beneficiaire", None), "nom_structure", "")
         ),

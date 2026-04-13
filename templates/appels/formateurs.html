@@ -32,53 +32,9 @@
     border: 1px dashed rgba(111,60,195,0.3); background: rgba(111,60,195,0.08);
   }
   .input-file input[type="file"] { background: transparent; border: none; padding: 4px; }
-  .input-file input[type="file"]:not(.file-input-fr-native) { background: transparent; border: none; padding: 4px; }
-  .input-file input[type="file"]:not(.file-input-fr-native)::file-selector-button {
+  .input-file input[type="file"]::file-selector-button {
     margin-right: 10px; padding: 8px 12px; border-radius: 10px; border: 1px solid rgba(111,60,195,0.3);
     background: #fff; font-weight: 600; cursor: pointer;
-  }
-  .file-input-fr {
-    display: inline-flex;
-    align-items: center;
-    gap: 10px;
-    flex-wrap: wrap;
-  }
-  .file-input-fr-native {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    white-space: nowrap;
-    border: 0;
-  }
-  .file-input-fr-btn {
-    margin: 0;
-    padding: 8px 12px;
-    border-radius: 10px;
-    border: 1px solid rgba(111,60,195,0.3);
-    background: #fff;
-    font-weight: 600;
-    cursor: pointer;
-    font-size: inherit;
-    font-family: inherit;
-    line-height: inherit;
-  }
-  .file-input-fr-btn:hover {
-    background: rgba(111,60,195,0.06);
-  }
-  .file-input-fr-name {
-    font-size: 0.9rem;
-    color: var(--muted);
-    max-width: 240px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .input-file .file-input-fr {
-    position: relative;
   }
   .file-label { font-weight: 700; color: var(--accent-strong); }
   .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 14px; box-shadow: var(--shadow); margin-bottom: 12px; }
@@ -87,6 +43,22 @@
   .stat { border: 1px solid var(--border); border-radius: 12px; background: #faf7ff; padding: 12px; }
   .stat strong { display: block; font-size: 1.25rem; color: var(--accent-strong); }
   .stat.ok { background: rgba(34,197,94,0.08); border-color: rgba(34,197,94,0.2); }
+  .satisfaction-header-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; margin: 12px 0 14px; }
+  .satisfaction-header-card {
+    border: 1px solid rgba(111,60,195,0.18);
+    border-radius: 14px;
+    padding: 14px;
+    background: linear-gradient(135deg, rgba(111,60,195,0.10), rgba(111,60,195,0.03));
+  }
+  .satisfaction-header-card strong {
+    display:block;
+    font-size: 1.2rem;
+    color: var(--accent-strong);
+    margin-top: 8px;
+  }
+  .satisfaction-header-title { font-size: 0.92rem; font-weight: 700; color: var(--accent-strong); }
+  .satisfaction-header-question { margin-top: 6px; font-size: 0.82rem; line-height: 1.4; color: var(--muted); }
+  .satisfaction-header-meta { margin-top: 6px; font-size: 0.8rem; color: var(--muted); }
   table { width: 100%; border-collapse: collapse; }
   th, td { padding: 8px; border: 1px solid var(--border); font-size: 0.92rem; vertical-align: top; }
   thead { background: rgba(111,60,195,0.08); }
@@ -146,45 +118,38 @@
   <div class="scope-note">Basculer entre les appels apprenants PADESCE et les appels formateurs.</div>
 </div>
 
+<h1 class="h4 mb-2">Appels Formateurs</h1>
 {% if user.is_superuser %}
-  <p class="subtitle" style="margin-bottom:8px;">Importer un ou plusieurs fichiers Excel avec la feuille <strong>Calendrier</strong>. Chaque numéro de <strong>CONTACT DU FORMATEUR</strong> est nettoyé, dédoublonné et inséré comme une ligne d'appel distincte.</p>
+  <p class="subtitle" style="margin-bottom:8px;">Importer un ou plusieurs fichiers Excel avec la feuille <strong>Calendrier</strong>. Chaque numero de <strong>CONTACT DU FORMATEUR</strong> est nettoye, dedoublonne et insere comme une ligne d'appel distincte.</p>
   <div class="panel">
     <form method="post" enctype="multipart/form-data" class="form-inline" style="margin-bottom:10px;">
       {% csrf_token %}
       <input type="hidden" name="update_mode" value="append">
       <div class="input-file">
-        <span class="file-label">Choisir fichier Excel</span>
-        <div class="file-input-fr">
-          <input type="file" id="fr-formateurs-append" name="files" accept=".xlsx,.xlsm" multiple required class="file-input-fr-native js-fr-file-input" />
-          <label for="fr-formateurs-append" class="file-input-fr-btn">Parcourir</label>
-          <span class="file-input-fr-name js-fr-file-name">Aucun fichier sélectionné</span>
-        </div>
+        <span class="file-label">Choisir fichiers Excel</span>
+        <input type="file" name="files" accept=".xlsx,.xlsm" multiple required />
       </div>
-      <button type="submit" class="btn btn-primary btn-sm">Importer (ajouter/combiner)</button>
+      <button type="submit" class="btn btn-primary btn-sm">Uploader (ajouter/combiner)</button>
     </form>
     <form method="post" enctype="multipart/form-data" class="form-inline">
       {% csrf_token %}
       <input type="hidden" name="update_mode" value="replace">
       <div class="input-file">
-        <span class="file-label">Choisir fichier Excel</span>
-        <div class="file-input-fr">
-          <input type="file" id="fr-formateurs-replace" name="files" accept=".xlsx,.xlsm" multiple required class="file-input-fr-native js-fr-file-input" />
-          <label for="fr-formateurs-replace" class="file-input-fr-btn">Parcourir</label>
-          <span class="file-input-fr-name js-fr-file-name">Aucun fichier sélectionné</span>
-        </div>
+        <span class="file-label">Choisir fichiers Excel</span>
+        <input type="file" name="files" accept=".xlsx,.xlsm" multiple required />
       </div>
-      <button type="submit" class="btn btn-secondary btn-sm">Importer (écrase l'affichage)</button>
+      <button type="submit" class="btn btn-secondary btn-sm">Uploader (ecrase l'affichage)</button>
     </form>
   </div>
   <div class="panel">
-    <p class="subtitle" style="margin-bottom:8px;">Nettoyage global des doublons de numéros sur toutes les tables d'appels. Les doublons détectés sont désactivés pour conserver l'historique.</p>
+    <p class="subtitle" style="margin-bottom:8px;">Nettoyage global des doublons de numeros sur toutes les tables d'appels. Les doublons detectes sont desactives pour conserver l'historique.</p>
     <form method="post" action="{% url 'deduplicate_all_call_tables' %}" style="display:flex; gap:8px; flex-wrap:wrap;">
       {% csrf_token %}
-      <button type="submit" class="btn btn-ghost btn-sm">Détecter et supprimer les doublons de numéros</button>
+      <button type="submit" class="btn btn-ghost btn-sm">Detecter et supprimer les doublons numeros</button>
     </form>
     <form method="post" action="{% url 'formateurs_delete_missing_phones' %}" style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
       {% csrf_token %}
-      <button type="submit" class="btn btn-ghost btn-sm">Supprimer les lignes sans téléphone</button>
+      <button type="submit" class="btn btn-ghost btn-sm">Supprimer les lignes sans telephone</button>
     </form>
     <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
       <button type="button" id="js-start-transcription" class="btn btn-ghost btn-sm">Transcrire le tableau filtre</button>
@@ -216,18 +181,30 @@
     </div>
   </div>
 
+  <div class="subtitle" style="margin:2px 0 6px;">Chapeau satisfaction formateurs</div>
+  <div class="satisfaction-header-grid">
+    {% for item in satisfaction_header_metrics %}
+    <article class="satisfaction-header-card">
+      <div class="satisfaction-header-title">{{ item.title }}</div>
+      <div class="satisfaction-header-question">{{ item.question }}</div>
+      <strong>{{ item.average|floatformat:2 }}/5</strong>
+      <div class="satisfaction-header-meta">{{ item.responses }} reponse{{ item.responses|pluralize }}</div>
+    </article>
+    {% endfor %}
+  </div>
+
   <form method="get" class="form-inline" style="margin-bottom:10px;">
-    <input type="text" name="q" class="input" style="flex:1; min-width:200px;" placeholder="Recherche numéro / prestataire / formation..." value="{{ filters.q }}">
+    <input type="text" name="q" class="input" style="flex:1; min-width:200px;" placeholder="Recherche numero / prestataire / formation..." value="{{ filters.q }}">
     <input type="datetime-local" name="date_from" class="input" value="{{ filters.date_from }}">
     <input type="datetime-local" name="date_to" class="input" value="{{ filters.date_to }}">
     <select name="status" class="input">
       <option value="">Statut</option>
       <option value="en_attente" {% if filters.status == "en_attente" %}selected{% endif %}>En attente</option>
-      <option value="appel_tente" {% if filters.status == "appel_tente" %}selected{% endif %}>Appel tenté</option>
+      <option value="appel_tente" {% if filters.status == "appel_tente" %}selected{% endif %}>Appel tente</option>
       <option value="en_cours" {% if filters.status == "en_cours" %}selected{% endif %}>En cours</option>
       <option value="pause" {% if filters.status == "pause" %}selected{% endif %}>Pause</option>
-      <option value="a_rappeler" {% if filters.status == "a_rappeler" %}selected{% endif %}>À rappeler</option>
-      <option value="appel_reussi" {% if filters.status == "appel_reussi" %}selected{% endif %}>Appel réussi</option>
+      <option value="a_rappeler" {% if filters.status == "a_rappeler" %}selected{% endif %}>A rappeler</option>
+      <option value="appel_reussi" {% if filters.status == "appel_reussi" %}selected{% endif %}>Appel reussi</option>
       <option value="formulaire_rempli" {% if filters.status == "formulaire_rempli" %}selected{% endif %}>Formulaire rempli</option>
       <option value="formulaire_avec_audio" {% if filters.status == "formulaire_avec_audio" %}selected{% endif %}>Formulaire avec audio</option>
       <option value="completed" {% if filters.status == "completed" %}selected{% endif %}>Finalisés</option>
@@ -240,7 +217,7 @@
       {% endfor %}
     </select>
     <select name="beneficiaire" class="input">
-      <option value="">Bénéficiaire</option>
+      <option value="">Beneficiaire</option>
       {% for item in filters.beneficiaires %}
         <option value="{{ item }}" {% if filters.beneficiaire == item %}selected{% endif %}>{{ item }}</option>
       {% endfor %}
@@ -287,8 +264,8 @@
     </p>
     <div style="display:flex; gap:8px; flex-wrap:wrap;">
       <a class="btn btn-ghost btn-sm" href="{% url 'formateurs_export_filtered_csv' %}{% if request.GET.urlencode %}?{{ request.GET.urlencode }}{% endif %}">Exporter le tableau filtre (CSV)</a>
-      <a class="btn btn-ghost btn-sm" href="{% url 'formateurs_export_xlsx' %}">Exporter toutes les données (XLSX)</a>
-      <button type="button" id="js-download-audios" class="btn btn-primary btn-sm" disabled>Télécharger les audios sélectionnés</button>
+      <a class="btn btn-ghost btn-sm" href="{% url 'formateurs_export_xlsx' %}">Exporter toutes les donnees (XLSX)</a>
+      <button type="button" id="js-download-audios" class="btn btn-primary btn-sm" disabled>Telecharger les audios selectionnes</button>
     </div>
   </div>
 
@@ -296,13 +273,13 @@
     <table>
       <thead>
         <tr>
-          <th class="checkbox-cell"><input type="checkbox" id="js-select-all" aria-label="Sélectionner tous les audios"></th>
-          <th>Séance</th>
+          <th class="checkbox-cell"><input type="checkbox" id="js-select-all" aria-label="Selectionner tous les audios"></th>
+          <th>Seance</th>
           <th>Prestataire</th>
           <th>Beneficiaire</th>
           <th>Formation</th>
           <th>Lieu</th>
-          <th>Téléphone</th>
+          <th>Telephone</th>
           <th>Cohorte</th>
           <th>Date</th>
           <th>Heure</th>
@@ -332,7 +309,7 @@
             </td>
             <td>
               <div class="actions js-actions">
-                <button type="button" class="btn-small primary js-start" {% if a.status != "en_attente" and a.status != "a_rappeler" and a.status != "appel_tente" and a.status != "appel_reussi" %}hidden{% endif %}><i class="fa-solid fa-phone"></i><span>Démarrer</span></button>
+                <button type="button" class="btn-small primary js-start" {% if a.status != "en_attente" and a.status != "a_rappeler" and a.status != "appel_tente" and a.status != "appel_reussi" %}hidden{% endif %}><i class="fa-solid fa-phone"></i><span>Demarrer</span></button>
                 <button type="button" class="btn-icon js-pause" title="Mettre l'appel en pause" aria-label="Mettre l'appel en pause" {% if a.status != "en_cours" and a.status != "pause" %}hidden{% endif %} {% if a.status != "en_cours" %}disabled{% endif %}><i class="fa-solid fa-pause"></i></button>
                 <button type="button" class="btn-icon js-resume" title="Reprendre l'appel" aria-label="Reprendre l'appel" {% if a.status != "en_cours" and a.status != "pause" %}hidden{% endif %} {% if a.status != "pause" %}disabled{% endif %}><i class="fa-solid fa-play"></i></button>
                 <button type="button" class="btn-small danger js-terminer" {% if a.status != "en_cours" and a.status != "pause" %}hidden{% endif %}><i class="fa-solid fa-circle-stop"></i><span>Terminer</span></button>
@@ -344,11 +321,11 @@
                   <canvas width="120" height="32" class="js-visual"></canvas>
                 </div>
                 <div class="audio-meta js-audio-controls" {% if not a.has_audio_file %}hidden{% endif %}>
-                  <button type="button" class="btn-small js-play" {% if not a.has_audio_file %}disabled{% endif %}><i class="fa-solid fa-play"></i><span>Lecture</span></button>
+                  <button type="button" class="btn-small js-play" {% if not a.has_audio_file %}disabled{% endif %}><i class="fa-solid fa-play"></i><span>Play</span></button>
                   <button type="button" class="btn-icon js-stop" {% if not a.has_audio_file %}disabled{% endif %} title="Stopper l'audio" aria-label="Stopper l'audio"><i class="fa-solid fa-stop"></i></button>
                   <button type="button" class="btn-small js-transcription" {% if not a.has_audio_file %}disabled{% endif %}><i class="fa-solid fa-file-lines"></i><span>Transcription</span></button>
                   {% if a.has_audio_file %}
-                    <a class="btn-icon js-audio-download" href="{{ a.audio_file_url }}" download="formateur-{{ a.reference_code }}.mp3" title="Télécharger l'audio" aria-label="Télécharger l'audio"><i class="fa-solid fa-download"></i></a>
+                    <a class="btn-icon js-audio-download" href="{{ a.audio_file_url }}" download="formateur-{{ a.reference_code }}.mp3" title="Telecharger l'audio" aria-label="Telecharger l'audio"><i class="fa-solid fa-download"></i></a>
                   {% endif %}
                   <div class="progress"><div class="progress-fill"></div></div>
                   <span class="time-label">0:00</span>
@@ -368,8 +345,8 @@
     <div class="selection-bar" style="margin-top:10px;">
       <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
         {% if page_obj.has_previous %}
-          <a class="btn btn-ghost btn-sm" href="?{% if querystring_no_page %}{{ querystring_no_page }}&{% endif %}page=1">Première</a>
-          <a class="btn btn-ghost btn-sm" href="?{% if querystring_no_page %}{{ querystring_no_page }}&{% endif %}page={{ page_obj.previous_page_number }}">Précédente</a>
+          <a class="btn btn-ghost btn-sm" href="?{% if querystring_no_page %}{{ querystring_no_page }}&{% endif %}page=1">Premiere</a>
+          <a class="btn btn-ghost btn-sm" href="?{% if querystring_no_page %}{{ querystring_no_page }}&{% endif %}page={{ page_obj.previous_page_number }}">Precedente</a>
         {% endif %}
         {% for num in page_obj.paginator.page_range %}
           {% if num >= page_obj.number|add:"-2" and num <= page_obj.number|add:"2" %}
@@ -382,7 +359,7 @@
         {% endfor %}
         {% if page_obj.has_next %}
           <a class="btn btn-ghost btn-sm" href="?{% if querystring_no_page %}{{ querystring_no_page }}&{% endif %}page={{ page_obj.next_page_number }}">Suivante</a>
-          <a class="btn btn-ghost btn-sm" href="?{% if querystring_no_page %}{{ querystring_no_page }}&{% endif %}page={{ page_obj.paginator.num_pages }}">Dernière</a>
+          <a class="btn btn-ghost btn-sm" href="?{% if querystring_no_page %}{{ querystring_no_page }}&{% endif %}page={{ page_obj.paginator.num_pages }}">Derniere</a>
         {% endif %}
       </div>
       <div class="subtitle">Page {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</div>
@@ -397,7 +374,7 @@
     <div id="js-transcription-status" class="subtitle">Chargement...</div>
     <div id="js-transcription-text" class="transcript-box" style="margin-top:10px;">Aucune transcription.</div>
     <div class="modal-actions">
-      <a id="js-transcription-download" class="btn btn-ghost btn-sm" href="#" download>Télécharger</a>
+      <a id="js-transcription-download" class="btn btn-ghost btn-sm" href="#" download>Telecharger</a>
       <button type="button" class="btn btn-primary btn-sm" data-transcription-close>Fermer</button>
     </div>
   </div>
@@ -413,21 +390,21 @@
       </div>
     </div>
     <div class="modal-detail" style="margin-top:8px;"><span class="modal-label">Session :</span><span id="js-modal-nom">-</span></div>
-    <div class="modal-detail"><span class="modal-label">Téléphone :</span><span id="js-modal-phone">-</span></div>
+    <div class="modal-detail"><span class="modal-label">Telephone :</span><span id="js-modal-phone">-</span></div>
 
     <div class="survey-grid">
       <div class="survey-row">
-        <div class="q-title js-formateur-q-title" data-fr="Q1 - Niveau des prérequis des apprenants" data-en="Q1 - Learners' prerequisites level">Q1 - Niveau des prérequis des apprenants</div>
-        <div class="q-formulation js-formateur-q-form" data-fr="Les apprenants avaient-ils les prérequis nécessaires pour suivre cette formation ?" data-en="Did learners have the necessary prerequisites to follow this training?">Les apprenants avaient-ils les prérequis nécessaires pour suivre cette formation ?</div>
-        <span class="q-scale js-formateur-q-scale" data-fr="1 = Insuffisant -> 5 = Très satisfaisant" data-en="1 = Insufficient -> 5 = Very satisfactory">1 = Insuffisant -> 5 = Très satisfaisant</span>
+        <div class="q-title js-formateur-q-title" data-fr="Q1 - Niveau des prerequis des apprenants" data-en="Q1 - Learners' prerequisites level">Q1 - Niveau des prerequis des apprenants</div>
+        <div class="q-formulation js-formateur-q-form" data-fr="Les apprenants avaient-ils les prerequis necessaires pour suivre cette formation ?" data-en="Did learners have the necessary prerequisites to follow this training?">Les apprenants avaient-ils les prerequis necessaires pour suivre cette formation ?</div>
+        <span class="q-scale js-formateur-q-scale" data-fr="1 = Insuffisant -> 5 = Tres satisfaisant" data-en="1 = Insufficient -> 5 = Very satisfactory">1 = Insuffisant -> 5 = Tres satisfaisant</span>
         <select id="js-modal-q1" class="input">
           <option value="">Note</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option>
         </select>
       </div>
       <div class="survey-row">
         <div class="q-title js-formateur-q-title" data-fr="Q2 - Niveau d'interaction des apprenants" data-en="Q2 - Learners interaction level">Q2 - Niveau d'interaction des apprenants</div>
-        <div class="q-formulation js-formateur-q-form" data-fr="Les apprenants ont-ils été suffisamment interactifs, posant des questions et participant activement ?" data-en="Were learners sufficiently interactive, asking questions and actively participating?">Les apprenants ont-ils été suffisamment interactifs, posant des questions et participant activement ?</div>
-        <span class="q-scale js-formateur-q-scale" data-fr="1 = Insuffisant -> 5 = Très satisfaisant" data-en="1 = Insufficient -> 5 = Very satisfactory">1 = Insuffisant -> 5 = Très satisfaisant</span>
+        <div class="q-formulation js-formateur-q-form" data-fr="Les apprenants ont-ils ete suffisamment interactifs, posant des questions et participant activement ?" data-en="Were learners sufficiently interactive, asking questions and actively participating?">Les apprenants ont-ils ete suffisamment interactifs, posant des questions et participant activement ?</div>
+        <span class="q-scale js-formateur-q-scale" data-fr="1 = Insuffisant -> 5 = Tres satisfaisant" data-en="1 = Insufficient -> 5 = Very satisfactory">1 = Insuffisant -> 5 = Tres satisfaisant</span>
         <select id="js-modal-q2" class="input">
           <option value="">Note</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option>
         </select>
@@ -635,15 +612,6 @@
 
     window.addEventListener("online", syncOfflineJobs);
     syncOfflineJobs();
-    document.querySelectorAll(".js-fr-file-input").forEach((input) => {
-      const nameEl = input.closest(".file-input-fr")?.querySelector(".js-fr-file-name");
-      const emptyLabel = "Aucun fichier sélectionné";
-      input.addEventListener("change", () => {
-        if (nameEl) {
-          nameEl.textContent = input.files && input.files.length ? input.files[0].name : emptyLabel;
-        }
-      });
-    });
     const terminationModal = document.getElementById("js-termination-modal");
     const modalRappelCheckbox = document.getElementById("js-modal-rappel");
     const modalRappelAt = document.getElementById("js-modal-rappel-at");

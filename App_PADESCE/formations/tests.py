@@ -203,6 +203,68 @@ class AnalysisEntityDetailTests(TestCase):
         self.assertContains(response, "CLA002")
         self.assertContains(response, reverse("class_analysis_detail", args=[self.classe.code]))
 
+    @patch("App_PADESCE.formations.views.build_padesce_source_index")
+    def test_class_analysis_detail_ignores_cutoff_records_for_formateur_rows(
+        self, mock_source_index
+    ):
+        mock_source_index.return_value = {
+            "classes": {
+                "cla001": {
+                    "classe_id": "CLA001",
+                    "teams_channel_url": "https://teams.microsoft.com/l/channel/fake",
+                }
+            },
+            "records": {
+                "call001": {
+                    "code": "CALL001",
+                    "prestataire": self.prestataire.raison_sociale,
+                    "beneficiaire": self.beneficiaire.nom_structure,
+                    "formation": self.formation.nom,
+                    "classe_id": self.classe.code,
+                    "telephone1": "677001122",
+                }
+            },
+        }
+
+        response = self.client.get(reverse("class_analysis_detail", args=["cla001"]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Formateurs (2)")
+        self.assertContains(response, "699001122")
+
+    @patch("App_PADESCE.formations.views.build_padesce_source_index")
+    def test_prestation_analysis_detail_ignores_cutoff_records_for_formateur_rows(
+        self, mock_source_index
+    ):
+        mock_source_index.return_value = {
+            "classes": {
+                "cla001": {
+                    "classe_id": "CLA001",
+                    "teams_channel_url": "https://teams.microsoft.com/l/channel/fake",
+                },
+                "cla002": {
+                    "classe_id": "CLA002",
+                    "teams_channel_url": "https://teams.microsoft.com/l/channel/fake-2",
+                },
+            },
+            "records": {
+                "call001": {
+                    "code": "CALL001",
+                    "prestataire": self.prestataire.raison_sociale,
+                    "beneficiaire": self.beneficiaire.nom_structure,
+                    "formation": self.formation.nom,
+                    "classe_id": self.classe.code,
+                    "telephone1": "677001122",
+                }
+            },
+        }
+
+        response = self.client.get(reverse("prestation_analysis_detail", args=["presta146"]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Formateurs (2)")
+        self.assertContains(response, "699001122")
+
     def test_read_only_call_detail_pages_render_without_start_actions(self):
         apprenant_response = self.client.get(
             reverse("analysis_apprenant_call_detail", args=[self.apprenant_call.pk])

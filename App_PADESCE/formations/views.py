@@ -323,6 +323,12 @@ def _analysis_source_classes_for_prestation(
     return sorted(matches, key=lambda item: str(item.get("classe_id", "")).casefold())
 
 
+def _analysis_source_class_channel_link(source_bundle: dict | None, class_code: str) -> str:
+    source_classe = _analysis_source_lookup(source_bundle, "classes", class_code)
+    link = str(source_classe.get("teams_channel_url", "") or "").strip()
+    return link if link.startswith("http") else ""
+
+
 def _analysis_statut_label(value) -> str:
     raw_value = str(value or "").strip()
     mapping = {
@@ -449,6 +455,7 @@ def _analysis_source_class_links(
                 "apprenants_count": call_count,
                 "appels_count": call_count,
                 "url": reverse("class_analysis_detail", args=[class_code]),
+                "teams_url": str(item.get("teams_channel_url", "") or "").strip(),
             }
         )
     return links
@@ -485,10 +492,11 @@ def _analysis_source_record_for_appel(source_bundle: dict | None, appel: Appel) 
 
 
 def _prestation_formateur_candidates(prestation: Prestation, source_bundle: dict | None = None):
-    """Get all formateurs for a prestation, filtering by prestataire/beneficiaire.
+    """Get all formateurs for a prestation from AppelFormateur.
 
-    First tries to get formateurs from the Excel source data (source_bundle),
-    then falls back to database (AppelFormateur).
+    The cutoff workbook only contains apprenant/consolidation rows. Reusing
+    those records here would produce incomplete objects during class/prestation
+    analysis rendering and can break the page at runtime.
     """
     if not prestation:
         return []
@@ -501,38 +509,20 @@ def _prestation_formateur_candidates(prestation: Prestation, source_bundle: dict
     ).strip()
     formation_name = str(getattr(getattr(prestation, "formation", None), "nom", "") or "").strip()
 
-    rows = []
+    # The source bundle is intentionally ignored here because it does not
+    # expose AppelFormateur-compatible rows.
+    queryset = AppelFormateur.objects.filter(is_active=True).select_related("locked_by")
 
-    # STRATEGY 1: Try to get formateurs from source_bundle (Excel data)
-    if source_bundle:
-        source_records = source_bundle.get("records", {}) or {}
-        for record in source_records.values():
-            record_dict = dict(record) if not isinstance(record, dict) else record
-            record_prestataire = str(record_dict.get("prestataire") or "").strip()
-            record_beneficiaire = str(record_dict.get("beneficiaire") or "").strip()
+    filters = Q()
+    if prestataire_name:
+        filters |= Q(prestataire__iexact=prestataire_name)
+    if beneficiaire_name:
+        filters |= Q(beneficiaire__iexact=beneficiaire_name)
 
-            # Match if prestataire OR beneficiaire matches
-            if (prestataire_name and record_prestataire.lower() == prestataire_name.lower()) or (
-                beneficiaire_name and record_beneficiaire.lower() == beneficiaire_name.lower()
-            ):
-                rows.append(SimpleNamespace(**record_dict))
+    if filters:
+        queryset = queryset.filter(filters)
 
-    # STRATEGY 2: Fall back to database if no source_bundle or no results
-    if not rows:
-        # Get formateurs filtered by prestataire OR beneficiaire (not AND)
-        # This ensures we return all formateurs that match either the prestataire or beneficiaire
-        queryset = AppelFormateur.objects.filter(is_active=True).select_related("locked_by")
-
-        filters = Q()
-        if prestataire_name:
-            filters |= Q(prestataire__iexact=prestataire_name)
-        if beneficiaire_name:
-            filters |= Q(beneficiaire__iexact=beneficiaire_name)
-
-        if filters:
-            queryset = queryset.filter(filters)
-
-        rows = list(queryset.order_by("session_date", "numero_seance", "reference_code"))
+    rows = list(queryset.order_by("session_date", "numero_seance", "reference_code"))
 
     # Optional: Apply formation matching as a secondary filter
     # If we have formation matches, prioritize them; otherwise return all rows
@@ -547,11 +537,7 @@ def _prestation_formateur_candidates(prestation: Prestation, source_bundle: dict
 
 
 def _class_formateur_candidates(classe: Classe, source_bundle: dict | None = None):
-    """Get all formateurs linked to the prestation of this classe.
-
-    First tries to get formateurs from the Excel source data (source_bundle),
-    then falls back to database (AppelFormateur).
-    """
+    """Get all formateurs linked to the prestation of this classe."""
     prestation = getattr(classe, "prestation", None)
     if not prestation:
         return []
@@ -565,25 +551,7 @@ def _class_formateur_candidates(classe: Classe, source_bundle: dict | None = Non
     ).strip()
     formation_name = str(getattr(getattr(prestation, "formation", None), "nom", "") or "").strip()
 
-    all_rows = []
-
-    # STRATEGY 1: Try to get formateurs from source_bundle (Excel data)
-    if source_bundle:
-        source_records = source_bundle.get("records", {}) or {}
-        for record in source_records.values():
-            record_dict = dict(record) if not isinstance(record, dict) else record
-            record_prestataire = str(record_dict.get("prestataire") or "").strip()
-            record_beneficiaire = str(record_dict.get("beneficiaire") or "").strip()
-
-            # Match if prestataire OR beneficiaire matches
-            if (prestataire_name and record_prestataire.lower() == prestataire_name.lower()) or (
-                beneficiaire_name and record_beneficiaire.lower() == beneficiaire_name.lower()
-            ):
-                all_rows.append(SimpleNamespace(**record_dict))
-
-    # STRATEGY 2: Fall back to database if no source_bundle or no results
-    if not all_rows:
-        all_rows = _prestation_formateur_candidates(prestation, source_bundle=source_bundle)
+    all_rows = _prestation_formateur_candidates(prestation, source_bundle=source_bundle)
 
     if not all_rows:
         return []
@@ -799,6 +767,10 @@ def _build_class_chapeau(classe_code: str, appels, source_bundle: dict | None = 
         ),
         "participation_rate": participation_rate,
         "person_formed_rate": person_formed_rate,
+        "moyenne_participation_presence": round(
+            (round(sum(presence_taux_values) / len(presence_taux_values), 2) if presence_taux_values else 0)
+            + participation_rate
+        ) // 2 if (presence_taux_values or participation_rate) else 0,
         "respondents_count": len(respondent_keys),
         "formulaires_remplis": len(respondent_keys),
         "has_data": any(item["count"] for item in question_rows),
@@ -868,23 +840,24 @@ def _build_formateur_rows(rows, *, back_url: str):
     for row in rows:
         form_state = _formateur_form_state(row)
         has_audio, audio_url = _file_state(getattr(row, "audio_file", None))
-        detail_url = _detail_url("analysis_formateur_call_detail", row.pk, back_url)
+        row_pk = getattr(row, "pk", getattr(row, "id", 0))
+        detail_url = _detail_url("analysis_formateur_call_detail", row_pk, back_url)
         person_key = _formateur_person_key(row)
         # Try to resolve formateur name from linked Classe
         resolved_classe = _resolve_classe_for_formateur_analysis(row)
         formateur_nom = str(
             getattr(getattr(resolved_classe, "formateur", None), "nom_complet", "")
-            or row.source_contact
+            or getattr(row, "source_contact", "")
             or ""
         ).strip()
         formateur_telephone = str(
             getattr(getattr(resolved_classe, "formateur", None), "telephone", "")
-            or row.telephone
+            or getattr(row, "telephone", "")
             or ""
         ).strip()
         payload.append(
             {
-                "id": row.pk,
+                "id": row_pk,
                 "reference_code": row.reference_code,
                 "telephone": row.telephone or "",
                 "formation": row.formation or "",
@@ -1179,6 +1152,8 @@ def class_analysis_detail(request, code: str):
             .filter(Q(classe=classe) | Q(classe_label__iexact=classe.code))
             .order_by("nom", "code", "pk")
         )
+        source_bundle = _analysis_source_bundle()
+        source_classe = _analysis_source_lookup(source_bundle, "classes", classe.code)
 
     active_tab = (
         request.GET.get("tab")
@@ -1201,22 +1176,7 @@ def class_analysis_detail(request, code: str):
     class_chapeau = _build_class_chapeau(classe.code, apprenant_appels, source_bundle=source_bundle)
     formateur_chapeau = _build_formateur_chapeau(classe.code, formateur_appels)
 
-    channel_link = ""
-    try:
-        import pandas as pd
-
-        excel_path = _class_channel_workbook_path()
-        df = pd.read_excel(excel_path)
-        for _, row in df.iterrows():
-            if str(row.iloc[1]).strip() == str(code).strip():
-                link = str(row.iloc[0]).strip()
-                if link and link.startswith("http"):
-                    channel_link = link
-                break
-    except Exception:
-        logger.exception(
-            "Unable to read class channel workbook: %s", _class_channel_workbook_path()
-        )
+    channel_link = _analysis_source_class_channel_link(source_bundle, classe.code)
 
     return render(
         request,
@@ -1245,7 +1205,6 @@ def class_analysis_detail(request, code: str):
     )
 
 
-@require_analysis_access
 def prestation_analysis_detail(request, code: str):
     prestation = (
         Prestation.objects.select_related("prestataire", "formation", "beneficiaire")
@@ -1294,6 +1253,7 @@ def prestation_analysis_detail(request, code: str):
         class_links = _analysis_source_class_links(source_classes, apprenant_appels)
         reference_warning = _analysis_reference_warning()
     else:
+        source_bundle = _analysis_source_bundle()
         apprenant_appels = list(
             _analysis_appel_queryset()
             .filter(classe__prestation=prestation)
@@ -1306,6 +1266,7 @@ def prestation_analysis_detail(request, code: str):
                 "apprenants_count": item.apprenants_count,
                 "appels_count": item.appels_count,
                 "url": reverse("class_analysis_detail", args=[item.code]),
+                "teams_url": _analysis_source_class_channel_link(source_bundle, item.code),
             }
             for item in prestation.classes.all()
         ]

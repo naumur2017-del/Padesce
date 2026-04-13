@@ -42,6 +42,11 @@ urlpatterns = [
         name="application_report_export_word",
     ),
     path(
+        "rapport/export/anomalies.xlsx",
+        lazy_view("App_PADESCE.reporting.views.application_report_export_anomalies_excel_view"),
+        name="application_report_export_anomalies_excel",
+    ),
+    path(
         "rapport/send-mail/",
         lazy_view("App_PADESCE.reporting.views.application_report_send_mail_view"),
         name="application_report_send_mail",

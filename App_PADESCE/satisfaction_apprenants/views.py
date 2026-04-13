@@ -165,6 +165,7 @@ SUPPORTED_AUDIO_FORMATS = {"wav", "mp3", "m4a", "ogg", "webm", "flac"}
 
 logger = logging.getLogger(__name__)
 ANALYSIS_CACHE_TIMEOUT = int(str(os.getenv("PADESCE_ANALYSIS_CACHE_TIMEOUT", "300") or "300"))
+SATISFACTION_DASHBOARD_CACHE_VERSION = "qualified-prestations-v1"
 
 
 def _analysis_cache_key(prefix: str, *parts) -> str:
@@ -1185,6 +1186,28 @@ def _row_matches_dashboard_filters(row: dict, filters: dict, skip_field: str | N
     return True
 
 
+def _row_prestation_lookup_key(row: dict) -> str:
+    return normalize_network_lookup(
+        row.get("source_prestation_id")
+        or row.get("prestation_code")
+        or row.get("prestation")
+        or ""
+    )
+
+
+def _filter_rows_to_qualified_prestations(
+    rows: list[dict], qualified_prestation_codes: set[str] | None
+) -> list[dict]:
+    normalized_codes = {
+        normalize_network_lookup(code)
+        for code in (qualified_prestation_codes or set())
+        if str(code or "").strip()
+    }
+    if not normalized_codes:
+        return []
+    return [row for row in rows if _row_prestation_lookup_key(row) in normalized_codes]
+
+
 def _build_threshold_class_stats(
     filtered_rows: list[dict],
     classe_apprenant_counts: dict,
@@ -1300,6 +1323,18 @@ def _build_dashboard_filter_options(
     return filter_options
 
 
+def _build_dashboard_filter_options_from_rows(all_rows: list[dict], filters: dict) -> dict[str, list[str]]:
+    filter_options = {}
+    for filter_name, row_key in FILTER_FIELD_ROW_MAP.items():
+        option_rows = [
+            row
+            for row in all_rows
+            if _row_matches_dashboard_filters(row, filters, skip_field=filter_name)
+        ]
+        filter_options[filter_name] = _sorted_unique(row.get(row_key, "") for row in option_rows)
+    return filter_options
+
+
 def _build_class_filter_options(
     all_rows: list[dict],
     filters: dict,
@@ -1324,6 +1359,47 @@ def _build_class_filter_options(
                 "label": (
                     f"{item['code']} - Seuil {analysis_threshold_label()} atteint "
                     f"({item['nb']} / {item['total_apprenants'] or item['nb']}, cible {target})"
+                ),
+            }
+        )
+    return options
+
+
+def _build_class_filter_options_from_rows(
+    all_rows: list[dict], filters: dict, classe_apprenant_counts: dict
+) -> list[dict]:
+    option_rows = [
+        row for row in all_rows if _row_matches_dashboard_filters(row, filters, skip_field="classe")
+    ]
+    classe_groups = {}
+    for row in option_rows:
+        classe_code = str(row.get("classe_code") or "").strip()
+        if not classe_code:
+            continue
+        classe_groups.setdefault(
+            classe_code,
+            {
+                "code": classe_code,
+                "intitule": row.get("formation_intitule") or row.get("classe_intitule") or "",
+                "nb": 0,
+            },
+        )
+        classe_groups[classe_code]["intitule"] = _prefer_dashboard_label(
+            classe_groups[classe_code]["intitule"],
+            row.get("formation_intitule") or row.get("classe_intitule") or "",
+        )
+        classe_groups[classe_code]["nb"] += 1
+
+    options = []
+    for item in sorted(classe_groups.values(), key=lambda value: value["code"]):
+        total_apprenants = _analysis_class_count(classe_apprenant_counts, item["code"])
+        target = analysis_threshold_target(total_apprenants) or item["nb"]
+        options.append(
+            {
+                "value": item["code"],
+                "label": (
+                    f"{item['code']} - Seuil {analysis_threshold_label()} atteint "
+                    f"({item['nb']} / {total_apprenants or item['nb']}, cible {target})"
                 ),
             }
         )
@@ -1719,6 +1795,42 @@ def _qualified_prestation_codes_from_source(
         ):
             qualified_codes.add(prestation_key)
     return qualified_codes
+
+
+def _analyzed_class_codes_from_source(
+    selection_filters: dict,
+    qualification_filters: dict,
+    classe_stats_all: list[dict],
+    source_bundle: dict | None,
+    threshold_class_codes: set[str] | None = None,
+) -> tuple[list[str], set[str]]:
+    qualified_prestation_codes = _qualified_prestation_codes_from_source(
+        qualification_filters,
+        classe_stats_all,
+        source_bundle,
+        threshold_class_codes=threshold_class_codes,
+    )
+    if source_bundle:
+        prestation_classes = _source_prestation_classes_from_source(selection_filters, source_bundle)
+        class_codes = sorted(
+            {
+                str(source_class.get("classe_id") or "").strip()
+                for prestation_key, class_map in prestation_classes.items()
+                if prestation_key in qualified_prestation_codes
+                for source_class in class_map.values()
+                if str(source_class.get("classe_id") or "").strip()
+            }
+        )
+        return class_codes, qualified_prestation_codes
+
+    fallback_class_codes = sorted(
+        {
+            str(item.get("code") or "").strip()
+            for item in classe_stats_all
+            if str(item.get("code") or "").strip() and item.get("threshold_reached")
+        }
+    )
+    return fallback_class_codes, qualified_prestation_codes
 
 
 def _is_ras_text(value: str) -> bool:
@@ -2252,6 +2364,48 @@ def _attach_network_source_to_rows(
     }
 
 
+def _attached_rows_source_summary(
+    rows: list[dict], source_bundle: dict | None = None, source_key: str = ANALYSIS_DASHBOARD_DEFAULT_SOURCE
+) -> dict:
+    if not source_bundle:
+        return _source_summary_unavailable("Source réseau indisponible.", source_key=source_key)
+
+    mismatch_rows: list[dict] = []
+    for row in rows:
+        if row.get("source_status_label") != "À vérifier":
+            continue
+        if len(mismatch_rows) >= 8:
+            break
+        mismatch_rows.append(
+            {
+                "code": row.get("apprenant_code", ""),
+                "nom": row.get("apprenant_nom", ""),
+                "apprenant_id": row.get("source_apprenant_id", ""),
+                "alerts_label": row.get("source_alerts_label", ""),
+            }
+        )
+
+    return {
+        "available": True,
+        "message": "",
+        "key": source_bundle["source"].get("key", normalize_workbook_source_key(source_key)),
+        "label": source_bundle["source"].get("label", ""),
+        "name": source_bundle["source"]["name"],
+        "modified_label": source_bundle["source"]["modified_label"],
+        "matched_count": sum(1 for row in rows if row.get("source_found")),
+        "missing_count": sum(1 for row in rows if not row.get("source_found")),
+        "consistent_count": sum(1 for row in rows if row.get("source_status_label") == "OK"),
+        "mismatch_count": sum(1 for row in rows if row.get("source_status_label") == "À vérifier"),
+        "apprenant_id_count": sum(1 for row in rows if row.get("source_apprenant_id")),
+        "source_apprenant_count": (
+            source_bundle.get("counts", {}).get("apprenants")
+            or sum(_source_class_apprenant_counts(source_bundle).values())
+        ),
+        "duplicate_code_count": len(source_bundle["duplicate_codes"]),
+        "mismatch_rows": mismatch_rows,
+    }
+
+
 def _clean_export_part(value: str, default: str) -> str:
     cleaned = re.sub(r"[^A-Z0-9_-]", "_", str(value or "").strip().upper())
     cleaned = re.sub(r"_+", "_", cleaned).strip("_")
@@ -2580,6 +2734,7 @@ def _build_satisfaction_dashboard_data(request):
         source_bundle = None
     cache_key = _analysis_cache_key(
         "dashboard-data",
+        SATISFACTION_DASHBOARD_CACHE_VERSION,
         selected_source,
         request.GET.urlencode(),
         ((source_bundle or {}).get("source") or {}).get("modified_at", "no-source"),
@@ -2623,26 +2778,17 @@ def _build_satisfaction_dashboard_data(request):
     classe_apprenant_counts = _local_analysis_class_counts()
     analysis_scope_filters = {key: "" for key in filters}
     analysis_scope_filters["source"] = selected_source
-    rows, _filtered_classe_stats = _thresholded_dashboard_rows(
-        all_rows,
-        filters,
-        classe_apprenant_counts,
-        threshold_class_codes=threshold_class_codes,
-    )
-    _, classe_stats_all = _thresholded_dashboard_rows(
+    analysis_scope_rows, classe_stats_all = _thresholded_dashboard_rows(
         all_rows,
         analysis_scope_filters,
         classe_apprenant_counts,
         threshold_class_codes=threshold_class_codes,
     )
-    rows, source_summary = _attach_network_source_to_rows(
-        rows,
+    analysis_scope_rows, _ = _attach_network_source_to_rows(
+        analysis_scope_rows,
         source_bundle=source_bundle,
         source_key=selected_source,
     )
-    rows = _assign_enquete_ids(rows)
-    total = len(rows)
-    analysis_audio_count = sum(1 for row in rows if row.get("has_audio"))
     terminated_prestation_codes = _terminated_prestation_codes_from_source(
         analysis_scope_filters,
         source_bundle,
@@ -2653,6 +2799,20 @@ def _build_satisfaction_dashboard_data(request):
         source_bundle,
         threshold_class_codes=threshold_class_codes,
     )
+    qualified_scope_rows = _filter_rows_to_qualified_prestations(
+        analysis_scope_rows, qualified_prestation_codes
+    )
+    rows = [
+        row for row in qualified_scope_rows if _row_matches_dashboard_filters(row, filters)
+    ]
+    rows = _assign_enquete_ids(rows)
+    source_summary = _attached_rows_source_summary(
+        rows,
+        source_bundle=source_bundle,
+        source_key=selected_source,
+    )
+    total = len(rows)
+    analysis_audio_count = sum(1 for row in rows if row.get("has_audio"))
     # Apprenants Vague 1 = tous les apprenants présents dans la feuille consolidée source CutOff
     # (pas seulement les apprenants des prestations terminées)
     vague1_apprenants_count = int(
@@ -2807,13 +2967,6 @@ def _build_satisfaction_dashboard_data(request):
         for key, item in prestation_groups.items()
         if normalize_network_lookup(item["code"]) in qualified_prestation_codes
     }
-    terminated_prestation_keys = {
-        key
-        for key, item in prestation_groups.items()
-        if normalize_network_lookup(item["code"]) in terminated_prestation_codes
-    }
-    # Prestations terminées = qualifiées + celles qui ne le sont pas encore (fenêtres/seuil).
-    combined_prestation_keys = qualified_prestation_keys | terminated_prestation_keys
 
     def _make_prestation_stat(item: dict, p_norm_code: str) -> dict:
         enriched = _enrich_prestation_entry(item, p_norm_code)
@@ -2839,20 +2992,16 @@ def _build_satisfaction_dashboard_data(request):
         [
             _make_prestation_stat(item, normalize_network_lookup(item["code"]))
             for item in prestation_groups.values()
-            if normalize_network_lookup(item["code"]) in combined_prestation_keys
+            if normalize_network_lookup(item["code"]) in qualified_prestation_codes
         ],
         key=lambda item: (
-            0 if item["is_qualified"] else 1,
             item["code"],
             item["prestataire"],
             item["beneficiaire"],
         ),
     )
 
-    # Afficher / exporter uniquement les prestations réellement analysées.
-    prestation_stats = [item for item in prestation_stats if item.get("is_qualified")]
-
-    # Inclure aussi les prestations terminées dans la source mais sans lignes d'analyse.
+    # Inclure aussi les prestations analysées côté source mais sans lignes d'analyse.
     represented_codes = {
         (normalize_network_lookup(item["code"]), item["prestataire"], item["beneficiaire"])
         for item in prestation_stats
@@ -2861,7 +3010,7 @@ def _build_satisfaction_dashboard_data(request):
         _src_prestation_classes = _source_prestation_classes_from_source(
             analysis_scope_filters, source_bundle
         )
-        for p_key in sorted(terminated_prestation_codes):
+        for p_key in sorted(qualified_prestation_codes):
             p_info = source_prestations_index.get(p_key, {})
             prestataire = str(p_info.get("prestataire", "") or "").strip()
             beneficiaire = str(p_info.get("beneficiaire", "") or "").strip()
@@ -2895,7 +3044,7 @@ def _build_satisfaction_dashboard_data(request):
                     "avg": None,
                     "avgs": {},
                     "effectif": 0,
-                    "is_qualified": p_key in qualified_prestation_codes,
+                    "is_qualified": True,
                     "is_terminated": True,
                     "source_only": True,
                     "source_class_count": source_class_count,
@@ -2910,12 +3059,12 @@ def _build_satisfaction_dashboard_data(request):
     }
     qualified_prestataire_labels = {
         prestation_groups.get(key, {}).get("prestataire", "")
-        for key in combined_prestation_keys
+        for key in qualified_prestation_keys
         if str(prestation_groups.get(key, {}).get("prestataire", "") or "").strip()
     }
     qualified_beneficiaire_labels = {
         prestation_groups.get(key, {}).get("beneficiaire", "")
-        for key in combined_prestation_keys
+        for key in qualified_prestation_keys
         if str(prestation_groups.get(key, {}).get("beneficiaire", "") or "").strip()
     }
 
@@ -2999,10 +3148,10 @@ def _build_satisfaction_dashboard_data(request):
         }
         for item in prestation_stats
     ]
-    # Fenêtres : stats depuis les lignes d'analyse + complément source pour terminées sans lignes.
+    # Fenêtres : stats depuis les lignes d'analyse + complément source pour prestations analysées sans lignes.
     fenetre_nb_map: dict[str, int] = {item["label"]: item["nb"] for item in fenetre_stats}
     if source_bundle:
-        for p_key in terminated_prestation_codes:
+        for p_key in qualified_prestation_codes:
             src_fen = str((source_prestations_index.get(p_key) or {}).get("fenetre", "") or "").strip()
             if src_fen and src_fen not in fenetre_nb_map:
                 fenetre_nb_map[src_fen] = 0
@@ -3011,7 +3160,7 @@ def _build_satisfaction_dashboard_data(request):
         for lbl, nb in sorted(fenetre_nb_map.items())
         if lbl
     ]
-    # Prestataires et bénéficiaires : inclure les terminés (pas seulement qualifiés).
+    # Prestataires et bénéficiaires : uniquement sur le périmètre réellement analysé.
     analyzed_prestataires = [
         {"label": label, "nb": item["metrics"]["nb"]}
         for label, item in sorted(prestataire_groups.items(), key=lambda pair: pair[0])
@@ -3024,12 +3173,7 @@ def _build_satisfaction_dashboard_data(request):
     ]
     analyzed_cohortes = [{"label": item["label"], "nb": item["nb"]} for item in cohorte_stats]
 
-    filter_options = _build_dashboard_filter_options(
-        all_rows,
-        filters,
-        classe_apprenant_counts,
-        threshold_class_codes=threshold_class_codes,
-    )
+    filter_options = _build_dashboard_filter_options_from_rows(qualified_scope_rows, filters)
     eligible_prestation_options = sorted(
         {
             item["code"]
@@ -3040,11 +3184,8 @@ def _build_satisfaction_dashboard_data(request):
     if filters["prestation"] and filters["prestation"] not in eligible_prestation_options:
         eligible_prestation_options.append(filters["prestation"])
     filter_options["prestation"] = eligible_prestation_options
-    class_options = _build_class_filter_options(
-        all_rows,
-        filters,
-        classe_apprenant_counts,
-        threshold_class_codes=threshold_class_codes,
+    class_options = _build_class_filter_options_from_rows(
+        qualified_scope_rows, filters, classe_apprenant_counts
     )
     active_filters_summary = _build_dashboard_active_filters_summary(
         {
@@ -3065,7 +3206,7 @@ def _build_satisfaction_dashboard_data(request):
     # Build prestataire → classes/beneficiaires mapping for dynamic filters
     prestataire_to_classes: dict[str, set[str]] = {}
     prestataire_to_beneficiaires: dict[str, set[str]] = {}
-    for row in all_rows:
+    for row in qualified_scope_rows:
         prest = str(row.get("prestataire") or "").strip()
         classe = str(row.get("classe_code") or "").strip()
         benef = str(row.get("beneficiaire") or "").strip()
@@ -3096,6 +3237,7 @@ def _build_satisfaction_dashboard_data(request):
         else len(analyzed_prestations)
     )
     analyzed_prestations_ratio = f"{analyzed_prestations_count}/{analyzed_prestations_total_count}"
+    
     context = {
         "total": total,
         "global_avgs": global_avgs,
@@ -3150,46 +3292,47 @@ def _build_satisfaction_dashboard_data(request):
         "status": filter_options.get("status", []),
         "filter_map_json": filter_map_json,
     }
-    appels_cibles_class_codes = [
-        str(item.get("code") or "").strip()
-        for item in classe_stats_seuil
-        if str(item.get("code") or "").strip() and item.get("threshold_reached")
-    ]
+    appels_cibles_class_codes, _ = _analyzed_class_codes_from_source(
+        filters,
+        analysis_scope_filters,
+        classe_stats_all,
+        source_bundle,
+        threshold_class_codes=threshold_class_codes,
+    )
     appels_cibles_stats = _build_appel_status_summary(
         target_class_codes=appels_cibles_class_codes,
     )
     counter_source_bundle = source_bundle
-    counter_source_summary = source_summary
     counter_filters = dict(filters)
     counter_filters["source"] = ANALYSIS_DASHBOARD_DEFAULT_SOURCE
     counter_threshold_class_codes = threshold_class_codes
+    counter_analysis_scope_filters = {key: "" for key in filters}
+    counter_analysis_scope_filters["source"] = ANALYSIS_DASHBOARD_DEFAULT_SOURCE
+    counter_classe_stats_all = classe_stats_all
     if selected_source != ANALYSIS_DASHBOARD_DEFAULT_SOURCE:
         try:
             counter_source_bundle = build_padesce_source_index(
                 source_key=ANALYSIS_DASHBOARD_DEFAULT_SOURCE
             )
             counter_threshold_class_codes = _status_threshold_class_codes(counter_source_bundle)
-            _counter_rows, counter_source_summary = _attach_network_source_to_rows(
-                [],
-                source_bundle=counter_source_bundle,
-                source_key=ANALYSIS_DASHBOARD_DEFAULT_SOURCE,
+            _counter_scope_rows, counter_classe_stats_all = _thresholded_dashboard_rows(
+                all_rows,
+                counter_analysis_scope_filters,
+                classe_apprenant_counts,
+                threshold_class_codes=counter_threshold_class_codes,
             )
         except Exception:
             counter_source_bundle = source_bundle
-            counter_source_summary = source_summary
             counter_threshold_class_codes = threshold_class_codes
+            counter_classe_stats_all = classe_stats_all
 
-    _counter_rows, counter_classe_stats_seuil = _thresholded_dashboard_rows(
-        all_rows,
+    target_class_codes, _ = _analyzed_class_codes_from_source(
         counter_filters,
-        classe_apprenant_counts,
+        counter_analysis_scope_filters,
+        counter_classe_stats_all,
+        counter_source_bundle,
         threshold_class_codes=counter_threshold_class_codes,
     )
-    target_class_codes = [
-        str(item.get("code") or "").strip()
-        for item in counter_classe_stats_seuil
-        if str(item.get("code") or "").strip() and item.get("threshold_reached")
-    ]
     q_fields = [
         "q1_clarte_exposes",
         "q2_interaction_formateur",
