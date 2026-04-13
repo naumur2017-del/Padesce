@@ -1,0 +1,11 @@
+[
+  {
+    "id": "f88b497e59f64842af5b255515da971b",
+    "status": "success",
+    "started_at": "2026-04-07T09:10:43.220174",
+    "finished_at": "2026-04-07T09:10:43.234112",
+    "triggered_by": "admin",
+    "backup_file": "backup_20260407_091043.sqlite3",
+    "file_size": 831488
+  }
+]

@@ -19,6 +19,9 @@
   .fast-stats-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
   .fast-stats-link { color: var(--accent-strong); font-weight: 700; text-decoration: none; }
   .fast-stats-link:hover { text-decoration: underline; }
+  .fast-stats-link-badge { display: inline-flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 999px; border: 1px solid var(--border); text-decoration: none; font-weight: 700; }
+  .fast-stats-link-badge.teams { background: rgba(98, 100, 167, 0.12); border-color: rgba(98, 100, 167, 0.24); color: #4f46e5; }
+  .fast-stats-link-badge.analysis { background: rgba(15, 139, 141, 0.08); border-color: rgba(15, 139, 141, 0.2); color: #0f5f61; }
   .fast-stats-empty { padding: 28px; text-align: center; color: var(--muted); }
   .fast-stats-error { padding: 16px; border: 1px solid rgba(190, 24, 93, 0.2); border-radius: 12px; background: rgba(190, 24, 93, 0.06); color: #9f1239; }
   @media (max-width: 720px) {
@@ -85,6 +88,13 @@
       return value === null || value === undefined || value === "" ? "—" : escapeHtml(value);
     }
 
+    function renderClassLink(row) {
+      if (!row.class_link_url) return "—";
+      const kind = row.class_link_kind === "teams" ? "teams" : "analysis";
+      const icon = kind === "teams" ? "fa-brands fa-microsoft" : "fa-solid fa-arrow-up-right-from-square";
+      return `<a class="fast-stats-link-badge ${kind}" href="${escapeHtml(row.class_link_url)}" target="_blank" rel="noreferrer"><i class="${icon}"></i><span>${displayValue(row.class_link_label)}</span></a>`;
+    }
+
     function buildExportHref(mode) {
       const url = new URL(exportUrl, window.location.origin);
       const params = new URLSearchParams(window.location.search);
@@ -140,7 +150,7 @@
           <td class="num">${displayValue(row.index)}</td>
           <td>${displayValue(row.prestation_id)}</td>
           <td><a class="fast-stats-link" href="${classBaseUrl ? classBaseUrl.replace('PLACEHOLDER', encodeURIComponent(row.classe_id)) : '#'}" target="_blank" rel="noreferrer">${displayValue(row.classe_id)}</a></td>
-          <td>${row.class_link_url ? `<a class="fast-stats-link" href="${escapeHtml(row.class_link_url)}" target="_blank" rel="noreferrer">${displayValue(row.class_link_label)}</a>` : "—"}</td>
+          <td>${renderClassLink(row)}</td>
           <td>${displayValue(row.beneficiaire_name)}</td>
           <td>${displayValue(row.prestataire_name)}</td>
           <td>${displayValue(row.calendar_contacts?.[0]?.name)}</td>
