@@ -81,19 +81,12 @@ def _build_menu_items(user, path: str, consultant_only: bool) -> list[dict[str, 
             }
         )
 
-    add_item("Appels Padesce", _safe_reverse("appels_index"), "/appels/")
     add_item("Dashboard", _safe_reverse("home"), "/dashboard/")
 
     if superadmin_access:
         add_item("Backup", _safe_reverse("backup_dashboard"), "/backup/")
 
     if analysis_access:
-        add_item(
-            "Analyses de satisfaction",
-            _safe_reverse("satisfaction_dashboard"),
-            "/satisfaction-apprenants/",
-            "/satisfaction-formateurs/",
-        )
         add_item(
             "Documentation Reporting",
             _safe_reverse("reporting_manual"),
