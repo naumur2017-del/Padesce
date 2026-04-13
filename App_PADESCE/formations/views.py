@@ -1245,7 +1245,6 @@ def class_analysis_detail(request, code: str):
     )
 
 
-@require_analysis_access
 def prestation_analysis_detail(request, code: str):
     prestation = (
         Prestation.objects.select_related("prestataire", "formation", "beneficiaire")
