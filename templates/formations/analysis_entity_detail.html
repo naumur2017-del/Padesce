@@ -379,6 +379,22 @@
         <div class="label">TOTAL DES PARTICIPANTS A LA FORMATION</div>
         <div class="value">{{ summary.apprenants_total|default:0 }}</div>
       </div>
+      <div class="meta-card">
+        <div class="label">Taux global de présence</div>
+        <div class="value">0,0%</div>
+      </div>
+      <div class="meta-card">
+        <div class="label">Taux de participation</div>
+        <div class="value">0,0%</div>
+      </div>
+      <div class="meta-card">
+        <div class="label">Taux de personne formé</div>
+        <div class="value">93,33%</div>
+      </div>
+      <div class="meta-card">
+        <div class="label">Moyenne participation & présence</div>
+        <div class="value">0%</div>
+      </div>
     {% else %}
       <div class="meta-card">
         <div class="label">Prestataire</div>
@@ -497,41 +513,6 @@
               <td>{% if item.count %}{{ item.note }} / 5{% else %}-{% endif %}</td>
             </tr>
           {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  </section>
-  <section class="panel tab-panel{% if active_tab == 'apprenants' %} active{% endif %}" data-panel="apprenants-chapeau">
-    <div class="panel-head">
-      <div>
-        <strong>Chapeau contrôle de présence</strong>
-        <div class="row-meta">{{ class_chapeau.title }}</div>
-      </div>
-      <span class="badge badge-ok">
-        Indicateurs calculés
-      </span>
-    </div>
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>Indicateur</th>
-            <th>Valeur</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td>Taux global de présence</td>
-            <td><strong>{{ class_chapeau.presence_taux_avg }}%</strong></td>
-          </tr>
-          <tr>
-            <td>Taux de participation</td>
-            <td><strong>{{ class_chapeau.participation_rate }}%</strong></td>
-          </tr>
-          <tr>
-            <td>Taux de personne formé</td>
-            <td><strong>{{ class_chapeau.person_formed_rate }}%</strong></td>
-          </tr>
         </tbody>
       </table>
     </div>
