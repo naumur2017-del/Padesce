@@ -21,7 +21,6 @@ from App_PADESCE.appels.models import (
     is_call_success_status,
 )
 from App_PADESCE.apprenants.models import Apprenant
-from App_PADESCE.core.access import require_analysis_access
 from App_PADESCE.core.analysis_rules import appel_is_analysis_eligible
 from App_PADESCE.core.apprenant_lookup import (
     get_local_apprenant_db_label,
@@ -542,13 +541,6 @@ def _class_formateur_candidates(classe: Classe, source_bundle: dict | None = Non
     if not prestation:
         return []
 
-    # Get prestataire and beneficiaire names
-    prestataire_name = str(
-        getattr(getattr(prestation, "prestataire", None), "raison_sociale", "") or ""
-    ).strip()
-    beneficiaire_name = str(
-        getattr(getattr(prestation, "beneficiaire", None), "nom_structure", "") or ""
-    ).strip()
     formation_name = str(getattr(getattr(prestation, "formation", None), "nom", "") or "").strip()
 
     all_rows = _prestation_formateur_candidates(prestation, source_bundle=source_bundle)
@@ -767,10 +759,19 @@ def _build_class_chapeau(classe_code: str, appels, source_bundle: dict | None = 
         ),
         "participation_rate": participation_rate,
         "person_formed_rate": person_formed_rate,
-        "moyenne_participation_presence": round(
-            (round(sum(presence_taux_values) / len(presence_taux_values), 2) if presence_taux_values else 0)
-            + participation_rate
-        ) // 2 if (presence_taux_values or participation_rate) else 0,
+        "moyenne_participation_presence": (
+            round(
+                (
+                    round(sum(presence_taux_values) / len(presence_taux_values), 2)
+                    if presence_taux_values
+                    else 0
+                )
+                + participation_rate
+            )
+            // 2
+            if (presence_taux_values or participation_rate)
+            else 0
+        ),
         "respondents_count": len(respondent_keys),
         "formulaires_remplis": len(respondent_keys),
         "has_data": any(item["count"] for item in question_rows),
@@ -1318,7 +1319,6 @@ def prestation_analysis_detail(request, code: str):
     )
 
 
-@require_analysis_access
 def analysis_apprenant_call_detail(request, pk: int):
     appel = get_object_or_404(
         Appel.objects.filter(is_active=True).select_related(
@@ -1349,7 +1349,6 @@ def analysis_apprenant_call_detail(request, pk: int):
     )
 
 
-@require_analysis_access
 def analysis_formateur_call_detail(request, pk: int):
     row = get_object_or_404(
         AppelFormateur.objects.filter(is_active=True).select_related("locked_by"),
