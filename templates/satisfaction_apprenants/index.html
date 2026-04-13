@@ -143,7 +143,7 @@
 </form>
 
 <div class="panel" style="margin-top:12px;">
-  <h5>Synthèse des enquêtes</h5>
+  <div class="title-with-help"><h5>Synthèse des enquêtes</h5>{% include "includes/help_tooltip.html" with title="Synthèse des enquêtes" text="Vue d'ensemble des enquêtes de satisfaction avec graphiques de participation et répartition des raisons d'absence." section="perimetre-et-sources-de-donnees" %}</div>
   <div class="chart-grid" style="margin-bottom:12px;">
     <div class="chart-card donut">
       <div style="font-weight:600; margin-bottom:6px;">Participation</div>
@@ -185,12 +185,12 @@
 </div>
 
 <div class="panel">
-  <h5>Nouvelle enquete</h5>
+  <div class="title-with-help"><h5>Nouvelle enquete</h5>{% include "includes/help_tooltip.html" with title="Nouvelle enquête" text="Formulaire de saisie d'une nouvelle enquête de satisfaction apprenant. Nécessite identification, audio et traitement IA pour extraction automatique des scores Q1-Q9." section="guide-dutilisation-generale" %}</div>
   <form method="post" enctype="multipart/form-data" class="survey-form">
     {% csrf_token %}
     <div class="form-section">
       <div class="section-title">
-        <h6>Identification</h6>
+        <div class="title-with-help"><h6>Identification</h6>{% include "includes/help_tooltip.html" with title="Identification" text="Recherche de l'apprenant par son code unique ou numéro de téléphone dans la base PADESCE." section="guide-dutilisation-generale" %}</div>
         <div class="hint">Saisir le code ou telephone, puis identifier l'apprenant.</div>
       </div>
       <div class="form-row">
@@ -213,7 +213,7 @@
 
     <div class="form-section">
       <div class="section-title">
-        <h6>Infos enquete</h6>
+        <div class="title-with-help"><h6>Infos enquete</h6>{% include "includes/help_tooltip.html" with title="Infos enquête" text="Métadonnées de l'enquête : inspecteur, date et heure de passation." section="guide-dutilisation-generale" %}</div>
       </div>
       <div class="form-row compact">
         <div class="field">{{ form.inspecteur.label_tag }} {{ form.inspecteur }}</div>
@@ -224,7 +224,7 @@
 
     <div class="form-section">
       <div class="section-title">
-        <h6>Audio & traitement</h6>
+        <div class="title-with-help"><h6>Audio & traitement</h6>{% include "includes/help_tooltip.html" with title="Audio & traitement IA" text="Chargement de l'audio d'appel et traitement vocal pour transcription automatique et extraction des scores Q1-Q9 par IA." section="guide-dutilisation-generale" %}</div>
       </div>
       <div class="form-row">
         <div class="field">
@@ -242,7 +242,7 @@
 
     <div class="form-section">
       <div class="section-title">
-        <h6>Reponses IA (lecture seule)</h6>
+        <div class="title-with-help"><h6>Reponses IA (lecture seule)</h6>{% include "includes/help_tooltip.html" with title="Réponses IA" text="Scores Q1-Q9 extraits automatiquement par IA depuis la transcription audio. Échelle 1-5 : 1=Insuffisant, 5=Très satisfaisant." section="methodologie-de-calcul-et-formules" %}</div>
         <div class="hint">Scores 1-5 extraits automatiquement depuis la transcription. Echelle : 1 = Insuffisant → 5 = Tres satisfaisant</div>
       </div>
       {% if ai_results %}
@@ -323,7 +323,7 @@
 </div>
 
 <div class="panel" style="margin-top:14px;">
-  <h5>Dernieres enquetes</h5>
+  <div class="title-with-help"><h5>Dernieres enquetes</h5>{% include "includes/help_tooltip.html" with title="Dernières enquêtes" text="Historique des enquêtes enregistrées avec pagination. Colonnes : Date, Classe, Apprenant, Inspecteur, Enquêteur, Q9 (satisfaction globale), Commentaire." section="guide-dutilisation-generale" %}</div>
   <div style="max-height:420px; overflow:auto;">
     <table>
       <thead>

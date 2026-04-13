@@ -106,6 +106,11 @@ app_urlpatterns = [
         name="operator_guide",
     ),
     path(
+        "documentation-reporting/",
+        lazy_view("App_PADESCE.reporting.views.public_reporting_manual_view"),
+        name="public_reporting_manual",
+    ),
+    path(
         "analyses/fast-stats/export/",
         lazy_view("App_PADESCE.core.views.fast_stats_export_xlsx"),
         name="fast_stats_export_xlsx",

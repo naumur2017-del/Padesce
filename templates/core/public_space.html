@@ -411,7 +411,7 @@
 
 {% if section == "principal" and scope == "apprenant" %}
   <section class="public-panel">
-    <h2>Chapeau contrôle de présence</h2>
+    <div class="title-with-help"><h2>Chapeau contrôle de présence</h2>{% include "includes/help_tooltip.html" with title="Contrôle de présence" text="Indicateurs synthétiques du taux de présence aux formations, calculés sur les appels réussis et les formulaires remplis." section="perimetre-et-sources-de-donnees" %}</div>
     <div class="table-wrap">
       <table class="stats-table">
         <thead>
@@ -430,7 +430,7 @@
   </section>
 
   <section class="public-panel">
-    <h2>Chapeau satisfaction apprenants</h2>
+    <div class="title-with-help"><h2>Chapeau satisfaction apprenants</h2>{% include "includes/help_tooltip.html" with title="Satisfaction apprenants" text="Score moyen de satisfaction calculé sur les 9 questions (Q1-Q9) de l'enquête, échelle 1-5." section="methodologie-de-calcul-et-formules" %}</div>
     <div class="table-wrap">
       <table class="stats-table">
         <thead>
@@ -463,7 +463,7 @@
   </div>
 
   <section class="public-panel">
-    <h2>Page principale apprenant</h2>
+    <div class="title-with-help"><h2>Page principale apprenant</h2>{% include "includes/help_tooltip.html" with title="Page apprenant" text="Tableau détaillé des apprenants avec filtres par bénéficiaire, prestataire, classe et fenêtre. C1-C4 = nombre d'appels à chaque période." section="architecture-des-pages" %}</div>
     <form method="get" class="public-toolbar">
       <input type="hidden" name="scope" value="apprenant">
       <input type="hidden" name="section" value="principal">
@@ -562,7 +562,7 @@
   </section>
 {% elif section == "principal" and scope == "formateur" %}
   <section class="public-panel">
-    <h2>Chapeau satisfaction formateurs</h2>
+    <div class="title-with-help"><h2>Chapeau satisfaction formateurs</h2>{% include "includes/help_tooltip.html" with title="Satisfaction formateurs" text="Évaluation des formateurs sur 3 dimensions quantitatives (compétences, pédagogie, organisation) échelle 1-5." section="methodologie-de-calcul-et-formules" %}</div>
     <div class="table-wrap">
       <table class="stats-table">
         <thead>
@@ -593,7 +593,7 @@
   </div>
 
   <section class="public-panel">
-    <h2>Page principale formateur</h2>
+    <div class="title-with-help"><h2>Page principale formateur</h2>{% include "includes/help_tooltip.html" with title="Page formateur" text="Tableau des appels formateurs avec statuts, formulaires et audio. Filtres par statut, prestataire, bénéficiaire, formation et cohorte." section="architecture-des-pages" %}</div>
     <form method="get" class="public-toolbar">
       <input type="hidden" name="scope" value="formateur">
       <input type="hidden" name="section" value="principal">
@@ -708,7 +708,7 @@
     <div class="stack">
       {% if scope == "apprenant" %}
       <section class="public-panel">
-        <h2>Résumé des classes</h2>
+        <div class="title-with-help"><h2>Résumé des classes</h2>{% include "includes/help_tooltip.html" with title="Résumé des classes" text="Vue consolidée par classe avec formation, prestation, cohorte, fenêtre et effectif total." section="perimetre-et-sources-de-donnees" %}</div>
         <div class="table-scroll-11" data-table="classes-table">
           <table>
             <thead>
@@ -746,7 +746,7 @@
       {% endif %}
 
       <section class="public-panel">
-        <h2>Résumé des prestations</h2>
+        <div class="title-with-help"><h2>Résumé des prestations</h2>{% include "includes/help_tooltip.html" with title="Résumé des prestations" text="Synthèse par prestation avec prestataire, bénéficiaire et moyenne de satisfaction si disponible." section="perimetre-et-sources-de-donnees" %}</div>
         <div class="table-scroll-11" data-table="prestations-table">
           <table>
             <thead>
@@ -791,7 +791,7 @@
 
   <div class="stats-grid">
     <section class="public-panel{% if scope == "formateur" %} full-width{% endif %}">
-      <h2>Moyennes générales</h2>
+      <div class="title-with-help"><h2>Moyennes générales</h2>{% include "includes/help_tooltip.html" with title="Moyennes générales" text="Moyennes par indicateur de satisfaction calculées sur l'ensemble des réponses éligibles (seuil de 25% par classe)." section="methodologie-de-calcul-et-formules" %}</div>
       <div class="table-wrap">
         <table class="stats-table">
           <thead>
@@ -816,7 +816,7 @@
 
     {% if scope != "formateur" %}
     <section class="public-panel">
-      <h2>Carte des prestations</h2>
+      <div class="title-with-help"><h2>Carte des prestations</h2>{% include "includes/help_tooltip.html" with title="Carte géographique" text="Visualisation géographique des prestations par région avec scores de satisfaction. Nécessite données GPS." section="architecture-des-pages" %}</div>
       <div id="public-map" class="map-shell"></div>
       {{ stats.map_data|json_script:"public-map-data" }}
     </section>
@@ -825,7 +825,7 @@
 
   <div class="stats-grid">
     <section class="public-panel">
-      <h2>Top prestations</h2>
+      <div class="title-with-help"><h2>Top prestations</h2>{% include "includes/help_tooltip.html" with title="Top prestations" text="Classement des meilleures prestations par score global de satisfaction, avec région." section="methodologie-de-calcul-et-formules" %}</div>
       <div class="table-wrap">
         <table class="stats-table">
           <thead>
@@ -853,7 +853,7 @@
     </section>
 
     <section class="public-panel">
-      <h2>Prestations à améliorer</h2>
+      <div class="title-with-help"><h2>Prestations à améliorer</h2>{% include "includes/help_tooltip.html" with title="Prestations à améliorer" text="Prestations avec les scores de satisfaction les plus faibles, identifiées pour actions correctives." section="methodologie-de-calcul-et-formules" %}</div>
       <div class="table-wrap">
         <table class="stats-table">
           <thead>

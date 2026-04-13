@@ -348,6 +348,108 @@
         padding-right: 12px;
       }
     }
+    /* Help tooltip styles */
+    .help-tooltip-wrapper {
+      display: inline-flex;
+      align-items: center;
+      margin-left: 8px;
+      position: relative;
+    }
+    .help-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: rgba(124, 58, 237, 0.12);
+      color: var(--accent-strong);
+      font-size: 12px;
+      font-weight: 700;
+      cursor: help;
+      transition: background 0.2s ease, transform 0.2s ease;
+    }
+    .help-icon:hover {
+      background: var(--accent);
+      color: #fff;
+      transform: scale(1.1);
+    }
+    .help-tooltip {
+      position: absolute;
+      z-index: 1000;
+      bottom: 100%;
+      left: 50%;
+      transform: translateX(-50%) translateY(-8px);
+      width: 320px;
+      max-width: 90vw;
+      padding: 14px 16px;
+      border-radius: 12px;
+      background: #fff;
+      border: 1px solid var(--border);
+      box-shadow: 0 20px 50px rgba(76, 29, 149, 0.18);
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+      transition: opacity 0.25s ease, visibility 0.25s ease, transform 0.25s ease;
+    }
+    .help-tooltip-wrapper:hover .help-tooltip {
+      opacity: 1;
+      visibility: visible;
+      pointer-events: auto;
+      transform: translateX(-50%) translateY(-4px);
+    }
+    .help-tooltip::after {
+      content: "";
+      position: absolute;
+      top: 100%;
+      left: 50%;
+      transform: translateX(-50%);
+      border: 8px solid transparent;
+      border-top-color: #fff;
+    }
+    .help-tooltip-title {
+      font-weight: 700;
+      color: var(--accent-strong);
+      font-size: 0.95rem;
+      margin-bottom: 6px;
+    }
+    .help-tooltip-text {
+      color: var(--text);
+      font-size: 0.88rem;
+      line-height: 1.5;
+      margin-bottom: 10px;
+    }
+    .help-tooltip-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: 8px;
+      background: rgba(124, 58, 237, 0.08);
+      color: var(--accent-strong);
+      font-size: 0.85rem;
+      font-weight: 600;
+      text-decoration: none;
+      transition: background 0.2s ease;
+    }
+    .help-tooltip-link:hover {
+      background: rgba(124, 58, 237, 0.16);
+    }
+    /* Title with help icon alignment */
+    .title-with-help {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 4px;
+    }
+    .title-with-help h1,
+    .title-with-help h2,
+    .title-with-help h3,
+    .title-with-help h4,
+    .title-with-help h5,
+    .title-with-help h6 {
+      margin: 0;
+    }
   </style>
 </head>
 <body>

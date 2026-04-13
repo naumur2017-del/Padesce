@@ -1,0 +1,14 @@
+{% comment %}
+Help tooltip component.
+Usage: {% include "includes/help_tooltip.html" with title="Titre" text="Description" section="section-anchor" %}
+{% endcomment %}
+<span class="help-tooltip-wrapper">
+  <span class="help-icon">?</span>
+  <span class="help-tooltip">
+    {% if title %}<div class="help-tooltip-title">{{ title }}</div>{% endif %}
+    {% if text %}<div class="help-tooltip-text">{{ text }}</div>{% endif %}
+    <a class="help-tooltip-link" href="{% url 'public_reporting_manual' %}{% if section %}?section={{ section }}{% endif %}">
+      <i class="fas fa-book"></i> Voir la documentation
+    </a>
+  </span>
+</span>
