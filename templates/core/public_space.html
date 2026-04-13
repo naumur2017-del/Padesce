@@ -890,18 +890,51 @@
       }
 
       const rankingData = JSON.parse(dataEl.textContent || "{}");
+      const REGION_ALIASES = {
+        "adamaoua": ["adamaoua"],
+        "centre": ["centre", "center"],
+        "est": ["est", "east"],
+        "extreme nord": ["extreme nord", "extrême nord", "far north"],
+        "littoral": ["littoral"],
+        "nord": ["nord", "north"],
+        "nord ouest": ["nord ouest", "nord-ouest", "north west", "north-west"],
+        "ouest": ["ouest", "west"],
+        "sud": ["sud", "south"],
+        "sud ouest": ["sud ouest", "sud-ouest", "south west", "south-west"],
+      };
+
+      const normalizeRegion = (value) =>
+        String(value || "")
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, " ")
+          .trim();
+
+      // Build a normalized lookup once, so FR/EN/case/accents all match.
+      const rankingDataNormalized = {};
+      Object.entries(rankingData || {}).forEach(([key, value]) => {
+        const normalizedKey = normalizeRegion(key);
+        if (!normalizedKey) return;
+        if (!rankingDataNormalized[normalizedKey]) {
+          rankingDataNormalized[normalizedKey] = [];
+        }
+        rankingDataNormalized[normalizedKey].push(...(Array.isArray(value) ? value : []));
+      });
+
       const lookupRegion = (rawName) => {
-        const normalized = String(rawName || "").trim();
-        const candidates = [
-          normalized,
-          normalized.toUpperCase(),
-          normalized.toLowerCase(),
-          normalized.replace(/\s+/g, " "),
-        ];
-        for (const key of candidates) {
-          if (rankingData[key]) {
-            return rankingData[key];
+        const normalizedRaw = normalizeRegion(rawName);
+        const candidateKeys = new Set();
+        if (normalizedRaw) {
+          candidateKeys.add(normalizedRaw);
+          for (const aliases of Object.values(REGION_ALIASES)) {
+            if (aliases.some((alias) => normalizeRegion(alias) === normalizedRaw)) {
+              aliases.forEach((alias) => candidateKeys.add(normalizeRegion(alias)));
+            }
           }
+        }
+        for (const key of candidateKeys) {
+          if (rankingDataNormalized[key]?.length) return rankingDataNormalized[key];
         }
         return [];
       };
