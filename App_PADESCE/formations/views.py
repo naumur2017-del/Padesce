@@ -1117,7 +1117,6 @@ def formation_list(request):
     return render(request, "formations/end.html", {"prestations": prestations})
 
 
-@require_analysis_access
 def class_analysis_detail(request, code: str):
     classe = (
         Classe.objects.select_related(
