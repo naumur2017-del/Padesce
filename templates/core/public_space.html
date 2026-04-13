@@ -784,7 +784,7 @@
                 {% if scope == "formateur" %}<th>Formation</th>{% else %}<th>Prestation ID</th>{% endif %}
                 <th>Prestataire</th>
                 <th>Bénéficiaire</th>
-                {% if scope == "apprenant" %}<th>Moyenne</th>{% elif scope == "formateur" %}<th>Cohorte</th>{% endif %}
+                {% if scope == "formateur" %}<th>Cohorte</th>{% endif %}
               </tr>
             </thead>
             <tbody>
@@ -793,10 +793,10 @@
                   <td>{% if scope == "formateur" %}{{ item.formation|default:"-" }}{% else %}{% if item.url %}<a href="{{ item.url }}">{{ item.code }}</a>{% else %}{{ item.code|default:"-" }}{% endif %}{% endif %}</td>
                   <td>{{ item.prestataire|default:"-" }}</td>
                   <td>{{ item.beneficiaire|default:"-" }}</td>
-                  {% if scope == "apprenant" %}<td>{{ item.avg|floatformat:2 }}</td>{% elif scope == "formateur" %}<td>{{ item.cohorte|default:"-" }}</td>{% endif %}
+                  {% if scope == "formateur" %}<td>{{ item.cohorte|default:"-" }}</td>{% endif %}
                 </tr>
               {% empty %}
-                <tr><td colspan="{% if scope == 'formateur' %}4{% elif scope == 'apprenant' %}4{% else %}3{% endif %}" class="muted">Aucune prestation disponible.</td></tr>
+                <tr><td colspan="{% if scope == 'formateur' %}4{% else %}3{% endif %}" class="muted">Aucune prestation disponible.</td></tr>
               {% endfor %}
             </tbody>
           </table>
