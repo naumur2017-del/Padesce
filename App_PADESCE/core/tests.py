@@ -72,7 +72,6 @@ class DashboardVisibilityTests(TestCase):
         response = self.client.get(reverse("home"))
 
         self.assertContains(response, "Appels Padesce")
-        self.assertContains(response, "Appel Formateur")
         self.assertContains(response, "CGA")
         self.assertNotContains(response, "Analyses de satisfaction")
         self.assertNotContains(response, "Backup")
@@ -85,7 +84,6 @@ class DashboardVisibilityTests(TestCase):
 
         self.assertContains(response, "Analyses de satisfaction")
         self.assertNotContains(response, "Appels Padesce")
-        self.assertNotContains(response, "Appel Formateur")
         self.assertNotContains(response, "Analyse Enquete Formateur")
         self.assertNotContains(response, 'href="/reporting/"', html=False)
         self.assertNotContains(response, 'href="/cga/"', html=False)

@@ -6,7 +6,7 @@ from App_PADESCE.core.access import has_analysis_access, has_consultant_access
 from App_PADESCE.core.middleware import strip_path_prefix
 
 PAGE_TITLE_BY_PREFIX: tuple[tuple[str, str], ...] = (
-    ("/appels-formateurs/", "Appel Formateur"),
+    ("/appels-formateurs/", "Appels Padesce"),
     ("/appels/", "Appels Padesce"),
     ("/backup/", "Backup"),
     ("/reporting/documentation/", "Documentation Reporting"),
