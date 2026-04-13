@@ -238,6 +238,7 @@ class LoginRequiredMiddleware:
             "/admin/",
             "/beneficiaire/",
             "/classe/",
+            "/prestation/",
             "/deploiement/live/",
             "/backup/api/trigger/",
             "/service-worker.js",
