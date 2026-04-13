@@ -260,6 +260,10 @@
     <div class="kpi-value">{{ audios_enregistres_appels }}</div>
     <div class="kpi-label">Audios Enregistrés</div>
   </div>
+  <div class="kpi-card" style="border-color:rgba(15,139,141,0.25);background:rgba(15,139,141,0.06);">
+    <div class="kpi-value" style="color:#0f8b8d;">{{ global_moyenne_participation_presence }}%</div>
+    <div class="kpi-label">Moy Part. & Présence</div>
+  </div>
 </div>
 
 <div class="analysis-grid" id="js-analysis-grid">
@@ -810,6 +814,40 @@
 
 <div style="margin-bottom:16px;"></div> <!-- Spacing -->
 {% endif %}
+<div class="panel" style="margin-bottom: 20px;">
+  <div class="dash-header" style="margin-bottom:12px;">
+    <div>
+      <div class="section-title" style="margin-bottom:4px;">Synthèse globale des présences</div>
+      <p style="margin:0; color:var(--muted); font-size:0.9rem;">Résultat calculé sur l'ensemble des enquêtes de la table active.</p>
+    </div>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Contrôle</th>
+          <th>Présents (PR)</th>
+          <th>Absents (AB)</th>
+          <th>Taux de présence</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in global_presence_rows %}
+          <tr>
+            <td><strong>{{ row.label }}</strong></td>
+            <td>{{ row.pr_count }}</td>
+            <td>{{ row.ab_count }}</td>
+            <td><strong>{{ row.pr_rate }}%</strong></td>
+          </tr>
+        {% empty %}
+          <tr>
+            <td colspan="4" style="text-align:center;color:var(--muted);">Aucune donnée de présence</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
 
 <div class="panel" id="js-dashboard-panel">
   <div class="dash-header" style="margin-bottom:12px;">

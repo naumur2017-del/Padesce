@@ -799,6 +799,10 @@ def _build_class_chapeau(classe_code: str, appels, source_bundle: dict | None = 
         ),
         "participation_rate": participation_rate,
         "person_formed_rate": person_formed_rate,
+        "moyenne_participation_presence": round(
+            (round(sum(presence_taux_values) / len(presence_taux_values), 2) if presence_taux_values else 0)
+            + participation_rate
+        ) // 2 if (presence_taux_values or participation_rate) else 0,
         "respondents_count": len(respondent_keys),
         "formulaires_remplis": len(respondent_keys),
         "has_data": any(item["count"] for item in question_rows),
@@ -868,23 +872,24 @@ def _build_formateur_rows(rows, *, back_url: str):
     for row in rows:
         form_state = _formateur_form_state(row)
         has_audio, audio_url = _file_state(getattr(row, "audio_file", None))
-        detail_url = _detail_url("analysis_formateur_call_detail", row.pk, back_url)
+        row_pk = getattr(row, "pk", getattr(row, "id", 0))
+        detail_url = _detail_url("analysis_formateur_call_detail", row_pk, back_url)
         person_key = _formateur_person_key(row)
         # Try to resolve formateur name from linked Classe
         resolved_classe = _resolve_classe_for_formateur_analysis(row)
         formateur_nom = str(
             getattr(getattr(resolved_classe, "formateur", None), "nom_complet", "")
-            or row.source_contact
+            or getattr(row, "source_contact", "")
             or ""
         ).strip()
         formateur_telephone = str(
             getattr(getattr(resolved_classe, "formateur", None), "telephone", "")
-            or row.telephone
+            or getattr(row, "telephone", "")
             or ""
         ).strip()
         payload.append(
             {
-                "id": row.pk,
+                "id": row_pk,
                 "reference_code": row.reference_code,
                 "telephone": row.telephone or "",
                 "formation": row.formation or "",

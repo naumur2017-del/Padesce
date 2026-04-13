@@ -1341,6 +1341,29 @@ def _build_consultant_dashboard_context(request):
         round((success_count / len(rows)) * 100, 2) if rows else 0
     )
 
+    moyenne_participation_presence = round((presence_avg + presence_participation_rate) / 2)
+
+    # Synthèse des présences controlées
+    global_presence_totals = {"C1": {"PR": 0, "AB": 0}, "C2": {"PR": 0, "AB": 0}, "C3": {"PR": 0, "AB": 0}, "C4": {"PR": 0, "AB": 0}}
+    for app in rows:
+        if app.c1 in ("PR", "AB"): global_presence_totals["C1"][app.c1] += 1
+        if app.c2 in ("PR", "AB"): global_presence_totals["C2"][app.c2] += 1
+        if app.c3 in ("PR", "AB"): global_presence_totals["C3"][app.c3] += 1
+        if app.c4 in ("PR", "AB"): global_presence_totals["C4"][app.c4] += 1
+
+    presence_rows = []
+    for key in ["C1", "C2", "C3", "C4"]:
+        pr = global_presence_totals[key]["PR"]
+        ab = global_presence_totals[key]["AB"]
+        tot = pr + ab
+        rate = round((pr / tot * 100), 2) if tot > 0 else 0
+        presence_rows.append({
+            "label": key,
+            "pr_count": pr,
+            "ab_count": ab,
+            "pr_rate": rate,
+        })
+
     # Use the existing snapshot helpers
     card_snapshot = _consultant_analysis_snapshot(
         request.user,
@@ -1539,6 +1562,8 @@ def _build_consultant_dashboard_context(request):
         "presence_global_avg": presence_avg,
         "presence_participation_rate": presence_participation_rate,
         "presence_person_formed_rate": presence_person_formed_rate,
+        "moyenne_participation_presence": moyenne_participation_presence,
+        "presence_rows": presence_rows,
         "analysis_recovery": analysis_recovery,
         "consultant_mode": "apprenants",
         "card_primary_label": "Prestations analysées",

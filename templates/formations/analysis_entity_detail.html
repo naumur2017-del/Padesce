@@ -532,6 +532,48 @@
             <td>Taux de personne formé</td>
             <td><strong>{{ class_chapeau.person_formed_rate }}%</strong></td>
           </tr>
+          <tr style="background: rgba(15,139,141,0.06);">
+            <td><strong>Moyenne participation &amp; présence</strong></td>
+            <td>
+              <span class="badge badge-ok" style="font-size:1rem; padding: 6px 14px;">
+                {{ class_chapeau.moyenne_participation_presence }}%
+              </span>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+  <section class="panel tab-panel{% if active_tab == 'apprenants' %} active{% endif %}" data-panel="apprenants-chapeau">
+    <div class="panel-head">
+      <div>
+        <strong>Synthèse des présences dans une classe</strong>
+        <div class="row-meta">{{ class_chapeau.title }}</div>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Contrôle</th>
+            <th>Présents (PR)</th>
+            <th>Absents (AB)</th>
+            <th>Taux de présence</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in class_chapeau.presence_rows %}
+            <tr>
+              <td><strong>{{ row.label }}</strong></td>
+              <td>{{ row.pr_count }}</td>
+              <td>{{ row.ab_count }}</td>
+              <td><strong>{{ row.pr_rate }}%</strong></td>
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="4" style="text-align:center;color:var(--muted);">Aucune donnée de présence</td>
+            </tr>
+          {% endfor %}
         </tbody>
       </table>
     </div>
