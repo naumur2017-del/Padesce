@@ -2155,8 +2155,14 @@ def formateurs_prestataires_management(request):
             )
 
     # Charger les formateurs avec leurs prestations courantes
+    # On prefetch les prestataires/bénéficiaires des prestations liées pour enrichissement
     formateurs = list(
-        Formateur.objects.prefetch_related("prestations", "classes__prestation")
+        Formateur.objects.prefetch_related(
+            "prestations",
+            "prestations__prestataire",
+            "prestations__beneficiaire",
+            "classes__prestation",
+        )
         .order_by("nom_complet")
     )
     # Index des prestations déjà assignées par formateur
@@ -2183,8 +2189,18 @@ def formateurs_prestataires_management(request):
 
     for _f in formateurs:
         _orgs = _phone_orgs.get((_f.telephone or "").strip(), {})
-        _f.appel_prestataires = sorted(_orgs.get("prestataires", set()))
-        _f.appel_beneficiaires = sorted(_orgs.get("beneficiaires", set()))
+        _prest_set = set(_orgs.get("prestataires", set()))
+        _benef_set = set(_orgs.get("beneficiaires", set()))
+        # Compléter depuis les prestations M2M explicitement liées
+        for _prest in _f.prestations.all():
+            _p_name = str(getattr(getattr(_prest, "prestataire", None), "raison_sociale", "") or "").strip()
+            _b_name = str(getattr(getattr(_prest, "beneficiaire", None), "nom_structure", "") or "").strip()
+            if _p_name:
+                _prest_set.add(_p_name)
+            if _b_name:
+                _benef_set.add(_b_name)
+        _f.appel_prestataires = sorted(_prest_set)
+        _f.appel_beneficiaires = sorted(_benef_set)
     # Prestations (pour le toggle et le tableau villes)
     prestations = list(
         PrestationModel.objects.select_related("prestataire", "formation", "beneficiaire")

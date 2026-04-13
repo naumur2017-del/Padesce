@@ -821,6 +821,27 @@
   </div>
 </section>
 
+{% if linked_formateurs %}
+<section class="panel tab-panel{% if active_tab == 'formateurs' %} active{% endif %}" data-panel="formateurs-lies" style="margin-bottom:10px;">
+  <div class="panel-head">
+    <div>
+      <strong>Formateurs liés (M2M)</strong>
+      <div class="row-meta">Formateurs explicitement assignés à cette prestation via la page de gestion.</div>
+    </div>
+    <span class="badge badge-ok">{{ linked_formateurs|length }} formateur(s)</span>
+  </div>
+  <div style="display:flex;flex-wrap:wrap;gap:8px;padding:10px 0;">
+    {% for f in linked_formateurs %}
+    <span style="display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border-radius:999px;background:rgba(111,60,195,.1);color:var(--accent-strong);font-size:.82rem;font-weight:600;">
+      <span style="font-family:monospace;font-size:.74rem;opacity:.7;">{{ f.code }}</span>
+      {{ f.nom_complet }}
+      {% if f.telephone %}<span style="font-size:.74rem;opacity:.7;">· {{ f.telephone }}</span>{% endif %}
+    </span>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
 <section class="panel tab-panel{% if active_tab == 'formateurs' %} active{% endif %}" data-panel="formateurs">
   <div class="panel-head">
     <div>

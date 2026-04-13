@@ -200,7 +200,11 @@ def _build_formateur_principal(request) -> dict:
     summary_form_audio = 0
     summary_audios_total = 0
 
-    # Satisfaction Q3
+    # Satisfaction Q1 / Q2 / Q3
+    q1_sum = 0
+    q1_count = 0
+    q2_sum = 0
+    q2_count = 0
     q3_sum = 0
     q3_count = 0
 
@@ -244,7 +248,13 @@ def _build_formateur_principal(request) -> dict:
         row.public_has_form = has_form
         row.public_has_audio = has_audio
 
-        # Q3 satisfaction
+        # Q1 / Q2 / Q3 satisfaction
+        if row.q1_prerequis_apprenants is not None:
+            q1_sum += row.q1_prerequis_apprenants
+            q1_count += 1
+        if row.q2_interaction_apprenants is not None:
+            q2_sum += row.q2_interaction_apprenants
+            q2_count += 1
         if row.q3_competences_acquises is not None:
             q3_sum += row.q3_competences_acquises
             q3_count += 1
@@ -325,7 +335,12 @@ def _build_formateur_principal(request) -> dict:
         {"value": "termine", "label": "Termine"},
     ]
 
+    avg_q1 = round(q1_sum / q1_count, 1) if q1_count else 0
+    avg_q2 = round(q2_sum / q2_count, 1) if q2_count else 0
     avg_q3 = round(q3_sum / q3_count, 1) if q3_count else 0
+    total_q_sum = q1_sum + q2_sum + q3_sum
+    total_q_count = q1_count + q2_count + q3_count
+    avg_generale = round(total_q_sum / total_q_count, 1) if total_q_count else 0
 
     return {
         "rows": page_obj.object_list,
@@ -343,7 +358,10 @@ def _build_formateur_principal(request) -> dict:
         "summary_form_sans_audio": fmt(max(summary_form_remplis - summary_form_audio, 0)),
         "summary_form_audio": fmt(summary_form_audio),
         "summary_audios": fmt(summary_audios_total),
+        "summary_moyenne_prerequis": avg_q1,
+        "summary_moyenne_interaction": avg_q2,
         "summary_moyenne_competences": avg_q3,
+        "summary_moyenne_generale": avg_generale,
     }
 
 

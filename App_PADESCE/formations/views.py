@@ -1171,11 +1171,26 @@ def class_analysis_detail(request, code: str):
         else ""
     )
 
+    # Formateurs explicitement liés à la prestation via M2M (gestion page)
+    prestation_obj = getattr(classe, "prestation", None)
+    linked_formateurs = list(
+        prestation_obj.formateurs_assignes.order_by("nom_complet")
+    ) if prestation_obj else []
+
     apprenant_rows = _build_apprenant_rows(apprenant_appels, back_url=apprenant_back_url)
     formateur_rows = _build_formateur_rows(formateur_appels, back_url=formateur_back_url)
     summary = _entity_summary(apprenant_rows, formateur_rows)
-    class_chapeau = _build_class_chapeau(classe.code, apprenant_appels, source_bundle=source_bundle)
-    formateur_chapeau = _build_formateur_chapeau(classe.code, formateur_appels)
+    try:
+        class_chapeau = _build_class_chapeau(classe.code, apprenant_appels, source_bundle=source_bundle)
+    except Exception:
+        class_chapeau = {"rows": [], "presence_rows": [], "has_data": False, "formulaires_remplis": 0,
+                         "title": classe.code, "presence_taux_avg": 0, "participation_rate": 0,
+                         "person_formed_rate": 0, "moyenne_participation_presence": 0, "respondents_count": 0}
+    try:
+        formateur_chapeau = _build_formateur_chapeau(classe.code, formateur_appels)
+    except Exception:
+        formateur_chapeau = {"rows": [], "has_data": False, "formulaires_remplis": 0,
+                             "title": classe.code, "presence_rows": [], "presence_taux_avg": 0, "respondents_count": 0}
 
     channel_link = _analysis_source_class_channel_link(source_bundle, classe.code)
 
@@ -1199,6 +1214,7 @@ def class_analysis_detail(request, code: str):
             "matching_note": (
                 "Rattachement formateurs via prestataire, " "beneficiaire, cohorte et formation."
             ),
+            "linked_formateurs": linked_formateurs,
             "prestation_detail_url": prestation_detail_url,
             "reference_warning": reference_warning,
             "channel_link": channel_link,
@@ -1285,13 +1301,27 @@ def prestation_analysis_detail(request, code: str):
 
     formateur_appels = _prestation_formateur_candidates(prestation, source_bundle=source_bundle)
 
+    # Formateurs explicitement liés via M2M (gestion page)
+    linked_formateurs = list(
+        prestation.formateurs_assignes.order_by("nom_complet")
+    ) if getattr(prestation, "pk", None) else []
+
     apprenant_rows = _build_apprenant_rows(apprenant_appels, back_url=apprenant_back_url)
     formateur_rows = _build_formateur_rows(formateur_appels, back_url=formateur_back_url)
     summary = _entity_summary(apprenant_rows, formateur_rows)
-    class_chapeau = _build_class_chapeau(
-        prestation.code, apprenant_appels, source_bundle=source_bundle
-    )
-    formateur_chapeau = _build_formateur_chapeau(prestation.code, formateur_appels)
+    try:
+        class_chapeau = _build_class_chapeau(
+            prestation.code, apprenant_appels, source_bundle=source_bundle
+        )
+    except Exception:
+        class_chapeau = {"rows": [], "presence_rows": [], "has_data": False, "formulaires_remplis": 0,
+                         "title": prestation.code, "presence_taux_avg": 0, "participation_rate": 0,
+                         "person_formed_rate": 0, "moyenne_participation_presence": 0, "respondents_count": 0}
+    try:
+        formateur_chapeau = _build_formateur_chapeau(prestation.code, formateur_appels)
+    except Exception:
+        formateur_chapeau = {"rows": [], "has_data": False, "formulaires_remplis": 0,
+                             "title": prestation.code, "presence_rows": [], "presence_taux_avg": 0, "respondents_count": 0}
 
     return render(
         request,
@@ -1313,8 +1343,10 @@ def prestation_analysis_detail(request, code: str):
             "class_chapeau": class_chapeau,
             "formateur_chapeau": formateur_chapeau,
             "matching_note": "Rattachement formateurs via prestataire, beneficiaire et formation.",
+            "linked_formateurs": linked_formateurs,
             "prestation_detail_url": "",
             "reference_warning": reference_warning,
+            "channel_link": "",
         },
     )
 
