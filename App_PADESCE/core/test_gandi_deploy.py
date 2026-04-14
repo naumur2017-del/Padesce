@@ -68,6 +68,19 @@ class GandiDeployHelpersTests(SimpleTestCase):
 
         self.assertEqual(sorted(manifest), ["App_PADESCE/keep.py"])
 
+    def test_build_local_manifest_can_include_collected_staticfiles_when_requested(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            (root / "staticfiles" / "branding").mkdir(parents=True)
+            (root / "staticfiles" / "branding" / "logo.png").write_text(
+                "logo",
+                encoding="utf-8",
+            )
+
+            manifest = build_local_manifest(root, include_paths=("staticfiles",))
+
+        self.assertEqual(sorted(manifest), ["staticfiles/branding/logo.png"])
+
     def test_runtime_config_fills_missing_username_and_token(self) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

@@ -540,13 +540,28 @@ def deployment_config_summary() -> dict[str, Any]:
     }
 
 
-def should_ignore(relative_path: str) -> bool:
+def _include_paths_allow_staticfiles(
+    include_paths: tuple[str, ...] = DEFAULT_INCLUDE_PATHS,
+) -> bool:
+    for include in include_paths:
+        normalized = str(include or "").replace("\\", "/").strip("/")
+        if normalized == "staticfiles" or normalized.startswith("staticfiles/"):
+            return True
+    return False
+
+
+def should_ignore(
+    relative_path: str,
+    *,
+    allow_staticfiles: bool = False,
+) -> bool:
     normalized = relative_path.replace("\\", "/").strip("/")
     if not normalized:
         return False
     parts = normalized.split("/")
     name = parts[-1]
-    if any(part in IGNORE_DIR_NAMES for part in parts[:-1]):
+    ignored_dir_names = IGNORE_DIR_NAMES - {"staticfiles"} if allow_staticfiles else IGNORE_DIR_NAMES
+    if any(part in ignored_dir_names for part in parts[:-1]):
         return True
     if name in IGNORE_FILE_NAMES:
         return True
@@ -555,7 +570,7 @@ def should_ignore(relative_path: str) -> bool:
     if (
         normalized.startswith("logs/")
         or normalized.startswith("media/")
-        or normalized.startswith("staticfiles/")
+        or (normalized.startswith("staticfiles/") and not allow_staticfiles)
     ):
         return True
     return False
@@ -589,19 +604,25 @@ def _add_manifest_file(
     *,
     local_root: Path,
     path: Path,
+    allow_staticfiles: bool = False,
 ) -> None:
     if not path.is_file():
         return
     relative = relative_posix(path, local_root)
-    entry = local_manifest_entry(local_root, relative)
+    entry = local_manifest_entry(local_root, relative, allow_staticfiles=allow_staticfiles)
     if entry is None:
         return
     manifest[relative] = entry
 
 
-def local_manifest_entry(local_root: Path, relative_path: str) -> dict[str, Any] | None:
+def local_manifest_entry(
+    local_root: Path,
+    relative_path: str,
+    *,
+    allow_staticfiles: bool = False,
+) -> dict[str, Any] | None:
     normalized = relative_path.replace("\\", "/").strip("/")
-    if not normalized or should_ignore(normalized):
+    if not normalized or should_ignore(normalized, allow_staticfiles=allow_staticfiles):
         return None
     local_root_resolved = local_root.resolve()
     path = (local_root_resolved / normalized).resolve()
@@ -624,6 +645,7 @@ def build_local_manifest(
 ) -> dict[str, dict[str, Any]]:
     manifest: dict[str, dict[str, Any]] = {}
     local_root_resolved = local_root.resolve()
+    allow_staticfiles = _include_paths_allow_staticfiles(include_paths)
     for include in include_paths:
         candidate = (local_root_resolved / include).resolve()
         try:
@@ -633,10 +655,20 @@ def build_local_manifest(
         if not candidate.exists():
             continue
         if candidate.is_file():
-            _add_manifest_file(manifest, local_root=local_root_resolved, path=candidate)
+            _add_manifest_file(
+                manifest,
+                local_root=local_root_resolved,
+                path=candidate,
+                allow_staticfiles=allow_staticfiles,
+            )
             continue
         for path in sorted(candidate.rglob("*")):
-            _add_manifest_file(manifest, local_root=local_root_resolved, path=path)
+            _add_manifest_file(
+                manifest,
+                local_root=local_root_resolved,
+                path=path,
+                allow_staticfiles=allow_staticfiles,
+            )
     return manifest
 
 
@@ -1049,7 +1081,13 @@ def confirm_python_refresh(
     return refresh_request
 
 
-def _walk_remote_dir(sftp, remote_root: str, current_dir: str) -> dict[str, dict[str, Any]]:
+def _walk_remote_dir(
+    sftp,
+    remote_root: str,
+    current_dir: str,
+    *,
+    allow_staticfiles: bool = False,
+) -> dict[str, dict[str, Any]]:
     files: dict[str, dict[str, Any]] = {}
     stack = [current_dir]
     while stack:
@@ -1060,7 +1098,7 @@ def _walk_remote_dir(sftp, remote_root: str, current_dir: str) -> dict[str, dict
                 continue
             full_path = posixpath.join(current_dir, name)
             relative = PurePosixPath(posixpath.relpath(full_path, remote_root)).as_posix()
-            if should_ignore(relative):
+            if should_ignore(relative, allow_staticfiles=allow_staticfiles):
                 continue
             mode = item.st_mode
             if stat.S_ISDIR(mode):
@@ -1082,6 +1120,7 @@ def walk_remote_files(
     include_paths: tuple[str, ...] = DEFAULT_INCLUDE_PATHS,
 ) -> dict[str, dict[str, Any]]:
     files: dict[str, dict[str, Any]] = {}
+    allow_staticfiles = _include_paths_allow_staticfiles(include_paths)
     for include in include_paths:
         remote_path = remote_join(remote_root, include)
         try:
@@ -1089,12 +1128,19 @@ def walk_remote_files(
         except OSError:
             continue
         if stat.S_ISDIR(remote_stat.st_mode):
-            files.update(_walk_remote_dir(sftp, remote_root, remote_path))
+            files.update(
+                _walk_remote_dir(
+                    sftp,
+                    remote_root,
+                    remote_path,
+                    allow_staticfiles=allow_staticfiles,
+                )
+            )
             continue
         if not stat.S_ISREG(remote_stat.st_mode):
             continue
         relative = PurePosixPath(posixpath.relpath(remote_path, remote_root)).as_posix()
-        if should_ignore(relative):
+        if should_ignore(relative, allow_staticfiles=allow_staticfiles):
             continue
         files[relative] = {
             "size": int(getattr(remote_stat, "st_size", 0) or 0),
