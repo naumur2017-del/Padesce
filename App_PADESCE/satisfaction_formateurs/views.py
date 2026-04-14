@@ -1643,6 +1643,16 @@ def _avg_num(values):
     return round(sum(nums) / len(nums), 2) if nums else 0
 
 
+def _score_values(records) -> list[float]:
+    values: list[float] = []
+    for record in records:
+        for field_name, _label in Q_FORM_FIELDS:
+            value = record.get(field_name)
+            if value is not None:
+                values.append(value)
+    return values
+
+
 FORMATEUR_DASHBOARD_TABS = {"prestataire", "beneficiaire", "cohorte", "detail"}
 
 
@@ -1756,7 +1766,7 @@ def _build_satisfaction_formateurs_dashboard_context(request) -> dict:
         label: _avg_num([record[field] for record in strict_form_records])
         for field, label in Q_FORM_FIELDS
     }
-    moyenne_generale_globale = _avg_num(list(global_avgs.values()))
+    moyenne_generale_globale = _avg_num(_score_values(strict_form_records))
 
     def _group_stats(key_fn):
         groups = defaultdict(list)

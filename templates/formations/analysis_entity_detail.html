@@ -169,6 +169,34 @@
     border-radius: 12px;
     border: 1px solid var(--border);
   }
+  .presence-summary-grid {
+    display: grid;
+    gap: 12px;
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    margin-bottom: 14px;
+  }
+  .presence-summary-card {
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.92);
+    padding: 14px;
+  }
+  .presence-summary-card .label {
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+  }
+  .presence-summary-card .value {
+    margin-top: 6px;
+    font-size: 1.3rem;
+    font-weight: 800;
+    color: var(--accent-strong);
+  }
+  .stack {
+    display: grid;
+    gap: 14px;
+  }
   table {
     width: 100%;
     border-collapse: collapse;
@@ -388,9 +416,9 @@
         </thead>
         <tbody>
           <tr>
-            <td style="padding: 8px; border: 1px solid #dee2e6;">{{ summary.person_formed_rate|default:0 }}%</td>
-            <td style="padding: 8px; border: 1px solid #dee2e6;">{{ summary.participation_rate|default:0 }}%</td>
-            <td style="padding: 8px; border: 1px solid #dee2e6;">{{ summary.presence_taux_avg|default:0 }}%</td>
+            <td style="padding: 8px; border: 1px solid #dee2e6;">{{ summary.person_formed_rate|default:0|floatformat:2 }}%</td>
+            <td style="padding: 8px; border: 1px solid #dee2e6;">{{ summary.participation_rate|default:0|floatformat:2 }}%</td>
+            <td style="padding: 8px; border: 1px solid #dee2e6;">{{ summary.presence_taux_avg|default:0|floatformat:2 }}%</td>
           </tr>
         </tbody>
       </table>
@@ -497,23 +525,69 @@
         {{ class_chapeau.formulaires_remplis }} formulaire(s) rempli(s)
       </span>
     </div>
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>Question</th>
-            <th>Note</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for item in class_chapeau.rows %}
+    <div class="stack">
+      {% if entity_type == "classe" and class_chapeau.presence_rows %}
+        <div>
+          <div class="presence-summary-grid">
+            <article class="presence-summary-card">
+              <div class="label">Total des participants a la formation</div>
+              <div class="value">{{ summary.apprenants_total|default:0 }}</div>
+            </article>
+            <article class="presence-summary-card">
+              <div class="label">Taux de personne forme</div>
+              <div class="value">{{ class_chapeau.person_formed_rate|floatformat:2 }}%</div>
+            </article>
+            <article class="presence-summary-card">
+              <div class="label">Taux de participation</div>
+              <div class="value">{{ class_chapeau.participation_rate|floatformat:2 }}%</div>
+            </article>
+            <article class="presence-summary-card">
+              <div class="label">Taux de presence globale</div>
+              <div class="value">{{ class_chapeau.presence_taux_avg|floatformat:2 }}%</div>
+            </article>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Controle</th>
+                  <th>Presents</th>
+                  <th>Absents</th>
+                  <th>Taux de presence</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for item in class_chapeau.presence_rows %}
+                  <tr>
+                    <td>{{ item.label }}</td>
+                    <td>{{ item.pr_count }}</td>
+                    <td>{{ item.ab_count }}</td>
+                    <td>{{ item.pr_rate|floatformat:2 }}%</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      {% endif %}
+      <div class="table-wrap">
+        <table>
+          <thead>
             <tr>
-              <td>{{ item.label }}</td>
-              <td>{% if item.count %}{{ item.note }} / 5{% else %}-{% endif %}</td>
+              <th>Question</th>
+              <th>Note</th>
             </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {% for item in class_chapeau.rows %}
+              <tr>
+                <td>{{ item.label }}</td>
+                <td>{% if item.count %}{{ item.note }} / 5{% else %}-{% endif %}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
     </div>
   </section>
   <section class="panel tab-panel{% if active_tab == 'formateurs' %} active{% endif %}" data-panel="formateurs-chapeau">
@@ -593,7 +667,7 @@
             <td>{{ row.c2|default:"AB" }}</td>
             <td>{{ row.c3|default:"AB" }}</td>
             <td>{{ row.c4|default:"AB" }}</td>
-            <td>{{ row.taux_presence_control|default:0 }}%</td>
+            <td>{{ row.taux_presence_control|default:0|floatformat:2 }}%</td>
             <td>{{ row.statut_label }}</td>
             <td>
               {% if row.has_audio %}

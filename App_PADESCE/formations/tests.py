@@ -18,6 +18,10 @@ from App_PADESCE.formations.models import (
     Prestataire,
     Prestation,
 )
+from App_PADESCE.presences.control_utils import (
+    PRESENCE_CONTROLS_CACHE_KEY,
+    upsert_presence_controls,
+)
 
 
 @override_settings(ROOT_URLCONF="App_PADESCE.urls")
@@ -28,6 +32,7 @@ class AnalysisEntityDetailTests(TestCase):
         self.override.enable()
         self.addCleanup(self.override.disable)
         self.addCleanup(lambda: shutil.rmtree(self.media_root, ignore_errors=True))
+        self.addCleanup(self._clear_presence_cache)
 
         user_model = get_user_model()
         self.user = user_model.objects.create_user(
@@ -155,6 +160,11 @@ class AnalysisEntityDetailTests(TestCase):
             locked_by=self.user,
         )
 
+    def _clear_presence_cache(self):
+        from django.core.cache import cache
+
+        cache.delete(PRESENCE_CONTROLS_CACHE_KEY)
+
     def test_class_analysis_detail_is_accessible_by_lowercase_code(self):
         response = self.client.get(reverse("class_analysis_detail", args=["cla001"]))
 
@@ -174,6 +184,72 @@ class AnalysisEntityDetailTests(TestCase):
             response,
             reverse("analysis_formateur_call_detail", args=[self.formateur_call.pk]),
         )
+
+    def test_class_analysis_detail_renders_verified_presence_chapeau_calculations(self):
+        second_call = Appel.objects.create(
+            code="APP002",
+            nom="Apprenant Presence",
+            classe=self.classe,
+            classe_label=self.classe.code,
+            prestataire=self.prestataire.raison_sociale,
+            beneficiaire=self.beneficiaire.nom_structure,
+            telephone1="677009900",
+            status="a_rappeler",
+            is_active=True,
+            locked_by=self.user,
+        )
+        AppelAnswers.objects.create(
+            appel=second_call,
+            q1_clarte_exposes=3,
+            q2_interaction_formateur=4,
+            q3_maitrise_contenu=4,
+            q4_salle_adequate=3,
+            q5_materiel_disponible=4,
+            q6_organisation_temps=3,
+            q7_utilite_formation=4,
+            q8_adequation_besoins=4,
+            q9_satisfaction_globale=4,
+            modified_by=self.user,
+        )
+        upsert_presence_controls(
+            [
+                {
+                    "apprenant_id": "APP001",
+                    "c1": "PR",
+                    "c2": "PR",
+                    "c3": "AB",
+                    "c4": "AB",
+                    "taux_presence": 50,
+                },
+                {
+                    "apprenant_id": "APP002",
+                    "c1": "PR",
+                    "c2": "AB",
+                    "c3": "AB",
+                    "c4": "AB",
+                    "taux_presence": 25,
+                },
+            ]
+        )
+
+        response = self.client.get(reverse("class_analysis_detail", args=["cla001"]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Taux de presence globale")
+        class_chapeau = response.context["class_chapeau"]
+        self.assertEqual(class_chapeau["presence_taux_avg"], 37.5)
+        self.assertEqual(class_chapeau["participation_rate"], 100.0)
+        self.assertEqual(class_chapeau["person_formed_rate"], 50.0)
+        self.assertEqual(
+            class_chapeau["presence_rows"],
+            [
+                {"label": "C1", "pr_count": 2, "ab_count": 0, "pr_rate": 100.0},
+                {"label": "C2", "pr_count": 1, "ab_count": 1, "pr_rate": 50.0},
+                {"label": "C3", "pr_count": 0, "ab_count": 2, "pr_rate": 0.0},
+                {"label": "C4", "pr_count": 0, "ab_count": 2, "pr_rate": 0.0},
+            ],
+        )
+        self.assertContains(response, "Controle")
 
     def test_prefixed_root_redirects_authenticated_user_to_prefixed_dashboard(self):
         response = self.client.get("/padesce/")

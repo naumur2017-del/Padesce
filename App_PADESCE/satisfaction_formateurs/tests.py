@@ -1,8 +1,9 @@
-from datetime import date
+from datetime import date, datetime
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
+from django.utils import timezone
 
 from App_PADESCE.appels.models import AppelFormateur
 from App_PADESCE.formations.models import (
@@ -149,3 +150,56 @@ class SatisfactionFormateurUpdateFormTests(TestCase):
                 date=self.formulaire_present.session_date,
             ).exists()
         )
+
+
+class SatisfactionFormateurDashboardAverageTests(TestCase):
+    def setUp(self):
+        user_model = get_user_model()
+        self.user = user_model.objects.create_superuser(
+            username="dashboard-admin",
+            email="dashboard-admin@example.com",
+            password="testpass123",
+        )
+        self.client.force_login(self.user)
+        completed_at_1 = timezone.make_aware(datetime(2026, 4, 10, 0, 0, 0))
+        completed_at_2 = timezone.make_aware(datetime(2026, 4, 11, 0, 0, 0))
+
+        AppelFormateur.objects.create(
+            reference_code="AVG-001",
+            prestataire="Prestataire A",
+            beneficiaire="Beneficiaire A",
+            formation="Formation A",
+            cohorte="1",
+            telephone="699111111",
+            session_date=date(2026, 4, 10),
+            heure_debut="08:00",
+            status="termine",
+            q1_prerequis_apprenants=5,
+            q2_interaction_apprenants=5,
+            q3_competences_acquises=1,
+            satisfaction_completed_at=completed_at_1,
+        )
+        AppelFormateur.objects.create(
+            reference_code="AVG-002",
+            prestataire="Prestataire A",
+            beneficiaire="Beneficiaire A",
+            formation="Formation A",
+            cohorte="1",
+            telephone="699222222",
+            session_date=date(2026, 4, 11),
+            heure_debut="09:00",
+            status="termine",
+            q1_prerequis_apprenants=1,
+            q2_interaction_apprenants=1,
+            q3_competences_acquises=None,
+            satisfaction_completed_at=completed_at_2,
+        )
+
+    def test_global_average_is_computed_from_all_answered_scores(self):
+        response = self.client.get(reverse("satisfaction_formateurs_dashboard"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["global_avgs"]["Prérequis apprenants"], 3.0)
+        self.assertEqual(response.context["global_avgs"]["Interaction apprenants"], 3.0)
+        self.assertEqual(response.context["global_avgs"]["Compétences acquises"], 1.0)
+        self.assertEqual(response.context["moyenne_generale_globale"], 2.6)
