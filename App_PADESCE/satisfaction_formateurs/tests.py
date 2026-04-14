@@ -195,11 +195,11 @@ class SatisfactionFormateurDashboardAverageTests(TestCase):
             satisfaction_completed_at=completed_at_2,
         )
 
-    def test_global_average_is_computed_from_all_answered_scores(self):
+    def test_global_average_is_computed_from_the_three_displayed_indicators(self):
         response = self.client.get(reverse("satisfaction_formateurs_dashboard"))
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.context["global_avgs"]["Prérequis apprenants"], 3.0)
         self.assertEqual(response.context["global_avgs"]["Interaction apprenants"], 3.0)
         self.assertEqual(response.context["global_avgs"]["Compétences acquises"], 1.0)
-        self.assertEqual(response.context["moyenne_generale_globale"], 2.6)
+        self.assertEqual(response.context["moyenne_generale_globale"], 2.33)
