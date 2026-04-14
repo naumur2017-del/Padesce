@@ -36,6 +36,8 @@
   .form-card-header .form-code { font-size:.78rem; color:var(--muted); font-family:monospace; }
   .form-card-body { padding:12px 16px; display:none; background:#fff; }
   .form-card-body.open { display:block; }
+  .form-card-arrow { transition: transform .2s ease; }
+  .form-card.is-open .form-card-arrow { transform: rotate(180deg); }
   .prest-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:8px; }
   .prest-toggle-row { display:flex; align-items:center; gap:10px; padding:7px 10px;
                       border:1px solid var(--border); border-radius:8px; background:#fafafa;
@@ -61,8 +63,17 @@
   .badge-ok   { background:rgba(34,197,94,.12); color:#166534; }
   .badge-none { background:rgba(107,114,128,.12); color:#4b5563; }
   .badge-info { background:rgba(111,60,195,.1); color:var(--accent-strong); }
+  .badge-name-ok { background:rgba(34,197,94,.14); color:#166534; font-size:.72rem; padding:2px 8px; border-radius:999px; font-weight:700; }
+  .badge-name-missing { background:rgba(249,115,22,.16); color:#9a3412; font-size:.72rem; padding:2px 8px; border-radius:999px; font-weight:700; }
   .badge-prest { background:rgba(59,130,246,.1); color:#1d4ed8; font-size:.72rem; padding:2px 8px; border-radius:999px; font-weight:600; }
-  .badge-benef { background:rgba(234,88,12,.1); color:#9a3412; font-size:.72rem; padding:2px 8px; border-radius:999px; font-weight:600; }
+  .badge-benef { background:rgba(34,197,94,.14); color:#166534; font-size:.72rem; padding:2px 8px; border-radius:999px; font-weight:600; }
+  .badge-forma { background:rgba(249,115,22,.16); color:#9a3412; font-size:.72rem; padding:2px 8px; border-radius:999px; font-weight:600; }
+  .badge-proba { font-size:.72rem; padding:2px 8px; border-radius:999px; font-weight:700; }
+  .badge-proba-high { background:rgba(34,197,94,.16); color:#166534; }
+  .badge-proba-medium { background:rgba(250,204,21,.2); color:#854d0e; }
+  .badge-proba-low { background:rgba(249,115,22,.18); color:#9a3412; }
+  .badge-proba-approx { background:rgba(250,204,21,.2); color:#854d0e; }
+  .badge-proba-zero { background:rgba(239,68,68,.16); color:#991b1b; }
   .orgs-row { display:flex; flex-wrap:wrap; gap:4px; margin-top:4px; }
   .spinner-inline { display:inline-block; width:14px; height:14px; border:2px solid rgba(111,60,195,.3);
                     border-top-color:var(--accent); border-radius:50%; animation:spin .7s linear infinite; }
@@ -130,30 +141,40 @@
 
       <div id="formateurs-list">
         {% for form in formateurs %}
-        {% with form_linked=form.prestations.all %}
         <div class="form-card" data-search="{{ form.code|lower }} {{ form.nom_complet|lower }}">
           <div class="form-card-header" onclick="toggleCard(this)">
             <div style="flex:1; min-width:0;">
               <span class="form-code">{{ form.code }}</span>
-              <span class="form-name" style="display:block;">{{ form.nom_complet }}</span>
+              <span class="form-name" style="display:block;">{{ form.display_nom|default:form.nom_complet }}</span>
               {% if form.specialite %}<span style="font-size:.76rem; color:var(--muted);">{{ form.specialite }}</span>{% endif %}
               {% if form.telephone %}<span style="font-size:.75rem; color:var(--muted); font-family:monospace;">&#128222; {{ form.telephone }}</span>{% endif %}
-              {% if form.appel_prestataires or form.appel_beneficiaires %}
+              <div class="orgs-row">
+                {% if form.nom_rempli %}
+                  <span class="badge-name-ok">[Complet]</span>
+                {% else %}
+                  <span class="badge-name-missing">[A compléter]</span>
+                {% endif %}
+              </div>
+              {% if form.appel_prestataires or form.appel_beneficiaires or form.appel_formations %}
               <div class="orgs-row">
                 {% for p in form.appel_prestataires %}<span class="badge-prest">&#127970; {{ p|truncatechars:30 }}</span>{% endfor %}
                 {% for b in form.appel_beneficiaires %}<span class="badge-benef">&#127942; {{ b|truncatechars:30 }}</span>{% endfor %}
+                {% if form.has_missing_orgs %}
+                  {% for f in form.appel_formations %}<span class="badge-forma">&#127891; Formation: {{ f|truncatechars:30 }}</span>{% endfor %}
+                {% endif %}
               </div>
               {% endif %}
             </div>
             <span class="badge badge-info" id="badge-form-{{ form.pk }}">
-              {{ form_linked|length }} prestation{{ form_linked|length|pluralize }}
+              {{ form.linked_count|default:0 }} prestation{{ form.linked_count|default:0|pluralize }}
             </span>
-            <span style="font-size:.9rem; color:var(--muted); margin-left:4px;">&#9660;</span>
+            <span class="form-card-arrow" style="font-size:.9rem; color:var(--muted); margin-left:4px;">&#9660;</span>
           </div>
           <div class="form-card-body" id="body-form-{{ form.pk }}">
             <div class="prest-grid">
-              {% for prest in prestations %}
-              <div class="prest-toggle-row {% if prest in form_linked %}linked{% endif %}"
+              {% for candidate in form.prestation_candidates %}
+              {% with prest=candidate.prestation %}
+              <div class="prest-toggle-row {% if candidate.linked %}linked{% endif %}"
                    id="row-{{ form.pk }}-{{ prest.pk }}">
                 <div class="toggle-wrap">
                   <input
@@ -163,7 +184,7 @@
                     data-formateur-pk="{{ form.pk }}"
                     data-prestation-pk="{{ prest.pk }}"
                     data-badge-id="badge-form-{{ form.pk }}"
-                    {% if prest in form_linked %}checked{% endif %}
+                    {% if candidate.linked %}checked{% endif %}
                   >
                   <label class="toggle-track" for="tgl-{{ form.pk }}-{{ prest.pk }}"></label>
                   <div class="toggle-thumb"></div>
@@ -174,15 +195,20 @@
                     {{ prest.prestataire.raison_sociale|truncatechars:30 }}
                   </div>
                   <div style="font-size:.73rem; color:var(--muted);">{{ prest.beneficiaire.nom_structure|default:"—"|truncatechars:38 }}</div>
+                  <div style="margin-top:4px;">
+                    <span class="badge-proba badge-proba-{{ candidate.probability_level }}">
+                      Probabilité: {{ candidate.probability }}%
+                    </span>
+                  </div>
                 </div>
               </div>
+              {% endwith %}
               {% empty %}
               <p style="color:var(--muted); font-size:.85rem;">Aucune prestation trouvée.</p>
               {% endfor %}
             </div>
           </div>
         </div>
-        {% endwith %}
         {% empty %}
         <p style="color:var(--muted); padding:20px;">Aucun formateur trouvé.</p>
         {% endfor %}
@@ -287,15 +313,35 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
 });
 
 // ── Accordion cards ───────────────────────────────────────────────────────────
+function parseLinkedCount(card) {
+  const badge = card ? card.querySelector('.badge-info') : null;
+  if (!badge) return 0;
+  const text = (badge.textContent || '').trim();
+  const match = text.match(/^(\d+)/);
+  return match ? parseInt(match[1], 10) : 0;
+}
+
+function sortFormCardsByLinkedCount() {
+  const list = document.getElementById('formateurs-list');
+  if (!list) return;
+  const cards = Array.from(list.querySelectorAll('.form-card'));
+  cards.sort((left, right) => parseLinkedCount(right) - parseLinkedCount(left));
+  cards.forEach(card => list.appendChild(card));
+}
+
 function toggleCard(header) {
+  const card = header.closest('.form-card');
   const body = header.nextElementSibling;
   const isOpen = body.classList.contains('open');
   // Close all others
+  document.querySelectorAll('.form-card').forEach(c => c.classList.remove('is-open'));
   document.querySelectorAll('.form-card-body.open').forEach(b => b.classList.remove('open'));
-  document.querySelectorAll('.form-card-header span:last-child').forEach(s => s.textContent = '▼');
   if (!isOpen) {
     body.classList.add('open');
-    header.querySelector('span:last-child').textContent = '▲';
+    if (card) card.classList.add('is-open');
+  } else {
+    // Re-trier uniquement à la fermeture explicite d'une carte.
+    sortFormCardsByLinkedCount();
   }
 }
 
@@ -418,5 +464,8 @@ function updateVilleChangedCount() {
   const badge = document.getElementById('prestations-changed-count');
   if (badge) badge.textContent = count > 0 ? `${count} modification${count > 1 ? 's' : ''} non sauvegardée${count > 1 ? 's' : ''}` : '';
 }
+
+// Tri initial décroissant par nombre de prestations liées.
+sortFormCardsByLinkedCount();
 </script>
 {% endblock %}

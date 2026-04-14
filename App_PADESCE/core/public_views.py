@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from collections import defaultdict
 from types import SimpleNamespace
 from urllib.parse import urlencode
@@ -8,6 +9,7 @@ from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
 from django.shortcuts import render
 from django.urls import reverse
 
+from App_PADESCE.appels.formateur_names import resolve_formateur_name_from_values
 from App_PADESCE.appels.formateurs_views import (
     _build_filtered_formateurs_queryset,
 )
@@ -84,7 +86,8 @@ def _build_apprenant_overview(request) -> dict:
                     else ""
                 ),
                 "prestation_url": (
-                    f"{reverse('prestation_analysis_detail', args=[prestation_code])}?tab=apprenants"
+                    f"{reverse('prestation_analysis_detail', args=[prestation_code])}"
+                    "?tab=apprenants"
                     if prestation_code
                     else ""
                 ),
@@ -178,6 +181,11 @@ def _resolve_formateur_classe(record, cache: dict[tuple, object]):
 
 
 def _build_formateur_principal(request) -> dict:
+    from App_PADESCE.formations.models import Formateur
+
+    def _normalize_phone(value: str) -> str:
+        return re.sub(r"\D+", "", str(value or ""))
+
     queryset, filters = _build_filtered_formateurs_queryset(request)
 
     # 1. Resolve and Enrich ALL rows (small set, safe to list)
@@ -199,11 +207,19 @@ def _build_formateur_principal(request) -> dict:
     summary_form_audio = 0
     summary_audios_total = 0
 
-    # Satisfaction Q3
-    q3_sum = 0
-    q3_count = 0
-
     success_statuses = ["formulaire_rempli", "formulaire_avec_audio", "termine", "appel_reussi"]
+
+    # Map telephones -> formateur(s) links configured in the gestion page.
+    formateurs = (
+        Formateur.objects.filter(actif=True)
+        .prefetch_related("prestations__prestataire", "prestations__beneficiaire")
+        .all()
+    )
+    formateur_by_phone: dict[str, Formateur] = {}
+    for formateur in formateurs:
+        phone_key = _normalize_phone(getattr(formateur, "telephone", ""))
+        if phone_key and phone_key not in formateur_by_phone:
+            formateur_by_phone[phone_key] = formateur
 
     for row in all_rows:
         classe = _resolve_formateur_classe(row, resolution_cache)
@@ -214,6 +230,46 @@ def _build_formateur_principal(request) -> dict:
 
         classe_code = str(getattr(classe, "code", "") or "").strip()
         prestation_code = str(getattr(prestation, "code", "") or "").strip()
+
+        raw_phone_candidates = [
+            str(getattr(row, "telephone", "") or "").strip(),
+            str(getattr(row, "source_contact", "") or "").strip(),
+        ]
+        linked_formateur = None
+        for phone_raw in raw_phone_candidates:
+            for phone_match in re.findall(r"\d{8,15}", phone_raw):
+                phone_key = _normalize_phone(phone_match)
+                if not phone_key:
+                    continue
+                linked_formateur = formateur_by_phone.get(phone_key)
+                if linked_formateur:
+                    break
+            if linked_formateur:
+                break
+
+        linked_prestations = []
+        if linked_formateur:
+            linked_prestations = sorted(
+                list(linked_formateur.prestations.all()), key=lambda item: str(item.code or "")
+            )
+
+        # If class resolution does not provide prestation code, fallback to
+        # manually toggled prestation(s) from the gestion page.
+        if not prestation_code and linked_prestations:
+            prestation_code = str(getattr(linked_prestations[0], "code", "") or "").strip()
+
+        # Keep displayed org labels aligned with manually linked prestation
+        # when source row has missing values.
+        if linked_prestations:
+            first_linked = linked_prestations[0]
+            if not str(getattr(row, "prestataire", "") or "").strip():
+                row.prestataire = str(
+                    getattr(getattr(first_linked, "prestataire", None), "raison_sociale", "") or ""
+                ).strip()
+            if not str(getattr(row, "beneficiaire", "") or "").strip():
+                row.beneficiaire = str(
+                    getattr(getattr(first_linked, "beneficiaire", None), "nom_structure", "") or ""
+                ).strip()
 
         # Enrichment from Classe Metadata (The user's "complet par téléphone" request)
         if classe:
@@ -231,10 +287,28 @@ def _build_formateur_principal(request) -> dict:
             else ""
         )
         row.public_prestation_code = prestation_code or "-"
+        if not prestation_code and linked_prestations:
+            linked_codes = [
+                str(getattr(item, "code", "") or "").strip() for item in linked_prestations
+            ]
+            linked_codes = [code for code in linked_codes if code]
+            if linked_codes:
+                row.public_prestation_code = (
+                    linked_codes[0]
+                    if len(linked_codes) == 1
+                    else f"{linked_codes[0]} (+{len(linked_codes) - 1})"
+                )
         row.public_prestation_url = (
             f"{reverse('prestation_analysis_detail', args=[prestation_code])}?tab=formateurs"
             if prestation_code
             else ""
+        )
+        row.public_formateur_nom = (
+            resolve_formateur_name_from_values(
+                getattr(row, "telephone", ""),
+                getattr(row, "source_contact", ""),
+            )
+            or "-"
         )
 
         # Calculate Metrics and Card counts
@@ -243,16 +317,12 @@ def _build_formateur_principal(request) -> dict:
         row.public_has_form = has_form
         row.public_has_audio = has_audio
 
-        # Q3 satisfaction
-        if row.q3_competences_acquises is not None:
-            q3_sum += row.q3_competences_acquises
-            q3_count += 1
-
         row.public_search_blob = " ".join(
             [
                 str(row.source_contact or ""),
                 str(row.reference_code or ""),
                 str(row.telephone or ""),
+                str(row.public_formateur_nom or ""),
                 str(row.formation or ""),
                 str(row.prestataire or ""),
                 str(row.beneficiaire or ""),
@@ -327,7 +397,22 @@ def _build_formateur_principal(request) -> dict:
         {"value": "termine", "label": "Termine"},
     ]
 
-    avg_q3 = round(q3_sum / q3_count, 1) if q3_count else 0
+    def _mean_score(rows, field_name):
+        values = []
+        for item in rows:
+            raw_value = getattr(item, field_name, None)
+            if raw_value is None:
+                continue
+            try:
+                values.append(float(raw_value))
+            except (TypeError, ValueError):
+                continue
+        return round(sum(values) / len(values), 1) if values else 0
+
+    avg_q1 = _mean_score(all_rows, "q1_prerequis_apprenants")
+    avg_q2 = _mean_score(all_rows, "q2_interaction_apprenants")
+    avg_q3 = _mean_score(all_rows, "q3_competences_acquises")
+    avg_general = round((avg_q1 + avg_q2 + avg_q3) / 3, 1)
 
     return {
         "rows": page_obj.object_list,
@@ -345,7 +430,10 @@ def _build_formateur_principal(request) -> dict:
         "summary_form_sans_audio": fmt(max(summary_form_remplis - summary_form_audio, 0)),
         "summary_form_audio": fmt(summary_form_audio),
         "summary_audios": fmt(summary_audios_total),
+        "summary_moyenne_prerequis": avg_q1,
+        "summary_moyenne_interaction": avg_q2,
         "summary_moyenne_competences": avg_q3,
+        "summary_moyenne_generale": avg_general,
     }
 
 
@@ -383,7 +471,11 @@ def _build_formateur_overview(request) -> dict:
             res_cohortes.add(
                 classe.pk
                 if classe
-                else f"{_formateur_record_value(record, 'prestataire')}-{_formateur_record_value(record, 'beneficiaire')}-{_formateur_record_value(record, 'cohorte')}"
+                else (
+                    f"{_formateur_record_value(record, 'prestataire')}"
+                    f"-{_formateur_record_value(record, 'beneficiaire')}"
+                    f"-{_formateur_record_value(record, 'cohorte')}"
+                )
             )
             res_prestataires.add(
                 prest_obj.pk if prest_obj else _formateur_record_value(record, "prestataire")
@@ -406,7 +498,8 @@ def _build_formateur_overview(request) -> dict:
                     "prestation_code": prestation_code or "-",
                     "url": f"{reverse('class_analysis_detail', args=[classe_code])}?tab=formateurs",
                     "prestation_url": (
-                        f"{reverse('prestation_analysis_detail', args=[prestation_code])}?tab=formateurs"
+                        f"{reverse('prestation_analysis_detail', args=[prestation_code])}"
+                        "?tab=formateurs"
                         if prestation_code
                         else ""
                     ),
@@ -443,7 +536,8 @@ def _build_formateur_overview(request) -> dict:
                     "prestataire": prestataire_val,
                     "beneficiaire": beneficiaire_val,
                     "url": (
-                        f"{reverse('prestation_analysis_detail', args=[prestation_code])}?tab=formateurs"
+                        f"{reverse('prestation_analysis_detail', args=[prestation_code])}"
+                        "?tab=formateurs"
                         if prestation_code
                         else ""
                     ),
@@ -600,7 +694,8 @@ def public_space(request):
             ctx = _build_consultant_dashboard_context(request)
             # Calculate Average satisfaction for the current filtered set
 
-            # Build queryset from the same logic (simple enough here as we use Appel.objects.filter(is_active=True))
+            # Build queryset from the same logic
+            # (simple enough here as we use Appel.objects.filter(is_active=True)).
             # But we should ideally reuse the filtering logic.
             # For simplicity, we can sometimes manually calculate from rows if small,
             # but for 30000 learners, we need a query.

@@ -46,6 +46,7 @@
 <div class="dash-header">
   <div>
     <h1 style="margin:0;font-size:1.3rem;">Analyses enquêtes formateurs</h1>
+    <p style="color:var(--muted);margin:4px 0 0;font-size:0.9rem;">Vue formateurs : statistiques Q1-Q3 et résumé qualitatif Q4-Q6 issus de la plateforme.</p>
   </div>
   <div style="display:flex;gap:8px;flex-wrap:wrap;">
     <div class="actions-menu" id="js-actions-menu">
@@ -104,15 +105,15 @@
 <div class="kpi-row" style="margin-bottom:16px;">
   <div class="kpi-card" style="border-color:rgba(99,102,241,0.25);background:rgba(238,242,255,0.7);">
     <div class="kpi-value" style="color:#3730a3;">{{ appels_cibles }}</div>
-    <div class="kpi-label">Appels Cibles</div>
+    <div class="kpi-label">Cibles</div>
   </div>
   <div class="kpi-card" style="border-color:rgba(234,179,8,0.25);background:rgba(254,252,232,0.6);">
     <div class="kpi-value" style="color:#92400e;">{{ appels_tentes }}</div>
-    <div class="kpi-label">Appels Tentés</div>
+    <div class="kpi-label">Tentés</div>
   </div>
   <div class="kpi-card" style="border-color:rgba(34,197,94,0.25);background:rgba(240,253,244,0.6);">
     <div class="kpi-value" style="color:#065f46;">{{ appels_reussis }}</div>
-    <div class="kpi-label">Appels Réussis</div>
+    <div class="kpi-label">Réussis</div>
   </div>
   <div class="kpi-card" style="border-color:rgba(59,130,246,0.25);background:rgba(239,246,255,0.6);">
     <div class="kpi-value" style="color:#1d4ed8;">{{ formulaires_remplis_appels }}</div>
@@ -134,7 +135,7 @@
 
 <!-- KPIs -->
 <div class="kpi-row">
-  <div class="kpi-card"><div class="kpi-value">{{ total }}</div><div class="kpi-label">Appels formateurs</div></div>
+  <div class="kpi-card"><div class="kpi-value">{{ total }}</div><div class="kpi-label">Formateurs</div></div>
   <div class="kpi-card"><div class="kpi-value">{{ termines }}</div><div class="kpi-label">Terminés</div></div>
   <div class="kpi-card"><div class="kpi-value">{{ with_scores }}</div><div class="kpi-label">Avec scores Q1-Q3</div></div>
   {% for label, avg in global_avgs.items %}
@@ -173,7 +174,7 @@
     <button class="tab-btn {% if active_tab == 'prestataire' %}active{% endif %}" onclick="switchTab('prestataire',this)">Par prestataire</button>
     <button class="tab-btn {% if active_tab == 'beneficiaire' %}active{% endif %}" onclick="switchTab('beneficiaire',this)">Par bénéficiaire</button>
     <button class="tab-btn {% if active_tab == 'cohorte' %}active{% endif %}" onclick="switchTab('cohorte',this)">Par cohorte</button>
-    <button class="tab-btn {% if active_tab == 'detail' %}active{% endif %}" onclick="switchTab('detail',this)">Détail appels</button>
+    <button class="tab-btn {% if active_tab == 'detail' %}active{% endif %}" onclick="switchTab('detail',this)">Détail</button>
   </div>
 
   <!-- Par prestataire -->
@@ -181,7 +182,7 @@
     <div class="table-scroll">
       <table>
         <thead><tr>
-          <th>Prestataire</th><th>Nb appels</th>
+          <th>Prestataire</th><th>Nb</th>
           {% for lbl in q_labels %}<th>{{ lbl }}</th>{% endfor %}
         </tr></thead>
         <tbody>
@@ -204,7 +205,7 @@
     <div class="table-scroll">
       <table>
         <thead><tr>
-          <th>Bénéficiaire</th><th>Nb appels</th>
+          <th>Bénéficiaire</th><th>Nb</th>
           {% for lbl in q_labels %}<th>{{ lbl }}</th>{% endfor %}
         </tr></thead>
         <tbody>
@@ -227,7 +228,7 @@
     <div class="table-scroll">
       <table>
         <thead><tr>
-          <th>Cohorte</th><th>Nb appels</th>
+          <th>Cohorte</th><th>Nb</th>
           {% for lbl in q_labels %}<th>{{ lbl }}</th>{% endfor %}
         </tr></thead>
         <tbody>
@@ -245,7 +246,7 @@
     </div>
   </div>
 
-  <!-- Détail appels -->
+  <!-- Détail -->
   <div class="tab-panel {% if active_tab == 'detail' %}active{% endif %}" id="tab-detail">
     <div class="table-scroll">
       <table>

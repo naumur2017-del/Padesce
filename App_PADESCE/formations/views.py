@@ -13,6 +13,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views.decorators.http import require_POST
 
+from App_PADESCE.appels.formateur_names import resolve_formateur_name_from_values
 from App_PADESCE.appels.models import (
     CALL_SUCCESS_STATUSES,
     Appel,
@@ -21,7 +22,6 @@ from App_PADESCE.appels.models import (
     is_call_success_status,
 )
 from App_PADESCE.apprenants.models import Apprenant
-from App_PADESCE.core.access import require_analysis_access
 from App_PADESCE.core.analysis_rules import appel_is_analysis_eligible
 from App_PADESCE.core.apprenant_lookup import (
     get_local_apprenant_db_label,
@@ -698,7 +698,7 @@ def _build_apprenant_rows(appels, *, back_url: str):
                 "c2": presence_controls.get("c2", "AB"),
                 "c3": presence_controls.get("c3", "AB"),
                 "c4": presence_controls.get("c4", "AB"),
-                "taux_presence_control": int(presence_controls.get("taux", 0) or 0),
+                "taux_presence_control": float(presence_controls.get("taux_presence", 0) or 0),
             }
         )
     return sorted(
@@ -743,7 +743,7 @@ def _build_class_chapeau(classe_code: str, appels, source_bundle: dict | None = 
             if marker not in {"PR", "AB"}:
                 marker = "AB"
             presence_totals[key][marker] += 1
-        presence_taux_values.append(int(presence_controls.get("taux", 0) or 0))
+        presence_taux_values.append(float(presence_controls.get("taux_presence", 0) or 0))
 
         for field, _label in Q_FIELDS:
             value = getattr(answers, field, None)
@@ -1125,7 +1125,6 @@ def formation_list(request):
     return render(request, "formations/end.html", {"prestations": prestations})
 
 
-@require_analysis_access
 def class_analysis_detail(request, code: str):
     classe = (
         Classe.objects.select_related(
@@ -1249,7 +1248,6 @@ def class_analysis_detail(request, code: str):
     )
 
 
-@require_analysis_access
 def prestation_analysis_detail(request, code: str):
     prestation = (
         Prestation.objects.select_related("prestataire", "formation", "beneficiaire")
@@ -1364,7 +1362,6 @@ def prestation_analysis_detail(request, code: str):
     )
 
 
-@require_analysis_access
 def analysis_apprenant_call_detail(request, pk: int):
     appel = get_object_or_404(
         Appel.objects.filter(is_active=True).select_related(
@@ -1395,7 +1392,6 @@ def analysis_apprenant_call_detail(request, pk: int):
     )
 
 
-@require_analysis_access
 def analysis_formateur_call_detail(request, pk: int):
     row = get_object_or_404(
         AppelFormateur.objects.filter(is_active=True).select_related("locked_by"),
@@ -1410,6 +1406,10 @@ def analysis_formateur_call_detail(request, pk: int):
         "formations/analysis_formateur_call_detail.html",
         {
             "row": row,
+            "formateur_nom": resolve_formateur_name_from_values(
+                getattr(row, "telephone", ""),
+                getattr(row, "source_contact", ""),
+            ),
             "form_state": form_state,
             "has_audio": has_audio,
             "audio_url": audio_url,

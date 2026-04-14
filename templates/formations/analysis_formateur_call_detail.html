@@ -99,6 +99,10 @@
       <div class="value">{{ row.telephone|default:"-" }}</div>
     </div>
     <div class="meta-card">
+      <div class="label">Nom du formateur</div>
+      <div class="value">{{ formateur_nom|default:"-" }}</div>
+    </div>
+    <div class="meta-card">
       <div class="label">Statut</div>
       <div class="value">{{ row.get_status_display }}</div>
     </div>

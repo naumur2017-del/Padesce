@@ -1,8 +1,9 @@
-$ErrorActionPreference = "Stop"
 Param(
     [string]$SourceDb = "db.sqlite3",
     [string]$DestinationDir = "backups"
 )
+
+$ErrorActionPreference = "Stop"
 
 if (-not (Test-Path $SourceDb)) {
     Write-Error "Source DB not found: $SourceDb"
