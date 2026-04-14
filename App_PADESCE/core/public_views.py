@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from collections import defaultdict
 from types import SimpleNamespace
 from urllib.parse import urlencode
@@ -179,6 +180,11 @@ def _resolve_formateur_classe(record, cache: dict[tuple, object]):
 
 
 def _build_formateur_principal(request) -> dict:
+    from App_PADESCE.formations.models import Formateur
+
+    def _normalize_phone(value: str) -> str:
+        return re.sub(r"\D+", "", str(value or ""))
+
     queryset, filters = _build_filtered_formateurs_queryset(request)
 
     # 1. Resolve and Enrich ALL rows (small set, safe to list)
@@ -202,6 +208,18 @@ def _build_formateur_principal(request) -> dict:
 
     success_statuses = ["formulaire_rempli", "formulaire_avec_audio", "termine", "appel_reussi"]
 
+    # Map telephones -> formateur(s) links configured in the gestion page.
+    formateurs = (
+        Formateur.objects.filter(actif=True)
+        .prefetch_related("prestations__prestataire", "prestations__beneficiaire")
+        .all()
+    )
+    formateur_by_phone: dict[str, Formateur] = {}
+    for formateur in formateurs:
+        phone_key = _normalize_phone(getattr(formateur, "telephone", ""))
+        if phone_key and phone_key not in formateur_by_phone:
+            formateur_by_phone[phone_key] = formateur
+
     for row in all_rows:
         classe = _resolve_formateur_classe(row, resolution_cache)
         prestation = getattr(classe, "prestation", None)
@@ -211,6 +229,46 @@ def _build_formateur_principal(request) -> dict:
 
         classe_code = str(getattr(classe, "code", "") or "").strip()
         prestation_code = str(getattr(prestation, "code", "") or "").strip()
+
+        raw_phone_candidates = [
+            str(getattr(row, "telephone", "") or "").strip(),
+            str(getattr(row, "source_contact", "") or "").strip(),
+        ]
+        linked_formateur = None
+        for phone_raw in raw_phone_candidates:
+            for phone_match in re.findall(r"\d{8,15}", phone_raw):
+                phone_key = _normalize_phone(phone_match)
+                if not phone_key:
+                    continue
+                linked_formateur = formateur_by_phone.get(phone_key)
+                if linked_formateur:
+                    break
+            if linked_formateur:
+                break
+
+        linked_prestations = []
+        if linked_formateur:
+            linked_prestations = sorted(
+                list(linked_formateur.prestations.all()), key=lambda item: str(item.code or "")
+            )
+
+        # If class resolution does not provide prestation code, fallback to
+        # manually toggled prestation(s) from the gestion page.
+        if not prestation_code and linked_prestations:
+            prestation_code = str(getattr(linked_prestations[0], "code", "") or "").strip()
+
+        # Keep displayed org labels aligned with manually linked prestation
+        # when source row has missing values.
+        if linked_prestations:
+            first_linked = linked_prestations[0]
+            if not str(getattr(row, "prestataire", "") or "").strip():
+                row.prestataire = str(
+                    getattr(getattr(first_linked, "prestataire", None), "raison_sociale", "") or ""
+                ).strip()
+            if not str(getattr(row, "beneficiaire", "") or "").strip():
+                row.beneficiaire = str(
+                    getattr(getattr(first_linked, "beneficiaire", None), "nom_structure", "") or ""
+                ).strip()
 
         # Enrichment from Classe Metadata (The user's "complet par téléphone" request)
         if classe:
@@ -228,6 +286,17 @@ def _build_formateur_principal(request) -> dict:
             else ""
         )
         row.public_prestation_code = prestation_code or "-"
+        if not prestation_code and linked_prestations:
+            linked_codes = [
+                str(getattr(item, "code", "") or "").strip() for item in linked_prestations
+            ]
+            linked_codes = [code for code in linked_codes if code]
+            if linked_codes:
+                row.public_prestation_code = (
+                    linked_codes[0]
+                    if len(linked_codes) == 1
+                    else f"{linked_codes[0]} (+{len(linked_codes) - 1})"
+                )
         row.public_prestation_url = (
             f"{reverse('prestation_analysis_detail', args=[prestation_code])}?tab=formateurs"
             if prestation_code
