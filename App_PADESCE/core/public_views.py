@@ -248,6 +248,19 @@ def _build_formateur_principal(request) -> dict:
             q3_sum += row.q3_competences_acquises
             q3_count += 1
 
+        row.public_search_blob = " ".join(
+            [
+                str(row.source_contact or ""),
+                str(row.reference_code or ""),
+                str(row.telephone or ""),
+                str(row.formation or ""),
+                str(row.prestataire or ""),
+                str(row.beneficiaire or ""),
+                str(row.lieu or ""),
+                str(row.public_prestation_code or ""),
+            ]
+        ).lower()
+
         is_tented = row.status != "en_attente"
         if is_tented:
             summary_tentes_count += 1
@@ -274,17 +287,7 @@ def _build_formateur_principal(request) -> dict:
         search_lower = search.lower()
         filtered_rows = []
         for row in all_rows:
-            matches = (
-                search_lower in (row.source_contact or "").lower()
-                or search_lower in (row.reference_code or "").lower()
-                or search_lower in (row.telephone or "").lower()
-                or search_lower in (row.formation or "").lower()
-                or search_lower in (row.prestataire or "").lower()
-                or search_lower in (row.beneficiaire or "").lower()
-                or search_lower in (row.lieu or "").lower()
-                or search_lower in (getattr(row, "public_prestation_code", "") or "").lower()
-            )
-            if matches:
+            if search_lower in getattr(row, "public_search_blob", ""):
                 filtered_rows.append(row)
         all_rows = filtered_rows
 

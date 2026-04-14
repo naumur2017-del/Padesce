@@ -167,8 +167,10 @@
   <article class="card" style="border-top: 4px solid var(--accent);">
     <h2>Appels PADESCE</h2>
     <div style="margin-top:10px;">
-      <div class="muted">{{ padesce_effectues }} / {{ padesce_total }} appels tentes Apprenants — hors "En attente".</div>
-      <div class="muted">{{ formateurs_effectues }} / {{ formateurs_total }} appels tentes Formateurs — hors "En attente".</div>
+      <div class="big">{{ padesce_effectues }} / {{ padesce_total }} appels tentés</div>
+      <div class="muted">Apprenants = hors "En attente".</div>
+      <div class="big">{{ formateurs_effectues }} / {{ formateurs_total }} appels tentés</div>
+      <div class="muted">Formateurs = hors "En attente".</div>
     </div>
     <div style="display:flex; gap:10px; margin-top:10px;">
       <a class="btn" href="{% url 'appels_index' %}">Ouvrir appels PADESCE</a>

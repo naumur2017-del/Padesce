@@ -3987,21 +3987,23 @@ def _general_analysis_threshold_codes(source_bundle: dict | None = None) -> set[
 
 
 def _general_analysis_search_matches(row: dict, query: str) -> bool:
-    haystack = " ".join(
-        [
-            str(row.get("source_apprenant_id") or ""),
-            str(row.get("code") or ""),
-            str(row.get("nom") or ""),
-            str(row.get("classe") or ""),
-            str(row.get("formation") or ""),
-            str(row.get("prestation") or ""),
-            str(row.get("prestataire") or ""),
-            str(row.get("beneficiaire") or ""),
-            str(row.get("telephone1") or ""),
-            str(row.get("telephone2") or ""),
-            str(row.get("enqueteur") or ""),
-        ]
-    ).casefold()
+    haystack = str(row.get("_search_blob") or "").casefold()
+    if not haystack:
+        haystack = " ".join(
+            [
+                str(row.get("source_apprenant_id") or ""),
+                str(row.get("code") or ""),
+                str(row.get("nom") or ""),
+                str(row.get("classe") or ""),
+                str(row.get("formation") or ""),
+                str(row.get("prestation") or ""),
+                str(row.get("prestataire") or ""),
+                str(row.get("beneficiaire") or ""),
+                str(row.get("telephone1") or ""),
+                str(row.get("telephone2") or ""),
+                str(row.get("enqueteur") or ""),
+            ]
+        ).casefold()
     return query.casefold() in haystack
 
 
@@ -4051,6 +4053,24 @@ def _build_general_analysis_rows(
         row["analysis_taken_into_account"] = analysis_taken_into_account
         row["analysis_take_reason"] = analysis_take_reason
         row["q_values"] = [row.get(field) for field, _label in Q_FIELDS]
+        row["_search_blob"] = " ".join(
+            [
+                str(row.get("source_apprenant_id") or ""),
+                str(row.get("code") or ""),
+                str(row.get("nom") or ""),
+                str(row.get("classe") or ""),
+                str(row.get("formation") or ""),
+                str(row.get("prestation") or ""),
+                str(row.get("prestataire") or ""),
+                str(row.get("beneficiaire") or ""),
+                str(row.get("telephone1") or ""),
+                str(row.get("telephone2") or ""),
+                str(row.get("enqueteur") or ""),
+            ]
+        ).casefold()
+        row["_is_all_three"] = row.get("formulaire_all_three") == "Oui"
+        row["_is_excluded"] = row.get("exclude_from_analysis") == "Oui"
+        row["_is_taken_into_account"] = analysis_taken_into_account
         row["responses_summary"] = " | ".join(
             [
                 f"Q{index}:{row.get(field) if row.get(field) not in (None, '') else '-'}"
@@ -4863,6 +4883,7 @@ def satisfaction_update_form_page(request):
 def satisfaction_general_page(request):
     selected_source = _analysis_selected_source(request)
     search = str(request.GET.get("q", "") or "").strip()
+    search_key = search.casefold()
     without_phone_only = request.GET.get("without_phone") == "1"
     all_three_only = request.GET.get("all_three") == "1"
     excluded_filter = str(request.GET.get("excluded", "") or "").strip().lower()
@@ -4872,21 +4893,33 @@ def satisfaction_general_page(request):
         source_bundle = build_padesce_source_index(source_key=selected_source)
     except Exception:
         source_bundle = None
-    rows = list(_cached_general_analysis_rows(selected_source, source_bundle=source_bundle))
+    rows: list[dict] = []
+    stats_total = 0
+    stats_taken_into_account = 0
+    stats_without_phone = 0
+    stats_all_three = 0
+    stats_excluded = 0
 
-    if search:
-        rows = [row for row in rows if _general_analysis_search_matches(row, search)]
-    if without_phone_only:
-        rows = [row for row in rows if not row.get("has_phone")]
-    if all_three_only:
-        rows = [row for row in rows if row.get("formulaire_all_three") == "Oui"]
-    if excluded_filter == "yes":
-        rows = [row for row in rows if row.get("exclude_from_analysis") == "Oui"]
-    elif excluded_filter == "no":
-        rows = [row for row in rows if row.get("exclude_from_analysis") != "Oui"]
+    for row in _cached_general_analysis_rows(selected_source, source_bundle=source_bundle):
+        if search_key and search_key not in str(row.get("_search_blob") or ""):
+            continue
+        if without_phone_only and row.get("has_phone"):
+            continue
+        if all_three_only and not row.get("_is_all_three"):
+            continue
+        if excluded_filter == "yes" and not row.get("_is_excluded"):
+            continue
+        if excluded_filter == "no" and row.get("_is_excluded"):
+            continue
+        if status_filter and row.get("status") != status_filter:
+            continue
 
-    if status_filter:
-        rows = [row for row in rows if row.get("status") == status_filter]
+        rows.append(row)
+        stats_total += 1
+        stats_taken_into_account += 1 if row.get("_is_taken_into_account") else 0
+        stats_without_phone += 0 if row.get("has_phone") else 1
+        stats_all_three += 1 if row.get("_is_all_three") else 0
+        stats_excluded += 1 if row.get("_is_excluded") else 0
 
     paginator = Paginator(rows, 50)
     page_obj = paginator.get_page(request.GET.get("page"))
@@ -4907,11 +4940,11 @@ def satisfaction_general_page(request):
         "source_options": get_workbook_source_options(),
         "analysis_threshold_label": analysis_threshold_label(),
         "stats": {
-            "total": len(rows),
-            "taken_into_account": sum(1 for row in rows if row.get("analysis_taken_into_account")),
-            "without_phone": sum(1 for row in rows if not row.get("has_phone")),
-            "all_three": sum(1 for row in rows if row.get("formulaire_all_three") == "Oui"),
-            "excluded": sum(1 for row in rows if row.get("exclude_from_analysis") == "Oui"),
+            "total": stats_total,
+            "taken_into_account": stats_taken_into_account,
+            "without_phone": stats_without_phone,
+            "all_three": stats_all_three,
+            "excluded": stats_excluded,
         },
         "current_path": request.get_full_path(),
     }

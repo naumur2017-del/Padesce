@@ -73,6 +73,19 @@ from App_PADESCE.satisfaction_formateurs.models import SatisfactionFormateur
 logger = logging.getLogger(__name__)
 
 
+def _storage_file_exists(file_field, exists_cache: dict[str, bool] | None = None) -> bool:
+    normalized_name = str(getattr(file_field, "name", "") or "").strip()
+    if not normalized_name:
+        return False
+    cache_map = exists_cache if exists_cache is not None else {}
+    if normalized_name not in cache_map:
+        try:
+            cache_map[normalized_name] = bool(file_field.storage.exists(normalized_name))
+        except Exception:
+            cache_map[normalized_name] = False
+    return cache_map[normalized_name]
+
+
 def _normalize_dashboard_fenetre(value: str) -> str:
     text = str(value or "").strip()
     if not text:
@@ -1009,6 +1022,7 @@ def _consultant_formateurs_dashboard_context(request):
     from App_PADESCE.appels.formateurs_views import _resolve_classe_for_formateur_row
 
     rows = list(rows_qs.order_by("source_contact", "reference_code", "pk"))
+    audio_exists_cache: dict[str, bool] = {}
     for row in rows:
         classe = _resolve_classe_for_formateur_row(row)
         formateur = classe.formateur if (classe and getattr(classe, "formateur", None)) else None
@@ -1027,12 +1041,7 @@ def _consultant_formateurs_dashboard_context(request):
         row.consultant_scope_label = row.formation or "-"
         row.consultant_telephone = row.telephone or "-"
         # Only count audio if file physically exists
-        row.consultant_has_audio = False
-        if row.audio_file and row.audio_file.name:
-            try:
-                row.consultant_has_audio = row.audio_file.storage.exists(row.audio_file.name)
-            except Exception:
-                pass
+        row.consultant_has_audio = _storage_file_exists(row.audio_file, audio_exists_cache)
         row.consultant_has_form = formateur_has_any_form_data(row)
         # Normalization for template compatibility
         row.nom = row.consultant_display_name
@@ -1095,12 +1104,8 @@ def _consultant_formateurs_dashboard_context(request):
         if has_form:
             summary_form_remplis += 1
             # Check physical audio existence
-            if item.audio_file and item.audio_file.name:
-                try:
-                    if item.audio_file.storage.exists(item.audio_file.name):
-                        summary_form_audio += 1
-                except Exception:
-                    pass
+            if _storage_file_exists(item.audio_file, audio_exists_cache):
+                summary_form_audio += 1
 
     summary_form_sans_audio = summary_form_remplis - summary_form_audio
 
@@ -1393,24 +1398,17 @@ def _build_consultant_dashboard_context(request):
         page_obj = paginator.page(1)
 
     # Post-process ONLY the current page to check for physical audio existence
+    audio_exists_cache: dict[str, bool] = {}
     current_page_rows = list(page_obj.object_list)
     for row in current_page_rows:
-        row.consultant_has_audio = False
-        if row.audio_file and row.audio_file.name:
-            try:
-                row.consultant_has_audio = row.audio_file.storage.exists(row.audio_file.name)
-            except Exception:
-                pass
+        row.consultant_has_audio = _storage_file_exists(row.audio_file, audio_exists_cache)
 
-    # Global audio check for summary cards
+    # Reuse snapshot counts when available to avoid a full storage scan.
     global_audio_count = 0
-    for r in rows:
-        if r.audio_file and r.audio_file.name:
-            try:
-                if r.audio_file.storage.exists(r.audio_file.name):
-                    global_audio_count += 1
-            except Exception:
-                pass
+    if card_snapshot:
+        global_audio_count = int(card_snapshot["counts"].get("formulaires_avec_audio", 0) or 0)
+    else:
+        global_audio_count = sum(1 for row in rows if _storage_file_exists(row.audio_file, audio_exists_cache))
 
     analysis_recovery = {
         "available": False,

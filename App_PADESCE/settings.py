@@ -121,6 +121,7 @@ INSTALLED_APPS = [
 ]
 
 HAS_CHANNELS = importlib.util.find_spec("channels") is not None
+HAS_WHITENOISE = importlib.util.find_spec("whitenoise") is not None
 if HAS_CHANNELS:
     INSTALLED_APPS.insert(6, "channels")
 
@@ -128,6 +129,11 @@ MIDDLEWARE = [
     "App_PADESCE.core.middleware.PathPrefixMiddleware",
     "App_PADESCE.core.middleware.FriendlyErrorPagesMiddleware",
     "django.middleware.security.SecurityMiddleware",
+]
+if HAS_WHITENOISE:
+    MIDDLEWARE.append("whitenoise.middleware.WhiteNoiseMiddleware")
+MIDDLEWARE += [
+    "django.middleware.gzip.GZipMiddleware",
     "django.middleware.http.ConditionalGetMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -273,6 +279,15 @@ STATIC_URL = "static/"
 STATIC_DIR = BASE_DIR / "static"
 STATICFILES_DIRS = [STATIC_DIR] if STATIC_DIR.exists() else []
 STATIC_ROOT = BASE_DIR / "staticfiles"
+if HAS_WHITENOISE:
+    STORAGES = {
+        "default": {
+            "BACKEND": "django.core.files.storage.FileSystemStorage",
+        },
+        "staticfiles": {
+            "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+        },
+    }
 
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"

@@ -549,13 +549,27 @@
     </div>
 
     {% if principal.page_obj %}
-      <div class="public-toolbar" style="margin-top:12px;">
+      <div class="table-pagination" data-controller="apprenant-table">
         {% if principal.page_obj.has_previous %}
-          <a class="public-btn" href="?scope=apprenant&section=principal&q={{ principal.filters.q|urlencode }}&classe={{ principal.filters.classe|urlencode }}&prestation={{ principal.filters.prestation|urlencode }}&beneficiaire={{ principal.filters.beneficiaire|urlencode }}&fenetre={{ principal.filters.fenetre|urlencode }}&page={{ principal.page_obj.previous_page_number }}">Précédent</a>
+          <a class="prev-btn" href="?scope=apprenant&section=principal&q={{ principal.filters.q|urlencode }}&classe={{ principal.filters.classe|urlencode }}&prestation={{ principal.filters.prestation|urlencode }}&beneficiaire={{ principal.filters.beneficiaire|urlencode }}&fenetre={{ principal.filters.fenetre|urlencode }}&page={{ principal.page_obj.previous_page_number }}">Précédent</a>
+        {% else %}
+          <button class="prev-btn" type="button" disabled>Précédent</button>
         {% endif %}
-        <span class="muted">Page {{ principal.page_obj.number }} / {{ principal.paginator.num_pages }}</span>
+        <div class="page-numbers">
+          {% for num in principal.paginator.page_range %}
+            {% if num >= principal.page_obj.number|add:"-2" and num <= principal.page_obj.number|add:"2" %}
+              {% if num == principal.page_obj.number %}
+                <span class="page-btn active">{{ num }}</span>
+              {% else %}
+                <a class="page-btn" href="?scope=apprenant&section=principal&q={{ principal.filters.q|urlencode }}&classe={{ principal.filters.classe|urlencode }}&prestation={{ principal.filters.prestation|urlencode }}&beneficiaire={{ principal.filters.beneficiaire|urlencode }}&fenetre={{ principal.filters.fenetre|urlencode }}&page={{ num }}">{{ num }}</a>
+              {% endif %}
+            {% endif %}
+          {% endfor %}
+        </div>
         {% if principal.page_obj.has_next %}
-          <a class="public-btn" href="?scope=apprenant&section=principal&q={{ principal.filters.q|urlencode }}&classe={{ principal.filters.classe|urlencode }}&prestation={{ principal.filters.prestation|urlencode }}&beneficiaire={{ principal.filters.beneficiaire|urlencode }}&fenetre={{ principal.filters.fenetre|urlencode }}&page={{ principal.page_obj.next_page_number }}">Suivant</a>
+          <a class="next-btn" href="?scope=apprenant&section=principal&q={{ principal.filters.q|urlencode }}&classe={{ principal.filters.classe|urlencode }}&prestation={{ principal.filters.prestation|urlencode }}&beneficiaire={{ principal.filters.beneficiaire|urlencode }}&fenetre={{ principal.filters.fenetre|urlencode }}&page={{ principal.page_obj.next_page_number }}">Suivant</a>
+        {% else %}
+          <button class="next-btn" type="button" disabled>Suivant</button>
         {% endif %}
       </div>
     {% endif %}
@@ -702,13 +716,27 @@
     </div>
 
     {% if principal.page_obj %}
-      <div class="public-toolbar" style="margin-top:12px;">
+      <div class="table-pagination" data-controller="formateur-table">
         {% if principal.page_obj.has_previous %}
-          <a class="public-btn" href="?scope=formateur&section=principal&q={{ principal.filters.q|urlencode }}&status={{ principal.filters.status|urlencode }}&prestataire={{ principal.filters.prestataire|urlencode }}&beneficiaire={{ principal.filters.beneficiaire|urlencode }}&formation={{ principal.filters.formation|urlencode }}&cohorte={{ principal.filters.cohorte|urlencode }}&page={{ principal.page_obj.previous_page_number }}">Précédent</a>
+          <a class="prev-btn" href="?scope=formateur&section=principal&q={{ principal.filters.q|urlencode }}&status={{ principal.filters.status|urlencode }}&prestataire={{ principal.filters.prestataire|urlencode }}&beneficiaire={{ principal.filters.beneficiaire|urlencode }}&formation={{ principal.filters.formation|urlencode }}&cohorte={{ principal.filters.cohorte|urlencode }}&page={{ principal.page_obj.previous_page_number }}">Précédent</a>
+        {% else %}
+          <button class="prev-btn" type="button" disabled>Précédent</button>
         {% endif %}
-        <span class="muted">Page {{ principal.page_obj.number }} / {{ principal.paginator.num_pages }}</span>
+        <div class="page-numbers">
+          {% for num in principal.paginator.page_range %}
+            {% if num >= principal.page_obj.number|add:"-2" and num <= principal.page_obj.number|add:"2" %}
+              {% if num == principal.page_obj.number %}
+                <span class="page-btn active">{{ num }}</span>
+              {% else %}
+                <a class="page-btn" href="?scope=formateur&section=principal&q={{ principal.filters.q|urlencode }}&status={{ principal.filters.status|urlencode }}&prestataire={{ principal.filters.prestataire|urlencode }}&beneficiaire={{ principal.filters.beneficiaire|urlencode }}&formation={{ principal.filters.formation|urlencode }}&cohorte={{ principal.filters.cohorte|urlencode }}&page={{ num }}">{{ num }}</a>
+              {% endif %}
+            {% endif %}
+          {% endfor %}
+        </div>
         {% if principal.page_obj.has_next %}
-          <a class="public-btn" href="?scope=formateur&section=principal&q={{ principal.filters.q|urlencode }}&status={{ principal.filters.status|urlencode }}&prestataire={{ principal.filters.prestataire|urlencode }}&beneficiaire={{ principal.filters.beneficiaire|urlencode }}&formation={{ principal.filters.formation|urlencode }}&cohorte={{ principal.filters.cohorte|urlencode }}&page={{ principal.page_obj.next_page_number }}">Suivant</a>
+          <a class="next-btn" href="?scope=formateur&section=principal&q={{ principal.filters.q|urlencode }}&status={{ principal.filters.status|urlencode }}&prestataire={{ principal.filters.prestataire|urlencode }}&beneficiaire={{ principal.filters.beneficiaire|urlencode }}&formation={{ principal.filters.formation|urlencode }}&cohorte={{ principal.filters.cohorte|urlencode }}&page={{ principal.page_obj.next_page_number }}">Suivant</a>
+        {% else %}
+          <button class="next-btn" type="button" disabled>Suivant</button>
         {% endif %}
       </div>
     {% endif %}
