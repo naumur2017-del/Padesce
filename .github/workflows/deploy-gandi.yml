@@ -21,10 +21,6 @@ jobs:
     runs-on: ubuntu-latest
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-    environment:
-      name: production
-      url: https://call.naumur.com/deploiement/
-    env:
       DJANGO_SECRET_KEY: ${{ secrets.DJANGO_SECRET_KEY }}
       DJANGO_DEBUG: "False"
       DJANGO_ALLOWED_HOSTS: call.naumur.com
@@ -52,6 +48,9 @@ jobs:
       MICROSOFT_GRAPH_PRIMARY_DOMAIN: naumur.com
       MICROSOFT_GRAPH_REDIRECT_URI: https://call.naumur.com/auth/microsoft/callback
       MICROSOFT_TEAMS_DEFAULT_TEAM_ID: adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5
+    environment:
+      name: production
+      url: https://call.naumur.com/deploiement/
     steps:
       - name: Checkout
         uses: actions/checkout@v4
