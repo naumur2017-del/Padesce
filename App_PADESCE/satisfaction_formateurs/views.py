@@ -1087,7 +1087,6 @@ def _apply_classes_batch_update_target(class_code: str, payload: dict, user) -> 
                 statut="non_demarre",
                 actif=True,
             )
-            created_count = 1
             # Continuer avec la synchronisation des lignes formateurs
             prestataire_value = (
                 prestataire or getattr(prestation.prestataire, "raison_sociale", "") or ""
@@ -1132,7 +1131,8 @@ def _apply_classes_batch_update_target(class_code: str, payload: dict, user) -> 
                     updated_rows += 1
 
             result["message"] = (
-                f"Classe {class_code} creee avec succes. {updated_rows} ligne(s) formateur synchronisee(s)."
+                f"Classe {class_code} creee avec succes. "
+                f"{updated_rows} ligne(s) formateur synchronisee(s)."
             )
             result["ok"] = True
             return result
@@ -1963,7 +1963,8 @@ def satisfaction_formateurs_dashboard_export_chapeau(request):
                 table.style = "Table Grid"
                 title = table.rows[0].cells[0].merge(table.rows[0].cells[1]).paragraphs[0]
                 title_run = title.add_run(
-                    f"Enquete de satisfaction formateurs : {title_by_tab.get(active_tab, 'Groupe')} {item['label']}"
+                    "Enquete de satisfaction formateurs : "
+                    f"{title_by_tab.get(active_tab, 'Groupe')} {item['label']}"
                 )
                 title_run.bold = True
                 headers = table.add_row().cells
@@ -2003,15 +2004,61 @@ def satisfaction_formateurs_dashboard(request):
 
 @require_analysis_access
 def formateurs_prestataires_management(request):
-    """Page de gestion : toggle formateur↔prestations (M2M) + ville des prestations pour la carte."""
+    """Page de gestion : toggle formateur↔prestations + ville des prestations."""
     from App_PADESCE.formations.models import Formateur
     from App_PADESCE.formations.models import Prestation as PrestationModel
 
     saved_count = 0
     saved_label = ""
 
+    def _sync_formateurs_from_appels() -> int:
+        existing_by_phone: dict[str, Formateur] = {}
+        for formateur in Formateur.objects.all().only("id", "telephone"):
+            normalized = _normalize_phone(str(getattr(formateur, "telephone", "") or ""))
+            if normalized and normalized not in existing_by_phone:
+                existing_by_phone[normalized] = formateur
+
+        created = 0
+        seen_phone = set(existing_by_phone.keys())
+        appels = AppelFormateur.objects.filter(is_active=True).values("telephone", "source_contact")
+        for row in appels.iterator():
+            raw_candidates = [
+                str(row.get("telephone") or "").strip(),
+                str(row.get("source_contact") or "").strip(),
+            ]
+            phone_candidates = []
+            for raw in raw_candidates:
+                if not raw:
+                    continue
+                phone_candidates.extend(re.findall(r"\d{8,15}", raw))
+
+            for phone_text in phone_candidates:
+                normalized = _normalize_phone(phone_text)
+                if len(normalized) < 8 or normalized in seen_phone:
+                    continue
+                seen_phone.add(normalized)
+                code_seed = f"TEL{normalized[-10:]}" if len(normalized) > 10 else f"TEL{normalized}"
+                form_code = _make_unique_model_code(Formateur, code_seed, prefix="FORM")
+                Formateur.objects.create(
+                    code=form_code,
+                    nom_complet=phone_text,
+                    telephone=phone_text,
+                    actif=True,
+                )
+                created += 1
+        return created
+
     if request.method == "POST":
         action = request.POST.get("action", "")
+
+        if action == "sync_formateurs":
+            created_count = _sync_formateurs_from_appels()
+            saved_count = created_count
+            saved_label = (
+                f"{created_count} formateur(s) cree(s) depuis les appels."
+                if created_count
+                else "Aucun nouveau formateur a creer (deja synchronises)."
+            )
 
         if action == "save_formateurs":
             # Met à jour le M2M formateur ↔ prestations
@@ -2079,6 +2126,47 @@ def formateurs_prestataires_management(request):
 
                 return _JsonResponse({"ok": False, "error": str(exc)}, status=400)
 
+    def _normalize_org_name(value: str) -> str:
+        cleaned = re.sub(r"[^a-z0-9]+", " ", str(value or "").casefold())
+        return re.sub(r"\s+", " ", cleaned).strip()
+
+    def _compact_org_name(value: str) -> str:
+        return "".join(ch for ch in _normalize_org_name(value) if ch.isalnum())
+
+    def _name_match_score(left: str, right: str) -> float:
+        left_norm = _normalize_org_name(left)
+        right_norm = _normalize_org_name(right)
+        if not left_norm or not right_norm:
+            return 0.0
+        if left_norm == right_norm:
+            return 1.0
+
+        left_compact = _compact_org_name(left_norm)
+        right_compact = _compact_org_name(right_norm)
+        if left_compact and right_compact and left_compact == right_compact:
+            return 0.95
+
+        if (
+            left_compact
+            and right_compact
+            and (left_compact in right_compact or right_compact in left_compact)
+        ):
+            return 0.8
+
+        left_tokens = set(left_norm.split())
+        right_tokens = set(right_norm.split())
+        if not left_tokens or not right_tokens:
+            return 0.0
+        overlap = len(left_tokens & right_tokens)
+        base = overlap / max(len(left_tokens), len(right_tokens))
+        if overlap >= 2:
+            return min(0.85, base + 0.2)
+        return base if base >= 0.4 else 0.0
+
+    # En GET, complete automatiquement les formateurs manquants depuis les appels.
+    if request.method != "POST":
+        _sync_formateurs_from_appels()
+
     # Charger les formateurs avec leurs prestations courantes
     formateurs = list(
         Formateur.objects.prefetch_related("prestations", "classes__prestation").order_by(
@@ -2095,6 +2183,204 @@ def formateurs_prestataires_management(request):
         .prefetch_related("classes__lieu")
         .order_by("code")
     )
+
+    # Fallback mapping formation -> prestation lorsque les appels n'ont pas
+    # directement les infos prestataire/beneficiaire.
+    formation_to_prestations: dict[str, list] = defaultdict(list)
+    for prest in prestations:
+        formation_label = str(getattr(getattr(prest, "formation", None), "nom", "") or "").strip()
+        formation_key = _normalize_org_name(formation_label)
+        if formation_key:
+            formation_to_prestations[formation_key].append(prest)
+
+    # Rapprocher les infos "page principale formateur" via les numeros de telephone.
+    phone_insights: dict[str, dict] = {}
+    appels_phone_rows = AppelFormateur.objects.filter(is_active=True).order_by(
+        "session_date", "reference_code"
+    )
+    for row in appels_phone_rows.iterator():
+        phone_key = _normalize_phone(str(getattr(row, "telephone", "") or ""))
+        if not phone_key:
+            continue
+
+        resolved_classe = _resolve_batch_update_formateur_classe(row)
+        resolved_prestation = getattr(resolved_classe, "prestation", None)
+        resolved_prestataire_name = str(
+            getattr(getattr(resolved_prestation, "prestataire", None), "raison_sociale", "") or ""
+        ).strip()
+        resolved_beneficiaire_name = str(
+            getattr(getattr(resolved_prestation, "beneficiaire", None), "nom_structure", "") or ""
+        ).strip()
+
+        prestataire_name = (
+            str(getattr(row, "prestataire", "") or "").strip() or resolved_prestataire_name
+        )
+        beneficiaire_name = (
+            str(getattr(row, "beneficiaire", "") or "").strip() or resolved_beneficiaire_name
+        )
+        if not prestataire_name or not beneficiaire_name:
+            row_formation = str(getattr(row, "formation", "") or "").strip()
+            formation_key = _normalize_org_name(row_formation)
+            candidates = formation_to_prestations.get(formation_key, [])
+            if len(candidates) == 1:
+                inferred = candidates[0]
+                if not prestataire_name:
+                    prestataire_name = str(
+                        getattr(getattr(inferred, "prestataire", None), "raison_sociale", "") or ""
+                    ).strip()
+                if not beneficiaire_name:
+                    beneficiaire_name = str(
+                        getattr(getattr(inferred, "beneficiaire", None), "nom_structure", "") or ""
+                    ).strip()
+
+        insight = phone_insights.setdefault(
+            phone_key,
+            {
+                "total": 0,
+                "prest": defaultdict(int),
+                "benef": defaultdict(int),
+                "pair": defaultdict(int),
+                "prest_label": {},
+                "benef_label": {},
+                "formation": defaultdict(int),
+                "formation_label": {},
+            },
+        )
+        raw_prest = prestataire_name
+        raw_benef = beneficiaire_name
+        prest_key = _normalize_org_name(prestataire_name)
+        benef_key = _normalize_org_name(beneficiaire_name)
+        insight["total"] += 1
+        if prest_key:
+            insight["prest"][prest_key] += 1
+            insight["prest_label"].setdefault(prest_key, raw_prest)
+        if benef_key:
+            insight["benef"][benef_key] += 1
+            insight["benef_label"].setdefault(benef_key, raw_benef)
+        if prest_key or benef_key:
+            insight["pair"][(prest_key, benef_key)] += 1
+        formation_value = str(getattr(row, "formation", "") or "").strip()
+        formation_key = _normalize_org_name(formation_value)
+        if formation_key:
+            insight["formation"][formation_key] += 1
+            insight["formation_label"].setdefault(formation_key, formation_value)
+
+    def _score_probability(
+        insight: dict | None, prestation_obj: PrestationModel
+    ) -> tuple[int, str]:
+        if not insight:
+            return 0, "none"
+        total = int(insight.get("total") or 0)
+        if total <= 0:
+            return 0, "none"
+        prest_name = _normalize_org_name(
+            getattr(getattr(prestation_obj, "prestataire", None), "raison_sociale", "")
+        )
+        benef_name = _normalize_org_name(
+            getattr(getattr(prestation_obj, "beneficiaire", None), "nom_structure", "")
+        )
+        pair_score = 0.0
+        for (left_prest, left_benef), count in insight["pair"].items():
+            prest_score = _name_match_score(prest_name, left_prest) if prest_name else 0.0
+            benef_score = _name_match_score(benef_name, left_benef) if benef_name else 0.0
+            if prest_score <= 0 and benef_score <= 0:
+                continue
+            match_strength = (prest_score * 0.65) + (benef_score * 0.35)
+            pair_score += count * match_strength
+        if pair_score > 0:
+            return int(round((pair_score / total) * 100)), "orgs"
+
+        prest_score_total = 0.0
+        for left_prest, count in insight["prest"].items():
+            prest_score_total += count * _name_match_score(prest_name, left_prest)
+        benef_score_total = 0.0
+        for left_benef, count in insight["benef"].items():
+            benef_score_total += count * _name_match_score(benef_name, left_benef)
+
+        prest_ratio = (prest_score_total / total) if prest_name else 0.0
+        benef_ratio = (benef_score_total / total) if benef_name else 0.0
+        score_org = ((prest_ratio * 0.6) + (benef_ratio * 0.4)) * 100
+        score_org = int(round(max(0, min(score_org, 100))))
+        if score_org > 0:
+            return score_org, "orgs"
+
+        # Approximation mode: only if org labels are missing for this phone.
+        if not insight["prest"] and not insight["benef"]:
+            formation_name = _normalize_org_name(
+                getattr(getattr(prestation_obj, "formation", None), "nom", "")
+            )
+            formation_score_total = 0.0
+            for left_formation, count in insight["formation"].items():
+                formation_score_total += count * _name_match_score(formation_name, left_formation)
+            score_form = (
+                int(round(max(0, min((formation_score_total / total) * 100, 100))))
+                if formation_name
+                else 0
+            )
+            if score_form > 0:
+                return score_form, "formation_approx"
+
+        return 0, "none"
+
+    def _probability_level(probability: int, source_mode: str) -> str:
+        if probability <= 0:
+            return "zero"
+        if source_mode == "formation_approx":
+            return "approx"
+        if probability >= 66:
+            return "high"
+        if probability > 33:
+            return "medium"
+        return "low"
+
+    for form in formateurs:
+        phone_key = _normalize_phone(str(getattr(form, "telephone", "") or ""))
+        insight = phone_insights.get(phone_key)
+        if insight:
+            top_prestataires = sorted(insight["prest"].items(), key=lambda kv: (-kv[1], kv[0]))
+            top_beneficiaires = sorted(insight["benef"].items(), key=lambda kv: (-kv[1], kv[0]))
+            form.appel_prestataires = [
+                insight["prest_label"].get(name, name)
+                for name, _count in top_prestataires[:3]
+                if name
+            ]
+            form.appel_beneficiaires = [
+                insight["benef_label"].get(name, name)
+                for name, _count in top_beneficiaires[:3]
+                if name
+            ]
+            top_formations = sorted(insight["formation"].items(), key=lambda kv: (-kv[1], kv[0]))
+            form.appel_formations = [
+                insight["formation_label"].get(name, name)
+                for name, _count in top_formations[:3]
+                if name
+            ]
+        else:
+            form.appel_prestataires = []
+            form.appel_beneficiaires = []
+            form.appel_formations = []
+
+        linked_ids = formateur_prestations.get(form.pk, set())
+        form.linked_count = len(linked_ids)
+        form.has_missing_orgs = not (form.appel_prestataires or form.appel_beneficiaires)
+        form.prestation_candidates = []
+        for order_index, prest in enumerate(prestations):
+            probability, source_mode = _score_probability(insight, prest)
+            form.prestation_candidates.append(
+                {
+                    "prestation": prest,
+                    "linked": prest.pk in linked_ids,
+                    "probability": probability,
+                    "probability_level": _probability_level(probability, source_mode),
+                    "probability_source_mode": source_mode,
+                    "order_index": order_index,
+                }
+            )
+        if any(item["probability"] > 0 for item in form.prestation_candidates):
+            form.prestation_candidates.sort(
+                key=lambda item: (-item["probability"], item["order_index"])
+            )
+
     # Pour chaque prestation, dériver la ville depuis Classe.lieu si ville vide
     for prest in prestations:
         if not prest.ville:
