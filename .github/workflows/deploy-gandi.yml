@@ -8,6 +8,8 @@ on:
 
 permissions:
   contents: read
+  deployments: write
+  statuses: write
 
 concurrency:
   group: gandi-production-deploy
@@ -17,6 +19,8 @@ jobs:
   deploy:
     name: Deploy to Gandi
     runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     environment:
       name: production
       url: https://call.naumur.com/deploiement/
