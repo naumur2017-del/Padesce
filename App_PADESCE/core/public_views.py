@@ -84,7 +84,8 @@ def _build_apprenant_overview(request) -> dict:
                     else ""
                 ),
                 "prestation_url": (
-                    f"{reverse('prestation_analysis_detail', args=[prestation_code])}?tab=apprenants"
+                    f"{reverse('prestation_analysis_detail', args=[prestation_code])}"
+                    "?tab=apprenants"
                     if prestation_code
                     else ""
                 ),
@@ -392,7 +393,11 @@ def _build_formateur_overview(request) -> dict:
             res_cohortes.add(
                 classe.pk
                 if classe
-                else f"{_formateur_record_value(record, 'prestataire')}-{_formateur_record_value(record, 'beneficiaire')}-{_formateur_record_value(record, 'cohorte')}"
+                else (
+                    f"{_formateur_record_value(record, 'prestataire')}"
+                    f"-{_formateur_record_value(record, 'beneficiaire')}"
+                    f"-{_formateur_record_value(record, 'cohorte')}"
+                )
             )
             res_prestataires.add(
                 prest_obj.pk if prest_obj else _formateur_record_value(record, "prestataire")
@@ -415,7 +420,8 @@ def _build_formateur_overview(request) -> dict:
                     "prestation_code": prestation_code or "-",
                     "url": f"{reverse('class_analysis_detail', args=[classe_code])}?tab=formateurs",
                     "prestation_url": (
-                        f"{reverse('prestation_analysis_detail', args=[prestation_code])}?tab=formateurs"
+                        f"{reverse('prestation_analysis_detail', args=[prestation_code])}"
+                        "?tab=formateurs"
                         if prestation_code
                         else ""
                     ),
@@ -452,7 +458,8 @@ def _build_formateur_overview(request) -> dict:
                     "prestataire": prestataire_val,
                     "beneficiaire": beneficiaire_val,
                     "url": (
-                        f"{reverse('prestation_analysis_detail', args=[prestation_code])}?tab=formateurs"
+                        f"{reverse('prestation_analysis_detail', args=[prestation_code])}"
+                        "?tab=formateurs"
                         if prestation_code
                         else ""
                     ),
@@ -609,7 +616,8 @@ def public_space(request):
             ctx = _build_consultant_dashboard_context(request)
             # Calculate Average satisfaction for the current filtered set
 
-            # Build queryset from the same logic (simple enough here as we use Appel.objects.filter(is_active=True))
+            # Build queryset from the same logic
+            # (simple enough here as we use Appel.objects.filter(is_active=True)).
             # But we should ideally reuse the filtering logic.
             # For simplicity, we can sometimes manually calculate from rows if small,
             # but for 30000 learners, we need a query.
