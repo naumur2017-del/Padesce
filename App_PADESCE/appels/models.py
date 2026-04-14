@@ -272,14 +272,14 @@ class Appel(TimeStampedModel):
     lieu = models.CharField(max_length=255, blank=True)
     classe_label = models.CharField(max_length=100, blank=True)
     fenetre = models.CharField(max_length=50, blank=True)
-    is_active = models.BooleanField(default=True)
+    is_active = models.BooleanField(default=True, db_index=True)
     classe = models.ForeignKey(
         Classe, on_delete=models.SET_NULL, null=True, blank=True, related_name="appels"
     )
     telephone1 = models.CharField(max_length=30, blank=True)
     telephone2 = models.CharField(max_length=30, blank=True)
     taux_presence = models.DecimalField(max_digits=5, decimal_places=2, default=0)
-    status = models.CharField(max_length=25, choices=STATUS_CHOICES, default="en_attente")
+    status = models.CharField(max_length=25, choices=STATUS_CHOICES, default="en_attente", db_index=True)
     rappel_at = models.DateTimeField(null=True, blank=True)
     type_formation_declaree = models.TextField(blank=True)
     formation_padesce = models.CharField(max_length=255, blank=True)
