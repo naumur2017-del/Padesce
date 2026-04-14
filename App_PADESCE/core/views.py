@@ -1278,6 +1278,15 @@ def _build_consultant_dashboard_context(request):
         app.c3 = presence_controls["c3"]
         app.c4 = presence_controls["c4"]
         app.taux_presence_control = presence_controls["taux_presence"]
+        app.c1_from_excel = bool(presence_controls.get("c1_from_excel"))
+        app.c2_from_excel = bool(presence_controls.get("c2_from_excel"))
+        app.c3_from_excel = bool(presence_controls.get("c3_from_excel"))
+        app.c4_from_excel = bool(presence_controls.get("c4_from_excel"))
+        app.presence_excel_found = bool(presence_controls.get("excel_found"))
+        app.presence_excel_complete = bool(presence_controls.get("excel_complete"))
+        app.presence_excel_missing_controls = list(
+            presence_controls.get("excel_missing_controls") or []
+        )
 
         # Search filter on both Appel and Apprenant fields
         if search:
@@ -1408,7 +1417,9 @@ def _build_consultant_dashboard_context(request):
     if card_snapshot:
         global_audio_count = int(card_snapshot["counts"].get("formulaires_avec_audio", 0) or 0)
     else:
-        global_audio_count = sum(1 for row in rows if _storage_file_exists(row.audio_file, audio_exists_cache))
+        global_audio_count = sum(
+            1 for row in rows if _storage_file_exists(row.audio_file, audio_exists_cache)
+        )
 
     analysis_recovery = {
         "available": False,
