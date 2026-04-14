@@ -13,6 +13,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views.decorators.http import require_POST
 
+from App_PADESCE.appels.formateur_names import resolve_formateur_name_from_values
 from App_PADESCE.appels.models import (
     CALL_SUCCESS_STATUSES,
     Appel,
@@ -697,9 +698,7 @@ def _build_apprenant_rows(appels, *, back_url: str):
                 "c2": presence_controls.get("c2", "AB"),
                 "c3": presence_controls.get("c3", "AB"),
                 "c4": presence_controls.get("c4", "AB"),
-                "taux_presence_control": float(
-                    presence_controls.get("taux_presence", 0) or 0
-                ),
+                "taux_presence_control": float(presence_controls.get("taux_presence", 0) or 0),
             }
         )
     return sorted(
@@ -1407,6 +1406,10 @@ def analysis_formateur_call_detail(request, pk: int):
         "formations/analysis_formateur_call_detail.html",
         {
             "row": row,
+            "formateur_nom": resolve_formateur_name_from_values(
+                getattr(row, "telephone", ""),
+                getattr(row, "source_contact", ""),
+            ),
             "form_state": form_state,
             "has_audio": has_audio,
             "audio_url": audio_url,

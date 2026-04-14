@@ -63,6 +63,8 @@
   .badge-ok   { background:rgba(34,197,94,.12); color:#166534; }
   .badge-none { background:rgba(107,114,128,.12); color:#4b5563; }
   .badge-info { background:rgba(111,60,195,.1); color:var(--accent-strong); }
+  .badge-name-ok { background:rgba(34,197,94,.14); color:#166534; font-size:.72rem; padding:2px 8px; border-radius:999px; font-weight:700; }
+  .badge-name-missing { background:rgba(249,115,22,.16); color:#9a3412; font-size:.72rem; padding:2px 8px; border-radius:999px; font-weight:700; }
   .badge-prest { background:rgba(59,130,246,.1); color:#1d4ed8; font-size:.72rem; padding:2px 8px; border-radius:999px; font-weight:600; }
   .badge-benef { background:rgba(34,197,94,.14); color:#166534; font-size:.72rem; padding:2px 8px; border-radius:999px; font-weight:600; }
   .badge-forma { background:rgba(249,115,22,.16); color:#9a3412; font-size:.72rem; padding:2px 8px; border-radius:999px; font-weight:600; }
@@ -143,9 +145,16 @@
           <div class="form-card-header" onclick="toggleCard(this)">
             <div style="flex:1; min-width:0;">
               <span class="form-code">{{ form.code }}</span>
-              <span class="form-name" style="display:block;">{{ form.nom_complet }}</span>
+              <span class="form-name" style="display:block;">{{ form.display_nom|default:form.nom_complet }}</span>
               {% if form.specialite %}<span style="font-size:.76rem; color:var(--muted);">{{ form.specialite }}</span>{% endif %}
               {% if form.telephone %}<span style="font-size:.75rem; color:var(--muted); font-family:monospace;">&#128222; {{ form.telephone }}</span>{% endif %}
+              <div class="orgs-row">
+                {% if form.nom_rempli %}
+                  <span class="badge-name-ok">[Complet]</span>
+                {% else %}
+                  <span class="badge-name-missing">[A compléter]</span>
+                {% endif %}
+              </div>
               {% if form.appel_prestataires or form.appel_beneficiaires or form.appel_formations %}
               <div class="orgs-row">
                 {% for p in form.appel_prestataires %}<span class="badge-prest">&#127970; {{ p|truncatechars:30 }}</span>{% endfor %}
