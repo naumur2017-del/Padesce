@@ -1669,8 +1669,13 @@ def run_deployment(*, run_id: str, mode: str = "deploy") -> dict[str, Any]:
 
         transfer_paths = additions + modifications
         refreshed_transfer_paths: list[str] = []
+        allow_staticfiles = _include_paths_allow_staticfiles(config.include_paths)
         for relative in transfer_paths:
-            entry = local_manifest_entry(config.local_root, relative)
+            entry = local_manifest_entry(
+                config.local_root,
+                relative,
+                allow_staticfiles=allow_staticfiles,
+            )
             if entry is None:
                 raise DeploymentError(
                     f"Fichier local introuvable juste avant transfert: {relative}"
