@@ -597,7 +597,7 @@
           <input type="checkbox" name="flag_pas_forme"> N'a pas suivi la formation
         </label>
         <label style="display:flex; align-items:center; gap:6px; font-size:0.85rem;">
-          <input type="checkbox" name="flag_deja_appele"> Déjà appelé auparavant
+          <input type="checkbox" name="flag_déjà_appele"> Déjà appelé auparavant
         </label>
         <label style="display:flex; align-items:center; gap:6px; font-size:0.85rem;">
           <input type="checkbox" name="flag_numero_double"> Numéro double
@@ -643,7 +643,7 @@
       <span class="modal-hint">jj/mm/aaaa — hh:mm</span>
     </label>
     <label class="modal-field">
-      <input type="checkbox" id="js-modal-deja-forme" />
+      <input type="checkbox" id="js-modal-déjà-forme" />
       Déjà formé
     </label>
     <label class="modal-field">
@@ -682,7 +682,7 @@
           <input type="checkbox" id="js-sat-flag-faux-nom"> Faux nom
         </label>
         <label style="display:flex; align-items:center; gap:6px; font-size:0.82rem;">
-          <input type="checkbox" id="js-sat-flag-deja-appele"> Déjà appelé
+          <input type="checkbox" id="js-sat-flag-déjà-appele"> Déjà appelé
         </label>
         <label style="display:flex; align-items:center; gap:6px; font-size:0.82rem;">
           <input type="checkbox" id="js-sat-flag-numero-double"> Numéro double
@@ -749,7 +749,7 @@
           <input type="datetime-local" id="js-sat-modal-rappel-at" disabled placeholder="jj/mm/aaaa — hh:mm">
         </label>
         <label class="modal-field" style="flex-direction:row; align-items:center;">
-          <input type="checkbox" id="js-sat-modal-deja-forme" />
+          <input type="checkbox" id="js-sat-modal-déjà-forme" />
           Déjà formé
         </label>
     </div>
@@ -863,7 +863,7 @@
         const form = new FormData();
         form.append("action", job.action);
         if (job.extra?.rappel_at) form.append("rappel_at", job.extra.rappel_at);
-        if (job.extra?.deja_forme !== undefined) form.append("deja_forme", job.extra.deja_forme ? "1" : "0");
+        if (job.extra?.déjà_forme !== undefined) form.append("déjà_forme", job.extra.déjà_forme ? "1" : "0");
         if (job.extra?.flag_pas_forme !== undefined) form.append("flag_pas_forme", job.extra.flag_pas_forme ? "1" : "0");
         const res = await fetch(job.url, { method: "POST", headers: { "X-CSRFToken": csrfToken }, body: form });
         if (!res.ok) throw new Error("sync action failed");
@@ -952,7 +952,7 @@
     const terminationModal = document.getElementById("js-termination-modal");
     const modalRappelCheckbox = document.getElementById("js-modal-rappel");
     const modalRappelAt = document.getElementById("js-modal-rappel-at");
-    const modalDejaForme = document.getElementById("js-modal-deja-forme");
+    const modalDejaForme = document.getElementById("js-modal-déjà-forme");
     const modalFlagPasForme = document.getElementById("js-modal-flag-pas-forme");
     const modalConfirmBtn = document.querySelector("[data-modal-action=\"confirm\"]");
     const modalCancelBtn = document.querySelector("[data-modal-action=\"cancel\"]");
@@ -1012,7 +1012,7 @@
       closeTerminationModal({
         action: shouldRappeler ? "rappeler" : "terminer",
         rappel_at: shouldRappeler ? modalRappelAt?.value : "",
-        deja_forme: !!modalDejaForme?.checked,
+        déjà_forme: !!modalDejaForme?.checked,
         flag_pas_forme: !!modalFlagPasForme?.checked,
       });
     });
@@ -1028,22 +1028,22 @@
     function resetSatisfactionFlags() {
       document.getElementById("js-sat-flag-pas-forme").checked = false;
       document.getElementById("js-sat-flag-faux-nom").checked = false;
-      document.getElementById("js-sat-flag-deja-appele").checked = false;
+      document.getElementById("js-sat-flag-déjà-appele").checked = false;
       document.getElementById("js-sat-flag-numero-double").checked = false;
       document.getElementById("js-sat-vrai-nom").value = "";
       document.getElementById("js-sat-vrai-nom-wrap").style.display = "none";
-      document.getElementById("js-sat-modal-deja-forme").checked = false;
+      document.getElementById("js-sat-modal-déjà-forme").checked = false;
     }
 
     function applySatisfactionAppelState(appel) {
       const currentAppel = appel || {};
       document.getElementById("js-sat-flag-pas-forme").checked = !!currentAppel.flag_pas_forme;
       document.getElementById("js-sat-flag-faux-nom").checked = !!currentAppel.flag_faux_nom;
-      document.getElementById("js-sat-flag-deja-appele").checked = !!currentAppel.flag_deja_appele;
+      document.getElementById("js-sat-flag-déjà-appele").checked = !!currentAppel.flag_déjà_appele;
       document.getElementById("js-sat-flag-numero-double").checked = !!currentAppel.flag_numero_double;
       document.getElementById("js-sat-vrai-nom").value = currentAppel.flag_vrai_nom || "";
       document.getElementById("js-sat-vrai-nom-wrap").style.display = currentAppel.flag_faux_nom ? "block" : "none";
-      document.getElementById("js-sat-modal-deja-forme").checked = !!currentAppel.deja_forme;
+      document.getElementById("js-sat-modal-déjà-forme").checked = !!currentAppel.déjà_forme;
     }
 
     function resetSatisfactionAnswers() {
@@ -1108,7 +1108,7 @@
 
         const shouldRappeler = satModalRappel?.checked;
         const rappelAt = satModalRappelAt?.value;
-        const de_forme_check = document.getElementById("js-sat-modal-deja-forme")?.checked;
+        const de_forme_check = document.getElementById("js-sat-modal-déjà-forme")?.checked;
         const action = shouldRappeler ? "rappeler" : "terminer";
         
         // Build satisfaction form data - TOUJOURS envoyer les réponses (même les valeurs par défaut)
@@ -1124,9 +1124,9 @@
         satForm.append("flag_pas_forme", document.getElementById("js-sat-flag-pas-forme").checked ? "1" : "0");
         satForm.append("flag_faux_nom", document.getElementById("js-sat-flag-faux-nom").checked ? "1" : "0");
         satForm.append("flag_vrai_nom", document.getElementById("js-sat-vrai-nom").value);
-        satForm.append("flag_deja_appele", document.getElementById("js-sat-flag-deja-appele").checked ? "1" : "0");
+        satForm.append("flag_déjà_appele", document.getElementById("js-sat-flag-déjà-appele").checked ? "1" : "0");
         satForm.append("flag_numero_double", document.getElementById("js-sat-flag-numero-double").checked ? "1" : "0");
-        satForm.append("deja_forme", de_forme_check ? "1" : "0");
+        satForm.append("déjà_forme", de_forme_check ? "1" : "0");
         satForm.append("rappel_at", rappelAt || "");
         satForm.append("form_modified", satModal?.dataset.formModified || "0");
 
@@ -1176,7 +1176,7 @@
       const form = formData || new FormData();
       form.append("action", action);
       if (extra.rappel_at) form.append("rappel_at", extra.rappel_at);
-      if (extra.deja_forme !== undefined) form.append("deja_forme", extra.deja_forme ? "1" : "0");
+      if (extra.déjà_forme !== undefined) form.append("déjà_forme", extra.déjà_forme ? "1" : "0");
       if (extra.flag_pas_forme !== undefined) form.append("flag_pas_forme", extra.flag_pas_forme ? "1" : "0");
       try {
         if (!navigator.onLine) throw new Error("offline");
@@ -1845,7 +1845,7 @@
           detailForm.commentaire.value = data.answers?.commentaire || "";
           detailForm.recommandations.value = data.answers?.recommandations || "";
           detailForm.flag_pas_forme.checked = a.flag_pas_forme;
-          detailForm.flag_deja_appele.checked = a.flag_deja_appele;
+          detailForm.flag_déjà_appele.checked = a.flag_déjà_appele;
           detailForm.flag_numero_double.checked = a.flag_numero_double;
           detailForm.flag_faux_nom.checked = a.flag_faux_nom;
           detailForm.flag_vrai_nom.value = a.flag_vrai_nom || "";
@@ -1865,7 +1865,7 @@
       const id = detailForm.dataset.rowId;
       const fd = new FormData(detailForm);
       // Flags are checkboxes
-      ["flag_pas_forme", "flag_deja_appele", "flag_numero_double", "flag_faux_nom"].forEach(f => {
+      ["flag_pas_forme", "flag_déjà_appele", "flag_numero_double", "flag_faux_nom"].forEach(f => {
         if (!fd.has(f)) fd.append(f, "0"); else fd.set(f, "1");
       });
 

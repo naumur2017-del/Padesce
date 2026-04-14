@@ -199,10 +199,6 @@
   <!-- Hero -->
   <div class="backup-hero">
     <h1 class="backup-title">&#128190; Backup Base de Données</h1>
-    <p class="backup-subtitle">
-      Exportez votre base PostgreSQL vers un fichier SQLite.
-      Un backup automatique est déclenché chaque jour à <strong>17h00</strong> via GitHub Actions.
-    </p>
     <div class="info-row">
       <span class="info-chip">&#128197; Automatique : tous les jours à 17h00</span>
       <span class="info-chip">&#128190; Format : SQLite3</span>
@@ -213,7 +209,6 @@
   <!-- Déclenchement manuel -->
   <div class="backup-card">
     <h2 class="section-title">&#9654; Générer un backup maintenant</h2>
-
     <button id="btn-start" class="btn-backup" onclick="startBackup()">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2v10m0 0l-3-3m3 3l3-3"/><path d="M20 17a2 2 0 01-2 2H6a2 2 0 01-2-2"/></svg>
       Lancer un backup

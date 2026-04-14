@@ -341,13 +341,9 @@
 
 <div class="excel-shell" data-api-url="{% url 'reporting_network_excel_api' %}">
   <section class="excel-hero">
-    <div class="eyebrow">Classeur reseau PADESCE</div>
+    <div class="eyebrow">Classeur réseau PADESCE</div>
     <h1 class="excel-title">Toutes les feuilles Excel dans une interface en onglets</h1>
-    <p class="excel-subtitle">
-      Cette page lit directement le fichier partage, affiche chaque feuille dans un onglet, et pagine les tables par {{ page_size }} lignes.
-      Quand vous appliquez un filtre, la vue repart automatiquement sur les {{ page_size }} premiers elements trouves.
-    </p>
-    <div class="excel-path" id="source-path">Chargement du chemin reseau...</div>
+    <div class="excel-path" id="source-path">Chargement du chemin réseau...</div>
   </section>
 
   <div id="excel-alert" class="excel-alert" role="alert"></div>
@@ -356,22 +352,22 @@
     <article class="excel-card">
       <div class="metric-label">Fichier source</div>
       <div class="metric-value" id="metric-file">...</div>
-      <div class="metric-help" id="metric-updated">Verification du reseau en cours...</div>
+      <div class="metric-help" id="metric-updated">Vérification du réseau en cours...</div>
     </article>
     <article class="excel-card">
-      <div class="metric-label">Feuilles detectees</div>
+      <div class="metric-label">Feuilles detectées</div>
       <div class="metric-value" id="metric-sheets">0</div>
-      <div class="metric-help">Un onglet est genere pour chaque feuille du classeur.</div>
+      <div class="metric-help">Un onglet est génére pour chaque feuille du classeur.</div>
     </article>
     <article class="excel-card">
-      <div class="metric-label">Lignes repertoriees</div>
+      <div class="metric-label">Lignes repertoriées</div>
       <div class="metric-value" id="metric-rows">0</div>
-      <div class="metric-help">Somme des lignes de donnees hors entetes.</div>
+      <div class="metric-help">Somme des lignes de données hors entêtes.</div>
     </article>
     <article class="excel-card">
       <div class="metric-label">Pagination</div>
       <div class="metric-value">{{ page_size }} / page</div>
-      <div class="metric-help">Navigation precedente / suivante sur chaque feuille.</div>
+      <div class="metric-help">Navigation précédente / suivante sur chaque feuille.</div>
     </article>
   </section>
 
@@ -406,7 +402,7 @@
       <div>
         <div class="eyebrow">Feuille active</div>
         <h2 class="table-title" id="sheet-title">Chargement...</h2>
-        <p class="table-meta" id="sheet-meta">Recuperation des colonnes et des lignes en cours.</p>
+        <p class="table-meta" id="sheet-meta">Récupération des colonnes et des lignes en cours.</p>
       </div>
       <div class="pill-stack">
         <div class="meta-pill" id="sheet-columns"><strong>0</strong> colonnes</div>
@@ -421,12 +417,12 @@
         <tbody id="table-body"></tbody>
       </table>
     </div>
-    <div class="table-empty" id="table-empty">Aucune donnee a afficher pour cette feuille.</div>
+    <div class="table-empty" id="table-empty">Aucune donnée à afficher pour cette feuille.</div>
 
     <div class="pager">
-      <div class="pager-info" id="pager-info">Preparation de la table...</div>
+      <div class="pager-info" id="pager-info">Préparation de la table...</div>
       <div class="pager-actions">
-        <button id="prev-page" type="button" class="excel-btn excel-btn-secondary">Precedent</button>
+        <button id="prev-page" type="button" class="excel-btn excel-btn-secondary">Précédent</button>
         <button id="next-page" type="button" class="excel-btn excel-btn-secondary">Suivant</button>
       </div>
     </div>

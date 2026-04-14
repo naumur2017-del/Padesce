@@ -185,7 +185,7 @@
 </div>
 
 <div class="panel">
-  <div class="title-with-help"><h5>Nouvelle enquete</h5>{% include "includes/help_tooltip.html" with title="Nouvelle enquête" text="Formulaire de saisie d'une nouvelle enquête de satisfaction apprenant. Nécessite identification, audio et traitement IA pour extraction automatique des scores Q1-Q9." section="guide-dutilisation-generale" %}</div>
+  <div class="title-with-help"><h5>Nouvelle enquête</h5>{% include "includes/help_tooltip.html" with title="Nouvelle enquête" text="Formulaire de saisie d'une nouvelle enquête de satisfaction apprenant. Nécessite identification, audio et traitement IA pour extraction automatique des scores Q1-Q9." section="guide-dutilisation-generale" %}</div>
   <form method="post" enctype="multipart/form-data" class="survey-form">
     {% csrf_token %}
     <div class="form-section">
@@ -213,7 +213,7 @@
 
     <div class="form-section">
       <div class="section-title">
-        <div class="title-with-help"><h6>Infos enquete</h6>{% include "includes/help_tooltip.html" with title="Infos enquête" text="Métadonnées de l'enquête : inspecteur, date et heure de passation." section="guide-dutilisation-generale" %}</div>
+        <div class="title-with-help"><h6>Infos enquête</h6>{% include "includes/help_tooltip.html" with title="Infos enquête" text="Métadonnées de l'enquête : inspecteur, date et heure de passation." section="guide-dutilisation-generale" %}</div>
       </div>
       <div class="form-row compact">
         <div class="field">{{ form.inspecteur.label_tag }} {{ form.inspecteur }}</div>
@@ -325,7 +325,7 @@
 <div class="panel" style="margin-top:14px;">
   <div class="title-with-help" style="justify-content:space-between; flex-wrap:wrap; gap:8px;">
     <div style="display:flex; align-items:center; gap:4px;">
-      <h5>Dernieres enquetes</h5>{% include "includes/help_tooltip.html" with title="Dernières enquêtes" text="Historique des enquêtes enregistrées avec pagination. Colonnes : Date, Classe, Apprenant, Inspecteur, Enquêteur, Q9 (satisfaction globale), Commentaire." section="guide-dutilisation-generale" %}
+      <h5>Dernieres enquêtes</h5>{% include "includes/help_tooltip.html" with title="Dernières enquêtes" text="Historique des enquêtes enregistrées avec pagination. Colonnes : Date, Classe, Apprenant, Inspecteur, Enquêteur, Q9 (satisfaction globale), Commentaire." section="guide-dutilisation-generale" %}
     </div>
     <a class="btn btn-outline btn-sm" href="{% url 'satisfaction_apprenants_export_comments_xlsx' %}{% if filter_classe %}?classe={{ filter_classe }}{% endif %}">📥 Export Excel (Commentaires)</a>
   </div>
@@ -337,18 +337,18 @@
         </tr>
       </thead>
       <tbody>
-        {% for e in enquetes %}
+        {% for e in enquêtes %}
         <tr>
           <td>{{ e.date }}</td>
           <td>{% if e.classe %}{{ e.classe }}{% elif e.appel %}{{ e.appel.classe_label|default:"-" }}{% else %}-{% endif %}</td>
           <td>{% if e.apprenant %}{{ e.apprenant }}{% elif e.appel %}{{ e.appel.nom|default:"-" }}{% if e.appel.code %} ({{ e.appel.code }}){% endif %}{% else %}-{% endif %}</td>
           <td>{{ e.inspecteur }}</td>
-          <td>{{ e.enqueteur }}</td>
+          <td>{{ e.enquêteur }}</td>
           <td>{{ e.q9_satisfaction_globale }}</td>
           <td>{{ e.commentaire|default:"-" }}</td>
         </tr>
         {% empty %}
-        <tr><td colspan="7" style="text-align:center; color:var(--muted);">Aucune enquete</td></tr>
+        <tr><td colspan="7" style="text-align:center; color:var(--muted);">Aucune enquête</td></tr>
         {% endfor %}
       </tbody>
     </table>

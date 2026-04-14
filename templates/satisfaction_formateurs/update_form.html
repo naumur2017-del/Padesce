@@ -81,7 +81,7 @@
     <a class="scope-tab {% if active_tab == 'classes' %}active{% endif %}" href="?tab=classes">Classes</a>
     <a class="scope-tab {% if active_tab == 'formulaires' %}active{% endif %}" href="?tab=formulaires">Formulaires</a>
   </div>
-  <div class="scope-note">La tab Classes sert uniquement a modifier les donnees classe liees.</div>
+  <div class="scope-note">L'onglet Classes sert uniquement à modifier les données classe liées.</div>
 </div>
 
 <section class="panel">
@@ -265,7 +265,7 @@
             <thead>
               <tr>
                 <th class="checkbox-cell">
-                  <input type="checkbox" data-master-checkbox="termine-without-form" aria-label="Selectionner tous les formateurs termines sans formulaire">
+                  <input type="checkbox" data-master-checkbox="termine-without-form" aria-label="Sélectionner tous les formateurs terminés sans formulaire">
                 </th>
                 <th>Reference</th>
                 <th>Classe</th>
@@ -502,7 +502,7 @@
 
     <div class="batch-actions">
       <button class="btn btn-primary" type="submit" name="action" value="update_form">Mettre a jour le formulaire</button>
-      <button class="btn btn-subtle" type="submit" name="action" value="update_class_data">Mettre a jour les donnees classe</button>
+      <button class="btn btn-subtle" type="submit" name="action" value="update_class_data">Mettre à jour les données classe</button>
       <button class="btn btn-warning" type="submit" name="action" value="update_status">Changer le statut</button>
     </div>
   </form>
@@ -552,9 +552,9 @@
       <div class="section-title">
         <div>
           <h2>Classes du systeme</h2>
-          <p>Selectionnez les classes a mettre a jour. Le seuil d'analyse affiche est {{ analysis_threshold_label }} des appels cibles termines/formulaires.</p>
+          <p>Sélectionnez les classes à mettre à jour. Le seuil d'analyse affiché est {{ analysis_threshold_label }} des appels cibles terminés/formulaires.</p>
         </div>
-        <button class="btn btn-subtle" type="button" data-select-all="all-classes">Tout selectionner</button>
+        <button class="btn btn-subtle" type="button" data-select-all="all-classes">Tout sélectionner</button>
       </div>
       {% if classes_rows %}
         <div class="table-wrap">
@@ -562,7 +562,7 @@
             <thead>
               <tr>
                 <th class="checkbox-cell">
-                  <input type="checkbox" data-master-checkbox="all-classes" aria-label="Selectionner toutes les classes affichees">
+                  <input type="checkbox" data-master-checkbox="all-classes" aria-label="Sélectionner toutes les classes affichées">
                 </th>
                 <th>Code classe</th>
                 <th>Prestation ID</th>
@@ -621,7 +621,7 @@
 
     <div class="batch-actions">
       <button class="btn btn-primary" type="submit" name="action" value="update_classes">Mettre a jour les classes</button>
-      <button class="btn btn-subtle" type="submit" name="action" value="upload_classes_excel">Uploader Excel et completer les donnees manquantes</button>
+      <button class="btn btn-subtle" type="submit" name="action" value="upload_classes_excel">Importer Excel et compléter les données manquantes</button>
     </div>
   </form>
   {% endif %}

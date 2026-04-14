@@ -35,6 +35,49 @@
     display: inline-flex; align-items: center; gap: 10px; padding: 12px 16px; border-radius: 14px;
     border: 1px dashed rgba(111,60,195,0.3); background: rgba(111,60,195,0.08);
   }
+  .file-input-fr {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .file-input-fr-native {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+  .file-input-fr-btn {
+    margin: 0;
+    padding: 8px 12px;
+    border-radius: 10px;
+    border: 1px solid rgba(111,60,195,0.3);
+    background: #fff;
+    font-weight: 600;
+    cursor: pointer;
+    font-size: inherit;
+    font-family: inherit;
+    line-height: inherit;
+  }
+  .file-input-fr-btn:hover {
+    background: rgba(111,60,195,0.06);
+  }
+  .file-input-fr-name {
+    font-size: 0.9rem;
+    color: var(--muted);
+    max-width: 240px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .input-file .file-input-fr {
+    position: relative;
+  }
   .input-file input[type="file"] { background: transparent; border: none; padding: 4px; }
   .input-file input[type="file"]::file-selector-button {
     margin-right: 10px; padding: 8px 12px; border-radius: 10px; border: 1px solid rgba(111,60,195,0.3);
@@ -92,35 +135,43 @@
 
 <h1 class="h4 mb-2">CGA</h1>
 {% if user.is_superuser %}
-  <p class="subtitle" style="color:var(--muted);">Uploader le fichier CGA (Sheet1) pour charger les colonnes N, raison sociale, sigle, NIU, activite, regime, CRI, centre, ville et telephone.</p>
+  <p class="subtitle" style="color:var(--muted);">Importer le fichier CGA (Feuil1) pour charger les colonnes N, raison sociale, sigle, NIU, activite, regime, CRI, centre, ville et telephone.</p>
   <div class="panel import-panel">
     <div class="import-title">Importation CGA</div>
     <form method="post" enctype="multipart/form-data" class="form-inline" style="gap:12px; flex-wrap:wrap;">
       {% csrf_token %}
       <input type="hidden" name="update_mode" value="append">
       <div class="input-file">
-        <span class="file-label">Choisir fichier (Sheet1)</span>
-        <input type="file" name="file" accept=".xlsx,.xlsm" required />
+        <span class="file-label">Choisir fichier (Feuil1)</span>
+        <div class="file-input-fr">
+          <input type="file" id="cga-import-append" name="file" accept=".xlsx,.xlsm" required class="file-input-fr-native js-fr-file-input" />
+          <label for="cga-import-append" class="file-input-fr-btn">Parcourir</label>
+          <span class="file-input-fr-name js-fr-file-name">Aucun fichier sélectionné</span>
+        </div>
       </div>
-      <button type="submit" class="btn btn-primary btn-sm">Uploader (ajouter/combiner)</button>
+      <button type="submit" class="btn btn-primary btn-sm">Importer (ajouter/combiner)</button>
     </form>
     <div class="import-divider"></div>
     <form method="post" enctype="multipart/form-data" class="form-inline" style="gap:12px; flex-wrap:wrap;">
       {% csrf_token %}
       <input type="hidden" name="update_mode" value="replace">
       <div class="input-file">
-        <span class="file-label">Choisir fichier (Sheet1)</span>
-        <input type="file" name="file" accept=".xlsx,.xlsm" required />
+        <span class="file-label">Choisir fichier (Feuil1)</span>
+        <div class="file-input-fr">
+          <input type="file" id="cga-import-replace" name="file" accept=".xlsx,.xlsm" required class="file-input-fr-native js-fr-file-input" />
+          <label for="cga-import-replace" class="file-input-fr-btn">Parcourir</label>
+          <span class="file-input-fr-name js-fr-file-name">Aucun fichier sélectionné</span>
+        </div>
       </div>
-      <button type="submit" class="btn btn-secondary btn-sm">Uploader (ecrase l'existant)</button>
+      <button type="submit" class="btn btn-secondary btn-sm">Importer (écrase l'existant)</button>
     </form>
     <p class="subtitle" style="color:var(--muted); margin:6px 0 0;">Le mode replace recharge tout. Le mode append ajoute seulement les NIU absents.</p>
   </div>
   <div class="panel">
-    <p class="subtitle" style="color:var(--muted); margin-bottom:8px;">Nettoyage global des doublons de numeros sur toutes les tables d'appels. Les doublons detectes sont desactives pour conserver l'historique.</p>
+    <p class="subtitle" style="color:var(--muted); margin-bottom:8px;">Nettoyage global des doublons de numéros sur toutes les tables d'appels. Les doublons détectés sont désactivés pour conserver l'historique.</p>
     <form method="post" action="{% url 'deduplicate_all_call_tables' %}">
       {% csrf_token %}
-      <button type="submit" class="btn btn-ghost btn-sm">Detecter et supprimer les doublons numeros</button>
+      <button type="submit" class="btn btn-ghost btn-sm">Détecter et supprimer les doublons numéros</button>
     </form>
   </div>
 {% endif %}
@@ -129,15 +180,15 @@
   <div class="stats-grid">
     <div class="stat">
       Total filtre<strong>{{ stats.total|default:0 }}</strong>
-      <small>Base courante apres filtres</small>
+      <small>Base courante après filtres</small>
     </div>
     <div class="stat">
-      Appels termines<strong>{{ stats.completion_label|default:"0 / 0" }}</strong>
-      <small>{{ stats.completion_rate|default:0 }}% termines</small>
+      Appels terminés<strong>{{ stats.completion_label|default:"0 / 0" }}</strong>
+      <small>{{ stats.completion_rate|default:0 }}% terminés</small>
     </div>
     <div class="stat">
       Restants<strong>{{ stats.remaining|default:0 }}</strong>
-      <small>Appels encore a finaliser</small>
+      <small>Appels encore à finaliser</small>
     </div>
     <div class="stat {% if stats.threshold_reached %}ok{% else %}warn{% endif %}">
       Seuil {{ stats.threshold_target }} appels<strong>{% if stats.threshold_reached %}Atteint{% else %}En cours{% endif %}</strong>
@@ -200,7 +251,7 @@
 
   <div class="selection-bar">
     <p class="subtitle" style="color:var(--muted); margin:0;">
-      Transcription rapide: lignes filtrees, deja appelees, avec audio, sans repasser sur les transcriptions deja en base.
+      Transcription rapide: lignes filtrees, déjà appelees, avec audio, sans repasser sur les transcriptions déjà en base.
     </p>
     <div style="display:flex; gap:8px; flex-wrap:wrap;">
       <button type="button" id="js-start-filtered-transcription" class="btn btn-ghost btn-sm">Transcrire le tableau filtre</button>
@@ -373,7 +424,7 @@
       <span class="modal-hint">mm/dd/yyyy --:-- --</span>
     </label>
     <label class="modal-field">
-      <input type="checkbox" id="js-modal-deja-forme" />
+      <input type="checkbox" id="js-modal-déjà-forme" />
       Deja forme
     </label>
     <div class="modal-actions">
@@ -477,7 +528,7 @@
         const form = new FormData();
         form.append("action", job.action);
         if (job.extra?.rappel_at) form.append("rappel_at", job.extra.rappel_at);
-        if (job.extra?.deja_forme !== undefined) form.append("deja_forme", job.extra.deja_forme ? "1" : "0");
+        if (job.extra?.déjà_forme !== undefined) form.append("déjà_forme", job.extra.déjà_forme ? "1" : "0");
         const res = await fetch(job.url, { method: "POST", headers: { "X-CSRFToken": csrfToken }, body: form });
         if (!res.ok) throw new Error("sync action failed");
         const data = await res.json();
@@ -526,7 +577,7 @@
     const terminationModal = document.getElementById("js-termination-modal");
     const modalRappelCheckbox = document.getElementById("js-modal-rappel");
     const modalRappelAt = document.getElementById("js-modal-rappel-at");
-    const modalDejaForme = document.getElementById("js-modal-deja-forme");
+    const modalDejaForme = document.getElementById("js-modal-déjà-forme");
     const modalConfirmBtn = document.querySelector("[data-modal-action=\"confirm\"]");
     const modalCancelBtn = document.querySelector("[data-modal-action=\"cancel\"]");
     const modalName = document.getElementById("js-modal-nom");
@@ -589,7 +640,7 @@
       closeTerminationModal({
         action: shouldRappeler ? "rappeler" : "terminer",
         rappel_at: shouldRappeler ? modalRappelAt?.value : "",
-        deja_forme: !!modalDejaForme?.checked,
+        déjà_forme: !!modalDejaForme?.checked,
       });
     });
     modalCancelBtn?.addEventListener("click", () => closeTerminationModal(null));
@@ -607,7 +658,7 @@
       const form = new FormData();
       form.append("action", action);
       if (extra.rappel_at) form.append("rappel_at", extra.rappel_at);
-      if (extra.deja_forme !== undefined) form.append("deja_forme", extra.deja_forme ? "1" : "0");
+      if (extra.déjà_forme !== undefined) form.append("déjà_forme", extra.déjà_forme ? "1" : "0");
       try {
         if (!navigator.onLine) throw new Error("offline");
         const res = await fetch(url, { method: "POST", headers: { "X-CSRFToken": csrfToken }, body: form });
@@ -823,7 +874,7 @@
           }
           const data = await sendAction(row, modalResult.action, {
             rappel_at: modalResult.rappel_at,
-            deja_forme: modalResult.deja_forme,
+            déjà_forme: modalResult.déjà_forme,
           });
           updateRow(row, data);
         } catch (err) { alert("Action impossible."); }
@@ -1142,6 +1193,21 @@
       } catch (err) {
         alert("Arret impossible.");
       }
+    });
+
+    // Gestion des noms de fichiers pour les inputs d'importation CGA
+    document.querySelectorAll(".js-fr-file-input").forEach((input) => {
+      input.addEventListener("change", () => {
+        const nameSpan = input.parentElement.querySelector(".js-fr-file-name");
+        if (nameSpan) {
+          if (input.files && input.files.length > 0) {
+            const fileNames = Array.from(input.files).map(f => f.name).join(", ");
+            nameSpan.textContent = fileNames;
+          } else {
+            nameSpan.textContent = "Aucun fichier sélectionné";
+          }
+        }
+      });
     });
 
     fetchFilteredStatus();

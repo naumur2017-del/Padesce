@@ -11,15 +11,14 @@ PAGE_TITLE_BY_PREFIX: tuple[tuple[str, str], ...] = (
     ("/backup/", "Backup"),
     ("/reporting/documentation/", "Documentation Reporting"),
     ("/satisfaction-apprenants/analyse/", "Analyses de satisfaction"),
-    ("/satisfaction-apprenants/", "Enquete Apprenants"),
+    ("/satisfaction-apprenants/", "Enquête Apprenants"),
     ("/satisfaction-formateurs/analyse/", "Analyses de satisfaction"),
-    ("/satisfaction-formateurs/", "Enquete Formateur"),
+    ("/satisfaction-formateurs/", "Enquête Formateur"),
     ("/reporting/", "Rapport"),
     ("/suivi-utilisateurs/", "Suivi Utilisateurs"),
-    ("/deploiement/", "Deploiement Gandi"),
     ("/cga/", "CGA"),
     ("/consultant/", "Espace PADESCE"),
-    ("/guide-operateur/", "Guide Operateur"),
+    ("/guide-operateur/", "Guide Opérateur"),
     ("/messages/support/", "Support"),
     ("/admin/", "Admin"),
     ("/dashboard/", "Dashboard"),
@@ -100,13 +99,13 @@ def _build_menu_items(user, path: str, consultant_only: bool) -> list[dict[str, 
                 _safe_reverse("application_report_view"),
                 "/reporting/",
             )
-            add_item(
-                "Excel Source", _safe_reverse("reporting_network_excel"), "/reporting/excel-reseau/"
-            )
+        
+        add_item(
+            "Excel Source", _safe_reverse("reporting_network_excel"), "/reporting/excel-reseau/"
+        )
 
     if superadmin_access:
         add_item("Suivi Utilisateurs", _safe_reverse("user_tracking"), "/suivi-utilisateurs/")
-        add_item("Deploiement Gandi", _safe_reverse("deployment_dashboard"), "/deploiement/")
 
     add_item("CGA", _safe_reverse("cga_index"), "/cga/")
 

@@ -159,22 +159,25 @@
 
 <section class="dashboard-header">
   <h1 class="dashboard-title">Dashboard NAUMUR CALL APP</h1>
-  <p class="dashboard-subtitle">Acces rapide et suivi des appels PADESCE / CGA.</p>
 </section>
 
 <section class="cards-grid">
   {% if can_view_call_cards %}
   <article class="card" style="border-top: 4px solid var(--accent);">
     <h2>Appels PADESCE</h2>
-    <div style="margin-top:10px;">
+    <div style="display:flex;margin-top:10px;gap: 10px;">
+      <div style="display: flex; flex-direction: column;">
       <div class="big">{{ padesce_effectues }} / {{ padesce_total }} appels tentés</div>
       <div class="muted">Apprenants = hors "En attente".</div>
+      </div>
+      <div style="display: flex; flex-direction: column;">
       <div class="big">{{ formateurs_effectues }} / {{ formateurs_total }} appels tentés</div>
       <div class="muted">Formateurs = hors "En attente".</div>
+      </div>
     </div>
     <div style="display:flex; gap:10px; margin-top:10px;">
       <a class="btn" href="{% url 'appels_index' %}">Ouvrir appels PADESCE</a>
-      <a class="btn" href="{% url 'satisfaction_dashboard' %}">Analyses de satisfaction</a>
+      <a class="btn" href="{% url 'satisfaction_dashboard' %}">Ouvrir Analyses de satisfaction</a>
     </div>
   </article>
   <article class="card">

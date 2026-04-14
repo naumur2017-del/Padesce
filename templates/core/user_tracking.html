@@ -348,7 +348,6 @@
 
 <section class="page-header">
   <h1>Suivi des utilisateurs PADESCE</h1>
-  <p>Lecture en temps reel des connexions, localisations, pages consultees et derniers clics effectues sur la plateforme.</p>
 </section>
 
 {% if not tracking_schema_ready %}
@@ -403,30 +402,31 @@
   </div>
 
   <div class="table-wrap">
-    <table>
-      <thead>
-        <tr>
-          <th>Utilisateur</th>
-          <th>Statut</th>
-          <th>Nombre d'appels</th>
-          <th>A rappeler</th>
-          <th>Formulaires remplis</th>
-          <th>Formulaires modifies</th>
-          <th>Termines</th>
-          <th>En cours</th>
-          <th>Appels en cours</th>
-          <th>Adresse IP</th>
-          <th>Localisation</th>
-          <th>Page actuelle</th>
-          <th>Derniere action</th>
-          <th>Historique recent</th>
-          <th>Derniere activite</th>
-          <th>Derniere connexion</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for row in user_activity_rows %}
+    <div class="table-scroll-11" data-table="principal-table">
+      <table>
+        <thead>
           <tr>
+            <th>Utilisateur</th>
+            <th>Statut</th>
+            <th>Nombre d'appels</th>
+            <th>A rappeler</th>
+            <th>Formulaires remplis</th>
+            <th>Formulaires modifies</th>
+            <th>Termines</th>
+            <th>En cours</th>
+            <th>Appels en cours</th>
+            <th>Adresse IP</th>
+            <th>Localisation</th>
+            <th>Page actuelle</th>
+            <th>Derniere action</th>
+            <th>Historique recent</th>
+            <th>Derniere activite</th>
+            <th>Derniere connexion</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in user_activity_rows %}
+            <tr>
             <td><a class="drill-link" href="{{ row.total_url }}">{{ row.username }}</a></td>
             <td>
               <span class="status-pill {% if row.is_online %}online{% else %}offline{% endif %}">
@@ -480,6 +480,12 @@
         {% endfor %}
       </tbody>
     </table>
+    </div>
+    <div class="table-pagination" data-controller="principal-table">
+      <button class="prev-btn" type="button">Précédent</button>
+      <div class="page-numbers"></div>
+      <button class="next-btn" type="button">Suivant</button>
+    </div>
   </div>
 </section>
 
@@ -547,25 +553,45 @@
       <div class="muted">Historique recent des connexions detectees avec geolocalisation de l'IP.</div>
     </div>
   </div>
-  <div class="history-grid">
-    <article class="history-card">
-      <h3>50 dernieres connexions</h3>
-      <ul class="history-list">
-        {% for log in recent_login_logs %}
-          <li>
-            <strong>{{ log.user.get_username }}</strong><br>
-            {{ log.logged_at|date:"d/m/Y H:i:s" }}<br>
-            IP: {{ log.ip_address|default:"-" }}<br>
-            Ville: {{ log.city|default:"-" }}, Pays: {{ log.country|default:"-" }}<br>
-            Latitude: {% if log.latitude is not None %}{{ log.latitude|floatformat:4 }}{% else %}-{% endif %},
-            Longitude: {% if log.longitude is not None %}{{ log.longitude|floatformat:4 }}{% else %}-{% endif %}
-          </li>
-        {% empty %}
-          <li>Aucune connexion enregistree.</li>
-        {% endfor %}
-      </ul>
-    </article>
-  </div>
+  <div class="table-scroll-11" data-table="connexions-table">
+      <table>
+        <thead>
+          <tr>
+            <th>Utilisateur</th>
+            <th>Date/Heure</th>
+            <th>Adresse IP</th>
+            <th>Ville</th>
+            <th>Pays</th>
+            <th>Coordonnées</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for log in recent_login_logs %}
+            <tr>
+              <td><strong>{{ log.user.get_username }}</strong></td>
+              <td>{{ log.logged_at|date:"d/m/Y H:i:s" }}</td>
+              <td>{{ log.ip_address|default:"-" }}</td>
+              <td>{{ log.city|default:"-" }}</td>
+              <td>{{ log.country|default:"-" }}</td>
+              <td>
+                {% if log.latitude is not None and log.longitude is not None %}
+                  {{ log.latitude|floatformat:4 }}, {{ log.longitude|floatformat:4 }}
+                {% else %}
+                  -
+                {% endif %}
+              </td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="6">Aucune connexion enregistree.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="table-pagination" data-controller="connexions-table">
+      <button class="prev-btn" type="button">Précédent</button>
+      <div class="page-numbers"></div>
+      <button class="next-btn" type="button">Suivant</button>
+    </div>
 </section>
 
 {{ globe_points|json_script:"globe-points-data" }}
@@ -1183,6 +1209,91 @@
     animate();
     refreshLive();
     window.setInterval(refreshLive, 5000);
+  })();
+
+  // Pagination pour les tables comme Résumé des classes
+  (function () {
+    const ROWS_PER_PAGE = 11;
+
+    function initPagination(tableSelector, controlSelector) {
+      const tableContainer = document.querySelector(`[data-table="${tableSelector}"]`);
+      const controlContainer = document.querySelector(`[data-controller="${tableSelector}"]`);
+
+      if (!tableContainer || !controlContainer) return;
+
+      const rows = Array.from(tableContainer.querySelectorAll("tbody tr"));
+      const prevBtn = controlContainer.querySelector(".prev-btn");
+      const nextBtn = controlContainer.querySelector(".next-btn");
+      const pageNumbers = controlContainer.querySelector(".page-numbers");
+
+      let currentPage = 1;
+      const totalPages = Math.ceil(rows.length / ROWS_PER_PAGE);
+
+      function updateDisplay() {
+        const start = (currentPage - 1) * ROWS_PER_PAGE;
+        const end = start + ROWS_PER_PAGE;
+
+        rows.forEach((row, idx) => {
+          if (idx >= start && idx < end) {
+            row.classList.add("pagination-visible");
+          } else {
+            row.classList.remove("pagination-visible");
+          }
+        });
+
+        // Update buttons
+        if (prevBtn) prevBtn.disabled = currentPage === 1;
+        if (nextBtn) nextBtn.disabled = currentPage === totalPages;
+
+        // Update page numbers
+        if (pageNumbers) {
+          pageNumbers.innerHTML = "";
+          const maxVisible = 5;
+          let startPage = Math.max(1, currentPage - Math.floor(maxVisible / 2));
+          let endPage = Math.min(totalPages, startPage + maxVisible - 1);
+
+          if (endPage - startPage + 1 < maxVisible) {
+            startPage = Math.max(1, endPage - maxVisible + 1);
+          }
+
+          for (let i = startPage; i <= endPage; i++) {
+            const btn = document.createElement("button");
+            btn.className = "page-btn";
+            if (i === currentPage) btn.classList.add("active");
+            btn.textContent = i;
+            btn.addEventListener("click", () => {
+              currentPage = i;
+              updateDisplay();
+            });
+            pageNumbers.appendChild(btn);
+          }
+        }
+      }
+
+      if (prevBtn) {
+        prevBtn.addEventListener("click", () => {
+          if (currentPage > 1) {
+            currentPage--;
+            updateDisplay();
+          }
+        });
+      }
+
+      if (nextBtn) {
+        nextBtn.addEventListener("click", () => {
+          if (currentPage < totalPages) {
+            currentPage++;
+            updateDisplay();
+          }
+        });
+      }
+
+      updateDisplay();
+    }
+
+    // Initialize pagination for both tables
+    initPagination("principal-table", "principal-table");
+    initPagination("connexions-table", "connexions-table");
   })();
 </script>
 {% endblock %}

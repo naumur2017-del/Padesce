@@ -31,6 +31,49 @@
     display: inline-flex; align-items: center; gap: 10px; padding: 12px 16px; border-radius: 14px;
     border: 1px dashed rgba(111,60,195,0.3); background: rgba(111,60,195,0.08);
   }
+  .file-input-fr {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .file-input-fr-native {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+  .file-input-fr-btn {
+    margin: 0;
+    padding: 8px 12px;
+    border-radius: 10px;
+    border: 1px solid rgba(111,60,195,0.3);
+    background: #fff;
+    font-weight: 600;
+    cursor: pointer;
+    font-size: inherit;
+    font-family: inherit;
+    line-height: inherit;
+  }
+  .file-input-fr-btn:hover {
+    background: rgba(111,60,195,0.06);
+  }
+  .file-input-fr-name {
+    font-size: 0.9rem;
+    color: var(--muted);
+    max-width: 240px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .input-file .file-input-fr {
+    position: relative;
+  }
   .input-file input[type="file"] { background: transparent; border: none; padding: 4px; }
   .input-file input[type="file"]::file-selector-button {
     margin-right: 10px; padding: 8px 12px; border-radius: 10px; border: 1px solid rgba(111,60,195,0.3);
@@ -108,6 +151,8 @@
   .scope-tab:hover { background:rgba(111,60,195,0.08); color:var(--accent-strong); }
   .scope-tab.active { background:var(--accent); color:#fff; box-shadow:0 8px 18px rgba(76,29,149,0.18); }
   .scope-note { font-size:0.85rem; color:var(--muted); }
+  .import-panel { display: grid; gap: 12px; }
+  .import-title { font-weight: 700; font-size: 1rem; }
 </style>
 
 <div class="scope-switch">
@@ -115,44 +160,52 @@
     <a class="scope-tab" href="{% url 'appels_index' %}">Appels Apprenants</a>
     <a class="scope-tab active" href="{% url 'formateurs_index' %}" aria-current="page">Appels Formateurs</a>
   </div>
-  <div class="scope-note">Basculer entre les appels apprenants PADESCE et les appels formateurs.</div>
+  <div class="scope-note">Basculer entre les appels apprenants et les appels formateurs.</div>
 </div>
 
-<h1 class="h4 mb-2">Appels Formateurs</h1>
 {% if user.is_superuser %}
   <p class="subtitle" style="margin-bottom:8px;">Importer un ou plusieurs fichiers Excel avec la feuille <strong>Calendrier</strong>. Chaque numero de <strong>CONTACT DU FORMATEUR</strong> est nettoye, dedoublonne et insere comme une ligne d'appel distincte.</p>
-  <div class="panel">
+  <div class="panel import-panel">
+    <div class="import-title">Importer des contacts</div>
     <form method="post" enctype="multipart/form-data" class="form-inline" style="margin-bottom:10px;">
       {% csrf_token %}
       <input type="hidden" name="update_mode" value="append">
       <div class="input-file">
-        <span class="file-label">Choisir fichiers Excel</span>
-        <input type="file" name="files" accept=".xlsx,.xlsm" multiple required />
+        <span class="file-label">Choisir fichier Excel</span>
+        <div class="file-input-fr">
+          <input type="file" id="fr-import-append" name="files" accept=".xlsx,.xlsm" multiple required class="file-input-fr-native js-fr-file-input" />
+          <label for="fr-import-append" class="file-input-fr-btn">Importer</label>
+          <span class="file-input-fr-name js-fr-file-name">Aucun fichier sélectionné</span>
+        </div>
       </div>
-      <button type="submit" class="btn btn-primary btn-sm">Uploader (ajouter/combiner)</button>
+      <button type="submit" class="btn btn-primary btn-sm">Importer (ajouter/combiner)</button>
     </form>
     <form method="post" enctype="multipart/form-data" class="form-inline">
       {% csrf_token %}
       <input type="hidden" name="update_mode" value="replace">
       <div class="input-file">
-        <span class="file-label">Choisir fichiers Excel</span>
-        <input type="file" name="files" accept=".xlsx,.xlsm" multiple required />
+        <span class="file-label">Choisir fichier Excel</span>
+        <div class="file-input-fr">
+          <input type="file" id="fr-import-replace" name="files" accept=".xlsx,.xlsm" multiple required class="file-input-fr-native js-fr-file-input" />
+          <label for="fr-import-replace" class="file-input-fr-btn">Importer</label>
+          <span class="file-input-fr-name js-fr-file-name">Aucun fichier sélectionné</span>
+        </div>
       </div>
-      <button type="submit" class="btn btn-secondary btn-sm">Uploader (ecrase l'affichage)</button>
+      <button type="submit" class="btn btn-secondary btn-sm">Importer (ecrase l'affichage)</button>
     </form>
   </div>
   <div class="panel">
-    <p class="subtitle" style="margin-bottom:8px;">Nettoyage global des doublons de numeros sur toutes les tables d'appels. Les doublons detectes sont desactives pour conserver l'historique.</p>
+    <p class="subtitle" style="margin-bottom:8px;">Nettoyage global des doublons de numéros sur toutes les tables d'appels. Les doublons détectés sont désactivés pour conserver l'historique.</p>
     <form method="post" action="{% url 'deduplicate_all_call_tables' %}" style="display:flex; gap:8px; flex-wrap:wrap;">
       {% csrf_token %}
-      <button type="submit" class="btn btn-ghost btn-sm">Detecter et supprimer les doublons numeros</button>
+      <button type="submit" class="btn btn-ghost btn-sm">Détecter et supprimer les doublons numéros</button>
     </form>
     <form method="post" action="{% url 'formateurs_delete_missing_phones' %}" style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
       {% csrf_token %}
-      <button type="submit" class="btn btn-ghost btn-sm">Supprimer les lignes sans telephone</button>
+      <button type="submit" class="btn btn-ghost btn-sm">Supprimer les lignes sans téléphone</button>
     </form>
     <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
-      <button type="button" id="js-start-transcription" class="btn btn-ghost btn-sm">Transcrire le tableau filtre</button>
+      <button type="button" id="js-start-transcription" class="btn btn-ghost btn-sm">Transcrire le tableau filtré</button>
       <button type="button" id="js-stop-transcription" class="btn btn-ghost btn-sm" style="display:none;">Stopper</button>
     </div>
     <div id="bulk-progress-wrap" class="bulk-progress-wrap" aria-live="polite">
@@ -170,8 +223,8 @@
 
 <div class="panel">
   <div class="stats-grid">
-    <div class="stat">Total filtre<strong>{{ stats.total|default:0 }}</strong></div>
-    <div class="stat">Appels finalises<strong>{{ stats.completion_label|default:"0 / 0" }}</strong></div>
+    <div class="stat">Total filtré<strong>{{ stats.total|default:0 }}</strong></div>
+    <div class="stat">Appels finalisés<strong>{{ stats.completion_label|default:"0 / 0" }}</strong></div>
     <div class="stat">A rappeler<strong>{{ stats.rappels|default:0 }}</strong></div>
     <div class="stat">Audios disponibles<strong>{{ stats.audios|default:0 }}</strong></div>
     <div class="stat {% if stats.threshold_reached %}ok{% endif %}">
@@ -188,7 +241,7 @@
       <div class="satisfaction-header-title">{{ item.title }}</div>
       <div class="satisfaction-header-question">{{ item.question }}</div>
       <strong>{{ item.average|floatformat:2 }}/5</strong>
-      <div class="satisfaction-header-meta">{{ item.responses }} reponse{{ item.responses|pluralize }}</div>
+      <div class="satisfaction-header-meta">{{ item.responses }} réponse{{ item.responses|pluralize }}</div>
     </article>
     {% endfor %}
   </div>
@@ -1325,6 +1378,21 @@
       } catch (err) {
         alert("Arret impossible.");
       }
+    });
+
+    // Gestion des noms de fichiers pour les inputs d'importation
+    document.querySelectorAll(".js-fr-file-input").forEach((input) => {
+      input.addEventListener("change", () => {
+        const nameSpan = input.parentElement.querySelector(".js-fr-file-name");
+        if (nameSpan) {
+          if (input.files && input.files.length > 0) {
+            const fileNames = Array.from(input.files).map(f => f.name).join(", ");
+            nameSpan.textContent = fileNames;
+          } else {
+            nameSpan.textContent = "Aucun fichier sélectionné";
+          }
+        }
+      });
     });
 
     fetchBulkStatus();

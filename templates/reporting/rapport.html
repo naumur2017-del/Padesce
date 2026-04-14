@@ -200,9 +200,9 @@
     </div>
     <div class="actions">
       <a class="btn btn-ghost" href="{% url 'reporting_manual' %}">Documentation</a>
-      <a class="btn btn-primary" href="{% url 'application_report_export_word' %}?{{ download_query }}">Telecharger Word</a>
-      <a class="btn btn-ghost" href="{% url 'application_report_export_excel' %}?{{ download_query }}">Telecharger Excel</a>
-      <a class="btn btn-soft" href="{% url 'application_report_export_csv' %}?{{ download_query }}">Telecharger CSV</a>
+      <a class="btn btn-primary" href="{% url 'application_report_export_word' %}?{{ download_query }}">Télécharger Word</a>
+      <a class="btn btn-ghost" href="{% url 'application_report_export_excel' %}?{{ download_query }}">Télécharger Excel</a>
+      <a class="btn btn-soft" href="{% url 'application_report_export_csv' %}?{{ download_query }}">Télécharger CSV</a>
       {% if manual_send_enabled %}
       <form method="post" action="{% url 'application_report_send_mail' %}">
         {% csrf_token %}
@@ -216,29 +216,29 @@
 
   <section class="cards">
     <article class="card">
-      <div class="label">Utilisateurs ayant appele</div>
+      <div class="label">Utilisateurs ayant appelé</div>
       <div class="value">{{ report.users.called_today }}</div>
-      <div class="meta">Au moins un appel effectue sur la journee</div>
+      <div class="meta">Au moins un appel effectué sur la journée</div>
     </article>
     <article class="card">
-      <div class="label">Appels termines</div>
+      <div class="label">Appels terminés</div>
       <div class="value">{{ report.calls.completed }}</div>
-      <div class="meta">{{ report.calls.processed }} appels effectues</div>
+      <div class="meta">{{ report.calls.processed }} appels effectués</div>
     </article>
     <article class="card">
-      <div class="label">Classes analysees</div>
+      <div class="label">Classes analysées</div>
       <div class="value">{{ report.analysis.classes_count }}</div>
-      <div class="meta">{{ report.analysis.prestations_count }} prestations analysees</div>
+      <div class="meta">{{ report.analysis.prestations_count }} prestations analysées</div>
     </article>
     <article class="card">
-      <div class="label">Prestataires analyses</div>
+      <div class="label">Prestataires analysés</div>
       <div class="value">{{ report.analysis.prestataires_count }}</div>
-      <div class="meta">{{ report.analysis.beneficiaires_count }} beneficiaires analyses</div>
+      <div class="meta">{{ report.analysis.beneficiaires_count }} bénéficiaires analysés</div>
     </article>
     <article class="card">
       <div class="label">Heure la plus performante</div>
       <div class="value">{% if report.best_hour %}{{ report.best_hour.label|slice:":5" }}{% else %}-{% endif %}</div>
-      <div class="meta">{% if report.best_hour %}{{ report.best_hour.completed }} appels termines{% else %}Aucune donnee{% endif %}</div>
+      <div class="meta">{% if report.best_hour %}{{ report.best_hour.completed }} appels terminés{% else %}Aucune donnée{% endif %}</div>
     </article>
   </section>
 
@@ -250,7 +250,7 @@
         <div class="metric-row">
           <div>
             <strong>{{ source.label }}</strong>
-            <div class="muted">{{ source.completed }} termines, {{ source.with_audio }} audios</div>
+            <div class="muted">{{ source.completed }} terminés, {{ source.with_audio }} audios</div>
           </div>
           <div>{{ source.total }}</div>
         </div>
@@ -259,7 +259,7 @@
       <div class="metric-list" style="margin-top:12px;">
         <div class="metric-row"><span>En attente</span><strong>{{ report.calls.pending }}</strong></div>
         <div class="metric-row"><span>En cours</span><strong>{{ report.calls.in_progress }}</strong></div>
-        <div class="metric-row"><span>A rappeler</span><strong>{{ report.calls.callbacks }}</strong></div>
+        <div class="metric-row"><span>À rappeler</span><strong>{{ report.calls.callbacks }}</strong></div>
       </div>
     </article>
 
@@ -268,7 +268,7 @@
       <div class="metric-list">
         <div class="metric-row"><span>Total comptes</span><strong>{{ report.users.total }}</strong></div>
         <div class="metric-row"><span>Comptes actifs</span><strong>{{ report.users.active }}</strong></div>
-        <div class="metric-row"><span>Utilisateurs ayant appele</span><strong>{{ report.users.called_today }}</strong></div>
+        <div class="metric-row"><span>Utilisateurs ayant appelé</span><strong>{{ report.users.called_today }}</strong></div>
         <div class="metric-row"><span>Staff</span><strong>{{ report.users.staff }}</strong></div>
         <div class="metric-row"><span>Superadmin</span><strong>{{ report.users.superusers }}</strong></div>
         <div class="metric-row"><span>Groupes</span><strong>{{ user_groups_total }}</strong></div>
@@ -279,10 +279,10 @@
     <article class="panel">
       <h3>Analyse satisfaction</h3>
       <div class="metric-list">
-        <div class="metric-row"><span>Classes analysees</span><strong>{{ report.analysis.classes_count }}</strong></div>
-        <div class="metric-row"><span>Prestations analysees</span><strong>{{ report.analysis.prestations_count }}</strong></div>
-        <div class="metric-row"><span>Prestataires analyses</span><strong>{{ report.analysis.prestataires_count }}</strong></div>
-        <div class="metric-row"><span>Beneficiaires analyses</span><strong>{{ report.analysis.beneficiaires_count }}</strong></div>
+        <div class="metric-row"><span>Classes analysées</span><strong>{{ report.analysis.classes_count }}</strong></div>
+        <div class="metric-row"><span>Prestations analysées</span><strong>{{ report.analysis.prestations_count }}</strong></div>
+        <div class="metric-row"><span>Prestataires analysés</span><strong>{{ report.analysis.prestataires_count }}</strong></div>
+        <div class="metric-row"><span>Bénéficiaires analysés</span><strong>{{ report.analysis.beneficiaires_count }}</strong></div>
       </div>
     </article>
 
@@ -309,10 +309,10 @@
 
       <div class="legend" style="margin-bottom:16px; padding:12px; border-radius:12px; background:#f8fafc; border:1px solid #e2e8f0;">
         {% if report.anomalies.selected_class.not_formed_count %}
-        <span class="legend-item"><span class="legend-dot dot-not-formed"></span>Pas forme : {{ report.anomalies.selected_class.not_formed_count }}</span>
+        <span class="legend-item"><span class="legend-dot dot-not-formed"></span>Pas formé : {{ report.anomalies.selected_class.not_formed_count }}</span>
         {% endif %}
         {% if report.anomalies.selected_class.duplicate_numbers_count %}
-        <span class="legend-item"><span class="legend-dot dot-fake-number"></span>Numero double : {{ report.anomalies.selected_class.duplicate_numbers_count }}</span>
+        <span class="legend-item"><span class="legend-dot dot-fake-number"></span>Numéro double : {{ report.anomalies.selected_class.duplicate_numbers_count }}</span>
         {% endif %}
         {% if report.anomalies.selected_class.false_name_count %}
         <span class="legend-item"><span class="legend-dot dot-false-name"></span>Faux nom : {{ report.anomalies.selected_class.false_name_count }}</span>
@@ -325,8 +325,8 @@
           <thead>
             <tr>
               <th class="th-code">ApprenantID</th>
-              {% if report.anomalies.selected_class.not_formed_count %}<th class="th-not-formed">Pas forme</th>{% endif %}
-              {% if report.anomalies.selected_class.duplicate_numbers_count %}<th class="th-fake-number">Numero double</th>{% endif %}
+              {% if report.anomalies.selected_class.not_formed_count %}<th class="th-not-formed">Pas formé</th>{% endif %}
+              {% if report.anomalies.selected_class.duplicate_numbers_count %}<th class="th-fake-number">Numéro double</th>{% endif %}
               {% if report.anomalies.selected_class.false_name_count %}<th class="th-false-name">Faux nom</th>{% endif %}
             </tr>
           </thead>
@@ -355,8 +355,8 @@
     <article class="panel">
       <h3>Bugs et incidents</h3>
       <div class="metric-list">
-        <div class="metric-row"><span>Bugs signales</span><strong>{{ report.bugs.alarms_total }}</strong></div>
-        <div class="metric-row"><span>Bugs resolus</span><strong>{{ report.bugs.alarms_resolved }}</strong></div>
+        <div class="metric-row"><span>Bugs signalés</span><strong>{{ report.bugs.alarms_total }}</strong></div>
+        <div class="metric-row"><span>Bugs résolus</span><strong>{{ report.bugs.alarms_resolved }}</strong></div>
         <div class="metric-row"><span>Bugs ouverts</span><strong>{{ report.bugs.alarms_open }}</strong></div>
         <div class="metric-row"><span>Erreurs logs</span><strong>{{ report.bugs.log_errors }}</strong></div>
         <div class="metric-row"><span>Erreurs critiques</span><strong>{{ report.bugs.log_critical }}</strong></div>
@@ -384,7 +384,7 @@
     <article class="panel">
       <h3>Appels par heure</h3>
       {% if report.best_hour %}
-      <div class="pill" style="margin-bottom:12px;">Pic journalier: {{ report.best_hour.label }} avec {{ report.best_hour.completed }} appels termines</div>
+      <div class="pill" style="margin-bottom:12px;">Pic journalier: {{ report.best_hour.label }} avec {{ report.best_hour.completed }} appels terminés</div>
       {% endif %}
       <div class="hour-list">
         {% for row in report.hourly_rows %}
@@ -409,29 +409,29 @@
           <div class="user-card-title">{{ item.username }}</div>
           <div class="user-card-grid">
             <div class="user-card-item">
-              <span>Appels effectues</span>
+              <span>Appels effectués</span>
               <strong>{{ item.calls_made }}</strong>
             </div>
             <div class="user-card-item">
-              <span>Appels termines</span>
+              <span>Appels terminés</span>
               <strong>{{ item.completed_calls }}</strong>
             </div>
             <div class="user-card-item">
-              <span>Temps estime</span>
+              <span>Temps estimé</span>
               <strong>{{ item.time_spent_label }}</strong>
             </div>
             <div class="user-card-item">
-              <span>Premiere activite</span>
+              <span>Première activité</span>
               <strong>{{ item.first_activity_label }}</strong>
             </div>
             <div class="user-card-item">
-              <span>Derniere activite</span>
+              <span>Dernière activité</span>
               <strong>{{ item.last_activity_label }}</strong>
             </div>
           </div>
         </article>
         {% empty %}
-        <div class="muted">Aucune activite utilisateur sur la periode.</div>
+        <div class="muted">Aucune activité utilisateur sur la période.</div>
         {% endfor %}
       </div>
     </article>
@@ -444,7 +444,7 @@
           <strong>17h30</strong>
         </div>
         <div class="metric-row">
-          <span>Destinataires configures</span>
+          <span>Destinataires configurés</span>
           <strong>{{ report.mail_status.configured_recipients|length }}</strong>
         </div>
       </div>
@@ -456,9 +456,9 @@
       {% if report.mail_status.missing_configuration %}
       <p class="muted" style="margin:12px 0 0;">Renseigne `REPORT_EMAIL_TO` dans le fichier `.env` pour activer les destinataires.</p>
       {% elif not report.mail_status.smtp_ready %}
-      <p class="muted" style="margin:12px 0 0;">La liste des destinataires existe, mais la configuration SMTP n'est pas encore complete.</p>
+      <p class="muted" style="margin:12px 0 0;">La liste des destinataires existe, mais la configuration SMTP n'est pas encore complète.</p>
       {% else %}
-      <p class="muted" style="margin:12px 0 0;">La diffusion automatique par mail est prete.</p>
+      <p class="muted" style="margin:12px 0 0;">La diffusion automatique par mail est prête.</p>
       {% endif %}
     </article>
   </section>

@@ -115,7 +115,7 @@
 </form>
 
 <div class="panel">
-  <h5>Nouvelle enquete</h5>
+  <h5>Nouvelle enquête</h5>
   <form method="post" enctype="multipart/form-data" class="survey-form">
     {% csrf_token %}
 
@@ -143,7 +143,7 @@
 
     <!-- INFOS ENQUETE -->
     <div class="form-section">
-      <div class="section-title"><h6>Infos enquete</h6></div>
+      <div class="section-title"><h6>Infos enquête</h6></div>
       <div class="form-row compact">
         <div class="field">{{ form.inspecteur.label_tag }} {{ form.inspecteur }}</div>
         <div class="field">{{ form.date.label_tag }} {{ form.date }}</div>
@@ -309,7 +309,7 @@
 
 <!-- DERNIERES ENQUETES -->
 <div class="panel" style="margin-top:14px;">
-  <h5>Dernieres enquetes</h5>
+  <h5>Dernieres enquêtes</h5>
   <div style="max-height:420px; overflow:auto;">
     <table>
       <thead>
@@ -321,13 +321,13 @@
         </tr>
       </thead>
       <tbody>
-        {% for e in enquetes %}
+        {% for e in enquêtes %}
         <tr>
           <td>{{ e.date }}</td>
           <td>{{ e.classe }}</td>
           <td>{{ e.formateur }}</td>
           <td>{{ e.inspecteur }}</td>
-          <td>{{ e.enqueteur }}</td>
+          <td>{{ e.enquêteur }}</td>
           <td style="text-align:center;">{{ e.q1_prerequis_apprenants }}</td>
           <td style="text-align:center;">{{ e.q2_interaction_apprenants }}</td>
           <td style="text-align:center;">{{ e.q3_competences_acquises }}</td>
@@ -337,7 +337,7 @@
           <td>{{ e.commentaires|default:"-" }}</td>
         </tr>
         {% empty %}
-        <tr><td colspan="12" style="text-align:center; color:var(--muted);">Aucune enquete</td></tr>
+        <tr><td colspan="12" style="text-align:center; color:var(--muted);">Aucune enquête</td></tr>
         {% endfor %}
       </tbody>
     </table>
