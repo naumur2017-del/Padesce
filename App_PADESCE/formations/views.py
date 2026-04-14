@@ -21,7 +21,6 @@ from App_PADESCE.appels.models import (
     is_call_success_status,
 )
 from App_PADESCE.apprenants.models import Apprenant
-from App_PADESCE.core.access import require_analysis_access
 from App_PADESCE.core.analysis_rules import appel_is_analysis_eligible
 from App_PADESCE.core.apprenant_lookup import (
     get_local_apprenant_db_label,
@@ -1125,7 +1124,6 @@ def formation_list(request):
     return render(request, "formations/end.html", {"prestations": prestations})
 
 
-@require_analysis_access
 def class_analysis_detail(request, code: str):
     classe = (
         Classe.objects.select_related(
@@ -1249,7 +1247,6 @@ def class_analysis_detail(request, code: str):
     )
 
 
-@require_analysis_access
 def prestation_analysis_detail(request, code: str):
     prestation = (
         Prestation.objects.select_related("prestataire", "formation", "beneficiaire")
@@ -1364,7 +1361,6 @@ def prestation_analysis_detail(request, code: str):
     )
 
 
-@require_analysis_access
 def analysis_apprenant_call_detail(request, pk: int):
     appel = get_object_or_404(
         Appel.objects.filter(is_active=True).select_related(
@@ -1395,7 +1391,6 @@ def analysis_apprenant_call_detail(request, pk: int):
     )
 
 
-@require_analysis_access
 def analysis_formateur_call_detail(request, pk: int):
     row = get_object_or_404(
         AppelFormateur.objects.filter(is_active=True).select_related("locked_by"),
