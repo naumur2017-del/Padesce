@@ -21,6 +21,7 @@ from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.clickjacking import xframe_options_sameorigin
 from django.views.decorators.http import require_GET, require_POST
+from django.views.decorators.cache import cache_page
 
 from App_PADESCE.appels.models import (
     APPEL_ANSWER_QUESTION_FIELDS,
@@ -560,6 +561,7 @@ def _consultant_analysis_snapshot(
         return None
 
 
+@cache_page(60)  # Cache page for 60 seconds to reduce database queries
 def home(request):
     today = date.today()
     start_date = date(2025, 9, 26)
