@@ -11,7 +11,16 @@
       "Bash(python -m ruff check --fix App_PADESCE/core/backup_views.py App_PADESCE/satisfaction_apprenants/views.py App_PADESCE/satisfaction_formateurs/views.py App_PADESCE/core/backup_manager.py App_PADESCE/core/management/commands/backup_db.py)",
       "Bash(python -m ruff check App_PADESCE/satisfaction_apprenants/views.py)",
       "Bash(python -m black App_PADESCE/core/backup_manager.py App_PADESCE/core/backup_views.py App_PADESCE/core/management/commands/backup_db.py App_PADESCE/satisfaction_apprenants/views.py App_PADESCE/satisfaction_formateurs/views.py App_PADESCE/reporting/app_report.py)",
-      "Bash(python -m ruff check App_PADESCE/core/backup_manager.py App_PADESCE/core/backup_views.py App_PADESCE/core/management/commands/backup_db.py App_PADESCE/satisfaction_formateurs/views.py)"
+      "Bash(python -m ruff check App_PADESCE/core/backup_manager.py App_PADESCE/core/backup_views.py App_PADESCE/core/management/commands/backup_db.py App_PADESCE/satisfaction_formateurs/views.py)",
+      "mcp__Claude_in_Chrome__tabs_context_mcp",
+      "mcp__Claude_in_Chrome__navigate",
+      "mcp__Claude_in_Chrome__read_page",
+      "mcp__plugin_chrome-devtools-mcp_chrome-devtools__new_page",
+      "mcp__plugin_chrome-devtools-mcp_chrome-devtools__take_snapshot",
+      "mcp__plugin_chrome-devtools-mcp_chrome-devtools__lighthouse_audit",
+      "mcp__plugin_chrome-devtools-mcp_chrome-devtools__performance_start_trace",
+      "mcp__plugin_chrome-devtools-mcp_chrome-devtools__list_network_requests",
+      "mcp__plugin_chrome-devtools-mcp_chrome-devtools__get_network_request"
     ]
   }
 }
