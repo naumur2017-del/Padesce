@@ -304,6 +304,22 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
 });
 
 // ── Accordion cards ───────────────────────────────────────────────────────────
+function parseLinkedCount(card) {
+  const badge = card ? card.querySelector('.badge-info') : null;
+  if (!badge) return 0;
+  const text = (badge.textContent || '').trim();
+  const match = text.match(/^(\d+)/);
+  return match ? parseInt(match[1], 10) : 0;
+}
+
+function sortFormCardsByLinkedCount() {
+  const list = document.getElementById('formateurs-list');
+  if (!list) return;
+  const cards = Array.from(list.querySelectorAll('.form-card'));
+  cards.sort((left, right) => parseLinkedCount(right) - parseLinkedCount(left));
+  cards.forEach(card => list.appendChild(card));
+}
+
 function toggleCard(header) {
   const card = header.closest('.form-card');
   const body = header.nextElementSibling;
@@ -314,6 +330,9 @@ function toggleCard(header) {
   if (!isOpen) {
     body.classList.add('open');
     if (card) card.classList.add('is-open');
+  } else {
+    // Re-trier uniquement à la fermeture explicite d'une carte.
+    sortFormCardsByLinkedCount();
   }
 }
 
@@ -436,5 +455,8 @@ function updateVilleChangedCount() {
   const badge = document.getElementById('prestations-changed-count');
   if (badge) badge.textContent = count > 0 ? `${count} modification${count > 1 ? 's' : ''} non sauvegardée${count > 1 ? 's' : ''}` : '';
 }
+
+// Tri initial décroissant par nombre de prestations liées.
+sortFormCardsByLinkedCount();
 </script>
 {% endblock %}
