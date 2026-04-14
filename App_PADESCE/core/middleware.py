@@ -251,6 +251,11 @@ class LoginRequiredMiddleware:
         if getattr(settings, "PUBLIC_CONSULTANT_ACCESS", False):
             exempt_prefixes.append("/consultant/")
 
+        # Keep apprenant/formateur analysis detail popups public even when the app is
+        # exposed behind an extra URL prefix (reverse proxy, subpath deployment, etc.).
+        if "/analyse/appels/apprenant/" in path or "/analyse/appels/formateur/" in path:
+            return self.get_response(request)
+
         if path in ("/", login_path) or any(path.startswith(p) for p in exempt_prefixes if p):
             return self.get_response(request)
 
