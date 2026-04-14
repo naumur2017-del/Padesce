@@ -1178,10 +1178,17 @@ def _consultant_formateurs_dashboard_context(request):
     completed_qs = stats_qs.filter(
         status__in=["formulaire_rempli", "formulaire_avec_audio", "termine", "appel_reussi"]
     )
-    card_formations = completed_qs.values_list("formation", flat=True).distinct().count()
-    card_cohortes = completed_qs.values_list("cohorte", flat=True).distinct().count()
-    card_prestataires = completed_qs.values_list("prestataire", flat=True).distinct().count()
-    card_beneficiaires = completed_qs.values_list("beneficiaire", flat=True).distinct().count()
+    # Use aggregate with distinct=True instead of values_list().distinct().count()
+    card_counts = completed_qs.aggregate(
+        card_formations=Count('formation', distinct=True),
+        card_cohortes=Count('cohorte', distinct=True),
+        card_prestataires=Count('prestataire', distinct=True),
+        card_beneficiaires=Count('beneficiaire', distinct=True),
+    )
+    card_formations = card_counts['card_formations']
+    card_cohortes = card_counts['card_cohortes']
+    card_prestataires = card_counts['card_prestataires']
+    card_beneficiaires = card_counts['card_beneficiaires']
 
     # Prioritize rows with form AND audio
     from datetime import date
