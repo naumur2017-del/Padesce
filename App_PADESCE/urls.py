@@ -166,6 +166,11 @@ app_urlpatterns = [
         name="deployment_live_status",
     ),
     path(
+        "deploiement/live/",
+        lazy_view("App_PADESCE.core.deployment_views.deployment_live_status"),
+        name="deployment_live",
+    ),
+    path(
         "deploiement/config/save/",
         lazy_view("App_PADESCE.core.deployment_views.deployment_config_save"),
         name="deployment_config_save",
