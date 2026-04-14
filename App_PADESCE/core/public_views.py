@@ -199,10 +199,6 @@ def _build_formateur_principal(request) -> dict:
     summary_form_audio = 0
     summary_audios_total = 0
 
-    # Satisfaction Q3
-    q3_sum = 0
-    q3_count = 0
-
     success_statuses = ["formulaire_rempli", "formulaire_avec_audio", "termine", "appel_reussi"]
 
     for row in all_rows:
@@ -242,11 +238,6 @@ def _build_formateur_principal(request) -> dict:
         has_audio = formateur_has_any_audio(row)
         row.public_has_form = has_form
         row.public_has_audio = has_audio
-
-        # Q3 satisfaction
-        if row.q3_competences_acquises is not None:
-            q3_sum += row.q3_competences_acquises
-            q3_count += 1
 
         row.public_search_blob = " ".join(
             [
@@ -327,7 +318,22 @@ def _build_formateur_principal(request) -> dict:
         {"value": "termine", "label": "Termine"},
     ]
 
-    avg_q3 = round(q3_sum / q3_count, 1) if q3_count else 0
+    def _mean_score(rows, field_name):
+        values = []
+        for item in rows:
+            raw_value = getattr(item, field_name, None)
+            if raw_value is None:
+                continue
+            try:
+                values.append(float(raw_value))
+            except (TypeError, ValueError):
+                continue
+        return round(sum(values) / len(values), 1) if values else 0
+
+    avg_q1 = _mean_score(all_rows, "q1_prerequis_apprenants")
+    avg_q2 = _mean_score(all_rows, "q2_interaction_apprenants")
+    avg_q3 = _mean_score(all_rows, "q3_competences_acquises")
+    avg_general = round((avg_q1 + avg_q2 + avg_q3) / 3, 1)
 
     return {
         "rows": page_obj.object_list,
@@ -345,7 +351,10 @@ def _build_formateur_principal(request) -> dict:
         "summary_form_sans_audio": fmt(max(summary_form_remplis - summary_form_audio, 0)),
         "summary_form_audio": fmt(summary_form_audio),
         "summary_audios": fmt(summary_audios_total),
+        "summary_moyenne_prerequis": avg_q1,
+        "summary_moyenne_interaction": avg_q2,
         "summary_moyenne_competences": avg_q3,
+        "summary_moyenne_generale": avg_general,
     }
 
 
