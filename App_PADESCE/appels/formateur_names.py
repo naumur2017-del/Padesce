@@ -58,7 +58,12 @@ def _load_phone_to_name(_token: tuple[str, float]) -> dict[str, str]:
     if not path.exists() or load_workbook is None:
         return {}
 
-    wb = load_workbook(path, read_only=True, data_only=True)
+    try:
+        wb = load_workbook(path, read_only=True, data_only=True)
+    except Exception:
+        # Never break public pages if the workbook is missing/corrupted
+        # (e.g. LFS pointer, partial deploy, unsupported file).
+        return {}
     try:
         ws = wb[FORMATEUR_DATA_SHEET] if FORMATEUR_DATA_SHEET in wb.sheetnames else wb.active
         rows = ws.iter_rows(min_row=1, max_row=1, values_only=True)
@@ -73,20 +78,23 @@ def _load_phone_to_name(_token: tuple[str, float]) -> dict[str, str]:
         phone_index = _find_header_index(header_map, FORMATEUR_PHONE_COLUMN, 42)  # AQ
 
         phone_to_name: dict[str, str] = {}
-        for row in ws.iter_rows(min_row=2, values_only=True):
-            if not row:
-                continue
-            raw_name = row[name_index] if name_index < len(row) else ""
-            raw_phone = row[phone_index] if phone_index < len(row) else ""
-            name = str(raw_name or "").strip()
-            if not name:
-                continue
-            for phone in _extract_phone_numbers(str(raw_phone or "")):
-                normalized = _normalize_phone(phone)
-                if len(normalized) < 8:
+        try:
+            for row in ws.iter_rows(min_row=2, values_only=True):
+                if not row:
                     continue
-                phone_to_name.setdefault(normalized, name)
-        return phone_to_name
+                raw_name = row[name_index] if name_index < len(row) else ""
+                raw_phone = row[phone_index] if phone_index < len(row) else ""
+                name = str(raw_name or "").strip()
+                if not name:
+                    continue
+                for phone in _extract_phone_numbers(str(raw_phone or "")):
+                    normalized = _normalize_phone(phone)
+                    if len(normalized) < 8:
+                        continue
+                    phone_to_name.setdefault(normalized, name)
+            return phone_to_name
+        except Exception:
+            return {}
     finally:
         wb.close()
 
