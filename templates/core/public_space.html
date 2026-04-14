@@ -668,6 +668,7 @@
       <table>
         <thead>
           <tr>
+            <th>Nom</th>
             <th>Classe</th>
             <th>Prestation ID</th>
             <th>Prestataire</th>
@@ -683,6 +684,7 @@
         <tbody>
           {% for row in principal.rows %}
             <tr class="js-public-row" data-href="{% url 'analysis_formateur_call_detail' row.id %}?back={{ request.get_full_path|urlencode }}">
+              <td>{{ row.public_formateur_nom|default:"-" }}</td>
               <td>
                 {% if row.public_classe_url %}
                   <a href="{{ row.public_classe_url }}">{{ row.public_classe_code }}</a>
@@ -709,7 +711,7 @@
               <td>{% if row.public_has_audio %}Oui{% else %}Non{% endif %}</td>
             </tr>
           {% empty %}
-            <tr><td colspan="11" class="muted">Aucun appel formateur à afficher.</td></tr>
+            <tr><td colspan="12" class="muted">Aucun appel formateur à afficher.</td></tr>
           {% endfor %}
         </tbody>
       </table>

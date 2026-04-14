@@ -9,6 +9,7 @@ from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
 from django.shortcuts import render
 from django.urls import reverse
 
+from App_PADESCE.appels.formateur_names import resolve_formateur_name_from_values
 from App_PADESCE.appels.formateurs_views import (
     _build_filtered_formateurs_queryset,
 )
@@ -302,6 +303,13 @@ def _build_formateur_principal(request) -> dict:
             if prestation_code
             else ""
         )
+        row.public_formateur_nom = (
+            resolve_formateur_name_from_values(
+                getattr(row, "telephone", ""),
+                getattr(row, "source_contact", ""),
+            )
+            or "-"
+        )
 
         # Calculate Metrics and Card counts
         has_form = formateur_has_any_form_data(row)
@@ -314,6 +322,7 @@ def _build_formateur_principal(request) -> dict:
                 str(row.source_contact or ""),
                 str(row.reference_code or ""),
                 str(row.telephone or ""),
+                str(row.public_formateur_nom or ""),
                 str(row.formation or ""),
                 str(row.prestataire or ""),
                 str(row.beneficiaire or ""),

@@ -22,6 +22,7 @@ from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.utils import timezone
 
+from App_PADESCE.appels.formateur_names import resolve_formateur_name_from_values
 from App_PADESCE.appels.models import (
     CALL_ANALYSIS_THRESHOLD_STATUSES,
     FORMATEUR_SCORE_FIELDS,
@@ -2326,6 +2327,13 @@ def formateurs_prestataires_management(request):
     for form in formateurs:
         phone_key = _normalize_phone(str(getattr(form, "telephone", "") or ""))
         insight = phone_insights.get(phone_key)
+        resolved_formateur_name = resolve_formateur_name_from_values(
+            str(getattr(form, "telephone", "") or ""),
+            str(getattr(form, "nom_complet", "") or ""),
+        )
+        fallback_name = str(getattr(form, "nom_complet", "") or "").strip()
+        form.display_nom = resolved_formateur_name or fallback_name or "-"
+        form.nom_rempli = bool(resolved_formateur_name)
         if insight:
             top_prestataires = sorted(insight["prest"].items(), key=lambda kv: (-kv[1], kv[0]))
             top_beneficiaires = sorted(insight["benef"].items(), key=lambda kv: (-kv[1], kv[0]))
