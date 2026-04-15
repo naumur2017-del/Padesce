@@ -29,6 +29,7 @@ from App_PADESCE.appels.models import (
     AppelImportArchive,
     appel_answers_completed_q,
     appel_answers_modified_completion_q,
+    derive_padesce_status,
     padesce_form_tracking_cutoff,
 )
 from App_PADESCE.apprenants.models import Apprenant
@@ -1550,14 +1551,14 @@ def appel_action(request, pk: int):
             update_fields.append(flag_name)
 
     appel.save(update_fields=update_fields)
-    
+
     # Recalculer automatiquement le statut selon la nouvelle logique
     # pour les futures actions (audio, formulaire, etc.)
     new_status = derive_padesce_status(appel)
     if new_status != appel.status:
         appel.status = new_status
         appel.save(update_fields=["status", "updated_at"])
-    
+
     # Progress info for the UI
     class_info = None
     if appel.classe_label:
