@@ -1022,7 +1022,9 @@
                 if (items.length) {
                   html += "<table style='width:100%;margin-top:8px;border-collapse:collapse'>";
                   items.forEach((item) => {
-                    html += "<tr><td style='padding:4px 0'><strong>" + item.code + "</strong></td><td style='padding:4px 0;text-align:right'>" + Number(item.score || 0).toFixed(1) + "</td></tr>";
+                    // Convertir le score de l'échelle 100 à l'échelle 5
+                    const scoreOn5 = (Number(item.score || 0) / 100) * 5;
+                    html += "<tr><td style='padding:4px 0'><strong>" + item.code + "</strong></td><td style='padding:4px 0;text-align:right'>" + scoreOn5.toFixed(1) + "</td></tr>";
                   });
                   html += "</table>";
                 } else {
