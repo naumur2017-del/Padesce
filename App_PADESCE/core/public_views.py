@@ -569,14 +569,16 @@ def _build_formateur_stats(request) -> dict:
     ctx = _build_satisfaction_formateurs_dashboard_context(request)
     resolution_cache: dict[tuple, object] = {}
     grouped: dict[str, dict] = {}
-    
+
     # Build prestation mapping for better resolution
     from django.db import connection
+
     prestation_mapping = {}
-    
+
     with connection.cursor() as cursor:
         cursor.execute("""
-            SELECT p.code, p.id, pr.raison_sociale as prestataire_nom, b.nom_structure as beneficiaire_nom, f.nom as formation_nom
+            SELECT p.code, p.id, pr.raison_sociale as prestataire_nom, 
+                   b.nom_structure as beneficiaire_nom, f.nom as formation_nom
             FROM formations_prestation p
             LEFT JOIN formations_prestataire pr ON p.prestataire_id = pr.id
             LEFT JOIN formations_beneficiaire b ON p.beneficiaire_id = b.id  
@@ -584,14 +586,14 @@ def _build_formateur_stats(request) -> dict:
             WHERE p.actif = 1
         """)
         prestations_info = cursor.fetchall()
-        
+
         # Create mapping dictionary
         for code, id, prestataire_nom, beneficiaire_nom, formation_nom in prestations_info:
             prestation_mapping[code] = {
-                'id': id,
-                'prestataire_nom': str(prestataire_nom or "").strip().lower(),
-                'beneficiaire_nom': str(beneficiaire_nom or "").strip().lower(),
-                'formation_nom': str(formation_nom or "").strip().lower()
+                "id": id,
+                "prestataire_nom": str(prestataire_nom or "").strip().lower(),
+                "beneficiaire_nom": str(beneficiaire_nom or "").strip().lower(),
+                "formation_nom": str(formation_nom or "").strip().lower(),
             }
 
     def find_best_prestation_match(prestataire_val, beneficiaire_val, formation_val):
@@ -599,54 +601,83 @@ def _build_formateur_stats(request) -> dict:
         prestataire_clean = str(prestataire_val or "").strip().lower()
         beneficiaire_clean = str(beneficiaire_val or "").strip().lower()
         formation_clean = str(formation_val or "").strip().lower()
-        
+
         best_match = None
         best_score = 0
-        
+
         for code, info in prestation_mapping.items():
             score = 0
-            
+
             # Compare prestataires (plus flexible)
-            if prestataire_clean and info['prestataire_nom']:
-                if prestataire_clean == info['prestataire_nom']:
+            if prestataire_clean and info["prestataire_nom"]:
+                if prestataire_clean == info["prestataire_nom"]:
                     score += 5
-                elif prestataire_clean in info['prestataire_nom'] or info['prestataire_nom'] in prestataire_clean:
+                elif (
+                    prestataire_clean in info["prestataire_nom"]
+                    or info["prestataire_nom"] in prestataire_clean
+                ):
                     score += 3
                 # Correspondance par mots-clés
-                elif any(word in info['prestataire_nom'] for word in prestataire_clean.split() if len(word) > 2):
+                elif any(
+                    word in info["prestataire_nom"]
+                    for word in prestataire_clean.split()
+                    if len(word) > 2
+                ):
                     score += 2
-                elif any(word in prestataire_clean for word in info['prestataire_nom'].split() if len(word) > 2):
+                elif any(
+                    word in prestataire_clean
+                    for word in info["prestataire_nom"].split()
+                    if len(word) > 2
+                ):
                     score += 2
-            
+
             # Compare bénéficiaires
-            if beneficiaire_clean and info['beneficiaire_nom']:
-                if beneficiaire_clean == info['beneficiaire_nom']:
+            if beneficiaire_clean and info["beneficiaire_nom"]:
+                if beneficiaire_clean == info["beneficiaire_nom"]:
                     score += 3
-                elif beneficiaire_clean in info['beneficiaire_nom'] or info['beneficiaire_nom'] in beneficiaire_clean:
+                elif (
+                    beneficiaire_clean in info["beneficiaire_nom"]
+                    or info["beneficiaire_nom"] in beneficiaire_clean
+                ):
                     score += 2
-                elif any(word in info['beneficiaire_nom'] for word in beneficiaire_clean.split() if len(word) > 2):
+                elif any(
+                    word in info["beneficiaire_nom"]
+                    for word in beneficiaire_clean.split()
+                    if len(word) > 2
+                ):
                     score += 1
-            
+
             # Compare formations (plus de poids pour les noms de formations)
-            if formation_clean and info['formation_nom']:
-                if formation_clean == info['formation_nom']:
+            if formation_clean and info["formation_nom"]:
+                if formation_clean == info["formation_nom"]:
                     score += 4  # Augmenté de 1 à 4
-                elif formation_clean in info['formation_nom'] or info['formation_nom'] in formation_clean:
+                elif (
+                    formation_clean in info["formation_nom"]
+                    or info["formation_nom"] in formation_clean
+                ):
                     score += 2  # Augmenté de 0.5 à 2
                 # Correspondance par mots-clés dans les formations
-                elif any(word in info['formation_nom'] for word in formation_clean.split() if len(word) > 2):
+                elif any(
+                    word in info["formation_nom"]
+                    for word in formation_clean.split()
+                    if len(word) > 2
+                ):
                     score += 1
-                elif any(word in formation_clean for word in info['formation_nom'].split() if len(word) > 2):
+                elif any(
+                    word in formation_clean
+                    for word in info["formation_nom"].split()
+                    if len(word) > 2
+                ):
                     score += 1
-            
+
             # Bonus si le code commence par PRESTA (priorité aux vraies prestations)
-            if code.startswith('PRESTA') and score > 0:
+            if code.startswith("PRESTA") and score > 0:
                 score += 1
-            
+
             if score > best_score and score >= 2:  # Minimum score of 2 required
                 best_score = score
                 best_match = code
-        
+
         return best_match
 
     for record in ctx.get("all_rows", []):
@@ -654,23 +685,24 @@ def _build_formateur_stats(request) -> dict:
         classe = _resolve_formateur_classe(record, resolution_cache)
         prestation = getattr(classe, "prestation", None)
         code = str(getattr(prestation, "code", "") or "").strip()
-        
+
         # If no prestation found, try to find the best match using our mapping
         if not code:
             prestataire_val = _formateur_record_value(record, "prestataire") or "-"
             beneficiaire_val = _formateur_record_value(record, "beneficiaire") or "-"
             formation_val = _formateur_record_value(record, "formation") or "-"
-            
+
             # Try to find a real prestation match first
             code = find_best_prestation_match(prestataire_val, beneficiaire_val, formation_val)
-            
+
             # If still no match, create a synthetic key
             if not code:
                 import re
+
                 def safe_string(s, max_len=10):
-                    safe = re.sub(r'[^a-zA-Z0-9]', '', str(s))
+                    safe = re.sub(r"[^a-zA-Z0-9]", "", str(s))
                     return safe[:max_len] if safe else f"ID{getattr(record, 'id', 'UNK')}"
-                
+
                 if prestataire_val != "-" and beneficiaire_val != "-":
                     code = f"{safe_string(prestataire_val)}-{safe_string(beneficiaire_val)}"
                 elif formation_val != "-":
@@ -679,11 +711,9 @@ def _build_formateur_stats(request) -> dict:
                     code = f"FORMATEUR-{getattr(record, 'id', 'UNKNOWN')}"
 
         # Group by code to show all prestations individually
-        group_key = code
-
         prestataire = _formateur_record_value(record, "prestataire") or "-"
         beneficiaire = _formateur_record_value(record, "beneficiaire") or "-"
-        group_key = (code, prestataire, beneficiaire)
+        group_key = code
 
         bucket = grouped.setdefault(
             group_key,
