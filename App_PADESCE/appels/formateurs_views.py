@@ -19,14 +19,13 @@ from django.utils import timezone
 from django.utils.text import slugify
 from django.views.decorators.http import require_POST
 
-from App_PADESCE.appels.models import _short_slug
-
 from App_PADESCE.appels.formateur_names import resolve_formateur_db_name_from_values
 from App_PADESCE.appels.models import (
     CALL_COMPLETED_STATUSES,
     CALL_FORM_STATUSES,
     CALL_SUCCESS_STATUSES,
     AppelFormateur,
+    _short_slug,
     sync_formateur_status,
 )
 from App_PADESCE.appels.views import (
@@ -904,7 +903,8 @@ def formateurs_index(request):
             if raw_count == 0:
                 messages.warning(
                     request,
-                    "Aucun numero de telephone n'a ete pris dans les fichiers importes. Verifiez la colonne CONTACT DU FORMATEUR.",
+                    "Aucun numero de telephone n'a ete pris dans les fichiers importes. "
+                    "Verifiez la colonne CONTACT DU FORMATEUR.",
                 )
         except Exception as exc:
             messages.error(request, f"Impossible de lire la feuille Calendrier : {exc}")
@@ -995,7 +995,8 @@ def formateur_action(request, pk: int):
             return JsonResponse(
                 {
                     "ok": False,
-                    "error": "Renseignez d'abord Q1, Q2 et Q3 via Demarrer ou en cliquant sur la ligne du formateur.",
+                    "error": "Renseignez d'abord Q1, Q2 et Q3 via Demarrer ou en cliquant "
+                    "sur la ligne du formateur.",
                 },
                 status=400,
             )
