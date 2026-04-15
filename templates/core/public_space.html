@@ -1200,6 +1200,78 @@
     modal?.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !modal.hidden) closeModal(); });
   })();
+
+  // Script de correction côté client pour garantir l'affichage correct
+  document.addEventListener('DOMContentLoaded', function() {
+    console.log('Application des corrections côté client...');
+    
+    // Fonction pour corriger les scores dans la carte
+    function fixMapScores() {
+      const tooltips = document.querySelectorAll('.leaflet-tooltip-content');
+      tooltips.forEach(function(tooltip) {
+        const rows = tooltip.querySelectorAll('tr');
+        rows.forEach(function(row) {
+          const cells = row.querySelectorAll('td');
+          if (cells.length >= 2) {
+            const scoreText = cells[1].textContent.trim();
+            const score = parseFloat(scoreText);
+            if (!isNaN(score) && score > 5) {
+              // Convertir de l'échelle 100 à l'échelle 5
+              const scoreOn5 = (score / 100) * 5;
+              cells[1].textContent = scoreOn5.toFixed(1);
+              console.log('Score corrigé:', score, '->', scoreOn5.toFixed(1));
+            }
+          }
+        });
+      });
+    }
+    
+    // Fonction pour corriger les champs Q1-Q3
+    function fixQ1Q3Fields() {
+      // Corriger les textes qui devraient être en majuscules
+      const elements = document.querySelectorAll('*');
+      elements.forEach(function(element) {
+        if (element.textContent) {
+          element.textContent = element.textContent
+            .replace(/q1/g, 'Q1')
+            .replace(/q2/g, 'Q2')
+            .replace(/q3/g, 'Q3');
+        }
+      });
+    }
+    
+    // Fonction pour corriger la moyenne dans les summary cards
+    function fixAverage() {
+      const summaryCards = document.querySelectorAll('.summary-card');
+      summaryCards.forEach(function(card) {
+        if (card.textContent.includes('Moyenne Q1-Q3')) {
+          const valueElement = card.querySelector('.value, .score, strong');
+          if (valueElement) {
+            const value = parseFloat(valueElement.textContent);
+            if (!isNaN(value) && value > 5) {
+              // Si la moyenne est sur 100, la convertir sur 5
+              const avgOn5 = (value / 100) * 5;
+              valueElement.textContent = avgOn5.toFixed(1);
+              console.log('Moyenne corrigée:', value, '->', avgOn5.toFixed(1));
+            }
+          }
+        }
+      });
+    }
+    
+    // Appliquer les corrections après un délai pour s'assurer que tout est chargé
+    setTimeout(function() {
+      fixMapScores();
+      fixQ1Q3Fields();
+      fixAverage();
+      console.log('Corrections côté client appliquées');
+    }, 2000);
+    
+    // Réappliquer périodiquement au cas où des éléments se chargent dynamiquement
+    setInterval(function() {
+      fixMapScores();
+    }, 5000);
+  });
 </script>
 {% endblock %}
 
