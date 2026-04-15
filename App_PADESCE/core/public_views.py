@@ -568,7 +568,7 @@ def _build_formateur_overview(request) -> dict:
 def _build_formateur_stats(request) -> dict:
     ctx = _build_satisfaction_formateurs_dashboard_context(request)
     resolution_cache: dict[tuple, object] = {}
-    grouped: dict[str, dict] = {}
+    grouped: dict[tuple, dict] = {}
 
     for record in ctx.get("all_rows", []):
         classe = _resolve_formateur_classe(record, resolution_cache)
@@ -577,12 +577,16 @@ def _build_formateur_stats(request) -> dict:
         if not code:
             continue
 
+        prestataire = _formateur_record_value(record, "prestataire") or "-"
+        beneficiaire = _formateur_record_value(record, "beneficiaire") or "-"
+        group_key = (code, prestataire, beneficiaire)
+
         bucket = grouped.setdefault(
-            code,
+            group_key,
             {
                 "code": code,
-                "prestataire": _formateur_record_value(record, "prestataire") or "-",
-                "beneficiaire": _formateur_record_value(record, "beneficiaire") or "-",
+                "prestataire": prestataire,
+                "beneficiaire": beneficiaire,
                 "effectif": 0,
                 "nb": 0,
                 "scores": {field_name: [] for field_name in FORMATEUR_SCORE_FIELDS},
