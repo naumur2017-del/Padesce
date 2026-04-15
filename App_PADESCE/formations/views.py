@@ -991,19 +991,41 @@ def class_detail(request, pk: int):
         apprenant.apprenant_id = get_local_apprenant_identifier(apprenant)
         apprenant.apprenant_db_label = get_local_apprenant_db_label(apprenant)
     channel_link = ""
+    # Try JSON index first (faster/more robust), then fallback to Excel workbook
     try:
-        import pandas as pd
+        import json
 
-        excel_path = _class_channel_workbook_path()
-        df = pd.read_excel(excel_path)
-        for _, row in df.iterrows():
-            if str(row.iloc[1]).strip() == str(classe.code).strip():
-                link = str(row.iloc[0]).strip()
-                if link and link.startswith("http"):
-                    channel_link = link
-                break
+        json_path = Path(settings.BASE_DIR) / "data" / "teams_channel_links.json"
+        if json_path.exists():
+            with open(json_path, "r", encoding="utf-8") as fh:
+                data = json.load(fh)
+            classes_idx = data.get("classes", {}) or {}
+            key = str(classe.code or "").strip().lower()
+            entry = classes_idx.get(key) or classes_idx.get(key.lower())
+            if entry:
+                link = entry.get("teams_channel_url") or ""
+                if not link and entry.get("teams_channels"):
+                    first = entry.get("teams_channels")[0]
+                    link = first.get("channel_url") if isinstance(first, dict) else ""
+                if link and str(link).startswith("http"):
+                    channel_link = str(link)
     except Exception:
-        logger.exception("Unable to read class channel workbook: %s", _class_channel_workbook_path())
+        logger.exception("Unable to read teams_channel_links.json")
+
+    if not channel_link:
+        try:
+            import pandas as pd
+
+            excel_path = _class_channel_workbook_path()
+            df = pd.read_excel(excel_path)
+            for _, row in df.iterrows():
+                if str(row.iloc[1]).strip() == str(classe.code).strip():
+                    link = str(row.iloc[0]).strip()
+                    if link and link.startswith("http"):
+                        channel_link = link
+                    break
+        except Exception:
+            logger.exception("Unable to read class channel workbook: %s", _class_channel_workbook_path())
 
     return render(
         request,
@@ -1231,20 +1253,41 @@ def class_analysis_detail(request, code: str):
             if str(row.iloc[1]).strip() == str(code).strip():
                 link = str(row.iloc[0]).strip()
                 if link and link.startswith("http"):
-                    channel_link = link
-                break
-    except Exception:
-        logger.exception(
-            "Unable to read class channel workbook: %s", _class_channel_workbook_path()
-        )
+                    channel_link = ""
+                    try:
+                        import json
 
-    return render(
-        request,
-        "formations/analysis_entity_detail.html",
-        {
-            "entity_type": "classe",
-            "entity_title": classe.code,
-            "entity_subtitle": classe.intitule_formation,
+                        json_path = Path(settings.BASE_DIR) / "data" / "teams_channel_links.json"
+                        if json_path.exists():
+                            with open(json_path, "r", encoding="utf-8") as fh:
+                                data = json.load(fh)
+                            classes_idx = data.get("classes", {}) or {}
+                            key = str(classe.code or "").strip().lower()
+                            entry = classes_idx.get(key) or classes_idx.get(key.lower())
+                            if entry:
+                                link = entry.get("teams_channel_url") or ""
+                                if not link and entry.get("teams_channels"):
+                                    first = entry.get("teams_channels")[0]
+                                    link = first.get("channel_url") if isinstance(first, dict) else ""
+                                if link and str(link).startswith("http"):
+                                    channel_link = str(link)
+                    except Exception:
+                        logger.exception("Unable to read teams_channel_links.json")
+
+                    if not channel_link:
+                        try:
+                            import pandas as pd
+
+                            excel_path = _class_channel_workbook_path()
+                            df = pd.read_excel(excel_path)
+                            for _, row in df.iterrows():
+                                if str(row.iloc[1]).strip() == str(classe.code).strip():
+                                    link = str(row.iloc[0]).strip()
+                                    if link and link.startswith("http"):
+                                        channel_link = link
+                                    break
+                        except Exception:
+                            logger.exception("Unable to read class channel workbook: %s", _class_channel_workbook_path())
             "entity": classe,
             "classe": classe,
             "prestation": classe.prestation,
