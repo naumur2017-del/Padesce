@@ -1498,16 +1498,22 @@ def appel_action(request, pk: int):
     satisfaction_message = ""  # noqa: F841
 
     if action == "start":
-        appel.status = "appel_tente"
+        # Démarrer l'appel = mettre en cours pour permettre transition
+        appel.status = "en_cours"
         appel.locked_by = request.user
         appel.locked_at = now
     elif action == "pause":
+        # Mettre en pause l'appel = statut tenté
         appel.status = "appel_tente"
+        appel.locked_by = None
+        appel.locked_at = None
     elif action == "resume":
-        appel.status = "appel_tente"
+        # Reprendre l'appel = revenir en cours
+        appel.status = "en_cours"
         appel.locked_by = request.user
         appel.locked_at = now
     elif action == "rappeler":
+        # Marquer pour rappel ultérieur
         appel.status = "a_rappeler"
         appel.locked_by = request.user
         appel.locked_at = now
@@ -1518,6 +1524,7 @@ def appel_action(request, pk: int):
             except (ValueError, TypeError):
                 appel.rappel_at = None
     elif action == "terminer":
+        # Terminer manuellement l'appel
         appel.status = "termine"
     else:
         return JsonResponse({"ok": False, "error": "Action inconnue."}, status=400)
@@ -1543,6 +1550,14 @@ def appel_action(request, pk: int):
             update_fields.append(flag_name)
 
     appel.save(update_fields=update_fields)
+    
+    # Recalculer automatiquement le statut selon la nouvelle logique
+    # pour les futures actions (audio, formulaire, etc.)
+    new_status = derive_padesce_status(appel)
+    if new_status != appel.status:
+        appel.status = new_status
+        appel.save(update_fields=["status", "updated_at"])
+    
     # Progress info for the UI
     class_info = None
     if appel.classe_label:
