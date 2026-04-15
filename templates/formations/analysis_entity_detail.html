@@ -197,6 +197,9 @@
     display: grid;
     gap: 14px;
   }
+  .presence-stats-table {
+    display: none;
+  }
   table {
     width: 100%;
     border-collapse: collapse;
@@ -522,60 +525,16 @@
   <section class="panel tab-panel{% if active_tab == 'apprenants' %} active{% endif %}" data-panel="apprenants-chapeau">
     <div class="panel-head">
       <div>
-        <strong>Chapeau de satisfaction</strong>
-        <div class="row-meta">{{ class_chapeau.title }}</div>
+        <strong>Chapeau des enquetes de satisfaction</strong>
+        <div class="row-meta">Enquete de satisfaction : {{ entity_title }}</div>
       </div>
       <span class="badge{% if class_chapeau.has_data %} badge-ok{% else %} badge-wait{% endif %}">
         {{ class_chapeau.formulaires_remplis }} formulaire(s) rempli(s)
       </span>
     </div>
-    <div class="stack">
-      {% if entity_type == "classe" and class_chapeau.presence_rows %}
-        <div>
-          <div class="presence-summary-grid">
-            <article class="presence-summary-card">
-              <div class="label">Total des participants a la formation</div>
-              <div class="value">{{ summary.apprenants_total|default:0 }}</div>
-            </article>
-            <article class="presence-summary-card">
-              <div class="label">Taux de personne forme</div>
-              <div class="value">{{ class_chapeau.person_formed_rate|floatformat:2 }}%</div>
-            </article>
-            <article class="presence-summary-card">
-              <div class="label">Taux de participation</div>
-              <div class="value">{{ class_chapeau.participation_rate|floatformat:2 }}%</div>
-            </article>
-            <article class="presence-summary-card">
-              <div class="label">Taux de presence globale</div>
-              <div class="value">{{ class_chapeau.presence_taux_avg|floatformat:2 }}%</div>
-            </article>
-          </div>
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Controle</th>
-                  <th>Presents</th>
-                  <th>Absents</th>
-                  <th>Taux de presence</th>
-                </tr>
-              </thead>
-              <tbody>
-                {% for item in class_chapeau.presence_rows %}
-                  <tr>
-                    <td>{{ item.label }}</td>
-                    <td>{{ item.pr_count }}</td>
-                    <td>{{ item.ab_count }}</td>
-                    <td>{{ item.pr_rate|floatformat:2 }}%</td>
-                  </tr>
-                {% endfor %}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      {% endif %}
-      <div class="table-wrap">
-        <table>
+      <div class="stack">
+        <div class="table-wrap">
+          <table>
           <thead>
             <tr>
               <th>Question</th>
@@ -594,6 +553,44 @@
       </div>
     </div>
   </section>
+  {% if entity_type == "classe" and class_chapeau.presence_rows %}
+    <section class="panel tab-panel{% if active_tab == 'apprenants' %} active{% endif %}" data-panel="apprenants-presence">
+      <div class="panel-head">
+        <div>
+          <strong>Chapeau de controle de presence</strong>
+          <div class="row-meta">Enquete de satisfaction : {{ entity_title }}</div>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Indicateur</th>
+              <th>Valeur</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Total des participants a la formation</td>
+              <td>{{ summary.apprenants_total|default:0 }}</td>
+            </tr>
+            <tr>
+              <td>Taux de personne forme</td>
+              <td>{{ summary.person_formed_rate|default:0|floatformat:2 }}%</td>
+            </tr>
+            <tr>
+              <td>Taux de participation</td>
+              <td>{{ summary.participation_rate|default:0|floatformat:2 }}%</td>
+            </tr>
+            <tr>
+              <td>Taux de presence globale</td>
+              <td>{{ summary.presence_taux_avg|default:0|floatformat:2 }}%</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  {% endif %}
   <section class="panel tab-panel{% if active_tab == 'formateurs' %} active{% endif %}" data-panel="formateurs-chapeau">
     <div class="panel-head">
       <div>
