@@ -14,11 +14,17 @@ class Migration(migrations.Migration):
         migrations.AlterField(
             model_name='appel',
             name='audio_file',
-            field=models.FileField(blank=True, max_length=255, null=True, upload_to=App_PADESCE.appels.models.appel_audio_upload),
+            field=models.FileField(
+                blank=True, max_length=255, null=True, 
+                upload_to=App_PADESCE.appels.models.appel_audio_upload
+            ),
         ),
         migrations.AlterField(
             model_name='appelcga',
             name='audio_file',
-            field=models.FileField(blank=True, max_length=255, null=True, upload_to=App_PADESCE.appels.models.appel_cga_audio_upload),
+            field=models.FileField(
+                blank=True, max_length=255, null=True, 
+                upload_to=App_PADESCE.appels.models.appel_cga_audio_upload
+            ),
         ),
     ]

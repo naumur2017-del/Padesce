@@ -560,7 +560,9 @@ def should_ignore(
         return False
     parts = normalized.split("/")
     name = parts[-1]
-    ignored_dir_names = IGNORE_DIR_NAMES - {"staticfiles"} if allow_staticfiles else IGNORE_DIR_NAMES
+    ignored_dir_names = (
+        IGNORE_DIR_NAMES - {"staticfiles"} if allow_staticfiles else IGNORE_DIR_NAMES
+    )
     if any(part in ignored_dir_names for part in parts[:-1]):
         return True
     if name in IGNORE_FILE_NAMES:

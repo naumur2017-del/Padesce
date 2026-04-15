@@ -56,7 +56,7 @@ def visualize_graph(output_png: str = "graph_schema.png", show: bool = True) -> 
                 "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 16
             )
             font_small = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 9)
-        except:
+        except Exception:
             font = font_bold = font_title = font_small = ImageFont.load_default()
 
         # Titre principal

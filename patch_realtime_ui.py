@@ -1,10 +1,13 @@
-PATH = r"F:\NAUMUR\NAUMUR - TRAVAUX EN COURS\Utlisateurs\EYOUM ATOCK\CALL APP\App_PADESCE-main\App_PADESCE-main\templates\appels\index.html"
+PATH = (
+    r"F:\NAUMUR\NAUMUR - TRAVAUX EN COURS\Utlisateurs\EYOUM ATOCK\CALL APP"
+    r"\App_PADESCE-main\App_PADESCE-main\templates\appels\index.html"
+)
 
 with open(PATH, "r", encoding="utf-8") as f:
     content = f.read()
 
-# We need to find the updateRow function or the logic that handles the response from stop recording/termination
-# and add the logic to update class badges at the top.
+# We need to find the updateRow function or the logic that handles the response
+# from stop recording/termination and add the logic to update class badges at the top.
 
 # First, let's identify where the badges are in the HTML
 # <div class="badge status-badge badge-success">Objectif Atteint ✅</div>
@@ -22,9 +25,15 @@ JS_UPDATE_LOGIC = """
                 const badgeContainer = card.querySelector('.mt-2');
                 if (badgeContainer) {
                     if (info.reached) {
-                        badgeContainer.innerHTML = '<div class="badge status-badge badge-success">Objectif Atteint ✅</div>';
+                        badgeContainer.innerHTML = (
+                            '<div class="badge status-badge badge-success">'
+                            'Objectif Atteint ✅</div>'
+                        );
                     } else {
-                        badgeContainer.innerHTML = `<div class="badge status-badge badge-warning">${info.termines} / ${info.total} (${info.pct}%)</div>`;
+                        badgeContainer.innerHTML = (
+                            `<div class="badge status-badge badge-warning">`
+                            `${info.termines} / ${info.total} (${info.pct}%)</div>`
+                        );
                     }
                 }
             }

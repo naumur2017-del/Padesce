@@ -14,19 +14,36 @@ class Migration(migrations.Migration):
         migrations.CreateModel(
             name='AppelAnswers',
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('id', models.BigAutoField(
+                    auto_created=True, primary_key=True, serialize=False, verbose_name='ID'
+                )),
                 ('created_at', models.DateTimeField(auto_now_add=True)),
                 ('updated_at', models.DateTimeField(auto_now=True)),
                 ('q1_clarte_exposes', models.PositiveSmallIntegerField(blank=True, null=True)),
-                ('q2_interaction_formateur', models.PositiveSmallIntegerField(blank=True, null=True)),
+                ('q2_interaction_formateur', models.PositiveSmallIntegerField(
+                    blank=True, null=True
+                )),
                 ('q3_rythme_formation', models.PositiveSmallIntegerField(blank=True, null=True)),
                 ('q4_qualite_supports', models.PositiveSmallIntegerField(blank=True, null=True)),
-                ('q5_applicabilite_contenu', models.PositiveSmallIntegerField(blank=True, null=True)),
-                ('q6_organisation_logistique', models.PositiveSmallIntegerField(blank=True, null=True)),
-                ('q7_respect_programme', models.PositiveSmallIntegerField(blank=True, null=True)),
-                ('q8_adequation_besoins', models.PositiveSmallIntegerField(blank=True, null=True)),
-                ('q9_satisfaction_globale', models.PositiveSmallIntegerField(blank=True, null=True)),
-                ('appel', models.OneToOneField(on_delete=django.db.models.deletion.CASCADE, related_name='answers', to='appels.appel')),
+                ('q5_applicabilite_contenu', models.PositiveSmallIntegerField(
+                    blank=True, null=True
+                )),
+                ('q6_organisation_logistique', models.PositiveSmallIntegerField(
+                    blank=True, null=True
+                )),
+                ('q7_respect_programme', models.PositiveSmallIntegerField(
+                    blank=True, null=True
+                )),
+                ('q8_adequation_besoins', models.PositiveSmallIntegerField(
+                    blank=True, null=True
+                )),
+                ('q9_satisfaction_globale', models.PositiveSmallIntegerField(
+                    blank=True, null=True
+                )),
+                ('appel', models.OneToOneField(
+                    on_delete=django.db.models.deletion.CASCADE, 
+                    related_name='answers', to='appels.appel'
+                )),
             ],
             options={
                 'ordering': ['-created_at'],
@@ -35,11 +52,16 @@ class Migration(migrations.Migration):
         migrations.CreateModel(
             name='AppelTranscription',
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('id', models.BigAutoField(
+                    auto_created=True, primary_key=True, serialize=False, verbose_name='ID'
+                )),
                 ('created_at', models.DateTimeField(auto_now_add=True)),
                 ('updated_at', models.DateTimeField(auto_now=True)),
                 ('transcription_text', models.TextField(blank=True)),
-                ('appel', models.OneToOneField(on_delete=django.db.models.deletion.CASCADE, related_name='transcription', to='appels.appel')),
+                ('appel', models.OneToOneField(
+                    on_delete=django.db.models.deletion.CASCADE, 
+                    related_name='transcription', to='appels.appel'
+                )),
             ],
             options={
                 'ordering': ['-created_at'],

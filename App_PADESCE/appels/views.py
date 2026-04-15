@@ -363,7 +363,8 @@ def _build_progress_metrics(queryset):
                 f"Seuil de {threshold_label} atteint. Vous pouvez passer a autre chose."
                 if threshold_reached
                 else (
-                    f"Encore {max(threshold_target - termines, 0)} appel(s) termine(s) pour atteindre {threshold_label}."
+                    f"Encore {max(threshold_target - termines, 0)} appel(s) termine(s) "
+                    f"pour atteindre {threshold_label}."
                     if total
                     else "Aucun appel dans ce filtre."
                 )
@@ -1584,7 +1585,10 @@ def finalize_appel(request, pk: int):
             action = request.POST.get("action", "terminer")
             file_obj = request.FILES.get("audio")
             logger.info(
-                f"finalize_appel: pk={pk}, action={action}, has_file={bool(file_obj)}, files={list(request.FILES.keys())}, post_keys={list(request.POST.keys())}"
+                (
+                    f"finalize_appel: pk={pk}, action={action}, has_file={bool(file_obj)}, "
+                    f"files={list(request.FILES.keys())}, post_keys={list(request.POST.keys())}"
+                )
             )
 
             if action == "terminer":

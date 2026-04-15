@@ -19,9 +19,9 @@ from django.http import Http404, JsonResponse, QueryDict
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
 from django.utils import timezone
+from django.views.decorators.cache import cache_page
 from django.views.decorators.clickjacking import xframe_options_sameorigin
 from django.views.decorators.http import require_GET, require_POST
-from django.views.decorators.cache import cache_page
 
 from App_PADESCE.appels.models import (
     APPEL_ANSWER_QUESTION_FIELDS,
@@ -580,56 +580,60 @@ def home(request):
 
         # Get all counts in a single query using aggregation
         counts = {
-            'nb_classes': Classe.objects.count(),
-            'nb_apprenants': Apprenant.objects.count(),
-            'nb_presence': Presence.objects.count(),
-            'nb_sat_apprenants': SatisfactionApprenant.objects.count(),
-            'nb_sat_formateurs': SatisfactionFormateur.objects.count(),
-            'nb_env': EnqueteEnvironnement.objects.count(),
+            "nb_classes": Classe.objects.count(),
+            "nb_apprenants": Apprenant.objects.count(),
+            "nb_presence": Presence.objects.count(),
+            "nb_sat_apprenants": SatisfactionApprenant.objects.count(),
+            "nb_sat_formateurs": SatisfactionFormateur.objects.count(),
+            "nb_env": EnqueteEnvironnement.objects.count(),
         }
 
         # Appel counts
         appel_stats = Appel.objects.filter(is_active=True).aggregate(
-            total=Count('id'),
-            terminated=Count('id', filter=Q(status='termine')),
-            not_waiting=Count('id', filter=~Q(status='en_attente'))
+            total=Count("id"),
+            terminated=Count("id", filter=Q(status="termine")),
+            not_waiting=Count("id", filter=~Q(status="en_attente")),
         )
-        counts.update({
-            'padesce_total': appel_stats['total'],
-            'padesce_effectues': appel_stats['not_waiting'],
-            'nb_appels_termine': appel_stats['terminated'],
-        })
+        counts.update(
+            {
+                "padesce_total": appel_stats["total"],
+                "padesce_effectues": appel_stats["not_waiting"],
+                "nb_appels_termine": appel_stats["terminated"],
+            }
+        )
 
         # AppelCGA counts
         cga_stats = AppelCGA.objects.filter(is_active=True).aggregate(
-            total=Count('id'),
-            not_waiting=Count('id', filter=~Q(status='en_attente'))
+            total=Count("id"), not_waiting=Count("id", filter=~Q(status="en_attente"))
         )
-        counts.update({
-            'cga_total': cga_stats['total'],
-            'cga_effectues': cga_stats['not_waiting'],
-        })
+        counts.update(
+            {
+                "cga_total": cga_stats["total"],
+                "cga_effectues": cga_stats["not_waiting"],
+            }
+        )
 
         # AppelFormateur counts
         formateur_stats = AppelFormateur.objects.filter(is_active=True).aggregate(
-            total=Count('id'),
-            not_waiting=Count('id', filter=~Q(status='en_attente'))
+            total=Count("id"), not_waiting=Count("id", filter=~Q(status="en_attente"))
         )
-        counts.update({
-            'formateurs_total': formateur_stats['total'],
-            'formateurs_effectues': formateur_stats['not_waiting'],
-        })
+        counts.update(
+            {
+                "formateurs_total": formateur_stats["total"],
+                "formateurs_effectues": formateur_stats["not_waiting"],
+            }
+        )
 
         cache.set(cache_key, counts, 300)  # 5 minutes
         cached_counts = counts
 
-    padesce_total = cached_counts['padesce_total']
-    padesce_effectues = cached_counts['padesce_effectues']
-    cga_total = cached_counts['cga_total']
-    cga_effectues = cached_counts['cga_effectues']
-    formateurs_total = cached_counts['formateurs_total']
-    formateurs_effectues = cached_counts['formateurs_effectues']
-    nb_appels_termine = cached_counts['nb_appels_termine']
+    padesce_total = cached_counts["padesce_total"]
+    padesce_effectues = cached_counts["padesce_effectues"]
+    cga_total = cached_counts["cga_total"]
+    cga_effectues = cached_counts["cga_effectues"]
+    formateurs_total = cached_counts["formateurs_total"]
+    formateurs_effectues = cached_counts["formateurs_effectues"]
+    nb_appels_termine = cached_counts["nb_appels_termine"]
 
     # Get prestataire appels (already single query with annotate)
     prestataire_appels = (
@@ -660,12 +664,12 @@ def home(request):
     can_view_cga_dashboard = bool(is_superuser or is_cga_manager)
 
     context = {
-        "nb_classes": cached_counts['nb_classes'],
-        "nb_apprenants": cached_counts['nb_apprenants'],
-        "nb_presence": cached_counts['nb_presence'],
-        "nb_sat_apprenants": cached_counts['nb_sat_apprenants'],
-        "nb_sat_formateurs": cached_counts['nb_sat_formateurs'],
-        "nb_env": cached_counts['nb_env'],
+        "nb_classes": cached_counts["nb_classes"],
+        "nb_apprenants": cached_counts["nb_apprenants"],
+        "nb_presence": cached_counts["nb_presence"],
+        "nb_sat_apprenants": cached_counts["nb_sat_apprenants"],
+        "nb_sat_formateurs": cached_counts["nb_sat_formateurs"],
+        "nb_env": cached_counts["nb_env"],
         "nb_appels_termine": nb_appels_termine,
         "prestataire_appels": prestataire_appels,
         "padesce_total": padesce_total,
@@ -685,22 +689,22 @@ def home(request):
         "can_view_padesce_dashboard": can_view_padesce_dashboard,
         "can_view_cga_dashboard": can_view_cga_dashboard,
         "stat_cards": [
-            {"label": "Classes", "value": cached_counts['nb_classes'], "color": "primary"},
-            {"label": "Apprenants", "value": cached_counts['nb_apprenants'], "color": "success"},
-            {"label": "Enquêtes présence", "value": cached_counts['nb_presence'], "color": "info"},
+            {"label": "Classes", "value": cached_counts["nb_classes"], "color": "primary"},
+            {"label": "Apprenants", "value": cached_counts["nb_apprenants"], "color": "success"},
+            {"label": "Enquêtes présence", "value": cached_counts["nb_presence"], "color": "info"},
             {
                 "label": "Sat. apprenants",
-                "value": cached_counts['nb_sat_apprenants'],
+                "value": cached_counts["nb_sat_apprenants"],
                 "color": "warning",
             },
             {
                 "label": "Sat. formateurs",
-                "value": cached_counts['nb_sat_formateurs'],
+                "value": cached_counts["nb_sat_formateurs"],
                 "color": "danger",
             },
             {
                 "label": "Environnement",
-                "value": cached_counts['nb_env'],
+                "value": cached_counts["nb_env"],
                 "color": "secondary",
             },
         ],
@@ -1180,15 +1184,15 @@ def _consultant_formateurs_dashboard_context(request):
     )
     # Use aggregate with distinct=True instead of values_list().distinct().count()
     card_counts = completed_qs.aggregate(
-        card_formations=Count('formation', distinct=True),
-        card_cohortes=Count('cohorte', distinct=True),
-        card_prestataires=Count('prestataire', distinct=True),
-        card_beneficiaires=Count('beneficiaire', distinct=True),
+        card_formations=Count("formation", distinct=True),
+        card_cohortes=Count("cohorte", distinct=True),
+        card_prestataires=Count("prestataire", distinct=True),
+        card_beneficiaires=Count("beneficiaire", distinct=True),
     )
-    card_formations = card_counts['card_formations']
-    card_cohortes = card_counts['card_cohortes']
-    card_prestataires = card_counts['card_prestataires']
-    card_beneficiaires = card_counts['card_beneficiaires']
+    card_formations = card_counts["card_formations"]
+    card_cohortes = card_counts["card_cohortes"]
+    card_prestataires = card_counts["card_prestataires"]
+    card_beneficiaires = card_counts["card_beneficiaires"]
 
     # Prioritize rows with form AND audio
     from datetime import date

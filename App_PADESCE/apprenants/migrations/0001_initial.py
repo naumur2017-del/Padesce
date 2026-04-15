@@ -16,7 +16,9 @@ class Migration(migrations.Migration):
         migrations.CreateModel(
             name='Apprenant',
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('id', models.BigAutoField(
+                    auto_created=True, primary_key=True, serialize=False, verbose_name='ID'
+                )),
                 ('created_at', models.DateTimeField(auto_now_add=True)),
                 ('updated_at', models.DateTimeField(auto_now=True)),
                 ('code', models.CharField(max_length=20, unique=True)),
@@ -32,13 +34,33 @@ class Migration(migrations.Migration):
                 ('ville_residence', models.CharField(blank=True, max_length=120)),
                 ('code_ville', models.CharField(blank=True, max_length=120)),
                 ('actif', models.BooleanField(default=True)),
-                ('classe', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='apprenants', to='formations.classe')),
-                ('formation', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='apprenants', to='formations.formation')),
+                ('classe', models.ForeignKey(
+                    on_delete=django.db.models.deletion.CASCADE, 
+                    related_name='apprenants', to='formations.classe'
+                )),
+                ('formation', models.ForeignKey(
+                    on_delete=django.db.models.deletion.CASCADE, 
+                    related_name='apprenants', to='formations.formation'
+                )),
             ],
             options={
                 'ordering': ['nom_complet'],
-                'indexes': [models.Index(fields=['classe', 'formation'], name='apprenants__classe__04fe4a_idx')],
-                'constraints': [models.UniqueConstraint(fields=('classe', 'nom_complet'), name='unique_nom_par_classe'), models.UniqueConstraint(fields=('formation', 'telephone1'), name='unique_tel1_par_formation')],
+                'indexes': [
+                    models.Index(
+                        fields=['classe', 'formation'], 
+                        name='apprenants__classe__04fe4a_idx'
+                    )
+                ],
+                'constraints': [
+                    models.UniqueConstraint(
+                        fields=('classe', 'nom_complet'), 
+                        name='unique_nom_par_classe'
+                    ), 
+                    models.UniqueConstraint(
+                        fields=('formation', 'telephone1'), 
+                        name='unique_tel1_par_formation'
+                    )
+                ],
             },
         ),
     ]

@@ -4,12 +4,12 @@ import sys
 import django
 import openpyxl
 
+from App_PADESCE.appels.models import AppelFormateur
+
 # Setup Django Environment
 sys.path.append(r"D:\Documents\NAUMUR\Projet PADESCE Call\Padesce")
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "App_PADESCE.settings")
 django.setup()
-
-from App_PADESCE.appels.models import AppelFormateur
 
 
 def run():

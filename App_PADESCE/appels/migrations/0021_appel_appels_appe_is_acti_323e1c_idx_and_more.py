@@ -15,18 +15,30 @@ class Migration(migrations.Migration):
     operations = [
         migrations.AddIndex(
             model_name='appel',
-            index=models.Index(fields=['is_active', 'status'], name='appels_appe_is_acti_323e1c_idx'),
+            index=models.Index(
+                fields=['is_active', 'status'], 
+                name='appels_appe_is_acti_323e1c_idx'
+            ),
         ),
         migrations.AddIndex(
             model_name='appel',
-            index=models.Index(fields=['is_active', 'classe_label'], name='appels_appe_is_acti_604209_idx'),
+            index=models.Index(
+                fields=['is_active', 'classe_label'], 
+                name='appels_appe_is_acti_604209_idx'
+            ),
         ),
         migrations.AddIndex(
             model_name='appel',
-            index=models.Index(fields=['is_active', 'prestataire'], name='appels_appe_is_acti_bebdbf_idx'),
+            index=models.Index(
+                fields=['is_active', 'prestataire'], 
+                name='appels_appe_is_acti_bebdbf_idx'
+            ),
         ),
         migrations.AddIndex(
             model_name='appel',
-            index=models.Index(fields=['is_active', 'beneficiaire'], name='appels_appe_is_acti_3788f5_idx'),
+            index=models.Index(
+                fields=['is_active', 'beneficiaire'], 
+                name='appels_appe_is_acti_3788f5_idx'
+            ),
         ),
     ]

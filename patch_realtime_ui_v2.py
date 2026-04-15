@@ -1,10 +1,14 @@
-PATH = r"F:\NAUMUR\NAUMUR - TRAVAUX EN COURS\Utlisateurs\EYOUM ATOCK\CALL APP\App_PADESCE-main\App_PADESCE-main\templates\appels\index.html"
+PATH = (
+    r"F:\NAUMUR\NAUMUR - TRAVAUX EN COURS\Utlisateurs\EYOUM ATOCK\CALL APP"
+    r"\App_PADESCE-main\App_PADESCE-main\templates\appels\index.html"
+)
 
 with open(PATH, "r", encoding="utf-8") as f:
     content = f.read()
 
 # The old real-time logic (if any) was looking for .class-summary-card
-# Let's replace the JS_UPDATE_LOGIC I added earlier with one that updates the select options and the badge.
+# Let's replace the JS_UPDATE_LOGIC I added earlier with one that updates
+# the select options and the badge.
 
 OLD_RT_LOGIC = """    // Update class badges globally if info is provided
     if (data.class_progress) {
@@ -16,9 +20,15 @@ OLD_RT_LOGIC = """    // Update class badges globally if info is provided
                 const badgeContainer = card.querySelector('.mt-2');
                 if (badgeContainer) {
                     if (info.reached) {
-                        badgeContainer.innerHTML = '<div class="badge status-badge badge-success">Objectif Atteint ✅</div>';
+                        badgeContainer.innerHTML = (
+                            '<div class="badge status-badge badge-success">'
+                            'Objectif Atteint ✅</div>'
+                        );
                     } else {
-                        badgeContainer.innerHTML = `<div class="badge status-badge badge-warning">${info.termines} / ${info.total} (${info.pct}%)</div>`;
+                        badgeContainer.innerHTML = (
+                            `<div class="badge status-badge badge-warning">`
+                            `${info.termines} / ${info.total} (${info.pct}%)</div>`
+                        );
                     }
                 }
             }
@@ -35,7 +45,9 @@ NEW_RT_LOGIC = """    // Update class badges globally in the filter dropdown
                     if (info.reached) {
                         opt.textContent = `${info.label} (Objectif Atteint ✅)`;
                     } else {
-                        opt.textContent = `${info.label} (${info.termines}/${info.total} - ${info.pct}%)`;
+                        opt.textContent = (
+                            `${info.label} (${info.termines}/${info.total} - ${info.pct}%)`
+                        );
                     }
                     break;
                 }
@@ -45,9 +57,16 @@ NEW_RT_LOGIC = """    // Update class badges globally in the filter dropdown
                 const badgeContainer = document.getElementById('js-class-threshold-badge');
                 if (badgeContainer) {
                     if (info.reached) {
-                        badgeContainer.innerHTML = '<span class="badge status-badge badge-success" style="font-size:0.85rem; padding:4px 8px;">Objectif Atteint ✅</span>';
+                        badgeContainer.innerHTML = (
+                            '<span class="badge status-badge badge-success" '
+                            'style="font-size:0.85rem; padding:4px 8px;">Objectif Atteint ✅</span>'
+                        );
                     } else {
-                        badgeContainer.innerHTML = `<span class="badge status-badge badge-warning" style="font-size:0.85rem; padding:4px 8px;">${info.termines}/${info.total} (${info.pct}%)</span>`;
+                        badgeContainer.innerHTML = (
+                            `<span class="badge status-badge badge-warning" `
+                            `style="font-size:0.85rem; padding:4px 8px;">`
+                            `${info.termines}/${info.total} (${info.pct}%)</span>`
+                        );
                     }
                 }
             }

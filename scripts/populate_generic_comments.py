@@ -92,7 +92,8 @@ def run():
     try:
         # Get all records from AppelAnswers (table: appels_appelanswers)
         cursor.execute(
-            "SELECT id, commentaire, recommandations, q9_satisfaction_globale FROM appels_appelanswers"
+            "SELECT id, commentaire, recommandations, q9_satisfaction_globale "
+            "FROM appels_appelanswers"
         )
         rows = cursor.fetchall()
 
@@ -102,13 +103,15 @@ def run():
                 # Pick a random pair
                 comment, recommendation = random.choice(FEEDBACK_PAIRS)
 
-                # Simple logic to adjust tone if satisfaction is lower (though unlikely in this dataset)
+                # Simple logic to adjust tone if satisfaction is lower
+                # (though unlikely in this dataset)
                 if q9 and q9 <= 2:
                     comment = "Certains points étaient difficiles à comprendre."
                     recommendation = "Prendre plus de temps sur les bases."
 
                 cursor.execute(
-                    "UPDATE appels_appelanswers SET commentaire = ?, recommandations = ? WHERE id = ?",
+                    "UPDATE appels_appelanswers SET commentaire = ?, "
+                    "recommandations = ? WHERE id = ?",
                     (comment, recommendation, row_id),
                 )
                 updated_count += 1

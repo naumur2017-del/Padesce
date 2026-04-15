@@ -4,11 +4,11 @@ import os
 
 import django
 
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "App_PADESCE.settings")
-django.setup()
-
 from App_PADESCE.formations.models import Classe
 from App_PADESCE.reporting.network_excel import build_padesce_source_index, normalize_network_lookup
+
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "App_PADESCE.settings")
+django.setup()
 
 
 def main():

@@ -27,7 +27,9 @@ class Migration(migrations.Migration):
         migrations.CreateModel(
             name="AppelCGATranscription",
             fields=[
-                ("id", models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),
+                ("id", models.BigAutoField(
+                    auto_created=True, primary_key=True, serialize=False, verbose_name="ID"
+                )),
                 ("created_at", models.DateTimeField(auto_now_add=True)),
                 ("updated_at", models.DateTimeField(auto_now=True)),
                 ("transcription_text", models.TextField(blank=True)),
@@ -48,7 +50,9 @@ class Migration(migrations.Migration):
         migrations.CreateModel(
             name="AppelFormateurTranscription",
             fields=[
-                ("id", models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),
+                ("id", models.BigAutoField(
+                    auto_created=True, primary_key=True, serialize=False, verbose_name="ID"
+                )),
                 ("created_at", models.DateTimeField(auto_now_add=True)),
                 ("updated_at", models.DateTimeField(auto_now=True)),
                 ("transcription_text", models.TextField(blank=True)),
