@@ -485,9 +485,12 @@ def _build_calendar_contacts(
 
     if getattr(classe, "formateur", None):
         phone = _phone_digits(classe.formateur.telephone)
-        if phone or _safe_text(classe.formateur.nom_complet):
+        if phone or _safe_text(classe.formateur.nom) or _safe_text(classe.formateur.nom_complet):
             contacts.append(
-                _build_contact(classe.formateur.nom_complet or classe.formateur.code, phone)
+                _build_contact(
+                    classe.formateur.nom or classe.formateur.nom_complet or classe.formateur.code,
+                    phone,
+                )
             )
             if phone:
                 seen_phones.add(phone)
@@ -632,7 +635,9 @@ def _build_descente_contacts(
             seen_phones.add(phone)
             slot_number = len(contacts) + 1
             if class_phone and phone == class_phone and getattr(classe, "formateur", None):
-                resolved_name = _safe_text(classe.formateur.nom_complet or classe.formateur.code)
+                resolved_name = _safe_text(
+                    classe.formateur.nom or classe.formateur.nom_complet or classe.formateur.code
+                )
             else:
                 resolved_name = (
                     calendar_names_by_phone.get(phone)

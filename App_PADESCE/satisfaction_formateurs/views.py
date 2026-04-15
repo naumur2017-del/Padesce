@@ -22,7 +22,12 @@ from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.utils import timezone
 
-from App_PADESCE.appels.formateur_names import resolve_formateur_name_from_values
+from App_PADESCE.appels.formateur_names import (
+    FORMATEUR_NAME_FALLBACK,
+    resolve_formateur_db_name_from_values,
+    resolve_formateur_name_from_values,
+    sync_formateur_names_from_excel,
+)
 from App_PADESCE.appels.models import (
     CALL_ANALYSIS_THRESHOLD_STATUSES,
     FORMATEUR_SCORE_FIELDS,
@@ -60,6 +65,7 @@ SUPPORTED_AUDIO_FORMATS = {"wav", "mp3", "m4a", "ogg", "webm", "flac"}
 
 logger = logging.getLogger(__name__)
 _FORMATEURS_CACHE_TIMEOUT = int(str(os.getenv("PADESCE_ANALYSIS_CACHE_TIMEOUT", "300") or "300"))
+_FORMATEURS_DASHBOARD_CACHE_VERSION = "scores-q1q3-v2"
 
 
 def _formateurs_cache_key(*parts) -> str:
@@ -1644,6 +1650,11 @@ def _avg_num(values):
     return round(sum(nums) / len(nums), 2) if nums else 0
 
 
+def _average_displayed_scores(values) -> float:
+    displayed_values = [round(float(value), 2) for value in values if value is not None]
+    return round(sum(displayed_values) / len(displayed_values), 2) if displayed_values else 0
+
+
 FORMATEUR_DASHBOARD_TABS = {"prestataire", "beneficiaire", "cohorte", "detail"}
 
 
@@ -1702,8 +1713,7 @@ def _build_formateur_appel_status_summary(queryset) -> dict[str, int]:
 
 
 def _is_strict_formateur_record(record: dict) -> bool:
-    has_answers = all(record.get(field_name) is not None for field_name, _ in Q_FORM_FIELDS)
-    return has_answers or record.get("satisfaction_completed_at") is not None
+    return all(record.get(field_name) is not None for field_name, _ in Q_FORM_FIELDS)
 
 
 def _build_satisfaction_formateurs_dashboard_context(request) -> dict:
@@ -1713,7 +1723,13 @@ def _build_satisfaction_formateurs_dashboard_context(request) -> dict:
     active_tab = _active_formateurs_tab(request)
 
     _formateur_marker = get_analysis_cache_version("model:appels.appelformateur")
-    _cache_key = _formateurs_cache_key(f_prestataire, f_beneficiaire, f_cohorte, _formateur_marker)
+    _cache_key = _formateurs_cache_key(
+        _FORMATEURS_DASHBOARD_CACHE_VERSION,
+        f_prestataire,
+        f_beneficiaire,
+        f_cohorte,
+        _formateur_marker,
+    )
     _cached = cache.get(_cache_key)
     if _cached is not None:
         return _cached
@@ -1757,7 +1773,7 @@ def _build_satisfaction_formateurs_dashboard_context(request) -> dict:
         label: _avg_num([record[field] for record in strict_form_records])
         for field, label in Q_FORM_FIELDS
     }
-    moyenne_generale_globale = _avg_num(list(global_avgs.values()))
+    moyenne_generale_globale = _average_displayed_scores(global_avgs.values())
 
     def _group_stats(key_fn):
         groups = defaultdict(list)
@@ -2033,6 +2049,10 @@ def formateurs_prestataires_management(request):
                 Formateur.objects.create(
                     code=form_code,
                     nom_complet=phone_text,
+                    nom=(
+                        resolve_formateur_name_from_values(phone_text, phone_text)
+                        or FORMATEUR_NAME_FALLBACK
+                    ),
                     telephone=phone_text,
                     actif=True,
                 )
@@ -2044,6 +2064,7 @@ def formateurs_prestataires_management(request):
 
         if action == "sync_formateurs":
             created_count = _sync_formateurs_from_appels()
+            sync_formateur_names_from_excel()
             saved_count = created_count
             saved_label = (
                 f"{created_count} formateur(s) cree(s) depuis les appels."
@@ -2157,11 +2178,12 @@ def formateurs_prestataires_management(request):
     # En GET, complete automatiquement les formateurs manquants depuis les appels.
     if request.method != "POST":
         _sync_formateurs_from_appels()
+        sync_formateur_names_from_excel()
 
     # Charger les formateurs avec leurs prestations courantes
     formateurs = list(
         Formateur.objects.prefetch_related("prestations", "classes__prestation").order_by(
-            "nom_complet"
+            "nom", "nom_complet"
         )
     )
     # Index des prestations déjà assignées par formateur
@@ -2327,13 +2349,16 @@ def formateurs_prestataires_management(request):
     for form in formateurs:
         phone_key = _normalize_phone(str(getattr(form, "telephone", "") or ""))
         insight = phone_insights.get(phone_key)
-        resolved_formateur_name = resolve_formateur_name_from_values(
+        resolved_formateur_name = resolve_formateur_db_name_from_values(
             str(getattr(form, "telephone", "") or ""),
             str(getattr(form, "nom_complet", "") or ""),
         )
         fallback_name = str(getattr(form, "nom_complet", "") or "").strip()
         form.display_nom = resolved_formateur_name or fallback_name or "-"
-        form.nom_rempli = bool(resolved_formateur_name)
+        form.nom_rempli = str(getattr(form, "nom", "") or "").strip() not in {
+            "",
+            FORMATEUR_NAME_FALLBACK,
+        }
         if insight:
             top_prestataires = sorted(insight["prest"].items(), key=lambda kv: (-kv[1], kv[0]))
             top_beneficiaires = sorted(insight["benef"].items(), key=lambda kv: (-kv[1], kv[0]))

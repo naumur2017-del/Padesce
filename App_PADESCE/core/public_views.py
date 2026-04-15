@@ -9,7 +9,7 @@ from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
 from django.shortcuts import render
 from django.urls import reverse
 
-from App_PADESCE.appels.formateur_names import resolve_formateur_name_from_values
+from App_PADESCE.appels.formateur_names import resolve_formateur_db_name_from_values
 from App_PADESCE.appels.formateurs_views import (
     _build_filtered_formateurs_queryset,
 )
@@ -23,6 +23,7 @@ from App_PADESCE.formations.views import _resolve_classe_for_formateur_analysis
 from App_PADESCE.satisfaction_apprenants.services import get_prestations_ranking
 from App_PADESCE.satisfaction_apprenants.views import _build_satisfaction_dashboard_data
 from App_PADESCE.satisfaction_formateurs.views import (
+    _average_displayed_scores,
     _build_satisfaction_formateurs_dashboard_context,
 )
 
@@ -303,12 +304,11 @@ def _build_formateur_principal(request) -> dict:
             if prestation_code
             else ""
         )
-        row.public_formateur_nom = (
-            resolve_formateur_name_from_values(
-                getattr(row, "telephone", ""),
-                getattr(row, "source_contact", ""),
-            )
-            or "-"
+        row.public_formateur_nom = str(
+            getattr(linked_formateur, "nom", "") or ""
+        ).strip() or resolve_formateur_db_name_from_values(
+            getattr(row, "telephone", ""),
+            getattr(row, "source_contact", ""),
         )
 
         # Calculate Metrics and Card counts
@@ -631,12 +631,8 @@ def _build_formateur_stats(request) -> dict:
         "map_data": _region_map_from_rankings(best_rankings),
         "summary_cards": [
             (
-                (
-                    "Moyenne Q1-Q3",
-                    round(sum(item["avg"] for item in prestation_stats) / len(prestation_stats), 2),
-                )
-                if prestation_stats
-                else ("Moyenne Q1-Q3", 0)
+                "Moyenne Q1-Q3",
+                _average_displayed_scores((ctx.get("global_avgs", {}) or {}).values()),
             ),
             ("Appels", ctx.get("total", 0)),
             ("Appels ciblés", ctx.get("appels_cibles", 0)),
