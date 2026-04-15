@@ -54,6 +54,7 @@
 
     <div class="scope-tabs" role="tablist" aria-label="Choix du jeu de données FAST STATS">
       <button type="button" class="scope-tab {% if fast_stats_default_mode == 'apprenant' %}active{% endif %}" data-fast-stats-tab="apprenant">Apprenant</button>
+      <button type="button" class="scope-tab {% if fast_stats_default_mode == 'general' %}active{% endif %}" data-fast-stats-tab="general">General</button>
       <button type="button" class="scope-tab {% if fast_stats_default_mode == 'formateur' %}active{% endif %}" data-fast-stats-tab="formateur">Formateur</button>
     </div>
 
@@ -143,6 +144,39 @@
         </div>`;
     }
 
+    function renderGeneralTable(mode) {
+      const rows = mode.rows || [];
+      const body = rows.length ? rows.map((row) => `
+        <tr>
+          <td class="num">${displayValue(row.index)}</td>
+          <td>${displayValue(row.prestation_id)}</td>
+          <td><a class="fast-stats-link" href="${classBaseUrl ? classBaseUrl.replace('PLACEHOLDER', encodeURIComponent(row.classe_id)) : '#'}" target="_blank" rel="noreferrer">${displayValue(row.classe_id)}</a></td>
+          <td class="num">${displayValue(row.taux_presence_label)}</td>
+          <td class="num">${displayValue(row.resp_horaire_label)}</td>
+          <td class="num">${displayValue(row.resp_theme_label)}</td>
+          <td class="num">${displayValue(row.resp_parité_label)}</td>
+          <td class="num">${displayValue(row.qualite_environnement_label)}</td>
+          <td class="num">${displayValue(row.satisfaction_apprenant_label)}</td>
+          <td class="num">${displayValue(row.satisfaction_formateur_label)}</td>
+          <td class="num">${displayValue(row.attitude_enquete_label)}</td>
+        </tr>
+      `).join("") : `<tr><td colspan="11" class="fast-stats-empty">Aucune donnée FAST STATS disponible pour les filtres courants.</td></tr>`;
+      return `
+        <div class="table-scroll" style="max-height:60vh;">
+          <table class="fast-stats-table">
+            <thead>
+              <tr>
+                <th>#</th><th>Prestation ID</th><th>Classe ID</th><th>Taux de présence</th>
+                <th>Resp horaire</th><th>Resp thème</th><th>Resp parité</th>
+                <th>Qualité environnement</th><th>Satisfaction apprenant</th>
+                <th>Satis faction formateur</th><th>Attitude enquête / respect consigne</th>
+              </tr>
+            </thead>
+            <tbody>${body}</tbody>
+          </table>
+        </div>`;
+    }
+
     function renderFormateurTable(mode) {
       const rows = mode.rows || [];
       const body = rows.length ? rows.map((row) => `
@@ -190,7 +224,14 @@
 
     function renderMode(mode) {
       const meta = mode.metadata || {};
-      const table = mode.id === "formateur" ? renderFormateurTable(mode) : renderApprenantTable(mode);
+      let table;
+      if (mode.id === "formateur") {
+        table = renderFormateurTable(mode);
+      } else if (mode.id === "general") {
+        table = renderGeneralTable(mode);
+      } else {
+        table = renderApprenantTable(mode);
+      }
       return `
         <section class="fast-stats-mode ${mode.id === activeMode ? "active" : ""}" data-fast-stats-panel="${escapeHtml(mode.id)}">
           ${renderSummary(mode.summary_cards || [])}

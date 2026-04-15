@@ -22,7 +22,12 @@
       "mcp__plugin_chrome-devtools-mcp_chrome-devtools__list_network_requests",
       "mcp__plugin_chrome-devtools-mcp_chrome-devtools__get_network_request",
       "Bash(timeout 5 curl -s https://call.naumur.com)",
-      "Bash(curl -s -m 8 https://call.naumur.com)"
+      "Bash(curl -s -m 8 https://call.naumur.com)",
+      "Bash(xargs grep:*)",
+      "Bash(grep -n \"FAST STATS\" ./App_PADESCE/satisfaction_apprenants/*)",
+      "Read(//home/user/projects/**)",
+      "Bash(python manage.py runserver 0.0.0.0:8000)",
+      "Bash(python -m py_compile App_PADESCE/core/fast_stats.py)"
     ]
   }
 }

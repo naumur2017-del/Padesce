@@ -407,6 +407,14 @@ def _load_source_bundle(filters: dict[str, str]) -> dict | None:
         return None
 
 
+def _average_score(satisfactions: list, field: str) -> float | None:
+    """Calculate average score for a satisfaction field."""
+    values = [getattr(s, field, None) for s in satisfactions if getattr(s, field, None) is not None]
+    if not values:
+        return None
+    return sum(values) / len(values)
+
+
 def _build_apprenant_row(
     index: int,
     classe: Classe,
@@ -445,6 +453,68 @@ def _build_apprenant_row(
         "pct_appel_termine_label": _percentage_label(pct_appel_termine),
         "pct_enquetes": pct_enquetes,
         "pct_enquetes_label": _percentage_label(pct_enquetes),
+        "status_label": _status_label(classe),
+    }
+
+
+def _build_general_row(
+    index: int,
+    classe: Classe,
+    *,
+    source_class_counts: dict[str, int] | None = None,
+) -> dict:
+    """Build a general statistics row for a class."""
+    local_apprenant_count = len(list(classe.apprenants.all()))
+    classe_key = normalize_network_lookup(classe.code)
+    apprenant_count = int((source_class_counts or {}).get(classe_key, local_apprenant_count) or 0)
+    appels = list(classe.appels.all())
+
+    # Get all satisfactions for this class
+    satisfactions = [
+        _get_completed_satisfaction(appel) for appel in appels
+    ]
+    satisfactions = [s for s in satisfactions if s is not None]
+
+    # Calculate presence rate
+    people: dict[str, dict[str, bool]] = {}
+    for appel in appels:
+        key = _apprenant_person_key(appel)
+        person_flags = people.setdefault(key, {"effectue": False, "termine": False})
+        person_flags["effectue"] = person_flags["effectue"] or _apprenant_call_effectue(appel)
+        person_flags["termine"] = person_flags["termine"] or _apprenant_call_termine(appel)
+
+    calls_effectues = min(apprenant_count, sum(1 for flags in people.values() if flags["effectue"]))
+    pct_presence = _percentage(calls_effectues, apprenant_count)
+
+    # Calculate average scores
+    resp_horaire = _average_score(satisfactions, "q6_organisation_temps")
+    resp_theme = _average_score(satisfactions, "q3_maitrise_contenu")
+    resp_parité = _average_score(satisfactions, "q2_interaction_formateur")
+    qualite_environnement = _average_score(satisfactions, "q4_salle_adequate")
+    satisfaction_apprenant = _average_score(satisfactions, "q9_satisfaction_globale")
+    satisfaction_formateur = _average_score(satisfactions, "q8_adequation_besoins")
+    attitude_enquete = _average_score(satisfactions, "q1_clarte_exposes")
+
+    return {
+        "index": index,
+        "prestation_id": _safe_text(getattr(getattr(classe, "prestation", None), "code", "")) or "—",
+        "classe_id": _safe_text(classe.code) or "—",
+        "taux_presence": pct_presence,
+        "taux_presence_label": _percentage_label(pct_presence),
+        "resp_horaire": resp_horaire,
+        "resp_horaire_label": f"{resp_horaire:.2f}/5" if resp_horaire else "—",
+        "resp_theme": resp_theme,
+        "resp_theme_label": f"{resp_theme:.2f}/5" if resp_theme else "—",
+        "resp_parité": resp_parité,
+        "resp_parité_label": f"{resp_parité:.2f}/5" if resp_parité else "—",
+        "qualite_environnement": qualite_environnement,
+        "qualite_environnement_label": f"{qualite_environnement:.2f}/5" if qualite_environnement else "—",
+        "satisfaction_apprenant": satisfaction_apprenant,
+        "satisfaction_apprenant_label": f"{satisfaction_apprenant:.2f}/5" if satisfaction_apprenant else "—",
+        "satisfaction_formateur": satisfaction_formateur,
+        "satisfaction_formateur_label": f"{satisfaction_formateur:.2f}/5" if satisfaction_formateur else "—",
+        "attitude_enquete": attitude_enquete,
+        "attitude_enquete_label": f"{attitude_enquete:.2f}/5" if attitude_enquete else "—",
         "status_label": _status_label(classe),
     }
 
@@ -744,6 +814,50 @@ def _apprenant_summary_cards(rows: list[dict]) -> list[dict]:
     ]
 
 
+def _general_summary_cards(rows: list[dict]) -> list[dict]:
+    """Summary cards for general statistics mode."""
+    total_classes = len(rows)
+    satisfactions_with_data = sum(
+        1 for row in rows
+        if any(row.get(f) is not None for f in [
+            "resp_horaire", "resp_theme", "resp_parité",
+            "qualite_environnement", "satisfaction_apprenant", "satisfaction_formateur"
+        ])
+    )
+    avg_presence = sum(
+        row["taux_presence"] for row in rows
+        if row["taux_presence"] is not None
+    ) / max(1, sum(1 for row in rows if row["taux_presence"] is not None))
+
+    avg_satisfaction = sum(
+        row["satisfaction_apprenant"] for row in rows
+        if row["satisfaction_apprenant"] is not None
+    ) / max(1, sum(1 for row in rows if row["satisfaction_apprenant"] is not None))
+
+    return [
+        {
+            "label": "Classes",
+            "value": total_classes,
+            "meta": "Nombre de classes analysées.",
+        },
+        {
+            "label": "Avec satisfaction",
+            "value": satisfactions_with_data,
+            "meta": "Classes ayant des données de satisfaction.",
+        },
+        {
+            "label": "Taux de présence moyen",
+            "value": f"{avg_presence * 100:.1f}%",
+            "meta": "Moyenne des taux de présence.",
+        },
+        {
+            "label": "Satisfaction moyenne",
+            "value": f"{avg_satisfaction:.2f}/5",
+            "meta": "Score de satisfaction global moyen.",
+        },
+    ]
+
+
 def _formateur_summary_cards(rows: list[dict]) -> list[dict]:
     matched_classes = sum(1 for row in rows if row["descente_contact_count"] > 0)
     return [
@@ -800,6 +914,37 @@ def _mode_payload(
             ],
             "rows": rows,
             "note": "Structure alignée sur la feuille Enquête de satisfaction du fichier FAST STATS.",  # noqa: E501
+        }
+
+    if mode_id == "general":
+        return {
+            "id": mode_id,
+            "label": "General",
+            "sheet_name": sheet_name,
+            "table_variant": "general",
+            "row_count": len(rows),
+            "class_count": len(rows),
+            "summary_cards": summary_cards,
+            "metadata": {
+                "terminated_only_label": "Total classe de la prestation terminée",
+                "terminated_only_value": scope["terminated_only"],
+                "scope_label": scope["scope_label"],
+            },
+            "columns": [
+                {"key": "index", "label": "#"},
+                {"key": "prestation_id", "label": "Prestation ID"},
+                {"key": "classe_id", "label": "Classe ID"},
+                {"key": "taux_presence_label", "label": "Taux de présence"},
+                {"key": "resp_horaire_label", "label": "Resp horaire"},
+                {"key": "resp_theme_label", "label": "Resp thème"},
+                {"key": "resp_parité_label", "label": "Resp parité"},
+                {"key": "qualite_environnement_label", "label": "Qualité environnement"},
+                {"key": "satisfaction_apprenant_label", "label": "Satisfaction apprenant"},
+                {"key": "satisfaction_formateur_label", "label": "Satis faction formateur"},
+                {"key": "attitude_enquete_label", "label": "Attitude enquête / respect consigne"},
+            ],
+            "rows": rows,
+            "note": "Statistiques agrégées de satisfaction par classe.",
         }
 
     return {
@@ -873,6 +1018,14 @@ def build_fast_stats_bundle(request) -> dict:
         )
         for index, classe in enumerate(classes, start=1)
     ]
+    general_rows = [
+        _build_general_row(
+            index,
+            classe,
+            source_class_counts=source_class_counts,
+        )
+        for index, classe in enumerate(classes, start=1)
+    ]
     formateur_rows = [
         _build_formateur_row(
             index,
@@ -896,6 +1049,13 @@ def build_fast_stats_bundle(request) -> dict:
                 rows=apprenant_rows,
                 summary_cards=_apprenant_summary_cards(apprenant_rows),
                 sheet_name="Enquête de satisfaction",
+                scope=scope,
+            ),
+            _mode_payload(
+                "general",
+                rows=general_rows,
+                summary_cards=_general_summary_cards(general_rows),
+                sheet_name="General",
                 scope=scope,
             ),
             _mode_payload(
@@ -1007,6 +1167,45 @@ def _write_apprenant_sheet(worksheet, mode_payload: dict) -> None:
         worksheet[f"I{offset}"].number_format = "0.00%"
 
 
+def _write_general_sheet(worksheet, mode_payload: dict) -> None:
+    worksheet["B1"] = "Total classe de la prestation termine"
+    worksheet["C1"] = "TRUE"
+    worksheet["B3"] = "Prestation ID"
+    worksheet["C3"] = "Classe ID"
+    worksheet["D3"] = "Taux de présence"
+    worksheet["E3"] = "Resp horaire"
+    worksheet["F3"] = "Resp thème"
+    worksheet["G3"] = "Resp parité"
+    worksheet["H3"] = "Qualité environnement"
+    worksheet["I3"] = "Satisfaction apprenant"
+    worksheet["J3"] = "Satis faction formateur"
+    worksheet["K3"] = "Attitude enquête / respect consigne"
+
+    _clear_data_rows(worksheet, start_row=FAST_STATS_TEMPLATE_ROW_START, max_col=11)
+    last_row = max(
+        FAST_STATS_TEMPLATE_ROW_START, FAST_STATS_TEMPLATE_ROW_START + len(mode_payload["rows"]) - 1
+    )
+    _ensure_sheet_capacity(worksheet, last_row=last_row, max_col=11)
+
+    for offset, row in enumerate(mode_payload["rows"], start=FAST_STATS_TEMPLATE_ROW_START):
+        worksheet[f"A{offset}"] = row["index"]
+        worksheet[f"B{offset}"] = row["prestation_id"]
+        worksheet[f"C{offset}"] = row["classe_id"]
+        worksheet[f"D{offset}"] = row["taux_presence"]
+        worksheet[f"E{offset}"] = row["resp_horaire"]
+        worksheet[f"F{offset}"] = row["resp_theme"]
+        worksheet[f"G{offset}"] = row["resp_parité"]
+        worksheet[f"H{offset}"] = row["qualite_environnement"]
+        worksheet[f"I{offset}"] = row["satisfaction_apprenant"]
+        worksheet[f"J{offset}"] = row["satisfaction_formateur"]
+        worksheet[f"K{offset}"] = row["attitude_enquete"]
+        worksheet[f"D{offset}"].number_format = "0.00%"
+        for col in ["E", "F", "G", "H", "I", "J", "K"]:
+            cell = worksheet[f"{col}{offset}"]
+            if cell.value is not None:
+                cell.number_format = "0.00"
+
+
 def _write_formateur_sheet(worksheet, mode_payload: dict) -> None:
     worksheet["B1"] = "Total classe de la prestation termine"
     worksheet["C1"] = "TRUE"
@@ -1076,13 +1275,22 @@ def build_fast_stats_workbook(request, *, active_mode: str = "apprenant") -> Wor
         apprenant_sheet = workbook.active
         formateur_sheet = workbook.create_sheet("Enquête de formateur")
 
+    # Create general sheet
+    general_sheet = workbook.create_sheet("General", 1)
+
     modes = {mode["id"]: mode for mode in build_fast_stats_bundle(request)["modes"]}
     _write_apprenant_sheet(apprenant_sheet, modes["apprenant"])
+    _write_general_sheet(general_sheet, modes["general"])
     _write_formateur_sheet(formateur_sheet, modes["formateur"])
 
-    active_sheet_name = (
-        formateur_sheet.title if active_mode == "formateur" else apprenant_sheet.title
-    )
+    # Determine active sheet based on mode
+    if active_mode == "formateur":
+        active_sheet_name = formateur_sheet.title
+    elif active_mode == "general":
+        active_sheet_name = general_sheet.title
+    else:
+        active_sheet_name = apprenant_sheet.title
+
     workbook.active = workbook.sheetnames.index(active_sheet_name)
     return workbook
 
@@ -1106,7 +1314,7 @@ def build_fast_stats_export_response(request) -> HttpResponse:
 def build_fast_stats_context(request, *, default_mode: str) -> dict:
     return {
         "fast_stats_default_mode": (
-            default_mode if default_mode in {"apprenant", "formateur"} else "apprenant"
+            default_mode if default_mode in {"apprenant", "general", "formateur"} else "apprenant"
         ),
     }
 
