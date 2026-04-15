@@ -152,28 +152,28 @@
 
       const row = rows[0]; // Get the global row
 
-      // Format percentage with 2 decimals
-      const formatPct = (val) => val != null ? `${val.toFixed(0)}%` : "—";
-      const formatScore = (val, scale) => val != null ? `${val.toFixed(scale === 5 ? 1 : 0)}${scale === 10 ? "Z" : ""}` : "—";
+      // Format values with scale
+      const formatValue = (val, scale) => {
+        if (val == null) return "—";
+        return `${val.toFixed(1)}/${scale}`;
+      };
 
       // Build the metrics table
       const metrics = [
-        { label: "Taux de présence", base: formatPct(row.taux_presence_pct), col3: row.taux_presence_base, scale: row.taux_presence_scale },
-        { label: "Resp horaire", base: formatPct(row.resp_horaire_pct), col3: row.resp_horaire_base, scale: row.resp_horaire_scale },
-        { label: "Resp thème", base: formatPct(row.resp_theme_pct), col3: row.resp_theme_base, scale: row.resp_theme_scale },
-        { label: "Resp parité", base: formatPct(row.resp_parité_pct), col3: row.resp_parité_base, scale: row.resp_parité_scale },
-        { label: "Qualité environnement", base: row.qualite_environnement != null ? row.qualite_environnement.toFixed(1) : "—", col3: "", scale: row.qualite_environnement_scale },
-        { label: "Satisfaction apprenant", base: row.satisfaction_apprenant != null ? row.satisfaction_apprenant.toFixed(1) + "/5" : "—", col3: "", scale: row.satisfaction_apprenant_scale },
-        { label: "Satis faction formateur", base: row.satisfaction_formateur != null ? row.satisfaction_formateur.toFixed(1) + "/5" : "—", col3: "", scale: row.satisfaction_formateur_scale },
-        { label: "Attitude enquête / respect consigne", base: row.attitude_enquete != null ? row.attitude_enquete.toFixed(1) : "—", col3: "", scale: row.attitude_enquete_scale },
+        { label: "Taux de présence", value: formatValue(row.taux_presence, row.taux_presence_scale) },
+        { label: "Resp horaire", value: formatValue(row.resp_horaire, row.resp_horaire_scale) },
+        { label: "Resp thème", value: formatValue(row.resp_theme, row.resp_theme_scale) },
+        { label: "Resp parité", value: formatValue(row.resp_parité, row.resp_parité_scale) },
+        { label: "Qualité environnement", value: formatValue(row.qualite_environnement, row.qualite_environnement_scale) },
+        { label: "Satisfaction apprenant", value: formatValue(row.satisfaction_apprenant, row.satisfaction_apprenant_scale) },
+        { label: "Satis faction formateur", value: formatValue(row.satisfaction_formateur, row.satisfaction_formateur_scale) },
+        { label: "Attitude enquête / respect consigne", value: formatValue(row.attitude_enquete, row.attitude_enquete_scale) },
       ];
 
       const tableBody = metrics.map(m => `
         <tr>
           <td style="text-align: left; font-weight: 600;">${escapeHtml(m.label)}</td>
-          <td class="num" style="font-weight: 700;">${displayValue(m.base)}</td>
-          <td class="num">${displayValue(m.col3)}</td>
-          <td class="num">${displayValue(m.scale)}</td>
+          <td class="num" style="font-weight: 700;">${displayValue(m.value)}</td>
         </tr>
       `).join("");
 
@@ -183,9 +183,7 @@
             <thead>
               <tr>
                 <th style="text-align: left;">Métrique</th>
-                <th>Base</th>
-                <th></th>
-                <th>Échelle</th>
+                <th>Score</th>
               </tr>
             </thead>
             <tbody>${tableBody}</tbody>

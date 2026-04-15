@@ -487,41 +487,50 @@ def _build_general_global_row(classes: list[Classe], source_class_counts: dict[s
         calls_effectues = min(apprenant_count, sum(1 for flags in people.values() if flags["effectue"]))
         total_calls_effectues += calls_effectues
 
-    # Calculate global metrics
+    # Calculate global metrics with proper scaling
+    # Taux de présence: scaled to /20
     pct_presence = _percentage(total_calls_effectues, total_apprenants)
-    resp_horaire = _average_score(all_satisfactions, "q6_organisation_temps")
-    resp_theme = _average_score(all_satisfactions, "q3_maitrise_contenu")
-    resp_parité = _average_score(all_satisfactions, "q2_interaction_formateur")
-    qualite_environnement = _average_score(all_satisfactions, "q4_salle_adequate")
-    satisfaction_apprenant = _average_score(all_satisfactions, "q9_satisfaction_globale")
-    satisfaction_formateur = _average_score(all_satisfactions, "q8_adequation_besoins")
-    attitude_enquete = _average_score(all_satisfactions, "q1_clarte_exposes")
+    taux_presence_20 = (pct_presence * 20) if pct_presence else None
+
+    # Average scores (1-5 scale) converted to respective scales
+    resp_horaire_avg = _average_score(all_satisfactions, "q6_organisation_temps")
+    resp_horaire_10 = (resp_horaire_avg * 2) if resp_horaire_avg else None  # /5 * 10
+
+    resp_theme_avg = _average_score(all_satisfactions, "q3_maitrise_contenu")
+    resp_theme_10 = (resp_theme_avg * 2) if resp_theme_avg else None  # /5 * 10
+
+    resp_parité_avg = _average_score(all_satisfactions, "q2_interaction_formateur")
+    resp_parité_10 = (resp_parité_avg * 2) if resp_parité_avg else None  # /5 * 10
+
+    qualite_environnement_avg = _average_score(all_satisfactions, "q4_salle_adequate")
+    qualite_environnement_10 = (qualite_environnement_avg * 2) if qualite_environnement_avg else None  # /5 * 10
+
+    satisfaction_apprenant_avg = _average_score(all_satisfactions, "q9_satisfaction_globale")
+    satisfaction_apprenant_20 = (satisfaction_apprenant_avg * 4) if satisfaction_apprenant_avg else None  # /5 * 20
+
+    satisfaction_formateur_avg = _average_score(all_satisfactions, "q8_adequation_besoins")
+    satisfaction_formateur_10 = (satisfaction_formateur_avg * 2) if satisfaction_formateur_avg else None  # /5 * 10
+
+    attitude_enquete_avg = _average_score(all_satisfactions, "q1_clarte_exposes")
+    attitude_enquete_10 = (attitude_enquete_avg * 2) if attitude_enquete_avg else None  # /5 * 10
 
     return {
         "metric_type": "global",
-        "taux_presence": pct_presence,
-        "taux_presence_pct": pct_presence * 100 if pct_presence else None,
-        "taux_presence_base": 100,
+        "taux_presence": taux_presence_20,
         "taux_presence_scale": 20,
-        "resp_horaire": resp_horaire,
-        "resp_horaire_pct": resp_horaire * 100 if resp_horaire else None,
-        "resp_horaire_base": 100,
+        "resp_horaire": resp_horaire_10,
         "resp_horaire_scale": 10,
-        "resp_theme": resp_theme,
-        "resp_theme_pct": resp_theme * 100 if resp_theme else None,
-        "resp_theme_base": 100,
+        "resp_theme": resp_theme_10,
         "resp_theme_scale": 10,
-        "resp_parité": resp_parité,
-        "resp_parité_pct": resp_parité * 100 if resp_parité else None,
-        "resp_parité_base": 100,
+        "resp_parité": resp_parité_10,
         "resp_parité_scale": 10,
-        "qualite_environnement": qualite_environnement,
+        "qualite_environnement": qualite_environnement_10,
         "qualite_environnement_scale": 10,
-        "satisfaction_apprenant": satisfaction_apprenant,
+        "satisfaction_apprenant": satisfaction_apprenant_20,
         "satisfaction_apprenant_scale": 20,
-        "satisfaction_formateur": satisfaction_formateur,
+        "satisfaction_formateur": satisfaction_formateur_10,
         "satisfaction_formateur_scale": 10,
-        "attitude_enquete": attitude_enquete,
+        "attitude_enquete": attitude_enquete_10,
         "attitude_enquete_scale": 10,
     }
 
@@ -890,25 +899,30 @@ def _general_summary_cards(rows: list[dict]) -> list[dict]:
 
     row = rows[0]  # Global row
 
+    def format_score(value, scale):
+        if value is None:
+            return "—"
+        return f"{value:.1f}/{scale}"
+
     return [
         {
             "label": "Taux de présence",
-            "value": f"{row.get('taux_presence_pct', 0):.1f}%",
+            "value": format_score(row.get('taux_presence'), row.get('taux_presence_scale')),
             "meta": "Présence globale de tous les apprenants analysés.",
         },
         {
             "label": "Satisfaction apprenant",
-            "value": f"{row.get('satisfaction_apprenant', 0):.2f}/5",
+            "value": format_score(row.get('satisfaction_apprenant'), row.get('satisfaction_apprenant_scale')),
             "meta": "Score de satisfaction global moyen.",
         },
         {
             "label": "Resp horaire",
-            "value": f"{row.get('resp_horaire', 0):.2f}/5",
+            "value": format_score(row.get('resp_horaire'), row.get('resp_horaire_scale')),
             "meta": "Réponse au rythme de formation.",
         },
         {
             "label": "Qualité environnement",
-            "value": f"{row.get('qualite_environnement', 0):.1f}/5",
+            "value": format_score(row.get('qualite_environnement'), row.get('qualite_environnement_scale')),
             "meta": "Score de qualité environnement.",
         },
     ]
@@ -1223,39 +1237,36 @@ def _write_general_sheet(worksheet, mode_payload: dict) -> None:
     worksheet["B1"] = "Statistiques générales de satisfaction"
     worksheet["C1"] = "TRUE"
     worksheet["B3"] = "Métrique"
-    worksheet["C3"] = "Base"
-    worksheet["D3"] = "%"
-    worksheet["E3"] = "Échelle"
+    worksheet["C3"] = "Score"
 
-    _clear_data_rows(worksheet, start_row=FAST_STATS_TEMPLATE_ROW_START, max_col=5)
+    _clear_data_rows(worksheet, start_row=FAST_STATS_TEMPLATE_ROW_START, max_col=3)
 
     if mode_payload["rows"]:
         row = mode_payload["rows"][0]  # Global row
 
         metrics = [
-            ("Taux de présence", row.get("taux_presence"), row.get("taux_presence_pct"), row.get("taux_presence_base"), row.get("taux_presence_scale")),
-            ("Resp horaire", row.get("resp_horaire"), row.get("resp_horaire_pct"), row.get("resp_horaire_base"), row.get("resp_horaire_scale")),
-            ("Resp thème", row.get("resp_theme"), row.get("resp_theme_pct"), row.get("resp_theme_base"), row.get("resp_theme_scale")),
-            ("Resp parité", row.get("resp_parité"), row.get("resp_parité_pct"), row.get("resp_parité_base"), row.get("resp_parité_scale")),
-            ("Qualité environnement", row.get("qualite_environnement"), None, None, row.get("qualite_environnement_scale")),
-            ("Satisfaction apprenant", row.get("satisfaction_apprenant"), None, None, row.get("satisfaction_apprenant_scale")),
-            ("Satis faction formateur", row.get("satisfaction_formateur"), None, None, row.get("satisfaction_formateur_scale")),
-            ("Attitude enquête / respect consigne", row.get("attitude_enquete"), None, None, row.get("attitude_enquete_scale")),
+            ("Taux de présence", row.get("taux_presence"), row.get("taux_presence_scale")),
+            ("Resp horaire", row.get("resp_horaire"), row.get("resp_horaire_scale")),
+            ("Resp thème", row.get("resp_theme"), row.get("resp_theme_scale")),
+            ("Resp parité", row.get("resp_parité"), row.get("resp_parité_scale")),
+            ("Qualité environnement", row.get("qualite_environnement"), row.get("qualite_environnement_scale")),
+            ("Satisfaction apprenant", row.get("satisfaction_apprenant"), row.get("satisfaction_apprenant_scale")),
+            ("Satis faction formateur", row.get("satisfaction_formateur"), row.get("satisfaction_formateur_scale")),
+            ("Attitude enquête / respect consigne", row.get("attitude_enquete"), row.get("attitude_enquete_scale")),
         ]
 
         last_row = FAST_STATS_TEMPLATE_ROW_START + len(metrics) - 1
-        _ensure_sheet_capacity(worksheet, last_row=last_row, max_col=5)
+        _ensure_sheet_capacity(worksheet, last_row=last_row, max_col=3)
 
-        for offset, (label, value, pct, base, scale) in enumerate(metrics, start=FAST_STATS_TEMPLATE_ROW_START):
+        for offset, (label, value, scale) in enumerate(metrics, start=FAST_STATS_TEMPLATE_ROW_START):
             worksheet[f"B{offset}"] = label
-            worksheet[f"C{offset}"] = value
-            worksheet[f"D{offset}"] = pct
-            worksheet[f"E{offset}"] = scale
+            if value is not None and scale is not None:
+                worksheet[f"C{offset}"] = f"{value:.1f}/{scale}"
+            else:
+                worksheet[f"C{offset}"] = "—"
 
-            if pct is not None:
-                worksheet[f"D{offset}"].number_format = "0.0%"
-            if value is not None and label not in ["Satisfaction apprenant", "Satis faction formateur", "Attitude enquête / respect consigne"]:
-                worksheet[f"C{offset}"].number_format = "0.00"
+            # Set text format for the score column to preserve the format
+            worksheet[f"C{offset}"].number_format = "@"
 
 
 def _write_formateur_sheet(worksheet, mode_payload: dict) -> None:
