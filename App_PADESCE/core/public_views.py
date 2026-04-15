@@ -681,12 +681,16 @@ def _build_formateur_stats(request) -> dict:
         # Group by code to show all prestations individually
         group_key = code
 
+        prestataire = _formateur_record_value(record, "prestataire") or "-"
+        beneficiaire = _formateur_record_value(record, "beneficiaire") or "-"
+        group_key = (code, prestataire, beneficiaire)
+
         bucket = grouped.setdefault(
             group_key,
             {
                 "code": code,
-                "prestataire": _formateur_record_value(record, "prestataire") or "-",
-                "beneficiaire": _formateur_record_value(record, "beneficiaire") or "-",
+                "prestataire": prestataire,
+                "beneficiaire": beneficiaire,
                 "effectif": 0,
                 "nb": 0,
                 "scores": {field_name: [] for field_name in FORMATEUR_SCORE_FIELDS},

@@ -61,6 +61,9 @@
       <a class="btn btn-outline" href="{% url 'environnement_index' %}?classe={{ classe.id }}#environnement-form" id="btn-env">Enquête environnement</a>
       <a class="btn btn-outline" href="/presences/" id="btn-pres">Enquête présence</a>
       <a class="btn btn-outline" href="{% url 'class_reports' classe.id %}" id="btn-rapports">Rapports enquetes</a>
+      {% if channel_link %}
+        <a class="btn btn-outline" href="{{ channel_link }}" target="_blank" rel="noopener noreferrer" onclick="event.preventDefault();var opened=window.open(this.href,'_blank'); if(!opened){ window.location.href=this.href; }" id="btn-channel">Ouvrir lien du canal</a>
+      {% endif %}
     </div>
     <div class="table-wrap">
       <table>

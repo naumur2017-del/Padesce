@@ -990,10 +990,25 @@ def class_detail(request, pk: int):
     for apprenant in apprenants:
         apprenant.apprenant_id = get_local_apprenant_identifier(apprenant)
         apprenant.apprenant_db_label = get_local_apprenant_db_label(apprenant)
+    channel_link = ""
+    try:
+        import pandas as pd
+
+        excel_path = _class_channel_workbook_path()
+        df = pd.read_excel(excel_path)
+        for _, row in df.iterrows():
+            if str(row.iloc[1]).strip() == str(classe.code).strip():
+                link = str(row.iloc[0]).strip()
+                if link and link.startswith("http"):
+                    channel_link = link
+                break
+    except Exception:
+        logger.exception("Unable to read class channel workbook: %s", _class_channel_workbook_path())
+
     return render(
         request,
         "formations/class_detail.html",
-        {"classe": classe, "enquetes": enquete_list, "apprenants": apprenants},
+        {"classe": classe, "enquetes": enquete_list, "apprenants": apprenants, "channel_link": channel_link},
     )
 
 
