@@ -538,12 +538,6 @@ def _parse_excel_non_forme(file_obj):
     return _parse_excel_sheet(file_obj, "Feuil2")
 
 
-def _parse_bool_flag(value):
-    if value is None:
-        return None
-    return str(value).strip().lower() in {"1", "true", "yes", "on"}
-
-
 def _archive_before_import_overwrite(appel: Appel, import_mode: str):
     AppelImportArchive.objects.create(
         appel=appel,
