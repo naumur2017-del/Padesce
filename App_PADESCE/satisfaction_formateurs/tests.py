@@ -17,6 +17,7 @@ from App_PADESCE.formations.models import (
 )
 from App_PADESCE.satisfaction_formateurs.models import SatisfactionFormateur
 from App_PADESCE.satisfaction_formateurs.views import (
+    _average_displayed_scores,
     _build_satisfaction_formateurs_dashboard_context,
 )
 
@@ -208,3 +209,6 @@ class SatisfactionFormateurDashboardAverageTests(TestCase):
         self.assertEqual(context["with_scores"], 1)
         self.assertEqual(list(context["global_avgs"].values()), [5.0, 5.0, 1.0])
         self.assertEqual(context["moyenne_generale_globale"], 3.67)
+
+    def test_average_displayed_scores_matches_visible_q1_q3_values(self):
+        self.assertEqual(_average_displayed_scores([2.98, 3.49, 3.12]), 3.20)

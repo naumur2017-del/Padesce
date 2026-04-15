@@ -14,6 +14,7 @@ from App_PADESCE.core.analysis_rules import (
     appel_is_analysis_eligible,
 )
 from App_PADESCE.core.models import UserActivity, UserActivityEvent
+from App_PADESCE.core.public_views import _build_formateur_stats
 from App_PADESCE.core.views import _consultant_analysis_snapshot
 
 
@@ -616,6 +617,24 @@ class PublicSpaceTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(reverse("login"), "/login/")
+
+    @patch("App_PADESCE.core.public_views._build_satisfaction_formateurs_dashboard_context")
+    def test_public_formateur_stats_card_uses_displayed_global_averages(self, mock_ctx):
+        mock_ctx.return_value = {
+            "global_avgs": {
+                "Prérequis apprenants": 2.98,
+                "Interaction apprenants": 3.49,
+                "Compétences acquises": 3.12,
+            },
+            "all_rows": [],
+            "total": 0,
+            "appels_cibles": 0,
+            "with_scores": 0,
+        }
+
+        stats = _build_formateur_stats(SimpleNamespace(GET={}))
+
+        self.assertEqual(stats["summary_cards"][0], ("Moyenne Q1-Q3", 3.2))
 
 
 class PublicConsultantAccessTests(TestCase):

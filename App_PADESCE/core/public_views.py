@@ -23,6 +23,7 @@ from App_PADESCE.formations.views import _resolve_classe_for_formateur_analysis
 from App_PADESCE.satisfaction_apprenants.services import get_prestations_ranking
 from App_PADESCE.satisfaction_apprenants.views import _build_satisfaction_dashboard_data
 from App_PADESCE.satisfaction_formateurs.views import (
+    _average_displayed_scores,
     _build_satisfaction_formateurs_dashboard_context,
 )
 
@@ -630,14 +631,7 @@ def _build_formateur_stats(request) -> dict:
         "improve_rankings": improve_rankings[:10],
         "map_data": _region_map_from_rankings(best_rankings),
         "summary_cards": [
-            (
-                (
-                    "Moyenne Q1-Q3",
-                    round(sum(item["avg"] for item in prestation_stats) / len(prestation_stats), 2),
-                )
-                if prestation_stats
-                else ("Moyenne Q1-Q3", 0)
-            ),
+            ("Moyenne Q1-Q3", _average_displayed_scores((ctx.get("global_avgs", {}) or {}).values())),
             ("Appels", ctx.get("total", 0)),
             ("Appels ciblés", ctx.get("appels_cibles", 0)),
             ("Avec scores", ctx.get("with_scores", 0)),
