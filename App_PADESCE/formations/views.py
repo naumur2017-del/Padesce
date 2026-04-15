@@ -13,7 +13,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views.decorators.http import require_POST
 
-from App_PADESCE.appels.formateur_names import resolve_formateur_name_from_values
+from App_PADESCE.appels.formateur_names import resolve_formateur_db_name_from_values
 from App_PADESCE.appels.models import (
     CALL_SUCCESS_STATUSES,
     Appel,
@@ -873,9 +873,11 @@ def _build_formateur_rows(rows, *, back_url: str):
         # Try to resolve formateur name from linked Classe
         resolved_classe = _resolve_classe_for_formateur_analysis(row)
         formateur_nom = str(
-            getattr(getattr(resolved_classe, "formateur", None), "nom_complet", "")
-            or row.source_contact
-            or ""
+            getattr(getattr(resolved_classe, "formateur", None), "nom", "")
+            or resolve_formateur_db_name_from_values(
+                getattr(row, "telephone", ""),
+                getattr(row, "source_contact", ""),
+            )
         ).strip()
         formateur_telephone = str(
             getattr(getattr(resolved_classe, "formateur", None), "telephone", "")
@@ -1406,7 +1408,7 @@ def analysis_formateur_call_detail(request, pk: int):
         "formations/analysis_formateur_call_detail.html",
         {
             "row": row,
-            "formateur_nom": resolve_formateur_name_from_values(
+            "formateur_nom": resolve_formateur_db_name_from_values(
                 getattr(row, "telephone", ""),
                 getattr(row, "source_contact", ""),
             ),

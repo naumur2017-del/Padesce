@@ -14,8 +14,8 @@ from .models import (
 
 @admin.register(Formateur)
 class FormateurAdmin(admin.ModelAdmin):
-    list_display = ("code", "nom_complet", "specialite", "fenetre", "telephone", "actif")
-    search_fields = ("code", "nom_complet", "specialite", "telephone")
+    list_display = ("code", "nom", "nom_complet", "specialite", "fenetre", "telephone", "actif")
+    search_fields = ("code", "nom", "nom_complet", "specialite", "telephone")
     list_filter = ("fenetre", "actif")
 
 

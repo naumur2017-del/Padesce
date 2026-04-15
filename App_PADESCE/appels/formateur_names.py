@@ -5,6 +5,7 @@ from functools import lru_cache
 from pathlib import Path
 
 from django.conf import settings
+from django.db.models import Count, Max
 
 try:
     from openpyxl import load_workbook
@@ -16,6 +17,7 @@ FORMATEUR_NAMES_XLSX = "fichier_concatene (1) 1 (1).xlsx"
 FORMATEUR_NAME_COLUMN = "Nom du formateur"
 FORMATEUR_PHONE_COLUMN = "Telephone formateur1"
 FORMATEUR_DATA_SHEET = "Donnees"
+FORMATEUR_NAME_FALLBACK = "Non renseigné"
 
 
 def _normalize_phone(value: str) -> str:
@@ -112,3 +114,70 @@ def resolve_formateur_name_from_values(*values: str) -> str:
             if found:
                 return found
     return ""
+
+
+def _normalize_resolved_name(value: str) -> str:
+    name = str(value or "").strip()
+    return name or FORMATEUR_NAME_FALLBACK
+
+
+def _db_formateur_cache_token() -> tuple[int, float]:
+    from App_PADESCE.formations.models import Formateur
+
+    stats = Formateur.objects.filter(actif=True).aggregate(
+        max_updated=Max("updated_at"), total=Count("id")
+    )
+    max_updated = stats.get("max_updated")
+    ts = max_updated.timestamp() if max_updated else 0.0
+    return int(stats.get("total") or 0), ts
+
+
+@lru_cache(maxsize=2)
+def _load_db_phone_to_name(_token: tuple[int, float]) -> dict[str, str]:
+    from App_PADESCE.formations.models import Formateur
+
+    payload: dict[str, str] = {}
+    for formateur in Formateur.objects.filter(actif=True).only("nom", "telephone").iterator():
+        phone = _normalize_phone(str(getattr(formateur, "telephone", "") or ""))
+        if not phone or phone in payload:
+            continue
+        payload[phone] = _normalize_resolved_name(getattr(formateur, "nom", ""))
+    return payload
+
+
+def resolve_formateur_db_name_from_values(*values: str) -> str:
+    phone_candidates: list[str] = []
+    for raw in values:
+        phone_candidates.extend(_extract_phone_numbers(str(raw or "")))
+
+    db_map = _load_db_phone_to_name(_db_formateur_cache_token())
+    if phone_candidates:
+        for phone in phone_candidates:
+            normalized = _normalize_phone(phone)
+            if not normalized:
+                continue
+            found = db_map.get(normalized)
+            if found:
+                return found
+
+    return FORMATEUR_NAME_FALLBACK
+
+
+def sync_formateur_names_from_excel(*, fallback: str = FORMATEUR_NAME_FALLBACK) -> int:
+    from App_PADESCE.formations.models import Formateur
+
+    updated = 0
+    for formateur in Formateur.objects.filter(actif=True).only(
+        "id", "nom", "telephone", "nom_complet"
+    ):
+        resolved = resolve_formateur_name_from_values(
+            str(getattr(formateur, "telephone", "") or ""),
+            str(getattr(formateur, "nom_complet", "") or ""),
+        )
+        target_name = _normalize_resolved_name(resolved if resolved else fallback)
+        if str(getattr(formateur, "nom", "") or "").strip() == target_name:
+            continue
+        formateur.nom = target_name
+        formateur.save(update_fields=["nom", "updated_at"])
+        updated += 1
+    return updated
