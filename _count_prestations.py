@@ -2,11 +2,11 @@ import os
 
 import django
 
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "App_PADESCE.settings")
-django.setup()
-
 from App_PADESCE.core.fast_stats import build_fast_stats_bundle, request_like_with_query
 from App_PADESCE.reporting.network_excel import build_padesce_source_index
+
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "App_PADESCE.settings")
+django.setup()
 
 print("=== FAST STATS BUNDLE ===")
 req = request_like_with_query("")

@@ -1,4 +1,7 @@
-PATH = r"F:\NAUMUR\NAUMUR - TRAVAUX EN COURS\Utlisateurs\EYOUM ATOCK\CALL APP\App_PADESCE-main\App_PADESCE-main\templates\appels\index.html"
+PATH = (
+    r"F:\NAUMUR\NAUMUR - TRAVAUX EN COURS\Utlisateurs\EYOUM ATOCK\CALL APP"
+    r"\App_PADESCE-main\App_PADESCE-main\templates\appels\index.html"
+)
 
 with open(PATH, "r", encoding="utf-8") as f:
     content = f.read()
@@ -14,11 +17,14 @@ content = content.replace(
 
 content = content.replace("badgeContainer.innerHTML = '';", "")
 content = content.replace(
-    'badgeContainer.innerHTML = \'<span class="badge status-badge badge-success" style="font-size:0.85rem; padding:4px 8px;">Objectif Atteint ✅</span>\';',
+    'badgeContainer.innerHTML = \'<span class="badge status-badge badge-success" '
+    'style="font-size:0.85rem; padding:4px 8px;">Objectif Atteint ✅</span>\';',
     "",
 )
 content = content.replace(
-    'badgeContainer.innerHTML = `<span class="badge status-badge badge-warning" style="font-size:0.85rem; padding:4px 8px;">${prog.termines}/${prog.total} (${prog.pct}%)</span>`;',
+    'badgeContainer.innerHTML = `<span class="badge status-badge badge-warning" '
+    'style="font-size:0.85rem; padding:4px 8px;">${prog.termines}/${prog.total} '
+    "(${prog.pct}%)</span>`;",
     "",
 )
 
@@ -29,9 +35,14 @@ content = content.replace(
                 const badgeContainer = document.getElementById('js-class-threshold-badge');
                 if (badgeContainer) {
                     if (info.reached) {
-                        badgeContainer.innerHTML = '<span class="badge status-badge badge-success" style="font-size:0.85rem; padding:4px 8px;">Objectif Atteint ✅</span>';
+                        badgeContainer.innerHTML = '<span class="badge status-badge badge-success" '
+                        'style="font-size:0.85rem; padding:4px 8px;">Objectif Atteint ✅</span>';
                     } else {
-                        badgeContainer.innerHTML = `<span class="badge status-badge badge-warning" style="font-size:0.85rem; padding:4px 8px;">${info.termines}/${info.total} (${info.pct}%)</span>`;
+                        badgeContainer.innerHTML = (
+                            `<span class="badge status-badge badge-warning" `
+                            `style="font-size:0.85rem; padding:4px 8px;">`
+                            `${info.termines}/${info.total} (${info.pct}%)</span>`
+                        );
                     }
                 }
             }""",

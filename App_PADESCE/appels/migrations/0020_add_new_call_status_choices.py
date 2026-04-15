@@ -13,16 +13,37 @@ class Migration(migrations.Migration):
         migrations.AlterField(
             model_name='appel',
             name='status',
-            field=models.CharField(choices=[('en_attente', 'En attente'), ('appel_tente', 'Appel Tenté'), ('appel_reussi', 'Appel Réussi'), ('formulaire_rempli', 'Formulaire Rempli'), ('formulaire_avec_audio', 'Formulaire avec Audio'), ('en_cours', 'En cours'), ('pause', 'Pause'), ('a_rappeler', 'A rappeler'), ('termine', 'Termine')], default='en_attente', max_length=25),
+            field=models.CharField(
+                choices=[
+                    ('en_attente', 'En attente'), ('appel_tente', 'Appel Tenté'), 
+                    ('appel_reussi', 'Appel Réussi'), ('formulaire_rempli', 'Formulaire Rempli'), 
+                    ('formulaire_avec_audio', 'Formulaire avec Audio'), ('en_cours', 'En cours'), 
+                    ('pause', 'Pause'), ('a_rappeler', 'A rappeler'), ('termine', 'Termine')
+                ], default='en_attente', max_length=25
+            ),
         ),
         migrations.AlterField(
             model_name='appelcga',
             name='status',
-            field=models.CharField(choices=[('en_attente', 'En attente'), ('appel_tente', 'Appel Tenté'), ('appel_reussi', 'Appel Réussi'), ('formulaire_rempli', 'Formulaire Rempli'), ('formulaire_avec_audio', 'Formulaire avec Audio'), ('en_cours', 'En cours'), ('pause', 'Pause'), ('a_rappeler', 'A rappeler'), ('termine', 'Termine')], db_index=True, default='en_attente', max_length=25),
+            field=models.CharField(
+                choices=[
+                    ('en_attente', 'En attente'), ('appel_tente', 'Appel Tenté'), 
+                    ('appel_reussi', 'Appel Réussi'), ('formulaire_rempli', 'Formulaire Rempli'), 
+                    ('formulaire_avec_audio', 'Formulaire avec Audio'), ('en_cours', 'En cours'), 
+                    ('pause', 'Pause'), ('a_rappeler', 'A rappeler'), ('termine', 'Termine')
+                ], db_index=True, default='en_attente', max_length=25
+            ),
         ),
         migrations.AlterField(
             model_name='appelformateur',
             name='status',
-            field=models.CharField(choices=[('en_attente', 'En attente'), ('appel_tente', 'Appel Tenté'), ('appel_reussi', 'Appel Réussi'), ('formulaire_rempli', 'Formulaire Rempli'), ('formulaire_avec_audio', 'Formulaire avec Audio'), ('en_cours', 'En cours'), ('pause', 'Pause'), ('a_rappeler', 'A rappeler'), ('termine', 'Termine')], db_index=True, default='en_attente', max_length=25),
+            field=models.CharField(
+                choices=[
+                    ('en_attente', 'En attente'), ('appel_tente', 'Appel Tenté'), 
+                    ('appel_reussi', 'Appel Réussi'), ('formulaire_rempli', 'Formulaire Rempli'), 
+                    ('formulaire_avec_audio', 'Formulaire avec Audio'), ('en_cours', 'En cours'), 
+                    ('pause', 'Pause'), ('a_rappeler', 'A rappeler'), ('termine', 'Termine')
+                ], db_index=True, default='en_attente', max_length=25
+            ),
         ),
     ]

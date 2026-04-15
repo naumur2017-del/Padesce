@@ -3,15 +3,15 @@ import sys
 
 import django
 
-sys.path.append(r"D:\Documents\NAUMUR\Projet PADESCE Call\Padesce")
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "App_PADESCE.settings")
-django.setup()
-
 from App_PADESCE.appels.models import (
     AppelFormateur,
     formateur_has_any_audio,
     formateur_has_any_form_data,
 )
+
+sys.path.append(r"D:\Documents\NAUMUR\Projet PADESCE Call\Padesce")
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "App_PADESCE.settings")
+django.setup()
 
 success = ["formulaire_rempli", "formulaire_avec_audio", "termine", "appel_reussi"]
 calls = AppelFormateur.objects.filter(is_active=True, status__in=success).order_by("-pk")

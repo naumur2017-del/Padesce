@@ -15,7 +15,9 @@ urlpatterns = [
     ),
     path(
         "export/commentaires-xlsx/",
-        lazy_view("App_PADESCE.satisfaction_apprenants.views.satisfaction_apprenants_export_comments_xlsx"),
+        lazy_view(
+            "App_PADESCE.satisfaction_apprenants.views.satisfaction_apprenants_export_comments_xlsx"
+        ),
         name="satisfaction_apprenants_export_comments_xlsx",
     ),
     path(

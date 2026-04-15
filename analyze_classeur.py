@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 """Analyze the Classeur.xlsx file structure"""
+
 import sys
 
 import openpyxl

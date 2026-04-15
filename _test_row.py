@@ -2,10 +2,10 @@ import os
 
 import django
 
+from App_PADESCE.core.fast_stats import build_fast_stats_bundle, request_like_with_query
+
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "App_PADESCE.settings")
 django.setup()
-
-from App_PADESCE.core.fast_stats import build_fast_stats_bundle, request_like_with_query
 
 req = request_like_with_query("")
 bundle = build_fast_stats_bundle(req)

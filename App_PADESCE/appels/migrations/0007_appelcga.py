@@ -17,7 +17,9 @@ class Migration(migrations.Migration):
         migrations.CreateModel(
             name='AppelCGA',
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('id', models.BigAutoField(
+                    auto_created=True, primary_key=True, serialize=False, verbose_name='ID'
+                )),
                 ('created_at', models.DateTimeField(auto_now_add=True)),
                 ('updated_at', models.DateTimeField(auto_now=True)),
                 ('numero', models.PositiveIntegerField(blank=True, null=True)),
@@ -31,15 +33,37 @@ class Migration(migrations.Migration):
                 ('ville', models.CharField(blank=True, max_length=120)),
                 ('telephone', models.CharField(blank=True, max_length=30)),
                 ('is_active', models.BooleanField(db_index=True, default=True)),
-                ('status', models.CharField(choices=[('en_attente', 'En attente'), ('en_cours', 'En cours'), ('pause', 'Pause'), ('a_rappeler', 'A rappeler'), ('termine', 'Termine')], db_index=True, default='en_attente', max_length=20)),
+                ('status', models.CharField(
+                    choices=[
+                        ('en_attente', 'En attente'), ('en_cours', 'En cours'), 
+                        ('pause', 'Pause'), ('a_rappeler', 'A rappeler'), 
+                        ('termine', 'Termine')
+                    ], db_index=True, default='en_attente', max_length=20
+                )),
                 ('rappel_at', models.DateTimeField(blank=True, null=True)),
-                ('audio_file', models.FileField(blank=True, null=True, upload_to=App_PADESCE.appels.models.appel_cga_audio_upload)),
+                ('audio_file', models.FileField(
+                    blank=True, null=True, 
+                    upload_to=App_PADESCE.appels.models.appel_cga_audio_upload
+                )),
                 ('locked_at', models.DateTimeField(blank=True, null=True)),
-                ('locked_by', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='appels_cga_lock', to=settings.AUTH_USER_MODEL)),
+                ('locked_by', models.ForeignKey(
+                    blank=True, null=True, 
+                    on_delete=django.db.models.deletion.SET_NULL, 
+                    related_name='appels_cga_lock', to=settings.AUTH_USER_MODEL
+                )),
             ],
             options={
                 'ordering': ['raison_sociale'],
-                'indexes': [models.Index(fields=['raison_sociale'], name='appels_appe_raison__a78d88_idx'), models.Index(fields=['regime'], name='appels_appe_regime_134969_idx'), models.Index(fields=['cri'], name='appels_appe_cri_8f0572_idx'), models.Index(fields=['centre_de_rattachement'], name='appels_appe_centre__69b1df_idx'), models.Index(fields=['ville'], name='appels_appe_ville_63130e_idx')],
+                'indexes': [
+                    models.Index(fields=['raison_sociale'], name='appels_appe_raison__a78d88_idx'), 
+                    models.Index(fields=['regime'], name='appels_appe_regime_134969_idx'), 
+                    models.Index(fields=['cri'], name='appels_appe_cri_8f0572_idx'), 
+                    models.Index(
+                        fields=['centre_de_rattachement'], 
+                        name='appels_appe_centre__69b1df_idx'
+                    ), 
+                    models.Index(fields=['ville'], name='appels_appe_ville_63130e_idx')
+                ],
             },
         ),
     ]

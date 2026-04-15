@@ -10,12 +10,12 @@ https://docs.djangoproject.com/en/6.0/howto/deployment/asgi/
 import os
 from pathlib import Path
 
+from django.core.asgi import get_asgi_application
+
 from App_PADESCE.core.runtime_bootstrap import bootstrap_runtime
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "App_PADESCE.settings")
 bootstrap_runtime(Path(__file__).resolve().parent.parent)
-
-from django.core.asgi import get_asgi_application
 
 django_asgi_app = get_asgi_application()
 

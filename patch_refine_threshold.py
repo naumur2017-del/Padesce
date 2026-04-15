@@ -1,12 +1,17 @@
-PATH = r"F:\NAUMUR\NAUMUR - TRAVAUX EN COURS\Utlisateurs\EYOUM ATOCK\CALL APP\App_PADESCE-main\App_PADESCE-main\templates\appels\index.html"
+import re
+
+PATH = (
+    r"F:\NAUMUR\NAUMUR - TRAVAUX EN COURS\Utlisateurs\EYOUM ATOCK\CALL APP"
+    r"\App_PADESCE-main\App_PADESCE-main\templates\appels\index.html"
+)
 
 with open(PATH, "r", encoding="utf-8") as f:
     content = f.read()
 
 # 1. Remove the old class summary section
-import re
 
-# The section starts with <div class="class-summary-container"> and ends with </div> plus some spacing
+# The section starts with <div class="class-summary-container"> and ends with </div>
+# plus some spacing
 content = re.sub(
     r'<div class="class-summary-container">.*?</div>\s*</div>', "", content, flags=re.DOTALL
 )
@@ -30,7 +35,8 @@ OLD_SELECT = """    <select name="classe" class="input">
 NEW_SELECT = """    <select name="classe" class="input" id="js-classe-filter">
       <option value="">Classe</option>
       {% for p in filters.classes_enriched %}
-        <option value="{{ p.value }}" {% if filters.classe == p.value %}selected{% endif %}>{{ p.label }}</option>
+        <option value="{{ p.value }}" 
+                {% if filters.classe == p.value %}selected{% endif %}>{{ p.label }}</option>
       {% endfor %}
     </select>
     <div id="js-class-threshold-badge" style="display:inline-block; margin-left:5px;"></div>"""
@@ -51,9 +57,14 @@ JS_LOGIC = """
         const prog = classeProgress.find(p => p.classe === val);
         if (prog) {
             if (prog.reached) {
-                badgeContainer.innerHTML = '<span class="badge status-badge badge-success" style="font-size:0.85rem; padding:4px 8px;">Objectif Atteint ✅</span>';
+                badgeContainer.innerHTML = '<span class="badge status-badge badge-success" '
+                'style="font-size:0.85rem; padding:4px 8px;">Objectif Atteint ✅</span>';
             } else {
-                badgeContainer.innerHTML = `<span class="badge status-badge badge-warning" style="font-size:0.85rem; padding:4px 8px;">${prog.termines}/${prog.total} (${prog.pct}%)</span>`;
+                badgeContainer.innerHTML = (
+                    `<span class="badge status-badge badge-warning" `
+                    `style="font-size:0.85rem; padding:4px 8px;">`
+                    `${prog.termines}/${prog.total} (${prog.pct}%)</span>`
+                );
             }
         }
     }

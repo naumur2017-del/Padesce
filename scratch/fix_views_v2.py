@@ -1,3 +1,5 @@
+import re
+
 path = r"d:\Documents\NAUMUR\Projet PADESCE Call\Padesce\App_PADESCE\core\views.py"
 with open(path, "r", encoding="utf-8") as f:
     content = f.read()
@@ -20,7 +22,6 @@ formateur_iter_block = """    for row in rows:
         row.classe = None"""
 
 # Find the formateur loop and replace it
-import re
 
 formateur_pattern = (
     re.escape("    for row in rows:")
@@ -36,7 +37,12 @@ else:
     print("Formateur pattern not found exactly. Checking current state...")
     # Just replace the smaller known part
     small_target = "        row.telephone1 = row.consultant_telephone"
-    small_replacement = "        row.telephone1 = row.consultant_telephone\n        row.telephone2 = None\n        row.consultant_class_display = row.consultant_scope_label\n        row.classe = None"
+    small_replacement = (
+        "        row.telephone1 = row.consultant_telephone\n"
+        "        row.telephone2 = None\n"
+        "        row.consultant_class_display = row.consultant_scope_label\n"
+        "        row.classe = None"
+    )
     if small_target in content:
         content = content.replace(small_target, small_replacement)
         print("Success with small replacement")

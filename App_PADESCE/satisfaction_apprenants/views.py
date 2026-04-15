@@ -3183,7 +3183,6 @@ def _build_satisfaction_dashboard_data(request):
             )
         except Exception:
             counter_source_bundle = source_bundle
-            counter_source_summary = source_summary
             counter_threshold_class_codes = threshold_class_codes
 
     _counter_rows, counter_classe_stats_seuil = _thresholded_dashboard_rows(

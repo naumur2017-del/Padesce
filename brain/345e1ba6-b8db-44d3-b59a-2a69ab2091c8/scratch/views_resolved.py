@@ -61,7 +61,7 @@ def _consultant_formateurs_dashboard_context(request):
         if row.audio_file and row.audio_file.name:
             try:
                 row.consultant_has_audio = row.audio_file.storage.exists(row.audio_file.name)
-            except:
+            except Exception:
                 pass
 
         row.consultant_has_form = formateur_has_any_form_data(row)
@@ -74,18 +74,6 @@ def _consultant_formateurs_dashboard_context(request):
         row.classe = classe
 
     stats_qs = AppelFormateur.objects.filter(is_active=True)
-    formateur_score_fields = [
-        "q1_prerequis_apprenants",
-        "q2_interaction_apprenants",
-        "q3_competences_acquises",
-    ]
-    formateur_text_fields = [
-        "q4_gestion_administrative",
-        "q5_gestion_financiere",
-        "q6_communication",
-        "commentaires",
-        "recommandations",
-    ]
 
     tentes_qs = stats_qs.exclude(status="en_attente")
     tentes_count = tentes_qs.count()
@@ -102,7 +90,7 @@ def _consultant_formateurs_dashboard_context(request):
                 try:
                     if item.audio_file.storage.exists(item.audio_file.name):
                         summary_form_audio += 1
-                except:
+                except Exception:
                     pass
 
     summary_form_sans_audio = summary_form_remplis - summary_form_audio
@@ -136,7 +124,7 @@ def _consultant_formateurs_dashboard_context(request):
     page_number = request.GET.get("page", 1)
     try:
         page_obj = paginator.page(page_number)
-    except:
+    except Exception:
         page_obj = paginator.page(1)
 
     _filter_rows = []

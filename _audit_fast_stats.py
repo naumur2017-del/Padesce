@@ -1,13 +1,9 @@
 """Audit script for FAST STATS indicators validation."""
 
 import os
+from collections import Counter
 
 import django
-
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "App_PADESCE.settings")
-django.setup()
-
-from collections import Counter
 
 from App_PADESCE.appels.models import Appel, AppelAnswers, AppelFormateur
 from App_PADESCE.apprenants.models import Apprenant
@@ -20,6 +16,9 @@ from App_PADESCE.core.fast_stats import (
 )
 from App_PADESCE.formations.models import Classe
 from App_PADESCE.satisfaction_apprenants.models import SatisfactionApprenant
+
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "App_PADESCE.settings")
+django.setup()
 
 
 def separator(title):
@@ -266,8 +265,7 @@ def main():
 
     # ── 9. Resume final ──
     separator("9. RESUME METHODOLOGIQUE")
-    print(
-        """
+    print("""
   FORMULES VERIFIEES:
     % appel effectue  = calls_effectues / apprenant_count
     % appel termine   = calls_termines / calls_effectues
@@ -289,8 +287,7 @@ def main():
 
   APPEL TERMINE  = AppelAnswers existe
                    OU SatisfactionApprenant existe
-    """
-    )
+    """)
 
     if errors:
         separator("ERREURS DETECTEES")

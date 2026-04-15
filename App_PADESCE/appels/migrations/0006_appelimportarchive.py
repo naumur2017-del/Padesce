@@ -14,13 +14,19 @@ class Migration(migrations.Migration):
         migrations.CreateModel(
             name='AppelImportArchive',
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('id', models.BigAutoField(
+                    auto_created=True, primary_key=True, serialize=False, verbose_name='ID'
+                )),
                 ('created_at', models.DateTimeField(auto_now_add=True)),
                 ('updated_at', models.DateTimeField(auto_now=True)),
                 ('import_mode', models.CharField(blank=True, max_length=50)),
                 ('source_code', models.CharField(blank=True, max_length=50)),
                 ('snapshot', models.JSONField(default=dict)),
-                ('appel', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='import_archives', to='appels.appel')),
+                ('appel', models.ForeignKey(
+                    blank=True, null=True, 
+                    on_delete=django.db.models.deletion.SET_NULL, 
+                    related_name='import_archives', to='appels.appel'
+                )),
             ],
             options={
                 'ordering': ['-created_at'],

@@ -51,7 +51,11 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='appelanswers',
             name='modified_by',
-            field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='appel_answers_modified', to=settings.AUTH_USER_MODEL),
+            field=models.ForeignKey(
+                blank=True, null=True, 
+                on_delete=django.db.models.deletion.SET_NULL, 
+                related_name='appel_answers_modified', to=settings.AUTH_USER_MODEL
+            ),
         ),
         migrations.AddField(
             model_name='appelanswers',
