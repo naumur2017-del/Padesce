@@ -457,6 +457,75 @@ def _build_apprenant_row(
     }
 
 
+def _build_general_global_row(classes: list[Classe], source_class_counts: dict[str, int] | None = None) -> dict:
+    """Build a single global statistics row aggregating all classes."""
+    all_satisfactions = []
+    total_apprenants = 0
+    total_calls_effectues = 0
+
+    for classe in classes:
+        local_apprenant_count = len(list(classe.apprenants.all()))
+        classe_key = normalize_network_lookup(classe.code)
+        apprenant_count = int((source_class_counts or {}).get(classe_key, local_apprenant_count) or 0)
+        total_apprenants += apprenant_count
+
+        appels = list(classe.appels.all())
+
+        # Get all satisfactions for this class
+        class_satisfactions = [
+            _get_completed_satisfaction(appel) for appel in appels
+        ]
+        all_satisfactions.extend([s for s in class_satisfactions if s is not None])
+
+        # Count effectued calls
+        people: dict[str, dict[str, bool]] = {}
+        for appel in appels:
+            key = _apprenant_person_key(appel)
+            person_flags = people.setdefault(key, {"effectue": False})
+            person_flags["effectue"] = person_flags["effectue"] or _apprenant_call_effectue(appel)
+
+        calls_effectues = min(apprenant_count, sum(1 for flags in people.values() if flags["effectue"]))
+        total_calls_effectues += calls_effectues
+
+    # Calculate global metrics
+    pct_presence = _percentage(total_calls_effectues, total_apprenants)
+    resp_horaire = _average_score(all_satisfactions, "q6_organisation_temps")
+    resp_theme = _average_score(all_satisfactions, "q3_maitrise_contenu")
+    resp_parité = _average_score(all_satisfactions, "q2_interaction_formateur")
+    qualite_environnement = _average_score(all_satisfactions, "q4_salle_adequate")
+    satisfaction_apprenant = _average_score(all_satisfactions, "q9_satisfaction_globale")
+    satisfaction_formateur = _average_score(all_satisfactions, "q8_adequation_besoins")
+    attitude_enquete = _average_score(all_satisfactions, "q1_clarte_exposes")
+
+    return {
+        "metric_type": "global",
+        "taux_presence": pct_presence,
+        "taux_presence_pct": pct_presence * 100 if pct_presence else None,
+        "taux_presence_base": 100,
+        "taux_presence_scale": 20,
+        "resp_horaire": resp_horaire,
+        "resp_horaire_pct": resp_horaire * 100 if resp_horaire else None,
+        "resp_horaire_base": 100,
+        "resp_horaire_scale": 10,
+        "resp_theme": resp_theme,
+        "resp_theme_pct": resp_theme * 100 if resp_theme else None,
+        "resp_theme_base": 100,
+        "resp_theme_scale": 10,
+        "resp_parité": resp_parité,
+        "resp_parité_pct": resp_parité * 100 if resp_parité else None,
+        "resp_parité_base": 100,
+        "resp_parité_scale": 10,
+        "qualite_environnement": qualite_environnement,
+        "qualite_environnement_scale": 10,
+        "satisfaction_apprenant": satisfaction_apprenant,
+        "satisfaction_apprenant_scale": 20,
+        "satisfaction_formateur": satisfaction_formateur,
+        "satisfaction_formateur_scale": 10,
+        "attitude_enquete": attitude_enquete,
+        "attitude_enquete_scale": 10,
+    }
+
+
 def _build_general_row(
     index: int,
     classe: Classe,
@@ -816,44 +885,31 @@ def _apprenant_summary_cards(rows: list[dict]) -> list[dict]:
 
 def _general_summary_cards(rows: list[dict]) -> list[dict]:
     """Summary cards for general statistics mode."""
-    total_classes = len(rows)
-    satisfactions_with_data = sum(
-        1 for row in rows
-        if any(row.get(f) is not None for f in [
-            "resp_horaire", "resp_theme", "resp_parité",
-            "qualite_environnement", "satisfaction_apprenant", "satisfaction_formateur"
-        ])
-    )
-    avg_presence = sum(
-        row["taux_presence"] for row in rows
-        if row["taux_presence"] is not None
-    ) / max(1, sum(1 for row in rows if row["taux_presence"] is not None))
+    if not rows:
+        return []
 
-    avg_satisfaction = sum(
-        row["satisfaction_apprenant"] for row in rows
-        if row["satisfaction_apprenant"] is not None
-    ) / max(1, sum(1 for row in rows if row["satisfaction_apprenant"] is not None))
+    row = rows[0]  # Global row
 
     return [
         {
-            "label": "Classes",
-            "value": total_classes,
-            "meta": "Nombre de classes analysées.",
+            "label": "Taux de présence",
+            "value": f"{row.get('taux_presence_pct', 0):.1f}%",
+            "meta": "Présence globale de tous les apprenants analysés.",
         },
         {
-            "label": "Avec satisfaction",
-            "value": satisfactions_with_data,
-            "meta": "Classes ayant des données de satisfaction.",
-        },
-        {
-            "label": "Taux de présence moyen",
-            "value": f"{avg_presence * 100:.1f}%",
-            "meta": "Moyenne des taux de présence.",
-        },
-        {
-            "label": "Satisfaction moyenne",
-            "value": f"{avg_satisfaction:.2f}/5",
+            "label": "Satisfaction apprenant",
+            "value": f"{row.get('satisfaction_apprenant', 0):.2f}/5",
             "meta": "Score de satisfaction global moyen.",
+        },
+        {
+            "label": "Resp horaire",
+            "value": f"{row.get('resp_horaire', 0):.2f}/5",
+            "meta": "Réponse au rythme de formation.",
+        },
+        {
+            "label": "Qualité environnement",
+            "value": f"{row.get('qualite_environnement', 0):.1f}/5",
+            "meta": "Score de qualité environnement.",
         },
     ]
 
@@ -1018,14 +1074,10 @@ def build_fast_stats_bundle(request) -> dict:
         )
         for index, classe in enumerate(classes, start=1)
     ]
-    general_rows = [
-        _build_general_row(
-            index,
-            classe,
-            source_class_counts=source_class_counts,
-        )
-        for index, classe in enumerate(classes, start=1)
-    ]
+    # Build single global row for general mode
+    general_global_row = _build_general_global_row(classes, source_class_counts=source_class_counts)
+    general_rows = [general_global_row]
+
     formateur_rows = [
         _build_formateur_row(
             index,
@@ -1168,42 +1220,42 @@ def _write_apprenant_sheet(worksheet, mode_payload: dict) -> None:
 
 
 def _write_general_sheet(worksheet, mode_payload: dict) -> None:
-    worksheet["B1"] = "Total classe de la prestation termine"
+    worksheet["B1"] = "Statistiques générales de satisfaction"
     worksheet["C1"] = "TRUE"
-    worksheet["B3"] = "Prestation ID"
-    worksheet["C3"] = "Classe ID"
-    worksheet["D3"] = "Taux de présence"
-    worksheet["E3"] = "Resp horaire"
-    worksheet["F3"] = "Resp thème"
-    worksheet["G3"] = "Resp parité"
-    worksheet["H3"] = "Qualité environnement"
-    worksheet["I3"] = "Satisfaction apprenant"
-    worksheet["J3"] = "Satis faction formateur"
-    worksheet["K3"] = "Attitude enquête / respect consigne"
+    worksheet["B3"] = "Métrique"
+    worksheet["C3"] = "Base"
+    worksheet["D3"] = "%"
+    worksheet["E3"] = "Échelle"
 
-    _clear_data_rows(worksheet, start_row=FAST_STATS_TEMPLATE_ROW_START, max_col=11)
-    last_row = max(
-        FAST_STATS_TEMPLATE_ROW_START, FAST_STATS_TEMPLATE_ROW_START + len(mode_payload["rows"]) - 1
-    )
-    _ensure_sheet_capacity(worksheet, last_row=last_row, max_col=11)
+    _clear_data_rows(worksheet, start_row=FAST_STATS_TEMPLATE_ROW_START, max_col=5)
 
-    for offset, row in enumerate(mode_payload["rows"], start=FAST_STATS_TEMPLATE_ROW_START):
-        worksheet[f"A{offset}"] = row["index"]
-        worksheet[f"B{offset}"] = row["prestation_id"]
-        worksheet[f"C{offset}"] = row["classe_id"]
-        worksheet[f"D{offset}"] = row["taux_presence"]
-        worksheet[f"E{offset}"] = row["resp_horaire"]
-        worksheet[f"F{offset}"] = row["resp_theme"]
-        worksheet[f"G{offset}"] = row["resp_parité"]
-        worksheet[f"H{offset}"] = row["qualite_environnement"]
-        worksheet[f"I{offset}"] = row["satisfaction_apprenant"]
-        worksheet[f"J{offset}"] = row["satisfaction_formateur"]
-        worksheet[f"K{offset}"] = row["attitude_enquete"]
-        worksheet[f"D{offset}"].number_format = "0.00%"
-        for col in ["E", "F", "G", "H", "I", "J", "K"]:
-            cell = worksheet[f"{col}{offset}"]
-            if cell.value is not None:
-                cell.number_format = "0.00"
+    if mode_payload["rows"]:
+        row = mode_payload["rows"][0]  # Global row
+
+        metrics = [
+            ("Taux de présence", row.get("taux_presence"), row.get("taux_presence_pct"), row.get("taux_presence_base"), row.get("taux_presence_scale")),
+            ("Resp horaire", row.get("resp_horaire"), row.get("resp_horaire_pct"), row.get("resp_horaire_base"), row.get("resp_horaire_scale")),
+            ("Resp thème", row.get("resp_theme"), row.get("resp_theme_pct"), row.get("resp_theme_base"), row.get("resp_theme_scale")),
+            ("Resp parité", row.get("resp_parité"), row.get("resp_parité_pct"), row.get("resp_parité_base"), row.get("resp_parité_scale")),
+            ("Qualité environnement", row.get("qualite_environnement"), None, None, row.get("qualite_environnement_scale")),
+            ("Satisfaction apprenant", row.get("satisfaction_apprenant"), None, None, row.get("satisfaction_apprenant_scale")),
+            ("Satis faction formateur", row.get("satisfaction_formateur"), None, None, row.get("satisfaction_formateur_scale")),
+            ("Attitude enquête / respect consigne", row.get("attitude_enquete"), None, None, row.get("attitude_enquete_scale")),
+        ]
+
+        last_row = FAST_STATS_TEMPLATE_ROW_START + len(metrics) - 1
+        _ensure_sheet_capacity(worksheet, last_row=last_row, max_col=5)
+
+        for offset, (label, value, pct, base, scale) in enumerate(metrics, start=FAST_STATS_TEMPLATE_ROW_START):
+            worksheet[f"B{offset}"] = label
+            worksheet[f"C{offset}"] = value
+            worksheet[f"D{offset}"] = pct
+            worksheet[f"E{offset}"] = scale
+
+            if pct is not None:
+                worksheet[f"D{offset}"].number_format = "0.0%"
+            if value is not None and label not in ["Satisfaction apprenant", "Satis faction formateur", "Attitude enquête / respect consigne"]:
+                worksheet[f"C{offset}"].number_format = "0.00"
 
 
 def _write_formateur_sheet(worksheet, mode_payload: dict) -> None:

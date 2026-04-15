@@ -146,33 +146,49 @@
 
     function renderGeneralTable(mode) {
       const rows = mode.rows || [];
-      const body = rows.length ? rows.map((row) => `
+      if (!rows.length) {
+        return `<div class="fast-stats-empty">Aucune donnée FAST STATS disponible pour les filtres courants.</div>`;
+      }
+
+      const row = rows[0]; // Get the global row
+
+      // Format percentage with 2 decimals
+      const formatPct = (val) => val != null ? `${val.toFixed(0)}%` : "—";
+      const formatScore = (val, scale) => val != null ? `${val.toFixed(scale === 5 ? 1 : 0)}${scale === 10 ? "Z" : ""}` : "—";
+
+      // Build the metrics table
+      const metrics = [
+        { label: "Taux de présence", base: formatPct(row.taux_presence_pct), col3: row.taux_presence_base, scale: row.taux_presence_scale },
+        { label: "Resp horaire", base: formatPct(row.resp_horaire_pct), col3: row.resp_horaire_base, scale: row.resp_horaire_scale },
+        { label: "Resp thème", base: formatPct(row.resp_theme_pct), col3: row.resp_theme_base, scale: row.resp_theme_scale },
+        { label: "Resp parité", base: formatPct(row.resp_parité_pct), col3: row.resp_parité_base, scale: row.resp_parité_scale },
+        { label: "Qualité environnement", base: row.qualite_environnement != null ? row.qualite_environnement.toFixed(1) : "—", col3: "", scale: row.qualite_environnement_scale },
+        { label: "Satisfaction apprenant", base: row.satisfaction_apprenant != null ? row.satisfaction_apprenant.toFixed(1) + "/5" : "—", col3: "", scale: row.satisfaction_apprenant_scale },
+        { label: "Satis faction formateur", base: row.satisfaction_formateur != null ? row.satisfaction_formateur.toFixed(1) + "/5" : "—", col3: "", scale: row.satisfaction_formateur_scale },
+        { label: "Attitude enquête / respect consigne", base: row.attitude_enquete != null ? row.attitude_enquete.toFixed(1) : "—", col3: "", scale: row.attitude_enquete_scale },
+      ];
+
+      const tableBody = metrics.map(m => `
         <tr>
-          <td class="num">${displayValue(row.index)}</td>
-          <td>${displayValue(row.prestation_id)}</td>
-          <td><a class="fast-stats-link" href="${classBaseUrl ? classBaseUrl.replace('PLACEHOLDER', encodeURIComponent(row.classe_id)) : '#'}" target="_blank" rel="noreferrer">${displayValue(row.classe_id)}</a></td>
-          <td class="num">${displayValue(row.taux_presence_label)}</td>
-          <td class="num">${displayValue(row.resp_horaire_label)}</td>
-          <td class="num">${displayValue(row.resp_theme_label)}</td>
-          <td class="num">${displayValue(row.resp_parité_label)}</td>
-          <td class="num">${displayValue(row.qualite_environnement_label)}</td>
-          <td class="num">${displayValue(row.satisfaction_apprenant_label)}</td>
-          <td class="num">${displayValue(row.satisfaction_formateur_label)}</td>
-          <td class="num">${displayValue(row.attitude_enquete_label)}</td>
+          <td style="text-align: left; font-weight: 600;">${escapeHtml(m.label)}</td>
+          <td class="num" style="font-weight: 700;">${displayValue(m.base)}</td>
+          <td class="num">${displayValue(m.col3)}</td>
+          <td class="num">${displayValue(m.scale)}</td>
         </tr>
-      `).join("") : `<tr><td colspan="11" class="fast-stats-empty">Aucune donnée FAST STATS disponible pour les filtres courants.</td></tr>`;
+      `).join("");
+
       return `
         <div class="table-scroll" style="max-height:60vh;">
           <table class="fast-stats-table">
             <thead>
               <tr>
-                <th>#</th><th>Prestation ID</th><th>Classe ID</th><th>Taux de présence</th>
-                <th>Resp horaire</th><th>Resp thème</th><th>Resp parité</th>
-                <th>Qualité environnement</th><th>Satisfaction apprenant</th>
-                <th>Satis faction formateur</th><th>Attitude enquête / respect consigne</th>
+                <th style="text-align: left;">Métrique</th>
+                <th>Base</th>
+                <th></th>
+                <th>Échelle</th>
               </tr>
             </thead>
-            <tbody>${body}</tbody>
+            <tbody>${tableBody}</tbody>
           </table>
         </div>`;
     }
