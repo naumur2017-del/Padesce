@@ -909,13 +909,17 @@ def public_space(request):
                 else:
                     print("DEBUG: Stats data empty, using fallback")
                     context["stats"] = {
-                        "global_avgs": {"q1": 3.5, "q2": 3.0, "q3": 3.1},
+                        "global_avgs": {
+                            "Prérequis apprenants": 2.98,
+                            "Interaction apprenants": 3.49,
+                            "Compétences acquises": 3.12,
+                        },
                         "best_rankings": [
-                            {"code": "PRESTA001", "score_global": 95.0, "intitule": "Réparation des engins agricoles", "prestataire": "CFP FAMEAC", "region": "ADAMAOUA"},
-                            {"code": "PRESTA002", "score_global": 90.0, "intitule": "Fabrication des ruches style kenyan", "prestataire": "CFP LA DOMINICAINE", "region": "SUD"},
-                            {"code": "PRESTA003", "score_global": 85.0, "intitule": "Elevage", "prestataire": "CADHAC", "region": "EXTRÊME-NORD"},
-                            {"code": "PRESTA004", "score_global": 80.0, "intitule": "Techniques financières", "prestataire": "PADIUM EXPRESS SERVICES", "region": "EXTRÊME-NORD"},
-                            {"code": "PRESTA005", "score_global": 75.0, "intitule": "PRATIQUE AGRICOLE DURABLE", "prestataire": "MOORE STEPHEN", "region": "SUD-OUEST"},
+                            {"code": "PRESTA066", "score_global": 97.0, "intitule": "Réparation des engins agricoles", "prestataire": "Centre de Formation et d'Education aux Métiers (CFEM)", "region": "EXTRÊME-NORD"},
+                            {"code": "PRESTA046", "score_global": 95.98, "intitule": "Fabrication des ruches style kenyan", "prestataire": "NAT TECHNOLOGIES", "region": "CENTRE"},
+                            {"code": "PRESTA051", "score_global": 95.02, "intitule": "Elevage", "prestataire": "CFP-EN", "region": "OUEST"},
+                            {"code": "PRESTA012", "score_global": 94.0, "intitule": "Techniques financières", "prestataire": "CFP WELL BEING EXPERTS", "region": "NORD"},
+                            {"code": "PRESTA019", "score_global": 94.0, "intitule": "PRATIQUE AGRICOLE DURABLE", "prestataire": "CRA D'EBOLOWA", "region": "SUD"},
                         ],
                         "improve_rankings": [
                             {"code": "PRESTA006", "score_global": 65.0, "intitule": "Formation amélioration 1", "prestataire": "UPECA", "region": "SUD-OUEST"},
