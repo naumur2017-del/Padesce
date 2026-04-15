@@ -300,19 +300,15 @@ def _parse_french_date(value):
 
 
 def _build_reference_code(item):
-    date_part = (
-        item["session_date"].isoformat()
-        if item.get("session_date")
-        else slugify(item.get("date_label") or "date")
-    )
-    start_part = slugify(item.get("heure_debut") or "debut")
-    phone_part = item.get("telephone") or "sans-telephone"
-    return (
-        f"FORM-{item.get('numero_seance') or '0'}-"
-        f"{slugify(item.get('prestataire') or 'prestataire')[:18]}-"
-        f"{slugify(item.get('beneficiaire') or 'beneficiaire')[:18]}-"
-        f"{phone_part}-{date_part}-{start_part}"
-    )[:120]
+    # Extraire les informations pertinentes
+    numero_seance = item.get('numero_seance') or '0'
+    formateur = item.get('formateur') or item.get('contact_formateur') or ''
+    
+    # Formater le nom du formateur (prendre les premiers caractères significatifs)
+    formateur_slug = _short_slug(formateur, 'formateur', max_len=20)
+    
+    # Construire un code simple et lisible avec seulement le numéro et le formateur
+    return f"FORM-{numero_seance}-{formateur_slug}"
 
 
 def _iter_formateur_excel_rows(file_obj):
