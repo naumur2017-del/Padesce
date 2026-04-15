@@ -60,6 +60,7 @@ SUPPORTED_AUDIO_FORMATS = {"wav", "mp3", "m4a", "ogg", "webm", "flac"}
 
 logger = logging.getLogger(__name__)
 _FORMATEURS_CACHE_TIMEOUT = int(str(os.getenv("PADESCE_ANALYSIS_CACHE_TIMEOUT", "300") or "300"))
+_FORMATEURS_DASHBOARD_CACHE_VERSION = "scores-q1q3-v2"
 
 
 def _formateurs_cache_key(*parts) -> str:
@@ -1702,8 +1703,7 @@ def _build_formateur_appel_status_summary(queryset) -> dict[str, int]:
 
 
 def _is_strict_formateur_record(record: dict) -> bool:
-    has_answers = all(record.get(field_name) is not None for field_name, _ in Q_FORM_FIELDS)
-    return has_answers or record.get("satisfaction_completed_at") is not None
+    return all(record.get(field_name) is not None for field_name, _ in Q_FORM_FIELDS)
 
 
 def _build_satisfaction_formateurs_dashboard_context(request) -> dict:
@@ -1713,7 +1713,13 @@ def _build_satisfaction_formateurs_dashboard_context(request) -> dict:
     active_tab = _active_formateurs_tab(request)
 
     _formateur_marker = get_analysis_cache_version("model:appels.appelformateur")
-    _cache_key = _formateurs_cache_key(f_prestataire, f_beneficiaire, f_cohorte, _formateur_marker)
+    _cache_key = _formateurs_cache_key(
+        _FORMATEURS_DASHBOARD_CACHE_VERSION,
+        f_prestataire,
+        f_beneficiaire,
+        f_cohorte,
+        _formateur_marker,
+    )
     _cached = cache.get(_cache_key)
     if _cached is not None:
         return _cached

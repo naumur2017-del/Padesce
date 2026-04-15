@@ -1,6 +1,7 @@
 from datetime import date, datetime
 
 from django.contrib.auth import get_user_model
+from django.test import RequestFactory
 from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
@@ -15,6 +16,9 @@ from App_PADESCE.formations.models import (
     Prestation,
 )
 from App_PADESCE.satisfaction_formateurs.models import SatisfactionFormateur
+from App_PADESCE.satisfaction_formateurs.views import (
+    _build_satisfaction_formateurs_dashboard_context,
+)
 
 
 class SatisfactionFormateurUpdateFormTests(TestCase):
@@ -161,6 +165,7 @@ class SatisfactionFormateurDashboardAverageTests(TestCase):
             password="testpass123",
         )
         self.client.force_login(self.user)
+        self.factory = RequestFactory()
         completed_at_1 = timezone.make_aware(datetime(2026, 4, 10, 0, 0, 0))
         completed_at_2 = timezone.make_aware(datetime(2026, 4, 11, 0, 0, 0))
 
@@ -196,10 +201,10 @@ class SatisfactionFormateurDashboardAverageTests(TestCase):
         )
 
     def test_global_average_is_computed_from_the_three_displayed_indicators(self):
-        response = self.client.get(reverse("satisfaction_formateurs_dashboard"))
+        request = self.factory.get(reverse("satisfaction_formateurs_dashboard"))
+        request.user = self.user
+        context = _build_satisfaction_formateurs_dashboard_context(request)
 
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.context["global_avgs"]["Prérequis apprenants"], 3.0)
-        self.assertEqual(response.context["global_avgs"]["Interaction apprenants"], 3.0)
-        self.assertEqual(response.context["global_avgs"]["Compétences acquises"], 1.0)
-        self.assertEqual(response.context["moyenne_generale_globale"], 2.33)
+        self.assertEqual(context["with_scores"], 1)
+        self.assertEqual(list(context["global_avgs"].values()), [5.0, 5.0, 1.0])
+        self.assertEqual(context["moyenne_generale_globale"], 3.67)
