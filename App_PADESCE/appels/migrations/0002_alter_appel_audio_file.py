@@ -12,6 +12,9 @@ class Migration(migrations.Migration):
         migrations.AlterField(
             model_name="appel",
             name="audio_file",
-            field=models.FileField(blank=True, null=True, upload_to=App_PADESCE.appels.models.appel_audio_upload),
+            field=models.FileField(
+                blank=True, null=True, 
+                upload_to=App_PADESCE.appels.models.appel_audio_upload
+            ),
         ),
     ]

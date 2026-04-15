@@ -917,9 +917,13 @@ SATISFACTION_DASHBOARD_TAB_LABELS = {
 }
 
 SATISFACTION_DASHBOARD_TAB_DESCRIPTIONS = {
-    "tab-apprenants": "Détail des enquêtes visibles, enrichi avec la cohérence de la source réseau.",
+    "tab-apprenants": (
+        "Détail des enquêtes visibles, enrichi avec la cohérence de la source réseau."
+    ),
     "tab-classe": "Synthèse des classes affichées dont le seuil d'appels est atteint.",
-    "tab-prestation": "Regroupement des résultats visibles par prestation, prestataire et bénéficiaire.",
+    "tab-prestation": (
+        "Regroupement des résultats visibles par prestation, prestataire et bénéficiaire."
+    ),
     "tab-cohorte": "Vue agrégée des résultats visibles par cohorte.",
     "tab-ville": "Répartition des résultats visibles par ville.",
     "tab-user": "Répartition des résultats visibles par utilisateur.",
@@ -1839,7 +1843,9 @@ def _attach_network_source_to_rows(
                     "source_status_label": "Absent source",
                     "source_status_tone": "danger",
                     "source_alerts": [],
-                    "source_alerts_label": "Code introuvable dans la feuille Apprenants du classeur réseau.",
+                    "source_alerts_label": (
+                        "Code introuvable dans la feuille Apprenants du classeur réseau."
+                    ),
                     "formation_intitule": row.get("formation_intitule")
                     or row.get("classe_intitule")
                     or "-",
@@ -2072,7 +2078,8 @@ def _build_missing_prestations_analysis(
     Categories retournées :
       - pas_disponible   : la prestation / classe n'existe pas dans le site (non importée)
       - pas_de_numero    : la classe existe mais les apprenants n'ont pas de numéro
-      - pas_seuil_atteint: la classe existe, les numéros aussi, mais le seuil d'analyse n'est pas atteint
+      - pas_seuil_atteint: la classe existe, les numéros aussi, mais le seuil 
+        d'analyse n'est pas atteint
       - autres           : toute autre raison
     """
     if not source_bundle:

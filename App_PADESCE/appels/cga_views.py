@@ -339,7 +339,10 @@ def cga_index(request):
                 )
                 messages.success(
                     request,
-                    f"Import CGA termine. {created} ligne(s) chargee(s), {skipped} doublon(s) ignores, {deduped} doublon(s) desactive(s).",
+                    (
+                        f"Import CGA termine. {created} ligne(s) chargee(s), "
+                        f"{skipped} doublon(s) ignores, {deduped} doublon(s) desactive(s)."
+                    ),
                 )
             elif mode == "append":
                 seen_file = set()
@@ -367,7 +370,11 @@ def cga_index(request):
                 )
                 messages.success(
                     request,
-                    f"Import CGA termine. {created} nouvelle(s) ligne(s), {updated} mise(s) a jour, {skipped} doublon(s) dans le fichier, {deduped} doublon(s) desactive(s).",
+                    (
+                        f"Import CGA termine. {created} nouvelle(s) ligne(s), "
+                        f"{updated} mise(s) a jour, {skipped} doublon(s) dans le fichier, "
+                        f"{deduped} doublon(s) desactive(s)."
+                    ),
                 )
             else:
                 messages.error(request, "Mode d'import CGA inconnu.")
@@ -497,7 +504,10 @@ def download_cga_audios(request):
             try:
                 with row.audio_file.open("rb") as audio:
                     suffix = Path(row.audio_file.name).suffix or ".mp3"
-                    safe_name = f"{slugify(row.niu) or 'niu'}-{slugify(row.raison_sociale) or 'cga'}{suffix}"
+                    safe_name = (
+                        f"{slugify(row.niu) or 'niu'}-"
+                        f"{slugify(row.raison_sociale) or 'cga'}{suffix}"
+                    )
                     archive.writestr(safe_name, audio.read())
                     written += 1
             except Exception:

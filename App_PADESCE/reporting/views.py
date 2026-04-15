@@ -6,10 +6,13 @@ from decimal import Decimal, InvalidOperation
 from urllib.parse import urlencode
 
 from django.contrib import messages
+from django.contrib.auth import get_user_model as _get_user_model
+from django.contrib.auth.models import Group
 from django.db import OperationalError, connection, transaction
 from django.db.models import Avg, Count, Q, Sum
 from django.http import Http404, HttpResponse
-from django.shortcuts import render
+from django.shortcuts import redirect, render
+from django.urls import reverse
 from django.utils.safestring import mark_safe
 from django.utils.text import slugify
 from openpyxl import Workbook, load_workbook
@@ -27,6 +30,16 @@ from App_PADESCE.formations.models import (
     Prestation,
 )
 from App_PADESCE.presences.models import Presence
+from App_PADESCE.reporting.app_report import (
+    build_application_report,
+    export_application_report_anomalies_excel,
+    export_application_report_csv,
+    export_application_report_excel,
+    export_application_report_word,
+    get_report_email_recipients,
+    parse_report_dates,
+    send_report_by_email,
+)
 from App_PADESCE.reporting.forms import ConsolidationUploadForm
 from App_PADESCE.reporting.manuals import (
     get_reporting_manual_path,
@@ -724,7 +737,6 @@ def _save_related_from_payload(payload: list[dict]):
     seen_prest = {}
     seen_form = {}
     seen_lieu = {}
-    seen_prestation = {}
     seen_classe = {}
     created_apprenants = 0
 
@@ -1811,26 +1823,6 @@ def reporting_embed_table(request, code: str):
 # ---------------------------------------------------------------------------
 # Section 7 – Vues Rapport Application
 # ---------------------------------------------------------------------------
-
-from django.contrib.auth import get_user_model as _get_user_model
-from django.contrib.auth.models import Group
-from django.shortcuts import redirect
-from django.urls import reverse
-
-from App_PADESCE.reporting.app_report import (
-    build_application_report,
-    export_application_report_anomalies_excel,
-    export_application_report_csv,
-    export_application_report_excel,
-    export_application_report_word,
-    get_report_email_recipients,
-    parse_report_dates,
-    send_report_by_email,
-)
-
-
-def safe_rate(num: float, den: float) -> float:
-    return round((num / den) * 100, 2) if den else 0.0
 
 
 @require_analysis_access

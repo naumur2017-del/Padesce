@@ -279,6 +279,67 @@ class AnalysisEntityDetailTests(TestCase):
         self.assertContains(response, "CLA002")
         self.assertContains(response, reverse("class_analysis_detail", args=[self.classe.code]))
 
+    def test_prestation_analysis_detail_renders_presence_chapeau_without_controls_table(self):
+        second_call = Appel.objects.create(
+            code="APP002",
+            nom="Apprenant Presence",
+            classe=self.classe,
+            classe_label=self.classe.code,
+            prestataire=self.prestataire.raison_sociale,
+            beneficiaire=self.beneficiaire.nom_structure,
+            telephone1="677009900",
+            status="a_rappeler",
+            is_active=True,
+            locked_by=self.user,
+        )
+        AppelAnswers.objects.create(
+            appel=second_call,
+            q1_clarte_exposes=3,
+            q2_interaction_formateur=4,
+            q3_maitrise_contenu=4,
+            q4_salle_adequate=3,
+            q5_materiel_disponible=4,
+            q6_organisation_temps=3,
+            q7_utilite_formation=4,
+            q8_adequation_besoins=4,
+            q9_satisfaction_globale=4,
+            modified_by=self.user,
+        )
+        upsert_presence_controls(
+            [
+                {
+                    "apprenant_id": "APP001",
+                    "c1": "PR",
+                    "c2": "PR",
+                    "c3": "AB",
+                    "c4": "AB",
+                    "taux_presence": 50,
+                },
+                {
+                    "apprenant_id": "APP002",
+                    "c1": "PR",
+                    "c2": "AB",
+                    "c3": "AB",
+                    "c4": "AB",
+                    "taux_presence": 25,
+                },
+            ]
+        )
+
+        response = self.client.get(reverse("prestation_analysis_detail", args=["presta146"]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Chapeau de controle de presence")
+        self.assertContains(response, "Indicateur")
+        self.assertContains(response, "Valeur")
+        self.assertContains(response, "Total des participants a la formation")
+        self.assertContains(response, "Taux de personne forme")
+        self.assertContains(response, "Taux de participation")
+        self.assertContains(response, "Taux de presence globale")
+        self.assertNotContains(response, "<th>Controle</th>", html=False)
+        self.assertNotContains(response, "<th>Presents</th>", html=False)
+        self.assertNotContains(response, "<th>Absents</th>", html=False)
+
     @patch("App_PADESCE.formations.views.build_padesce_source_index")
     def test_class_analysis_detail_ignores_cutoff_records_for_formateur_rows(
         self, mock_source_index

@@ -4,7 +4,10 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ("apprenants", "0005_rename_apprenants_status_9e3b67_idx_apprenants__status_9c1d64_idx_and_more"),
+        (
+            "apprenants", 
+            "0005_rename_apprenants_status_9e3b67_idx_apprenants__status_9c1d64_idx_and_more"
+        ),
     ]
 
     operations = [

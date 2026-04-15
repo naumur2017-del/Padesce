@@ -1,4 +1,3 @@
-import hashlib
 import re
 from functools import lru_cache
 from pathlib import Path
@@ -6,6 +5,9 @@ from typing import Iterable
 
 from django.conf import settings
 from django.core.cache import cache
+from django.db import OperationalError, ProgrammingError
+
+from App_PADESCE.apprenants.models import Apprenant
 
 try:
     from openpyxl import load_workbook
@@ -13,6 +15,7 @@ except Exception:  # pragma: no cover
     load_workbook = None
 
 PRESENCE_CONTROLS_CACHE_KEY = "presence_controls_v1"
+PRESENCE_CONTROLS_DB_SYNC_TOKEN_KEY = "presence_controls_db_sync_token_v1"
 VALID_MARKERS = {"PR", "AB"}
 CONTROL_KEYS = ("c1", "c2", "c3", "c4")
 EXCEL_CONTROLS_XLSX = "fichier_concatene (1) 1 (1).xlsx"
@@ -78,100 +81,158 @@ def _load_excel_presence_payload(_token: tuple[str, float]) -> dict[str, dict]:
         wb.close()
 
 
-def _excel_controls_for(apprenant_id: str) -> dict:
-    key = _normalize_identifier(apprenant_id)
-    if not key:
-        return {}
-    payload = _load_excel_presence_payload(_excel_cache_token())
-    return payload.get(key, {})
+def _presence_from_controls(controls: dict | None) -> dict:
+    controls = controls or {}
+    values = {key: _normalized_marker(controls.get(key)) for key in CONTROL_KEYS}
+    present_count = sum(1 for key in CONTROL_KEYS if values[key] == "PR")
+    values["taux_presence"] = round((present_count / 4) * 100, 2)
+    return values
 
 
-def _simulate_controls(seed_value: str) -> dict:
-    seed = _normalize_identifier(seed_value) or "UNKNOWN"
-    digest = hashlib.sha256(seed.encode("utf-8")).digest()
-    controls = []
-    for index in range(4):
-        controls.append("PR" if digest[index] % 5 else "AB")
-    present_count = sum(1 for marker in controls if marker == "PR")
-    taux = round((present_count / 4) * 100, 2)
-    return {
-        "c1": controls[0],
-        "c2": controls[1],
-        "c3": controls[2],
-        "c4": controls[3],
-        "taux_presence": taux,
-    }
+def _default_presence() -> dict:
+    return _presence_from_controls({"c1": "AB", "c2": "AB", "c3": "AB", "c4": "AB"})
+
+
+def _sync_controls_from_excel_to_db(force: bool = False) -> None:
+    token = _excel_cache_token()
+    token_key = f"{token[0]}::{token[1]}"
+    if not force and cache.get(PRESENCE_CONTROLS_DB_SYNC_TOKEN_KEY) == token_key:
+        return
+
+    payload = _load_excel_presence_payload(token)
+    try:
+        apprenants = list(Apprenant.objects.only("id", "code", "c1", "c2", "c3", "c4"))
+    except (OperationalError, ProgrammingError):
+        return
+
+    to_update = []
+    for apprenant in apprenants:
+        controls = payload.get(_normalize_identifier(apprenant.code), {})
+        normalized = _presence_from_controls(controls)
+        has_changed = any(getattr(apprenant, key) != normalized[key] for key in CONTROL_KEYS)
+        if not has_changed:
+            continue
+        for key in CONTROL_KEYS:
+            setattr(apprenant, key, normalized[key])
+        to_update.append(apprenant)
+
+    if to_update:
+        Apprenant.objects.bulk_update(to_update, list(CONTROL_KEYS), batch_size=1000)
+    cache.set(PRESENCE_CONTROLS_DB_SYNC_TOKEN_KEY, token_key, timeout=None)
 
 
 def get_presence_controls(apprenant_id: str, fallback_seed: str = "") -> dict:
+    del fallback_seed
+    _sync_controls_from_excel_to_db(force=False)
     key = _normalize_identifier(apprenant_id)
+
+    if key:
+        try:
+            apprenant = (
+                Apprenant.objects.only("c1", "c2", "c3", "c4").filter(code__iexact=key).first()
+            )
+        except (OperationalError, ProgrammingError):
+            apprenant = None
+        if apprenant is not None:
+            from_db = _presence_from_controls(
+                {
+                    "c1": apprenant.c1,
+                    "c2": apprenant.c2,
+                    "c3": apprenant.c3,
+                    "c4": apprenant.c4,
+                }
+            )
+            from_db.update(
+                {
+                    "source": "database",
+                    "excel_found": False,
+                    "excel_complete": False,
+                    "excel_controls_found": [],
+                    "excel_missing_controls": list(CONTROL_KEYS),
+                    "c1_from_excel": False,
+                    "c2_from_excel": False,
+                    "c3_from_excel": False,
+                    "c4_from_excel": False,
+                }
+            )
+            return from_db
+
     payload = cache.get(PRESENCE_CONTROLS_CACHE_KEY) or {}
-    excel_controls = _excel_controls_for(key)
-
-    def _with_presence_meta(base_controls: dict, source: str) -> dict:
-        merged = {
-            "c1": _normalized_marker(base_controls.get("c1")),
-            "c2": _normalized_marker(base_controls.get("c2")),
-            "c3": _normalized_marker(base_controls.get("c3")),
-            "c4": _normalized_marker(base_controls.get("c4")),
-        }
-        controls_found = []
-        for control_key, control_value in excel_controls.items():
-            if control_key not in CONTROL_KEYS:
-                continue
-            merged[control_key] = _normalized_marker(control_value)
-            controls_found.append(control_key)
-        present_count = sum(1 for control_key in CONTROL_KEYS if merged[control_key] == "PR")
-        taux = round((present_count / 4) * 100, 2)
-        found_set = set(controls_found)
-        missing_set = [control_key for control_key in CONTROL_KEYS if control_key not in found_set]
-        merged["taux_presence"] = taux
-        merged["source"] = "excel" if found_set else source
-        merged["excel_found"] = bool(found_set)
-        merged["excel_complete"] = len(found_set) == 4
-        merged["excel_controls_found"] = sorted(found_set)
-        merged["excel_missing_controls"] = missing_set
-        for control_key in CONTROL_KEYS:
-            merged[f"{control_key}_from_excel"] = control_key in found_set
-        return merged
-
     if key and key in payload:
-        data = payload[key]
-        return _with_presence_meta(
+        cached = _presence_from_controls(payload[key])
+        cached.update(
             {
-                "c1": data.get("c1"),
-                "c2": data.get("c2"),
-                "c3": data.get("c3"),
-                "c4": data.get("c4"),
-            },
-            source="cache",
+                "source": "cache",
+                "excel_found": False,
+                "excel_complete": False,
+                "excel_controls_found": [],
+                "excel_missing_controls": list(CONTROL_KEYS),
+                "c1_from_excel": False,
+                "c2_from_excel": False,
+                "c3_from_excel": False,
+                "c4_from_excel": False,
+            }
         )
-    return _with_presence_meta(_simulate_controls(key or fallback_seed), source="simulated")
+        return cached
+
+    default_presence = _default_presence()
+    default_presence.update(
+        {
+            "source": "default_ab",
+            "excel_found": False,
+            "excel_complete": False,
+            "excel_controls_found": [],
+            "excel_missing_controls": list(CONTROL_KEYS),
+            "c1_from_excel": False,
+            "c2_from_excel": False,
+            "c3_from_excel": False,
+            "c4_from_excel": False,
+        }
+    )
+    return default_presence
 
 
 def upsert_presence_controls(entries: Iterable[dict]) -> int:
     payload = cache.get(PRESENCE_CONTROLS_CACHE_KEY) or {}
+    normalized_entries: dict[str, dict] = {}
     updated = 0
     for entry in entries:
         key = _normalize_identifier(entry.get("apprenant_id"))
         if not key:
             continue
-        c1 = _normalized_marker(entry.get("c1"))
-        c2 = _normalized_marker(entry.get("c2"))
-        c3 = _normalized_marker(entry.get("c3"))
-        c4 = _normalized_marker(entry.get("c4"))
-        taux_raw = entry.get("taux_presence")
-        try:
-            taux_value = float(taux_raw)
-        except (TypeError, ValueError):
-            taux_value = round((sum(1 for m in [c1, c2, c3, c4] if m == "PR") / 4) * 100, 2)
-        payload[key] = {
-            "c1": c1,
-            "c2": c2,
-            "c3": c3,
-            "c4": c4,
-            "taux_presence": taux_value,
-        }
+        normalized = _presence_from_controls(
+            {
+                "c1": entry.get("c1"),
+                "c2": entry.get("c2"),
+                "c3": entry.get("c3"),
+                "c4": entry.get("c4"),
+            }
+        )
+        payload[key] = normalized
+        normalized_entries[key] = normalized
         updated += 1
     cache.set(PRESENCE_CONTROLS_CACHE_KEY, payload, timeout=None)
+
+    if normalized_entries:
+        try:
+            apprenants = list(Apprenant.objects.only("id", "code", "c1", "c2", "c3", "c4"))
+            to_update = []
+            for apprenant in apprenants:
+                key = _normalize_identifier(apprenant.code)
+                entry = normalized_entries.get(key)
+                if not entry:
+                    continue
+                has_changed = any(
+                    getattr(apprenant, field) != entry[field] for field in CONTROL_KEYS
+                )
+                if not has_changed:
+                    continue
+                for field in CONTROL_KEYS:
+                    setattr(apprenant, field, entry[field])
+                to_update.append(apprenant)
+            if to_update:
+                Apprenant.objects.bulk_update(to_update, list(CONTROL_KEYS), batch_size=1000)
+        except (OperationalError, ProgrammingError):
+            pass
+
     return updated

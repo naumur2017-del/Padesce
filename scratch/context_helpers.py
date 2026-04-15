@@ -83,7 +83,7 @@ def _consultant_formateurs_dashboard_context(request):
     page_number = request.GET.get("page", 1)
     try:
         page_obj = paginator.page(page_number)
-    except:
+    except Exception:
         page_obj = paginator.page(1)
 
     # Filter Map
@@ -125,7 +125,8 @@ def _consultant_formateurs_dashboard_context(request):
         "card_primary_label": "Formations analysées",
         "card_secondary_label": "Cohortes analysées",
         "panel_title": "Appels PADESCE formateurs terminés",
-        "panel_subtitle": "Les audios de plus d'une minute remontent en tête. Cliquez sur une ligne pour ouvrir le dossier complet.",
+        "panel_subtitle": "Les audios de plus d'une minute remontent en tête. "
+        "Cliquez sur une ligne pour ouvrir le dossier complet.",
         "search_placeholder": "Recherche formateur.",
         "table_col_name_label": "Nom formateur",
         "table_col_id_label": "Référence",

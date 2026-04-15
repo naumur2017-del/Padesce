@@ -289,11 +289,23 @@ sat_terminer_js = """
         currentSatFormData.append("recommandations", document.getElementById("js-sat-recommandations").value);
         
         // Add signals
-        currentSatFormData.append("flag_pas_forme", document.getElementById("js-sat-flag-pas-forme").checked ? "1" : "0");
-        currentSatFormData.append("flag_faux_nom", document.getElementById("js-sat-flag-faux-nom").checked ? "1" : "0");
+        currentSatFormData.append(
+            "flag_pas_forme", 
+            document.getElementById("js-sat-flag-pas-forme").checked ? "1" : "0"
+        );
+        currentSatFormData.append(
+            "flag_faux_nom", 
+            document.getElementById("js-sat-flag-faux-nom").checked ? "1" : "0"
+        );
         currentSatFormData.append("flag_vrai_nom", document.getElementById("js-sat-vrai-nom").value);
-        currentSatFormData.append("flag_deja_appele", document.getElementById("js-sat-flag-deja-appele").checked ? "1" : "0");
-        currentSatFormData.append("flag_numero_double", document.getElementById("js-sat-flag-numero-double").checked ? "1" : "0");
+        currentSatFormData.append(
+            "flag_deja_appele", 
+            document.getElementById("js-sat-flag-deja-appele").checked ? "1" : "0"
+        );
+        currentSatFormData.append(
+            "flag_numero_double", 
+            document.getElementById("js-sat-flag-numero-double").checked ? "1" : "0"
+        );
         currentSatFormData.append("deja_forme", de_forme_check ? "1" : "0");
 
         satModal.hidden = true;
@@ -314,7 +326,9 @@ start_rec_update = """
       const satModal = document.getElementById("js-satisfaction-modal");
       if (satModal) {
           // Default values
-          document.querySelectorAll("#js-sat-questions input[type=radio][value='3']").forEach(r => r.checked = true);
+          document.querySelectorAll(
+              "#js-sat-questions input[type=radio][value='3']"
+          ).forEach(r => r.checked = true);
           document.getElementById("js-sat-commentaire").value = "";
           document.getElementById("js-sat-recommandations").value = "";
           
@@ -326,12 +340,16 @@ start_rec_update = """
                   for(let i=1; i<=9; i++) {
                      const v = data.answers[`q${i}`];
                      if(v) {
-                        const rad = document.querySelector(`#js-sat-questions input[name="q${i}"][value="${v}"]`);
+                        const rad = document.querySelector(
+                            `#js-sat-questions input[name="q${i}"][value="${v}"]`
+                        );
                         if(rad) rad.checked = true;
                      }
                   }
-                  document.getElementById("js-sat-commentaire").value = data.answers.commentaire || "";
-                  document.getElementById("js-sat-recommandations").value = data.answers.recommandations || "";
+                  document.getElementById("js-sat-commentaire").value = 
+                      data.answers.commentaire || "";
+                  document.getElementById("js-sat-recommandations").value = 
+                      data.answers.recommandations || "";
                }
              } catch(e){}
           }
@@ -341,15 +359,44 @@ start_rec_update = """
           // ... rest of startRecording ...
 """
 # This is complex to regex replace, I'll do a simpler replacement for the pre-fill logic
+replacement_js = (
+    "// Default values\n"
+    "          document.querySelectorAll(\"#js-sat-questions input[type=radio][value='3']\")"
+    ".forEach(r => r.checked = true);\n"
+    '          if (row.dataset.status === "a_rappeler") {\n'
+    "             try {\n"
+    "               const res = await fetch(`/appels/${id}/answers/`);\n"
+    "               const data = await res.json();\n"
+    "               if (data.ok && data.answers) {\n"
+    "                 for(let i=1; i<=9; i++) {\n"
+    "                   const v = data.answers[`q${i}`];\n"
+    "                   if(v) { const r = document.querySelector("
+    '`#js-sat-questions input[name="q${i}"][value="${v}"]`); if(r) r.checked = true; }\n'
+    "                 }\n"
+    '                 document.getElementById("js-sat-commentaire").value = '
+    'data.answers.commentaire || "";\n'
+    '                 document.getElementById("js-sat-recommandations").value = '
+    'data.answers.recommandations || "";\n'
+    "               }\n"
+    "             } catch(e){}\n"
+    "          }"
+)
+
 content = content.replace(
     "document.querySelectorAll(\"#js-sat-questions input[type=radio][value='3']\").forEach(r => r.checked = true);",
-    '// Default values\n          document.querySelectorAll("#js-sat-questions input[type=radio][value=\'3\']").forEach(r => r.checked = true);\n          if (row.dataset.status === "a_rappeler") {\n             try {\n               const res = await fetch(`/appels/${id}/answers/`);\n               const data = await res.json();\n               if (data.ok && data.answers) {\n                 for(let i=1; i<=9; i++) {\n                   const v = data.answers[`q${i}`];\n                   if(v) { const r = document.querySelector(`#js-sat-questions input[name="q${i}"][value="${v}"]`); if(r) r.checked = true; }\n                 }\n                 document.getElementById("js-sat-commentaire").value = data.answers.commentaire || "";\n                 document.getElementById("js-sat-recommandations").value = data.answers.recommandations || "";\n               }\n             } catch(e){}\n          }',
+    replacement_js,
 )
 
 # Add Phone visibility
+phone_replacement = (
+    "satModal.dataset.rowId = id;\n"
+    '          document.getElementById("js-sat-modal-phone").textContent = '
+    'row.dataset.phone || "-";'
+)
+
 content = content.replace(
     "satModal.dataset.rowId = id;",
-    'satModal.dataset.rowId = id;\n          document.getElementById("js-sat-modal-phone").textContent = row.dataset.phone || "-";',
+    phone_replacement,
 )
 
 with open(file_path, "w", encoding="utf-8") as f:

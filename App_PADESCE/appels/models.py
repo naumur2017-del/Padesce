@@ -108,7 +108,11 @@ def appel_audio_upload(instance: "Appel", filename: str) -> str:
     cohorte_slug = _short_slug(instance.classe_label or instance.fenetre, "cohorte", max_len=16)
     code_slug = _short_slug(instance.code, "code", max_len=12)
     ext = filename.split(".")[-1] if "." in filename else "mp3"
-    return f"padesce/{now:%Y}/{now:%m}/{now:%d}/{prestataire_slug}-{beneficiaire_slug}/{code_slug}-{nom_slug}-{cohorte_slug}-{ts}.{ext}"
+    return (
+        f"padesce/{now:%Y}/{now:%m}/{now:%d}/"
+        f"{prestataire_slug}-{beneficiaire_slug}/"
+        f"{code_slug}-{nom_slug}-{cohorte_slug}-{ts}.{ext}"
+    )
 
 
 def answers_have_any_answer(answers) -> bool:
@@ -300,7 +304,9 @@ class Appel(TimeStampedModel):
     telephone1 = models.CharField(max_length=30, blank=True)
     telephone2 = models.CharField(max_length=30, blank=True)
     taux_presence = models.DecimalField(max_digits=5, decimal_places=2, default=0)
-    status = models.CharField(max_length=25, choices=STATUS_CHOICES, default="en_attente", db_index=True)
+    status = models.CharField(
+        max_length=25, choices=STATUS_CHOICES, default="en_attente", db_index=True
+    )
     rappel_at = models.DateTimeField(null=True, blank=True)
     type_formation_declaree = models.TextField(blank=True)
     formation_padesce = models.CharField(max_length=255, blank=True)

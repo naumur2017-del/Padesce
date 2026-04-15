@@ -124,9 +124,7 @@ RÈGLES CRITIQUES :
 """
 
     if context == "excel":
-        system_prompt = (
-            base_prompt
-            + """
+        system_prompt = base_prompt + """
 ═══════════════════════════════════════════════════════════════
 OBJECTIF : Créer un fichier Excel
 ═══════════════════════════════════════════════════════════════
@@ -134,12 +132,9 @@ OBJECTIF : Créer un fichier Excel
 À LA FIN, tu DOIS écrire :
 result = {"fichier": chemin, "nb_lignes": len(df), "colonnes": list(df.columns), "description": "..."}
 print(json.dumps(result, ensure_ascii=False, default=str))
-"""
-        )  # noqa: E501
+"""  # noqa: E501
     else:  # question
-        system_prompt = (
-            base_prompt
-            + """
+        system_prompt = base_prompt + """
 ═══════════════════════════════════════════════════════════════
 OBJECTIF : Répondre à une question analytique
 ═══════════════════════════════════════════════════════════════
@@ -152,7 +147,6 @@ EXEMPLES DE BONNES RÉPONSES :
 - "Il y a 25 prestataires distincts et 12 régions (bénéficiaires)"
 - "Répartition par statut : EN COURS (45), TERMINÉ (30)"
 """
-        )
 
     response = llm.invoke(
         [
@@ -246,14 +240,12 @@ def pipeline_code(instruction: str, context: str) -> dict:
         schema = get_schema()
         fix_response = llm.invoke(
             [
-                SystemMessage(
-                    content=f"""Corrige ce code Python. Le schéma des données est :
+                SystemMessage(content=f"""Corrige ce code Python. Le schéma des données est :
 {schema}
 
 ERREUR : {result.get("erreur")}
 
-Retourne UNIQUEMENT le code corrigé, sans markdown."""
-                ),
+Retourne UNIQUEMENT le code corrigé, sans markdown."""),
                 HumanMessage(content=f"Code à corriger :\n{code}"),
             ]
         )

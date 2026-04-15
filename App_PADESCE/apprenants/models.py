@@ -5,6 +5,11 @@ from App_PADESCE.formations.models import Classe, Formation
 
 
 class Apprenant(TimeStampedModel):
+    PRESENCE_MARKER_CHOICES = [
+        ("PR", "Present"),
+        ("AB", "Absent"),
+    ]
+
     numero = models.CharField(max_length=20, blank=True)
     code = models.CharField(max_length=20, unique=True)
     classe = models.ForeignKey(Classe, on_delete=models.CASCADE, related_name="apprenants")
@@ -34,6 +39,10 @@ class Apprenant(TimeStampedModel):
     longitude = models.CharField(max_length=50, blank=True)
     latitude = models.CharField(max_length=50, blank=True)
     code_ville = models.CharField(max_length=120, blank=True)
+    c1 = models.CharField(max_length=2, choices=PRESENCE_MARKER_CHOICES, default="AB")
+    c2 = models.CharField(max_length=2, choices=PRESENCE_MARKER_CHOICES, default="AB")
+    c3 = models.CharField(max_length=2, choices=PRESENCE_MARKER_CHOICES, default="AB")
+    c4 = models.CharField(max_length=2, choices=PRESENCE_MARKER_CHOICES, default="AB")
     appartenance_beneficiaire = models.BooleanField(default=False)
     actif = models.BooleanField(default=True)
 

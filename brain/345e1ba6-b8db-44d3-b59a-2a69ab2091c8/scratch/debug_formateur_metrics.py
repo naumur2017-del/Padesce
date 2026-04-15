@@ -3,15 +3,15 @@ import sys
 
 import django
 
-sys.path.append(".")
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "App_PADESCE.settings")
-django.setup()
-
 from App_PADESCE.appels.models import (
     AppelFormateur,
     formateur_has_any_audio,
     formateur_has_any_form_data,
 )
+
+sys.path.append(".")
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "App_PADESCE.settings")
+django.setup()
 
 rows = AppelFormateur.objects.filter(is_active=True).exclude(status="en_attente")
 summary_form_remplis = 0

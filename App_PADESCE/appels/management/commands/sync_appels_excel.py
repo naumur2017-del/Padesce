@@ -149,7 +149,10 @@ def _sync_payload(payload: list[dict], mode: str) -> dict:
 
 
 class Command(BaseCommand):
-    help = "Importe un fichier Excel d'appels et met a jour les lignes existantes par code ou par nom+classe."
+    help = (
+        "Importe un fichier Excel d'appels et met a jour les lignes existantes "
+        "par code ou par nom+classe."
+    )
 
     def add_arguments(self, parser):
         parser.add_argument("file_path", help="Chemin du fichier Excel a importer.")

@@ -82,7 +82,6 @@ def _extract_explicit_filters(prompt: str) -> dict:
     status_map = {
         "termine": "TERMINÉ",
         "terminee": "TERMINÉ",
-        "terminee": "TERMINÉ",
         "en cours": "EN COURS",
         "non demarre": "NON DÉMARRÉ",
         "arrete": "ARRÊTÉ",
