@@ -1,4 +1,7 @@
 
+# Vue de debug pour les stats formateurs
+from App_PADESCE.core.public_views import debug_formateur_stats
+
 # Vues de test pour diagnostiquer l'erreur 500
 from App_PADESCE.core.public_views import test_formateur_stats_minimal, test_formateur_stats_with_template
 from django.conf import settings
@@ -182,6 +185,9 @@ app_urlpatterns = [
     # URLs de test pour diagnostiquer l'erreur 500
     path('test-stats-minimal/', test_formateur_stats_minimal, name='test_stats_minimal'),
     path('test-stats-template/', test_formateur_stats_with_template, name='test_stats_template'),
+
+    # URL de debug pour les stats formateurs
+    path('debug-formateur-stats/', debug_formateur_stats, name='debug_formateur_stats'),
 ]
 
 root_only_urlpatterns = [

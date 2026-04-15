@@ -2188,3 +2188,103 @@ def test_formateur_stats_with_template(request):
         """
         return HttpResponse(error_html, status=500)
 
+
+def debug_formateur_stats(request):
+    """
+    Vue de debug pour tester directement la fonction de stats
+    """
+    from django.http import HttpResponse
+    import json
+    
+    try:
+        # Tester la fonction simple
+        result = _build_formateur_stats_simple(request)
+        
+        # Créer une réponse HTML avec les résultats
+        html_content = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Debug Formateur Stats</title>
+            <style>
+                body {{ font-family: Arial, sans-serif; margin: 20px; }}
+                .success {{ color: green; }}
+                .error {{ color: red; }}
+                .data {{ background: #f5f5f5; padding: 10px; margin: 10px 0; }}
+                pre {{ white-space: pre-wrap; }}
+            </style>
+        </head>
+        <body>
+            <h1>Debug Formateur Stats</h1>
+            
+            <div class="success">
+                <h2>Function executed successfully!</h2>
+            </div>
+            
+            <div class="data">
+                <h3>Result Data:</h3>
+                <pre>{json.dumps(result, indent=2, default=str)}</pre>
+            </div>
+            
+            <div class="data">
+                <h3>Best Rankings ({len(result.get('best_rankings', []))}):</h3>
+                <ul>
+        """
+        
+        for item in result.get('best_rankings', []):
+            html_content += f"<li>{item.get('code', 'N/A')} - {item.get('score_global', 'N/A')}</li>"
+        
+        html_content += f"""
+                </ul>
+            </div>
+            
+            <div class="data">
+                <h3>Improve Rankings ({len(result.get('improve_rankings', []))}):</h3>
+                <ul>
+        """
+        
+        for item in result.get('improve_rankings', []):
+            html_content += f"<li>{item.get('code', 'N/A')} - {item.get('score_global', 'N/A')}</li>"
+        
+        html_content += f"""
+                </ul>
+            </div>
+            
+            <div class="data">
+                <h3>Summary Cards:</h3>
+                <ul>
+        """
+        
+        for item in result.get('summary_cards', []):
+            html_content += f"<li>{item}</li>"
+        
+        html_content += f"""
+                </ul>
+            </div>
+            
+            <p><a href="/?scope=formateur&section=stats">Retour à la page normale</a></p>
+        </body>
+        </html>
+        """
+        
+        return HttpResponse(html_content)
+        
+    except Exception as e:
+        error_html = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Debug Error</title>
+        </head>
+        <body>
+            <h1>Debug Error</h1>
+            <div class="error">
+                <h2>Error: {e}</h2>
+                <pre>{__import__('traceback').format_exc()}</pre>
+            </div>
+            <p><a href="/?scope=formateur&section=stats">Retour à la page normale</a></p>
+        </body>
+        </html>
+        """
+        return HttpResponse(error_html, status=500)
+
