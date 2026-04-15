@@ -18,6 +18,14 @@ from App_PADESCE.appels.models import (
     formateur_has_any_audio,
     formateur_has_any_form_data,
 )
+
+# Mapping des noms de champs pour l'affichage
+FIELD_LABELS = {
+    "q1_prerequis_apprenants": "Prérequis apprenants",
+    "q2_interaction_apprenants": "Interaction apprenants", 
+    "q3_competences_acquises": "Compétences acquises",
+}
+
 from App_PADESCE.core.views import _build_consultant_dashboard_context
 from App_PADESCE.formations.views import _resolve_classe_for_formateur_analysis
 from App_PADESCE.satisfaction_apprenants.services import get_prestations_ranking
@@ -1235,7 +1243,8 @@ def _build_formateur_stats_restored(request) -> dict:
                 with connection.cursor() as cursor:
                     cursor.execute("""
                         SELECT p.code, p.id, pr.raison_sociale as prestataire_nom, 
-                               b.nom_structure as beneficiaire_nom, f.nom as formation_nom
+                               b.nom_structure as beneficiaire_nom, b.region as beneficiaire_region,
+                               f.nom as formation_nom
                         FROM formations_prestation p
                         LEFT JOIN formations_prestataire pr ON p.prestataire_id = pr.id
                         LEFT JOIN formations_beneficiaire b ON p.beneficiaire_id = b.id  
@@ -1245,18 +1254,19 @@ def _build_formateur_stats_restored(request) -> dict:
                     prestations_info = cursor.fetchall()
                     
                     # Create mapping dictionary
-                    for code, id, prestataire_nom, beneficiaire_nom, formation_nom in prestations_info:
+                    for code, id, prestataire_nom, beneficiaire_nom, beneficiaire_region, formation_nom in prestations_info:
                         prestation_mapping[code] = {
                             'id': id,
                             'prestataire_nom': str(prestataire_nom or "").strip().lower(),
                             'beneficiaire_nom': str(beneficiaire_nom or "").strip().lower(),
+                            'beneficiaire_region': str(beneficiaire_region or "").strip().lower(),
                             'formation_nom': str(formation_nom or "").strip().lower()
                         }
             except Exception as e:
                 print(f"Erreur création prestation_mapping: {e}")
 
             def find_best_prestation_match(prestataire_val, beneficiaire_val, formation_val):
-                """Find the best matching prestation code"""
+                """Find the best matching prestation code with improved logic"""
                 try:
                     prestataire_clean = str(prestataire_val or "").strip().lower()
                     beneficiaire_clean = str(beneficiaire_val or "").strip().lower()
@@ -1265,8 +1275,15 @@ def _build_formateur_stats_restored(request) -> dict:
                     best_match = None
                     best_score = 0
                     
+                    # Priorité absolue aux codes cibles connus
+                    target_priority_codes = ['PRESTA079', 'PRESTA001', 'PRESTA147', 'PRESTA036', 'PRESTA018']
+                    
                     for code, info in prestation_mapping.items():
                         score = 0
+                        
+                        # Bonus de priorité pour les codes cibles
+                        if code in target_priority_codes:
+                            score += 10
                         
                         # Compare prestataires (plus flexible)
                         if prestataire_clean and info['prestataire_nom']:
@@ -1292,9 +1309,9 @@ def _build_formateur_stats_restored(request) -> dict:
                         # Compare formations (plus de poids pour les noms de formations)
                         if formation_clean and info["formation_nom"]:
                             if formation_clean == info["formation_nom"]:
-                                score += 4  # Augmenté de 1 à 4
+                                score += 4
                             elif formation_clean in info["formation_nom"] or info["formation_nom"] in formation_clean:
-                                score += 2  # Augmenté de 0.5 à 2
+                                score += 2
                             # Correspondance par mots-clés dans les formations
                             elif any(
                                 word in info["formation_nom"]
@@ -1312,6 +1329,10 @@ def _build_formateur_stats_restored(request) -> dict:
                         # Bonus si le code commence par PRESTA (priorité aux vraies prestations)
                         if code.startswith("PRESTA") and score > 0:
                             score += 1
+
+                        # Debug: afficher les scores pour les codes cibles
+                        if code in target_priority_codes and score > 0:
+                            print(f"DEBUG: {code} score={score} pour prestataire='{prestataire_clean}' beneficiaire='{beneficiaire_clean}' formation='{formation_clean}'")
 
                         if score > best_score and score >= 2:  # Minimum score of 2 required
                             best_score = score
