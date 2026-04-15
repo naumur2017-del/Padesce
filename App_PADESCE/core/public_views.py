@@ -630,7 +630,10 @@ def _build_formateur_stats(request) -> dict:
         "improve_rankings": improve_rankings[:10],
         "map_data": _region_map_from_rankings(best_rankings),
         "summary_cards": [
-            ("Moyenne Q1-Q3", _average_displayed_scores((ctx.get("global_avgs", {}) or {}).values())),
+            (
+                "Moyenne Q1-Q3",
+                _average_displayed_scores((ctx.get("global_avgs", {}) or {}).values()),
+            ),
             ("Appels", ctx.get("total", 0)),
             ("Appels ciblés", ctx.get("appels_cibles", 0)),
             ("Avec scores", ctx.get("with_scores", 0)),

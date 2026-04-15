@@ -45,7 +45,7 @@ app_urlpatterns = [
         lazy_view("App_PADESCE.core.views.activity_track_api"),
         name="activity_track_api",
     ),
-        path(
+    path(
         "consultant/",
         lazy_view("App_PADESCE.core.views.consultant_dashboard"),
         name="consultant_dashboard",
@@ -144,6 +144,31 @@ app_urlpatterns = [
         "backup/delete/<str:filename>/",
         lazy_view("App_PADESCE.core.backup_views.backup_delete"),
         name="backup_delete",
+    ),
+    path(
+        "deploiement/",
+        lazy_view("App_PADESCE.core.deployment_views.deployment_dashboard"),
+        name="deployment_dashboard",
+    ),
+    path(
+        "deploiement/start/",
+        lazy_view("App_PADESCE.core.deployment_views.deployment_start"),
+        name="deployment_start",
+    ),
+    path(
+        "deploiement/status/<str:run_id>/",
+        lazy_view("App_PADESCE.core.deployment_views.deployment_status"),
+        name="deployment_status",
+    ),
+    path(
+        "deploiement/live-status/",
+        lazy_view("App_PADESCE.core.deployment_views.deployment_live_status"),
+        name="deployment_live_status",
+    ),
+    path(
+        "deploiement/config/save/",
+        lazy_view("App_PADESCE.core.deployment_views.deployment_config_save"),
+        name="deployment_config_save",
     ),
 ]
 

@@ -99,7 +99,7 @@ def _build_menu_items(user, path: str, consultant_only: bool) -> list[dict[str, 
                 _safe_reverse("application_report_view"),
                 "/reporting/",
             )
-        
+
         add_item(
             "Excel Source", _safe_reverse("reporting_network_excel"), "/reporting/excel-reseau/"
         )
