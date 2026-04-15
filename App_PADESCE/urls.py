@@ -1,3 +1,6 @@
+
+# Vues de test pour diagnostiquer l'erreur 500
+from App_PADESCE.core.public_views import test_formateur_stats_minimal, test_formateur_stats_with_template
 from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
@@ -175,6 +178,10 @@ app_urlpatterns = [
         lazy_view("App_PADESCE.core.deployment_views.deployment_config_save"),
         name="deployment_config_save",
     ),
+
+    # URLs de test pour diagnostiquer l'erreur 500
+    path('test-stats-minimal/', test_formateur_stats_minimal, name='test_stats_minimal'),
+    path('test-stats-template/', test_formateur_stats_with_template, name='test_stats_template'),
 ]
 
 root_only_urlpatterns = [

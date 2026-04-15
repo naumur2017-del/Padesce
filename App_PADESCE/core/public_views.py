@@ -903,3 +903,102 @@ def public_space(request):
             context["stats"] = _build_formateur_stats_emergency(request)
 
     return render(request, "core/public_space.html", context)
+
+
+def test_formateur_stats_minimal(request):
+    """
+    Vue de test minimale pour isoler l'erreur 500
+    """
+    from django.http import HttpResponse
+    
+    try:
+        # Retourner une réponse HTML simple
+        html_content = """
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Test Stats Formateurs</title>
+        </head>
+        <body>
+            <h1>Test Page - Stats Formateurs</h1>
+            <p>Ceci est une page de test pour vérifier si le problème vient de la vue ou du template.</p>
+            <p>Si vous voyez cette page, le problème n'est pas dans la vue elle-même.</p>
+            <p>Status: OK</p>
+        </body>
+        </html>
+        """
+        return HttpResponse(html_content)
+    except Exception as e:
+        # En cas d'erreur, retourner une réponse d'erreur simple
+        error_html = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Erreur</title>
+        </head>
+        <body>
+            <h1>Erreur dans la vue de test</h1>
+            <p>Erreur: {e}</p>
+        </body>
+        </html>
+        """
+        return HttpResponse(error_html, status=500)
+
+def test_formateur_stats_with_template(request):
+    """
+    Vue de test qui utilise le template mais avec des données minimales
+    """
+    from django.shortcuts import render
+    
+    try:
+        # Context minimal
+        context = {
+            "scope": "formateur",
+            "section": "stats",
+            "stats": {
+                "global_avgs": {},
+                "best_rankings": [
+                    {"code": "TEST001", "score_global": 95.0, "intitule": "Test Formation 1"},
+                    {"code": "TEST002", "score_global": 90.0, "intitule": "Test Formation 2"},
+                    {"code": "TEST003", "score_global": 85.0, "intitule": "Test Formation 3"},
+                    {"code": "TEST004", "score_global": 80.0, "intitule": "Test Formation 4"},
+                    {"code": "TEST005", "score_global": 75.0, "intitule": "Test Formation 5"},
+                ],
+                "improve_rankings": [
+                    {"code": "TEST006", "score_global": 65.0, "intitule": "Test Formation 6"},
+                    {"code": "TEST007", "score_global": 70.0, "intitule": "Test Formation 7"},
+                    {"code": "TEST008", "score_global": 72.0, "intitule": "Test Formation 8"},
+                    {"code": "TEST009", "score_global": 74.0, "intitule": "Test Formation 9"},
+                    {"code": "TEST010", "score_global": 76.0, "intitule": "Test Formation 10"},
+                ],
+                "map_data": {},
+                "summary_cards": [
+                    ("Moyenne Q1-Q3", 80.0),
+                    ("Appels", 100),
+                    ("Appels ciblés", 90),
+                    ("Avec scores", 85),
+                ],
+            },
+            "page_tabs": [],
+            "scope_tabs": [],
+            "login_url": "/login/",
+        }
+        
+        return render(request, "core/public_space.html", context)
+        
+    except Exception as e:
+        from django.http import HttpResponse
+        error_html = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Erreur Template</title>
+        </head>
+        <body>
+            <h1>Erreur avec le template</h1>
+            <p>Erreur: {e}</p>
+        </body>
+        </html>
+        """
+        return HttpResponse(error_html, status=500)
+
