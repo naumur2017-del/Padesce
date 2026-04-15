@@ -755,12 +755,30 @@ def _build_formateur_stats_original(request) -> dict:
         for field_name in FORMATEUR_SCORE_FIELDS:
             values = item["scores"][field_name]
             avgs.append(round(sum(values) / len(values), 2) if values else 0)
-        avg = round(sum(avgs) / len(avgs), 2) if avgs else 0
+                        avg = round(sum(avgs) / len(avgs), 2) if avgs else 0
+
+                avg = round(sum(avgs) / len(avgs), 2) if avgs else 0
+                
+                # Récupérer les vraies informations de prestataire et région depuis la base
+                code = item["code"]
+                real_prestataire = item["prestataire"]
+                real_region = "Inconnu"
+                
+                if code in prestation_mapping:
+                    mapping_info = prestation_mapping[code]
+                    # Utiliser le vrai nom du prestataire depuis la base
+                    if mapping_info['prestataire_nom'] and mapping_info['prestataire_nom'] != '-':
+                        real_prestataire = mapping_info['prestataire_nom'].title()
+                    # Utiliser la vraie région depuis la base
+                    if mapping_info['beneficiaire_region'] and mapping_info['beneficiaire_region'] != '-':
+                        real_region = mapping_info['beneficiaire_region'].upper()
+                
         prestation_stats.append(
             {
                 "code": item["code"],
-                "prestataire": item["prestataire"],
+                        "prestataire": real_prestataire,
                 "beneficiaire": item["beneficiaire"],
+                        "region": real_region,
                 "nb": item["nb"],
                 "avg": avg,
                 "avgs": avgs,
@@ -1424,11 +1442,26 @@ def _build_formateur_stats_restored(request) -> dict:
                     avgs.append(round(sum(values) / len(values), 2) if values else 0)
                 avg = round(sum(avgs) / len(avgs), 2) if avgs else 0
                 
+                # Récupérer les vraies informations de prestataire et région depuis la base
+                code = item["code"]
+                real_prestataire = item["prestataire"]
+                real_region = "Inconnu"
+                
+                if code in prestation_mapping:
+                    mapping_info = prestation_mapping[code]
+                    # Utiliser le vrai nom du prestataire depuis la base
+                    if mapping_info['prestataire_nom'] and mapping_info['prestataire_nom'] != '-':
+                        real_prestataire = mapping_info['prestataire_nom'].title()
+                    # Utiliser la vraie région depuis la base
+                    if mapping_info['beneficiaire_region'] and mapping_info['beneficiaire_region'] != '-':
+                        real_region = mapping_info['beneficiaire_region'].upper()
+                
                 prestation_stats.append(
                     {
                         "code": item["code"],
-                        "prestataire": item["prestataire"],
+                        "prestataire": real_prestataire,
                         "beneficiaire": item["beneficiaire"],
+                        "region": real_region,
                         "nb": item["nb"],
                         "avg": avg,
                         "avgs": avgs,
@@ -1672,11 +1705,26 @@ def _build_formateur_stats_fixed(request) -> dict:
                     avgs.append(round(sum(values) / len(values), 2) if values else 0)
                 avg = round(sum(avgs) / len(avgs), 2) if avgs else 0
                 
+                # Récupérer les vraies informations de prestataire et région depuis la base
+                code = item["code"]
+                real_prestataire = item["prestataire"]
+                real_region = "Inconnu"
+                
+                if code in prestation_mapping:
+                    mapping_info = prestation_mapping[code]
+                    # Utiliser le vrai nom du prestataire depuis la base
+                    if mapping_info['prestataire_nom'] and mapping_info['prestataire_nom'] != '-':
+                        real_prestataire = mapping_info['prestataire_nom'].title()
+                    # Utiliser la vraie région depuis la base
+                    if mapping_info['beneficiaire_region'] and mapping_info['beneficiaire_region'] != '-':
+                        real_region = mapping_info['beneficiaire_region'].upper()
+                
                 prestation_stats.append(
                     {
                         "code": item["code"],
-                        "prestataire": item["prestataire"],
+                        "prestataire": real_prestataire,
                         "beneficiaire": item["beneficiaire"],
+                        "region": real_region,
                         "nb": item["nb"],
                         "avg": avg,
                         "avgs": avgs,
@@ -2033,11 +2081,26 @@ def _build_formateur_stats_enhanced(request) -> dict:
                     avgs.append(round(sum(values) / len(values), 2) if values else 0)
                 avg = round(sum(avgs) / len(avgs), 2) if avgs else 0
                 
+                # Récupérer les vraies informations de prestataire et région depuis la base
+                code = item["code"]
+                real_prestataire = item["prestataire"]
+                real_region = "Inconnu"
+                
+                if code in prestation_mapping:
+                    mapping_info = prestation_mapping[code]
+                    # Utiliser le vrai nom du prestataire depuis la base
+                    if mapping_info['prestataire_nom'] and mapping_info['prestataire_nom'] != '-':
+                        real_prestataire = mapping_info['prestataire_nom'].title()
+                    # Utiliser la vraie région depuis la base
+                    if mapping_info['beneficiaire_region'] and mapping_info['beneficiaire_region'] != '-':
+                        real_region = mapping_info['beneficiaire_region'].upper()
+                
                 prestation_stats.append(
                     {
                         "code": item["code"],
-                        "prestataire": item["prestataire"],
+                        "prestataire": real_prestataire,
                         "beneficiaire": item["beneficiaire"],
+                        "region": real_region,
                         "region": item["region"],
                         "nb": item["nb"],
                         "avg": avg,
