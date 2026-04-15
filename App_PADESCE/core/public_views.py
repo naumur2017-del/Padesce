@@ -9,7 +9,7 @@ from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
 from django.shortcuts import render
 from django.urls import reverse
 
-from App_PADESCE.appels.formateur_names import resolve_formateur_name_from_values
+from App_PADESCE.appels.formateur_names import resolve_formateur_db_name_from_values
 from App_PADESCE.appels.formateurs_views import (
     _build_filtered_formateurs_queryset,
 )
@@ -304,12 +304,11 @@ def _build_formateur_principal(request) -> dict:
             if prestation_code
             else ""
         )
-        row.public_formateur_nom = (
-            resolve_formateur_name_from_values(
-                getattr(row, "telephone", ""),
-                getattr(row, "source_contact", ""),
-            )
-            or "-"
+        row.public_formateur_nom = str(
+            getattr(linked_formateur, "nom", "") or ""
+        ).strip() or resolve_formateur_db_name_from_values(
+            getattr(row, "telephone", ""),
+            getattr(row, "source_contact", ""),
         )
 
         # Calculate Metrics and Card counts
@@ -631,7 +630,10 @@ def _build_formateur_stats(request) -> dict:
         "improve_rankings": improve_rankings[:10],
         "map_data": _region_map_from_rankings(best_rankings),
         "summary_cards": [
-            ("Moyenne Q1-Q3", _average_displayed_scores((ctx.get("global_avgs", {}) or {}).values())),
+            (
+                "Moyenne Q1-Q3",
+                _average_displayed_scores((ctx.get("global_avgs", {}) or {}).values()),
+            ),
             ("Appels", ctx.get("total", 0)),
             ("Appels ciblés", ctx.get("appels_cibles", 0)),
             ("Avec scores", ctx.get("with_scores", 0)),

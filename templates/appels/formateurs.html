@@ -328,6 +328,7 @@
         <tr>
           <th class="checkbox-cell"><input type="checkbox" id="js-select-all" aria-label="Selectionner tous les audios"></th>
           <th>Seance</th>
+          <th>Nom formateur</th>
           <th>Prestataire</th>
           <th>Beneficiaire</th>
           <th>Formation</th>
@@ -343,11 +344,12 @@
       </thead>
       <tbody>
         {% for a in rows %}
-          <tr data-id="{{ a.id }}" data-status="{{ a.status }}" data-name="{{ a.prestataire }} / {{ a.beneficiaire }}" data-phone="{{ a.telephone|default:'-' }}" data-audio-name="formateur-{{ a.reference_code }}" data-q1="{{ a.q1_prerequis_apprenants|default:'' }}" data-q2="{{ a.q2_interaction_apprenants|default:'' }}" data-q3="{{ a.q3_competences_acquises|default:'' }}" data-q4="{{ a.q4_gestion_administrative|default:''|escapejs }}" data-q5="{{ a.q5_gestion_financiere|default:''|escapejs }}" data-q6="{{ a.q6_communication|default:''|escapejs }}" data-commentaires="{{ a.commentaires|default:''|escapejs }}" data-recommandations="{{ a.recommandations|default:''|escapejs }}">
+          <tr data-id="{{ a.id }}" data-status="{{ a.status }}" data-name="{{ a.formateur_nom|default:'Non renseigné' }} - {{ a.prestataire }} / {{ a.beneficiaire }}" data-phone="{{ a.telephone|default:'-' }}" data-audio-name="formateur-{{ a.reference_code }}" data-q1="{{ a.q1_prerequis_apprenants|default:'' }}" data-q2="{{ a.q2_interaction_apprenants|default:'' }}" data-q3="{{ a.q3_competences_acquises|default:'' }}" data-q4="{{ a.q4_gestion_administrative|default:''|escapejs }}" data-q5="{{ a.q5_gestion_financiere|default:''|escapejs }}" data-q6="{{ a.q6_communication|default:''|escapejs }}" data-commentaires="{{ a.commentaires|default:''|escapejs }}" data-recommandations="{{ a.recommandations|default:''|escapejs }}">
             <td class="checkbox-cell">
               <input type="checkbox" class="js-audio-select" value="{{ a.id }}" {% if not a.has_audio_file %}disabled title="{% if a.audio_file_missing %}Audio introuvable{% else %}Pas d'audio disponible{% endif %}"{% endif %}>
             </td>
             <td>{{ a.numero_seance|default:"-" }}</td>
+            <td>{{ a.formateur_nom|default:"Non renseigné" }}</td>
             <td>{{ a.prestataire|default:"-" }}</td>
             <td>{{ a.beneficiaire|default:"-" }}</td>
             <td>{{ a.formation|default:"-" }}</td>
@@ -388,7 +390,7 @@
             </td>
           </tr>
         {% empty %}
-          <tr><td colspan="13" style="text-align:center; color:var(--muted);">Aucune ligne formateur.</td></tr>
+          <tr><td colspan="14" style="text-align:center; color:var(--muted);">Aucune ligne formateur.</td></tr>
         {% endfor %}
       </tbody>
     </table>

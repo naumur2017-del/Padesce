@@ -6,6 +6,7 @@ from App_PADESCE.core.models import TimeStampedModel
 class Formateur(TimeStampedModel):
     code = models.CharField(max_length=20, unique=True)
     nom_complet = models.CharField(max_length=255)
+    nom = models.CharField(max_length=255, default="Non renseigné")
     specialite = models.CharField(max_length=255, blank=True)
     qualification = models.CharField(max_length=255, blank=True)
     nb_annees_experience = models.PositiveIntegerField(default=0)

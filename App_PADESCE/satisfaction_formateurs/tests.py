@@ -1,8 +1,7 @@
 from datetime import date, datetime
 
 from django.contrib.auth import get_user_model
-from django.test import RequestFactory
-from django.test import TestCase
+from django.test import RequestFactory, TestCase
 from django.urls import reverse
 from django.utils import timezone
 
