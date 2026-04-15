@@ -22,7 +22,12 @@ from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.utils import timezone
 
-from App_PADESCE.appels.formateur_names import resolve_formateur_name_from_values
+from App_PADESCE.appels.formateur_names import (
+    FORMATEUR_NAME_FALLBACK,
+    resolve_formateur_db_name_from_values,
+    resolve_formateur_name_from_values,
+    sync_formateur_names_from_excel,
+)
 from App_PADESCE.appels.models import (
     CALL_ANALYSIS_THRESHOLD_STATUSES,
     FORMATEUR_SCORE_FIELDS,
@@ -2044,6 +2049,10 @@ def formateurs_prestataires_management(request):
                 Formateur.objects.create(
                     code=form_code,
                     nom_complet=phone_text,
+                    nom=(
+                        resolve_formateur_name_from_values(phone_text, phone_text)
+                        or FORMATEUR_NAME_FALLBACK
+                    ),
                     telephone=phone_text,
                     actif=True,
                 )
@@ -2055,6 +2064,7 @@ def formateurs_prestataires_management(request):
 
         if action == "sync_formateurs":
             created_count = _sync_formateurs_from_appels()
+            sync_formateur_names_from_excel()
             saved_count = created_count
             saved_label = (
                 f"{created_count} formateur(s) cree(s) depuis les appels."
@@ -2168,11 +2178,12 @@ def formateurs_prestataires_management(request):
     # En GET, complete automatiquement les formateurs manquants depuis les appels.
     if request.method != "POST":
         _sync_formateurs_from_appels()
+        sync_formateur_names_from_excel()
 
     # Charger les formateurs avec leurs prestations courantes
     formateurs = list(
         Formateur.objects.prefetch_related("prestations", "classes__prestation").order_by(
-            "nom_complet"
+            "nom", "nom_complet"
         )
     )
     # Index des prestations déjà assignées par formateur
@@ -2338,13 +2349,16 @@ def formateurs_prestataires_management(request):
     for form in formateurs:
         phone_key = _normalize_phone(str(getattr(form, "telephone", "") or ""))
         insight = phone_insights.get(phone_key)
-        resolved_formateur_name = resolve_formateur_name_from_values(
+        resolved_formateur_name = resolve_formateur_db_name_from_values(
             str(getattr(form, "telephone", "") or ""),
             str(getattr(form, "nom_complet", "") or ""),
         )
         fallback_name = str(getattr(form, "nom_complet", "") or "").strip()
         form.display_nom = resolved_formateur_name or fallback_name or "-"
-        form.nom_rempli = bool(resolved_formateur_name)
+        form.nom_rempli = str(getattr(form, "nom", "") or "").strip() not in {
+            "",
+            FORMATEUR_NAME_FALLBACK,
+        }
         if insight:
             top_prestataires = sorted(insight["prest"].items(), key=lambda kv: (-kv[1], kv[0]))
             top_beneficiaires = sorted(insight["benef"].items(), key=lambda kv: (-kv[1], kv[0]))

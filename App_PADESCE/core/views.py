@@ -1028,7 +1028,7 @@ def _consultant_formateurs_dashboard_context(request):
         formateur = classe.formateur if (classe and getattr(classe, "formateur", None)) else None
 
         if formateur:
-            row.consultant_display_name = formateur.nom_complet
+            row.consultant_display_name = formateur.nom or formateur.nom_complet
             row.consultant_reference = formateur.code
         else:
             # Fallback intelligent: utiliser le bénéficiaire si aucun formateur n'est lié

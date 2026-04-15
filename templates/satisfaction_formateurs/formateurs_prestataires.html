@@ -141,7 +141,7 @@
 
       <div id="formateurs-list">
         {% for form in formateurs %}
-        <div class="form-card" data-search="{{ form.code|lower }} {{ form.nom_complet|lower }}">
+        <div class="form-card" data-search="{{ form.code|lower }} {{ form.nom|lower }} {{ form.nom_complet|lower }}">
           <div class="form-card-header" onclick="toggleCard(this)">
             <div style="flex:1; min-width:0;">
               <span class="form-code">{{ form.code }}</span>

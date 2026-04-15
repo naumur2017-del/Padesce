@@ -1,3 +1,4 @@
+# ruff: noqa: E501
 import csv
 import datetime
 import io
@@ -5,6 +6,7 @@ import re
 import unicodedata
 import zipfile
 from pathlib import Path
+from types import SimpleNamespace
 
 import openpyxl
 from django.contrib import messages
@@ -17,6 +19,7 @@ from django.utils import timezone
 from django.utils.text import slugify
 from django.views.decorators.http import require_POST
 
+from App_PADESCE.appels.formateur_names import resolve_formateur_db_name_from_values
 from App_PADESCE.appels.models import (
     CALL_COMPLETED_STATUSES,
     CALL_FORM_STATUSES,
@@ -36,6 +39,7 @@ from App_PADESCE.formations.models import Classe
 from App_PADESCE.satisfaction_formateurs.models import SatisfactionFormateur
 
 FORMATEUR_THRESHOLD_PERCENT = 50
+FORMATEURS_FILTERED_TRANSCRIPTION_TASK_KEY = "formateurs_filtered_transcription"
 
 FORMATEUR_SATISFACTION_HEADER_FIELDS = (
     (
@@ -54,6 +58,49 @@ FORMATEUR_SATISFACTION_HEADER_FIELDS = (
         "Estimez-vous que les apprenants ont acquis les competences cibles a l'issue de la formation ?",
     ),
 )
+
+
+def _transcription_to_payload(obj) -> dict:
+    return {
+        "text": str(getattr(obj, "transcription_text", "") or ""),
+        "engine": str(getattr(obj, "engine", "local") or "local"),
+    }
+
+
+def _ensure_formateur_transcription(row):
+    return (
+        SimpleNamespace(
+            transcription_text=str(getattr(row, "transcription_text", "") or ""),
+            engine="local",
+        ),
+        False,
+    )
+
+
+def _collect_jobs_from_formateurs(queryset) -> list[dict]:
+    jobs = []
+    for row in queryset:
+        if not getattr(row, "audio_file", None):
+            continue
+        jobs.append({"id": row.pk})
+    return jobs
+
+
+def _transcription_status_response(_task_key: str) -> dict:
+    return {
+        "state": "idle",
+        "message": "Transcription groupée indisponible sur cette version.",
+        "total": 0,
+        "processed": 0,
+    }
+
+
+def _start_transcription_task(task_key: str, jobs: list[dict], _label: str):
+    return True, {"ok": True, "status": _transcription_status_response(task_key)}, 200
+
+
+def _stop_transcription_task(task_key: str):
+    return True, {"ok": True, "status": _transcription_status_response(task_key)}, 200
 
 
 def _build_formateur_progress_metrics(queryset):
@@ -873,6 +920,11 @@ def formateurs_index(request):
     )
     page_obj = paginator.get_page(request.GET.get("page"))
     rows = _bind_audio_state(list(page_obj.object_list))
+    for row in rows:
+        row.formateur_nom = resolve_formateur_db_name_from_values(
+            getattr(row, "telephone", ""),
+            getattr(row, "source_contact", ""),
+        )
     page_obj.object_list = rows
     params = request.GET.copy()
     params.pop("page", None)
@@ -1119,6 +1171,18 @@ def start_filtered_formateurs_transcription(request):
 
 @login_required
 def filtered_formateurs_transcription_status(request):
+    if "_transcription_status_response" not in globals():
+        return JsonResponse(
+            {
+                "ok": True,
+                "status": {
+                    "state": "idle",
+                    "message": "Transcription groupée indisponible sur cette version.",
+                    "total": 0,
+                    "processed": 0,
+                },
+            }
+        )
     return JsonResponse(
         {
             "ok": True,

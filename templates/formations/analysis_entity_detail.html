@@ -388,9 +388,13 @@
       <div class="meta-card">
         <div class="label">Formateur</div>
         <div class="value">
-          {{ classe.formateur.nom_complet|default:"-" }}
-          {% if classe.formateur.telephone %}
-            <div class="row-meta">{{ classe.formateur.telephone }}</div>
+          {% if classe.formateur %}
+            {{ classe.formateur.nom|default:classe.formateur.nom_complet|default:"-" }}
+            {% if classe.formateur.telephone %}
+              <div class="row-meta">{{ classe.formateur.telephone }}</div>
+            {% endif %}
+          {% else %}
+            -
           {% endif %}
         </div>
       </div>
@@ -729,6 +733,7 @@
     <table>
       <thead>
         <tr>
+          <th>Nom</th>
           <th>Téléphone</th>
           <th>Formation</th>
           <th>Cohorte</th>
@@ -742,6 +747,7 @@
       <tbody>
         {% for row in formateur_rows %}
           <tr data-status-id="{{ row.statut }}" data-has-audio="{{ row.has_audio|yesno:'1,0' }}" data-has-form="{{ row.has_form|yesno:'1,0' }}" class="js-formateur-row">
+            <td>{{ row.formateur_nom|default:"Non renseigné" }}</td>
             <td>{{ row.formateur_telephone|default:row.telephone|default:"-" }}</td>
             <td>{{ row.formation|default:"-" }}</td>
             <td>{{ row.cohorte|default:"-" }}</td>
@@ -785,7 +791,7 @@
           </tr>
         {% empty %}
           <tr>
-            <td colspan="8" style="text-align:center;color:var(--muted);">Aucun appel formateur rattaché à cette entité.</td>
+            <td colspan="9" style="text-align:center;color:var(--muted);">Aucun appel formateur rattaché à cette entité.</td>
           </tr>
         {% endfor %}
       </tbody>
