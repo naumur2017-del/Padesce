@@ -3,10 +3,11 @@ from App_PADESCE.formations.models import Beneficiaire, Prestation
 
 def _build_prestation_lookup_maps() -> tuple[dict[str, dict[str, object]], dict[str, str]]:
     prestation_lookup: dict[str, dict[str, object]] = {}
-    for prestation in Prestation.objects.filter(actif=True).select_related("beneficiaire"):
+    for prestation in Prestation.objects.filter(actif=True).select_related("beneficiaire", "formation"):
         prestation_lookup[str(prestation.code or "").strip().upper()] = {
             "effectif": int(prestation.effectif_a_former or 0),
             "region": getattr(getattr(prestation, "beneficiaire", None), "region", "") or "",
+            "formation_nom": getattr(getattr(prestation, "formation", None), "nom", "") or "",
         }
 
     beneficiary_regions = {
@@ -65,7 +66,7 @@ def get_prestations_ranking(prestation_stats=None, order="desc"):
             ranking.append(
                 {
                     "code": code,
-                    "intitule": code,  # Simplified
+                    "intitule": prestation_data.get("formation_nom", code),
                     "prestataire": item.get("prestataire", ""),
                     "beneficiaire": beneficiaire,
                     "region": region,
