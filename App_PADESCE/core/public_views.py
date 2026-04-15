@@ -2432,3 +2432,156 @@ def debug_formateur_stats(request):
         """
         return HttpResponse(error_html, status=500)
 
+
+def debug_context_stats(request):
+    """
+    Vue de debug pour afficher le contexte passé au template
+    """
+    from django.http import HttpResponse
+    import json
+    
+    try:
+        # Simuler exactement ce que fait la vue principale
+        scope = request.GET.get("scope", "apprenant")
+        section = request.GET.get("section", "principal")
+        
+        context = {}
+        
+        # Ajouter les onglets
+        context["page_tabs"] = [
+            {
+                "label": "Principal",
+                "value": "principal",
+                "active": section == "principal",
+                "url": _public_space_url(section="principal", scope=scope),
+            },
+            {
+                "label": "Apercu",
+                "value": "apercu",
+                "active": section == "apercu",
+                "url": _public_space_url(section="apercu", scope=scope),
+            },
+            {
+                "label": "Stats",
+                "value": "stats",
+                "active": section == "stats",
+                "url": _public_space_url(section="stats", scope=scope),
+            },
+        ]
+        context["scope_tabs"] = [
+            {
+                "label": "Apprenant",
+                "value": "apprenant",
+                "active": scope == "apprenant",
+                "url": _public_space_url(section=section, scope="apprenant"),
+            },
+            {
+                "label": "Formateur",
+                "value": "formateur",
+                "active": scope == "formateur",
+                "url": _public_space_url(section=section, scope="formateur"),
+            },
+        ]
+        context["login_url"] = _login_url_for(request)
+        
+        # Ajouter les données de stats si c'est la bonne section
+        if scope == "formateur" and section == "stats":
+            print("DEBUG: Ajout des stats au contexte")
+            stats_data = _build_formateur_stats_ultra_simple(request)
+            print(f"DEBUG: stats_data = {stats_data}")
+            context["stats"] = stats_data
+            print(f"DEBUG: context['stats'] = {context.get('stats')}")
+        else:
+            print(f"DEBUG: Pas de stats - scope={scope}, section={section}")
+        
+        # Créer une réponse HTML avec le contexte
+        html_content = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Debug Context Stats</title>
+            <style>
+                body {{ font-family: Arial, sans-serif; margin: 20px; }}
+                .success {{ color: green; }}
+                .error {{ color: red; }}
+                .data {{ background: #f5f5f5; padding: 10px; margin: 10px 0; }}
+                pre {{ white-space: pre-wrap; }}
+            </style>
+        </head>
+        <body>
+            <h1>Debug Context Stats</h1>
+            
+            <div class="data">
+                <h2>Request Parameters:</h2>
+                <p>Scope: {scope}</p>
+                <p>Section: {section}</p>
+            </div>
+            
+            <div class="data">
+                <h2>Context Keys:</h2>
+                <ul>
+        """
+        
+        for key in context.keys():
+            value = context[key]
+            if key == "stats":
+                html_content += f"<li><strong>{key}</strong>: {type(value)} - {len(value.get('best_rankings', []))} best_rankings</li>"
+            else:
+                html_content += f"<li><strong>{key}</strong>: {type(value)}</li>"
+        
+        html_content += f"""
+                </ul>
+            </div>
+            
+            <div class="data">
+                <h2>Stats Data:</h2>
+        """
+        
+        if "stats" in context:
+            stats = context["stats"]
+            html_content += f"""
+                <p>Best Rankings: {len(stats.get('best_rankings', []))}</p>
+                <p>Improve Rankings: {len(stats.get('improve_rankings', []))}</p>
+                <p>Summary Cards: {len(stats.get('summary_cards', []))}</p>
+                
+                <h3>Best Rankings Content:</h3>
+                <ul>
+            """
+            
+            for item in stats.get('best_rankings', []):
+                html_content += f"<li>{item.get('code', 'N/A')} - {item.get('score_global', 'N/A')}</li>"
+            
+            html_content += """
+                </ul>
+            </div>
+        """
+        else:
+            html_content += "<p>No stats in context!</p>"
+        
+        html_content += f"""
+            <p><a href='/?scope=formateur&section=stats'>Retour à la page normale</a></p>
+        </body>
+        </html>
+        """
+        
+        return HttpResponse(html_content)
+        
+    except Exception as e:
+        error_html = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Debug Error</title>
+        </head>
+        <body>
+            <h1>Debug Error</h1>
+            <div class="error">
+                <h2>Error: {e}</h2>
+                <pre>{__import__('traceback').format_exc()}</pre>
+            </div>
+            <p><a href='/?scope=formateur&section=stats'>Retour à la page normale</a></p>
+        </body>
+        </html>
+        """
+        return HttpResponse(error_html, status=500)
+

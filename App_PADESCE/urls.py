@@ -1,4 +1,7 @@
 
+# Vue de debug du contexte
+from App_PADESCE.core.public_views import debug_context_stats
+
 # Vue de debug pour les stats formateurs
 from App_PADESCE.core.public_views import debug_formateur_stats
 
@@ -188,6 +191,8 @@ app_urlpatterns = [
 
     # URL de debug pour les stats formateurs
     path('debug-formateur-stats/', debug_formateur_stats, name='debug_formateur_stats'),
+
+    path('debug-context-stats/', debug_context_stats, name='debug_context_stats'),
 ]
 
 root_only_urlpatterns = [
