@@ -378,7 +378,6 @@
 <section class="public-hero">
   <div>
     <h1>Espace PADESCE</h1>
-    <p>La page d'accueil ouvre directement l'espace public. Les autres modules restent accessibles via la connexion quand vous devez naviguer dans les pages internes.</p>
   </div>
   <div class="public-actions">
     {% if user.is_authenticated %}
@@ -423,7 +422,7 @@
         <tbody>
           <tr><td>Taux global de présence</td><td>{{ principal.presence_global_avg|floatformat:2 }}%</td></tr>
           <tr><td>Taux de participation</td><td>{{ principal.presence_participation_rate|floatformat:2 }}%</td></tr>
-          <tr><td>Taux de personne formé</td><td>{{ principal.presence_person_formed_rate|floatformat:2 }}%</td></tr>
+          <tr><td>Taux de personnes formées</td><td>{{ principal.presence_person_formed_rate|floatformat:2 }}%</td></tr>
         </tbody>
       </table>
     </div>
@@ -435,8 +434,8 @@
       <table class="stats-table">
         <thead>
           <tr>
-            <th>Indicateur</th>
-            <th>Valeur</th>
+            <th>Indicateurs</th>
+            <th>Valeurs</th>
           </tr>
         </thead>
         <tbody>
@@ -452,13 +451,13 @@
     <article class="public-card"><div class="value">{{ principal.card_classes_count }}</div><div class="label">Classes analysées</div></article>
     <article class="public-card"><div class="value">{{ principal.card_prestataires_count }}</div><div class="label">Prestataires analysés</div></article>
     <article class="public-card"><div class="value">{{ principal.card_beneficiaires_count }}</div><div class="label">Bénéficiaires analysés</div></article>
-    <article class="public-card"><div class="value">{{ principal.summary_appels_cibles }}</div><div class="label">Appels ciblés</div></article>
+    <article class="public-card"><div class="value">{{ principal.summary_appels_cibles }}</div><div class="label">Appels cibles</div></article>
 
     <article class="public-card"><div class="value">{{ principal.summary_tentes }}</div><div class="label">Appels tentés</div></article>
     <article class="public-card"><div class="value">{{ principal.summary_reussis }}</div><div class="label">Appels réussis</div></article>
     <article class="public-card"><div class="value">{{ principal.summary_form_remplis }}</div><div class="label">Formulaires remplis</div></article>
-    <article class="public-card"><div class="value">{{ principal.summary_form_sans_audio }}</div><div class="label">Formulaires sans audio</div></article>
-    <article class="public-card"><div class="value">{{ principal.summary_form_audio }}</div><div class="label">Formulaires avec audio</div></article>
+    <article class="public-card"><div class="value">{{ principal.summary_form_sans_audio }}</div><div class="label">Formulaires sans audios</div></article>
+    <article class="public-card"><div class="value">{{ principal.summary_form_audio }}</div><div class="label">Formulaires avec audios</div></article>
     <article class="public-card"><div class="value">{{ principal.summary_audios }}</div><div class="label">Nombre d'audios</div></article>
   </div>
 
@@ -493,7 +492,7 @@
         {% endfor %}
       </select>
       <button class="public-btn primary" type="submit">Filtrer</button>
-      <a class="public-btn" href="{% url 'public_space' %}?scope=apprenant&section=principal">Reset</a>
+      <a class="public-btn" href="{% url 'public_space' %}?scope=apprenant&section=principal">Réinitialiser</a>
     </form>
 
     <div class="table-wrap">
