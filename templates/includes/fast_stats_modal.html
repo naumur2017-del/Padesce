@@ -56,6 +56,7 @@
       <button type="button" class="scope-tab {% if fast_stats_default_mode == 'apprenant' %}active{% endif %}" data-fast-stats-tab="apprenant">Apprenant</button>
       <button type="button" class="scope-tab {% if fast_stats_default_mode == 'general' %}active{% endif %}" data-fast-stats-tab="general">General</button>
       <button type="button" class="scope-tab {% if fast_stats_default_mode == 'formateur' %}active{% endif %}" data-fast-stats-tab="formateur">Formateur</button>
+      <button type="button" class="scope-tab {% if fast_stats_default_mode == 'descentes' %}active{% endif %}" data-fast-stats-tab="descentes">Descentes</button>
     </div>
 
     <div id="js-fast-stats-content" class="fast-stats-content">
@@ -253,10 +254,55 @@
         </div>`;
     }
 
+    function renderDescentesTable(mode) {
+      const groups = mode.row_groups || [];
+      if (!groups.length) return `<div class="fast-stats-empty">Aucune donnée.</div>`;
+
+      return groups.map((group) => {
+        const isSF = group.id === "sf";
+        const rows = group.rows || [];
+        const thStyle = isSF
+          ? "background:#1F4E79;color:#fff;"
+          : "background:#375623;color:#fff;";
+
+        const head = isSF
+          ? `<tr style="${thStyle}"><th>#</th><th>Code</th><th>Lien des enquêtes</th><th>Type</th><th>Statut</th><th>Liens CSV</th><th>Bénéficiaire</th><th>Formation</th></tr>`
+          : `<tr style="${thStyle}"><th>#</th><th>Classe</th><th>Lien des enquêtes</th><th>Type (H)</th><th>Statut (J)</th><th>Liens CSV (P)</th><th>Prestataire</th><th>Bénéficiaire</th></tr>`;
+
+        const body = rows.length ? rows.map((row) => `
+          <tr>
+            <td class="num">${displayValue(row.index)}</td>
+            <td><strong>${escapeHtml(row.code)}</strong></td>
+            <td><a class="fast-stats-link" href="${escapeHtml(row.enquete_url)}" target="_blank" rel="noreferrer">Lien des enquêtes</a></td>
+            <td><span style="font-weight:700;color:${isSF ? '#1F4E79' : '#375623'};">${escapeHtml(row.type)}</span></td>
+            <td>${escapeHtml(row.statut)}</td>
+            <td><a class="fast-stats-link" href="${escapeHtml(row.csv_url)}" target="_blank" rel="noreferrer">Liens CSV</a></td>
+            <td>${displayValue(isSF ? row.beneficiaire : row.prestataire)}</td>
+            <td>${displayValue(isSF ? row.formation : row.beneficiaire)}</td>
+          </tr>
+        `).join("") : `<tr><td colspan="8" class="fast-stats-empty">Aucune ligne.</td></tr>`;
+
+        return `
+          <div style="margin-bottom:24px;">
+            <div style="font-weight:700;margin-bottom:8px;padding:6px 10px;border-radius:8px;background:${isSF ? 'rgba(31,78,121,0.1)' : 'rgba(55,86,35,0.1)'};">
+              ${escapeHtml(group.label)} — <span style="color:var(--muted);font-weight:400;">${rows.length} ligne(s)</span>
+            </div>
+            <div class="table-scroll" style="max-height:40vh;">
+              <table class="fast-stats-table">
+                <thead>${head}</thead>
+                <tbody>${body}</tbody>
+              </table>
+            </div>
+          </div>`;
+      }).join("");
+    }
+
     function renderMode(mode) {
       const meta = mode.metadata || {};
       let table;
-      if (mode.id === "formateur") {
+      if (mode.id === "descentes") {
+        table = renderDescentesTable(mode);
+      } else if (mode.id === "formateur") {
         table = renderFormateurTable(mode);
       } else if (mode.id === "general") {
         table = renderGeneralTable(mode);

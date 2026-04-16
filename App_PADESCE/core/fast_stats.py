@@ -1102,6 +1102,224 @@ def _mode_payload(
     }
 
 
+# ---------------------------------------------------------------------------
+# Mode "descentes" — tableau SA + SF pour copier-coller dans DESCENTES CLASSES
+# ---------------------------------------------------------------------------
+
+def _get_site_url() -> str:
+    return str(getattr(settings, "SITE_URL", "") or "https://call.naumur.com").rstrip("/")
+
+
+def _build_descentes_sa_rows(classes) -> list[dict]:
+    """Une ligne par classe pour la feuille SA (CTR PUB MAN)."""
+    site_url = _get_site_url()
+    rows = []
+    for idx, classe in enumerate(classes, start=1):
+        code = _safe_text(getattr(classe, "code", "")) or "?"
+        prestation = getattr(classe, "prestation", None)
+        prestataire = (
+            getattr(getattr(prestation, "prestataire", None), "raison_sociale", "")
+            or ""
+        )
+        beneficiaire = (
+            getattr(getattr(prestation, "beneficiaire", None), "nom_structure", "")
+            or ""
+        )
+        rows.append({
+            "index": idx,
+            "code": code,
+            "type": "SA",
+            "statut": "Achevé",
+            "prestataire": prestataire,
+            "beneficiaire": beneficiaire,
+            "enquete_url": f"{site_url}/satisfaction-apprenants/analyse/?classe={code}",
+            "csv_url": f"{site_url}/satisfaction-apprenants/analyse/export/classe/{code}/csv/",
+        })
+    return rows
+
+
+def _build_descentes_sf_rows() -> list[dict]:
+    """Une ligne par prestataire pour la feuille SF."""
+    site_url = _get_site_url()
+    qs = (
+        AppelFormateur.objects.filter(is_active=True)
+        .exclude(prestataire="")
+        .values("prestataire", "beneficiaire", "formation", "cohorte")
+        .distinct()
+        .order_by("prestataire")
+    )
+    seen: dict[str, dict] = {}
+    for r in qs:
+        code = _safe_text(r.get("prestataire"))
+        if code and code not in seen:
+            seen[code] = {
+                "index": len(seen) + 1,
+                "code": code,
+                "type": "SF",
+                "statut": "Achevé",
+                "prestataire": code,
+                "beneficiaire": _safe_text(r.get("beneficiaire")),
+                "formation": _safe_text(r.get("formation")),
+                "cohorte": _safe_text(r.get("cohorte")),
+                "enquete_url": (
+                    f"{site_url}/satisfaction-formateurs/analyse/"
+                    f"?tab=detail&prestataire={code}"
+                ),
+                "csv_url": (
+                    f"{site_url}/satisfaction-formateurs/analyse/"
+                    f"export/prestation/{code}/csv/"
+                ),
+            }
+    return list(seen.values())
+
+
+def _descentes_mode_payload(sa_rows: list[dict], sf_rows: list[dict], scope: dict) -> dict:
+    return {
+        "id": "descentes",
+        "label": "Descentes",
+        "sheet_name": "SA + SF",
+        "table_variant": "descentes",
+        "row_count": len(sa_rows) + len(sf_rows),
+        "class_count": len(sa_rows),
+        "summary_cards": [
+            {
+                "label": "Classes SA",
+                "value": len(sa_rows),
+                "meta": "Lignes prêtes pour CTR PUB MAN.",
+            },
+            {
+                "label": "Prestations SF",
+                "value": len(sf_rows),
+                "meta": "Lignes prêtes pour feuille SF.",
+            },
+        ],
+        "metadata": {
+            "terminated_only_label": "Total classes",
+            "terminated_only_value": scope["terminated_only"],
+            "scope_label": scope["scope_label"],
+        },
+        "row_groups": [
+            {
+                "id": "sa",
+                "label": "SA — Satisfaction Apprenants (→ CTR PUB MAN)",
+                "columns": [
+                    {"key": "index", "label": "#"},
+                    {"key": "code", "label": "Classe"},
+                    {"key": "enquete_url", "label": "Lien des enquêtes"},
+                    {"key": "type", "label": "Type (col H)"},
+                    {"key": "statut", "label": "Statut (col J)"},
+                    {"key": "csv_url", "label": "Liens CSV (col P)"},
+                    {"key": "prestataire", "label": "Prestataire"},
+                    {"key": "beneficiaire", "label": "Bénéficiaire"},
+                ],
+                "rows": sa_rows,
+            },
+            {
+                "id": "sf",
+                "label": "SF — Satisfaction Formateurs (→ feuille SF)",
+                "columns": [
+                    {"key": "index", "label": "#"},
+                    {"key": "code", "label": "Prestataire"},
+                    {"key": "enquete_url", "label": "Lien des enquêtes"},
+                    {"key": "type", "label": "Type (col I)"},
+                    {"key": "statut", "label": "Statut (col K)"},
+                    {"key": "csv_url", "label": "Liens CSV (col P)"},
+                    {"key": "beneficiaire", "label": "Bénéficiaire"},
+                    {"key": "formation", "label": "Formation"},
+                ],
+                "rows": sf_rows,
+            },
+        ],
+        "note": "Prêt à copier-coller dans DESCENTES CLASSES Vxx.xlsx.",
+    }
+
+
+def _write_descentes_sheets(workbook: Workbook, mode_payload: dict) -> None:
+    """Crée deux feuilles SA et SF dans le workbook avec le bon layout colonnes."""
+    from openpyxl.styles import Font, PatternFill, Alignment
+    from openpyxl.utils import get_column_letter
+
+    header_font = Font(bold=True, color="FFFFFF")
+    sa_fill = PatternFill(start_color="375623", end_color="375623", fill_type="solid")
+    sf_fill = PatternFill(start_color="1F4E79", end_color="1F4E79", fill_type="solid")
+    link_font = Font(color="0563C1", underline="single")
+    row_fill_sa = PatternFill(start_color="E2EFDA", end_color="E2EFDA", fill_type="solid")
+    row_fill_sf = PatternFill(start_color="DDEEFF", end_color="DDEEFF", fill_type="solid")
+
+    groups = {g["id"]: g for g in mode_payload.get("row_groups", [])}
+
+    # ---- Feuille SA ----
+    ws_sa = workbook.create_sheet("SA")
+    # En-têtes ligne 1 (colonnes A→P, seules les colonnes cibles sont renseignées)
+    sa_headers = {
+        1: "N°", 3: "LIEN DE LA PUBLICATION", 7: "Classe",
+        8: "TYPE DE CONTRÔLE", 10: "STATUT", 16: "CSV",
+    }
+    for col, label in sa_headers.items():
+        cell = ws_sa.cell(row=1, column=col, value=label)
+        cell.font = header_font
+        cell.fill = sa_fill
+        cell.alignment = Alignment(horizontal="center")
+    ws_sa.column_dimensions["A"].width = 5
+    ws_sa.column_dimensions["C"].width = 22
+    ws_sa.column_dimensions["G"].width = 12
+    ws_sa.column_dimensions["H"].width = 8
+    ws_sa.column_dimensions["J"].width = 10
+    ws_sa.column_dimensions["P"].width = 14
+
+    for sa_row in groups.get("sa", {}).get("rows", []):
+        r = sa_row["index"] + 1
+        ws_sa.cell(row=r, column=1, value=sa_row["index"])
+        c_link = ws_sa.cell(row=r, column=3, value="Lien des enquêtes")
+        c_link.hyperlink = sa_row["enquete_url"]
+        c_link.font = link_font
+        c_link.fill = row_fill_sa
+        c_type = ws_sa.cell(row=r, column=7, value=sa_row["code"])
+        c_type.fill = row_fill_sa
+        c_h = ws_sa.cell(row=r, column=8, value="SA")
+        c_h.fill = row_fill_sa
+        c_j = ws_sa.cell(row=r, column=10, value="Achevé")
+        c_j.fill = row_fill_sa
+        c_csv = ws_sa.cell(row=r, column=16, value="Liens CSV")
+        c_csv.hyperlink = sa_row["csv_url"]
+        c_csv.font = link_font
+        c_csv.fill = row_fill_sa
+
+    # ---- Feuille SF ----
+    ws_sf = workbook.create_sheet("SF")
+    sf_headers = {
+        1: "N°", 2: "Code Prestataire", 3: "LIEN DES ENQUÊTES",
+        4: "Prestataire", 5: "Bénéficiaire", 6: "Formation", 7: "Cohorte",
+        9: "TYPE", 11: "STATUT", 16: "CSV",
+    }
+    for col, label in sf_headers.items():
+        cell = ws_sf.cell(row=1, column=col, value=label)
+        cell.font = header_font
+        cell.fill = sf_fill
+        cell.alignment = Alignment(horizontal="center")
+    for col, w in {1: 5, 2: 14, 3: 22, 4: 30, 5: 30, 6: 35, 7: 18, 9: 6, 11: 10, 16: 14}.items():
+        ws_sf.column_dimensions[get_column_letter(col)].width = w
+
+    for sf_row in groups.get("sf", {}).get("rows", []):
+        r = sf_row["index"] + 1
+        ws_sf.cell(row=r, column=1, value=sf_row["index"])
+        ws_sf.cell(row=r, column=2, value=sf_row["code"]).fill = row_fill_sf
+        c_link = ws_sf.cell(row=r, column=3, value="Lien des enquêtes")
+        c_link.hyperlink = sf_row["enquete_url"]
+        c_link.font = link_font
+        c_link.fill = row_fill_sf
+        ws_sf.cell(row=r, column=4, value=sf_row.get("prestataire", "")).fill = row_fill_sf
+        ws_sf.cell(row=r, column=5, value=sf_row.get("beneficiaire", "")).fill = row_fill_sf
+        ws_sf.cell(row=r, column=6, value=sf_row.get("formation", "")).fill = row_fill_sf
+        ws_sf.cell(row=r, column=7, value=sf_row.get("cohorte", "")).fill = row_fill_sf
+        ws_sf.cell(row=r, column=9, value="SF").fill = row_fill_sf
+        ws_sf.cell(row=r, column=11, value="Achevé").fill = row_fill_sf
+        c_csv = ws_sf.cell(row=r, column=16, value="Liens CSV")
+        c_csv.hyperlink = sf_row["csv_url"]
+        c_csv.font = link_font
+        c_csv.fill = row_fill_sf
+
+
 def _find_sheet_name(workbook: Workbook, mode_id: str) -> str:
     hints = FAST_STATS_TEMPLATE_SHEET_HINTS[mode_id]
     for sheet_name in workbook.sheetnames:
@@ -1146,6 +1364,9 @@ def build_fast_stats_bundle(request) -> dict:
         for index, classe in enumerate(classes, start=1)
     ]
 
+    descentes_sa_rows = _build_descentes_sa_rows(classes)
+    descentes_sf_rows = _build_descentes_sf_rows()
+
     return {
         "generated_at": timezone.localtime().isoformat(),
         "filters": filters,
@@ -1173,6 +1394,7 @@ def build_fast_stats_bundle(request) -> dict:
                 sheet_name="Enquête de formateur",
                 scope=scope,
             ),
+            _descentes_mode_payload(descentes_sa_rows, descentes_sf_rows, scope),
         ],
     }
 
@@ -1450,12 +1672,16 @@ def build_fast_stats_workbook(request, *, active_mode: str = "apprenant") -> Wor
     _write_apprenant_sheet(apprenant_sheet, modes["apprenant"])
     _write_general_sheet(general_sheet, modes["general"])
     _write_formateur_sheet(formateur_sheet, modes["formateur"])
+    if "descentes" in modes:
+        _write_descentes_sheets(workbook, modes["descentes"])
 
     # Determine active sheet based on mode
     if active_mode == "formateur":
         active_sheet_name = formateur_sheet.title
     elif active_mode == "general":
         active_sheet_name = general_sheet.title
+    elif active_mode == "descentes":
+        active_sheet_name = "SA"
     else:
         active_sheet_name = apprenant_sheet.title
 
@@ -1482,7 +1708,9 @@ def build_fast_stats_export_response(request) -> HttpResponse:
 def build_fast_stats_context(request, *, default_mode: str) -> dict:
     return {
         "fast_stats_default_mode": (
-            default_mode if default_mode in {"apprenant", "general", "formateur"} else "apprenant"
+            default_mode
+            if default_mode in {"apprenant", "general", "formateur", "descentes"}
+            else "apprenant"
         ),
     }
 
