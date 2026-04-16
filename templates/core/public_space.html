@@ -885,12 +885,16 @@
             </tr>
           </thead>
           <tbody>
-            <!-- Données avec vrais noms de prestataires -->
-            <tr><td><a href="/prestation/PRESTA066/?tab=formateurs">PRESTA066</a></td><td>Centre de Formation et d'Education aux Métiers (CFEM)</td><td>EXTRÊME-NORD</td><td>97.00</td></tr>
-            <tr><td><a href="/prestation/PRESTA046/?tab=formateurs">PRESTA046</a></td><td>NAT TECHNOLOGIES</td><td>CENTRE</td><td>95.98</td></tr>
-            <tr><td><a href="/prestation/PRESTA051/?tab=formateurs">PRESTA051</a></td><td>CFP-EN</td><td>OUEST</td><td>95.02</td></tr>
-            <tr><td><a href="/prestation/PRESTA012/?tab=formateurs">PRESTA012</a></td><td>CFP WELL BEING EXPERTS</td><td>NORD</td><td>94.00</td></tr>
-            <tr><td><a href="/prestation/PRESTA019/?tab=formateurs">PRESTA019</a></td><td>CRA D'EBOLOWA</td><td>SUD</td><td>94.00</td></tr>
+            {% for item in stats.best_rankings %}
+              <tr>
+                <td><a href="{% url 'prestation_analysis_detail' item.code %}?tab={{ scope }}s">{{ item.code }}</a></td>
+                <td>{{ item.prestataire|default:"-" }}</td>
+                <td>{{ item.region|default:"Inconnu" }}</td>
+                <td>{{ item.score_global|floatformat:2 }}</td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="4" class="muted">Aucune prestation à afficher.</td></tr>
+            {% endfor %}
           </tbody>
         </table>
       </div>
