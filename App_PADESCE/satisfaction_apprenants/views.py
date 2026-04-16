@@ -5867,6 +5867,51 @@ def _build_local_apprenant_id_map(source_bundle: dict | None) -> list[dict]:
 
 
 @require_analysis_access
+def export_apprenant_global_averages_xlsx(request):
+    """Export des moyennes générales des apprenants en Excel."""
+    dashboard = _build_satisfaction_dashboard_data(request)
+    context = dashboard["context"]
+    
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Moyennes générales"
+    
+    # En-têtes
+    q_labels = [label for _, label in Q_FIELDS]
+    ws.append(["Indicateur"] + q_labels)
+    
+    # Données des moyennes générales
+    row_data = ["Moyenne générale"]
+    for label in q_labels:
+        avg = context.get("global_avgs", {}).get(label, 0)
+        row_data.append(round(avg, 2))
+    ws.append(row_data)
+    
+    # Style
+    for col in range(1, len(q_labels) + 2):
+        cell = ws.cell(row=1, column=col)
+        cell.font = openpyxl.styles.Font(bold=True)
+        cell.fill = openpyxl.styles.PatternFill(start_color="E6E6FA", end_color="E6E6FA", fill_type="solid")
+    
+    for col in range(1, len(q_labels) + 2):
+        cell = ws.cell(row=2, column=col)
+        cell.font = openpyxl.styles.Font(bold=True)
+        cell.fill = openpyxl.styles.PatternFill(start_color="FFE6E6", end_color="FFE6E6", fill_type="solid")
+    
+    # Ajuster la largeur des colonnes
+    for col in range(1, len(q_labels) + 2):
+        ws.column_dimensions[openpyxl.utils.get_column_letter(col)].width = 15
+    
+    # Créer la réponse HTTP
+    response = HttpResponse(
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+    response["Content-Disposition"] = 'attachment; filename="moyennes-generales-apprenants.xlsx"'
+    wb.save(response)
+    return response
+
+
+@require_analysis_access
 def satisfaction_sync_reference_page(request):
     """Page de synchronisation du référentiel BD depuis les fichiers source."""
     from App_PADESCE.satisfaction_apprenants.cutoff_sync import sync_cutoff_reference_data

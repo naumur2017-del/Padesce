@@ -293,7 +293,11 @@
 </div>
 
 <div class="panel">
-  <div class="section-title">Moyennes générales</div>
+  <div class="section-title">Moyennes générales 
+    <a href="{% url 'export_formateur_global_averages' %}" class="btn-export" style="float:right; font-size:0.8rem; padding:4px 12px; background:var(--accent); color:white; text-decoration:none; border-radius:4px;">
+      Exporter
+    </a>
+  </div>
   <div class="table-scroll" style="max-height:none;">
     <table style="text-align:center;">
       <thead>
