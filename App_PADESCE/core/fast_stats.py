@@ -1132,7 +1132,7 @@ def _build_descentes_sa_rows(classes) -> list[dict]:
             "statut": "Achevé",
             "prestataire": prestataire,
             "beneficiaire": beneficiaire,
-            "enquete_url": f"{site_url}/satisfaction-apprenants/analyse/?classe={code}",
+            "enquete_url": f"{site_url}/classe/{code.lower()}/",
             "csv_url": f"{site_url}/satisfaction-apprenants/analyse/export/classe/{code}/csv/",
         })
     return rows
@@ -1161,10 +1161,7 @@ def _build_descentes_sf_rows() -> list[dict]:
                 "beneficiaire": _safe_text(r.get("beneficiaire")),
                 "formation": _safe_text(r.get("formation")),
                 "cohorte": _safe_text(r.get("cohorte")),
-                "enquete_url": (
-                    f"{site_url}/satisfaction-formateurs/analyse/"
-                    f"?tab=detail&prestataire={code}"
-                ),
+                "enquete_url": f"{site_url}/prestation/{code.lower()}/",
                 "csv_url": (
                     f"{site_url}/satisfaction-formateurs/analyse/"
                     f"export/prestation/{code}/csv/"

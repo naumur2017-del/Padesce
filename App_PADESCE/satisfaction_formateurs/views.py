@@ -2199,7 +2199,7 @@ def satisfaction_formateurs_api_prestations_excel(request):
                 "beneficiaire": row.get("beneficiaire", ""),
                 "formation": row.get("formation", ""),
                 "cohorte": row.get("cohorte", ""),
-                "enquete_url": f"{site_url}{base_app}/analyse/?tab=detail&prestataire={code}",
+                "enquete_url": f"{site_url}/prestation/{code.lower()}/",
                 "csv_url": f"{site_url}{base_app}/analyse/export/prestation/{code}/csv/",
             }
 

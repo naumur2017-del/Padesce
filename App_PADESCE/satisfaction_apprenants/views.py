@@ -5220,7 +5220,7 @@ def satisfaction_api_classes_excel(request):
                 "prestataire": row.get("prestataire", ""),
                 "beneficiaire": row.get("beneficiaire", ""),
                 "cohorte": row.get("cohorte", ""),
-                "enquete_url": f"{site_url}{base_app}/analyse/?classe={code}",
+                "enquete_url": f"{site_url}/classe/{code.lower()}/",
                 "csv_url": f"{site_url}{base_app}/analyse/export/classe/{code}/csv/",
             }
 
