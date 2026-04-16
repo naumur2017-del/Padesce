@@ -869,13 +869,15 @@
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
       <div class="section-title" style="margin-bottom:0;">Indicateurs par Prestation</div>
       {% if prestation_indicators_table %}
-      <div style="display: flex; gap: 6px;">
+      <div style="display: flex; gap: 6px; flex-wrap: wrap;">
         <button type="button" class="btn btn-ghost btn-sm js-indicator-toggle active" data-indicator="apprenant">
           Apprenant
         </button>
         <button type="button" class="btn btn-ghost btn-sm js-indicator-toggle" data-indicator="formateur">
           Formateur
         </button>
+        <a class="btn btn-ghost btn-sm" href="{% url 'satisfaction_dashboard_export_indicators_xlsx' %}">Exporter XLSX</a>
+        <a class="btn btn-ghost btn-sm" href="{% url 'satisfaction_dashboard_export_indicators_csv' %}?type=apprenant" id="js-export-indicators-csv">Exporter CSV</a>
       </div>
       {% endif %}
     </div>
@@ -965,6 +967,7 @@
   (function() {
     const toggleButtons = document.querySelectorAll('.js-indicator-toggle');
     const table = document.querySelector('.js-indicators-table');
+    const csvExportLink = document.getElementById('js-export-indicators-csv');
 
     if (!toggleButtons.length || !table) return;
 
@@ -981,9 +984,11 @@
       if (indicator === 'apprenant') {
         apprenantCols.forEach(col => col.style.display = '');
         formateurCols.forEach(col => col.style.display = 'none');
+        if (csvExportLink) csvExportLink.href = '{% url "satisfaction_dashboard_export_indicators_csv" %}?type=apprenant';
       } else {
         apprenantCols.forEach(col => col.style.display = 'none');
         formateurCols.forEach(col => col.style.display = '');
+        if (csvExportLink) csvExportLink.href = '{% url "satisfaction_dashboard_export_indicators_csv" %}?type=formateur';
       }
     }
 

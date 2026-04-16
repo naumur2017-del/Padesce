@@ -2557,34 +2557,29 @@ def _build_prestation_indicators_table():
     """Construit une table agrégée des prestations avec les indicateurs de satisfaction."""
     from App_PADESCE.satisfaction_apprenants.models import SatisfactionApprenant
     from App_PADESCE.satisfaction_formateurs.models import SatisfactionFormateur
-    from App_PADESCE.formations.models import Classe
+    from App_PADESCE.formations.models import Classe, Prestation
 
-    # Récupérer toutes les prestations uniques depuis les classes
+    # Récupérer toutes les prestations avec au moins une classe active
     prestations = (
-        Classe.objects
-        .filter(prestation__isnull=False, actif=True)
-        .values('prestation__code', 'prestation__pk', 'prestation__prestataire__raison_sociale', 'prestation__beneficiaire__nom_structure')
+        Prestation.objects
+        .filter(classes__actif=True)
         .distinct()
-        .order_by('prestation__code')
+        .select_related('prestataire', 'beneficiaire')
+        .order_by('code')
     )
 
     table_data = []
 
     for prestation in prestations:
-        prestation_code = prestation.get('prestation__code', '')
-        prestation_pk = prestation.get('prestation__pk')
-        prestataire = prestation.get('prestation__prestataire__raison_sociale', '')
-        beneficiaire = prestation.get('prestation__beneficiaire__nom_structure', '')
-
-        if not prestation_code:
-            continue
-
-        # Récupérer les classes de cette prestation
-        classe_ids = (
+        # Récupérer les classes actives de cette prestation
+        classe_ids = list(
             Classe.objects
-            .filter(prestation__pk=prestation_pk, actif=True)
+            .filter(prestation=prestation, actif=True)
             .values_list('pk', flat=True)
         )
+
+        if not classe_ids:
+            continue
 
         # Indicateurs Apprenant (notes moyennes)
         apprenant_satisfactions = SatisfactionApprenant.objects.filter(
@@ -2604,7 +2599,7 @@ def _build_prestation_indicators_table():
             'count': apprenant_satisfactions.count(),
         }
 
-        # Calculer les moyennes
+        # Calculer les moyennes pour apprenant
         for field in ['q1_clarte_exposes', 'q2_interaction_formateur', 'q3_maitrise_contenu',
                       'q4_salle_adequate', 'q5_materiel_disponible', 'q6_organisation_temps',
                       'q7_utilite_formation', 'q8_adequation_besoins', 'q9_satisfaction_globale']:
@@ -2627,7 +2622,7 @@ def _build_prestation_indicators_table():
             'count': formateur_satisfactions.count(),
         }
 
-        # Calculer les moyennes pour q1-q3
+        # Calculer les moyennes pour q1-q3 (formateur)
         for field in ['q1_prerequis_apprenants', 'q2_interaction_apprenants', 'q3_competences_acquises']:
             values = formateur_satisfactions.filter(**{f'{field}__isnull': False}).values_list(field, flat=True)
             if values:
@@ -2639,9 +2634,9 @@ def _build_prestation_indicators_table():
             formateur_data[field] = list(texts)
 
         table_data.append({
-            'code': prestation_code,
-            'prestataire': prestataire,
-            'beneficiaire': beneficiaire,
+            'code': prestation.code,
+            'prestataire': prestation.prestataire.raison_sociale if prestation.prestataire else '',
+            'beneficiaire': prestation.beneficiaire.nom_structure if prestation.beneficiaire else '',
             'apprenant': apprenant_data,
             'formateur': formateur_data,
         })
@@ -3987,6 +3982,162 @@ def satisfaction_dashboard_daily_report_xlsx(request):
     response["Content-Disposition"] = (
         f'attachment; filename="{_daily_report_filename(generated_at)}"'
     )
+    return response
+
+
+@require_analysis_access
+def satisfaction_dashboard_export_indicators_xlsx(request):
+    """Export du tableau des indicateurs de prestations en XLSX."""
+    prestation_indicators_table = _build_prestation_indicators_table()
+
+    wb = openpyxl.Workbook()
+
+    # Feuille Apprenant
+    ws_apprenant = wb.active
+    ws_apprenant.title = "Apprenant"
+
+    headers_apprenant = [
+        "Code Prestation", "Prestataire", "Bénéficiaire",
+        "Clarté exposés", "Interaction form.", "Maîtrise contenu",
+        "Salle adéquate", "Matériel", "Org. temps",
+        "Utilité form.", "Adéquation besoins", "Satisfaction",
+        "N enquêtes"
+    ]
+    ws_apprenant.append(headers_apprenant)
+
+    for prestation in prestation_indicators_table:
+        row = [
+            prestation['code'],
+            prestation['prestataire'],
+            prestation['beneficiaire'],
+            prestation['apprenant']['q1_clarte_exposes'],
+            prestation['apprenant']['q2_interaction_formateur'],
+            prestation['apprenant']['q3_maitrise_contenu'],
+            prestation['apprenant']['q4_salle_adequate'],
+            prestation['apprenant']['q5_materiel_disponible'],
+            prestation['apprenant']['q6_organisation_temps'],
+            prestation['apprenant']['q7_utilite_formation'],
+            prestation['apprenant']['q8_adequation_besoins'],
+            prestation['apprenant']['q9_satisfaction_globale'],
+            prestation['apprenant']['count'],
+        ]
+        ws_apprenant.append(row)
+
+    # Feuille Formateur
+    ws_formateur = wb.create_sheet("Formateur")
+
+    headers_formateur = [
+        "Code Prestation", "Prestataire", "Bénéficiaire",
+        "Prérequis app.", "Interaction app.", "Compétences acquises",
+        "Gestion administrative", "Gestion financière", "Communication",
+        "N enquêtes"
+    ]
+    ws_formateur.append(headers_formateur)
+
+    for prestation in prestation_indicators_table:
+        row = [
+            prestation['code'],
+            prestation['prestataire'],
+            prestation['beneficiaire'],
+            prestation['formateur']['q1_prerequis_apprenants'],
+            prestation['formateur']['q2_interaction_apprenants'],
+            prestation['formateur']['q3_competences_acquises'],
+            "; ".join(prestation['formateur']['q4_gestion_administrative']),
+            "; ".join(prestation['formateur']['q5_gestion_financiere']),
+            "; ".join(prestation['formateur']['q6_communication']),
+            prestation['formateur']['count'],
+        ]
+        ws_formateur.append(row)
+
+    # Styling
+    for ws in [ws_apprenant, ws_formateur]:
+        for col in range(1, len(ws[1]) + 1):
+            cell = ws.cell(row=1, column=col)
+            cell.font = openpyxl.styles.Font(bold=True, color="FFFFFF")
+            cell.fill = openpyxl.styles.PatternFill(
+                start_color="4C1D95", end_color="4C1D95", fill_type="solid"
+            )
+
+        # Ajuster la largeur
+        ws.column_dimensions['A'].width = 15
+        ws.column_dimensions['B'].width = 30
+        ws.column_dimensions['C'].width = 30
+        for col in range(4, len(ws[1]) + 1):
+            ws.column_dimensions[openpyxl.utils.get_column_letter(col)].width = 14
+
+    response = HttpResponse(
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+    response["Content-Disposition"] = 'attachment; filename="indicateurs-prestations.xlsx"'
+    wb.save(response)
+    return response
+
+
+@require_analysis_access
+def satisfaction_dashboard_export_indicators_csv(request):
+    """Export du tableau des indicateurs de prestations en CSV."""
+    prestation_indicators_table = _build_prestation_indicators_table()
+
+    # Récupérer le type d'export demandé (apprenant ou formateur)
+    indicator_type = request.GET.get('type', 'apprenant').lower()
+
+    response = HttpResponse(content_type="text/csv; charset=utf-8")
+    response["Content-Disposition"] = f'attachment; filename="indicateurs-prestations-{indicator_type}.csv"'
+    response.write("\ufeff")  # BOM for Excel
+
+    writer = csv.writer(response)
+
+    if indicator_type == 'formateur':
+        headers = [
+            "Code Prestation", "Prestataire", "Bénéficiaire",
+            "Prérequis app.", "Interaction app.", "Compétences acquises",
+            "Gestion administrative", "Gestion financière", "Communication",
+            "N enquêtes"
+        ]
+        writer.writerow(headers)
+
+        for prestation in prestation_indicators_table:
+            row = [
+                prestation['code'],
+                prestation['prestataire'],
+                prestation['beneficiaire'],
+                prestation['formateur']['q1_prerequis_apprenants'] or '',
+                prestation['formateur']['q2_interaction_apprenants'] or '',
+                prestation['formateur']['q3_competences_acquises'] or '',
+                "; ".join(prestation['formateur']['q4_gestion_administrative']),
+                "; ".join(prestation['formateur']['q5_gestion_financiere']),
+                "; ".join(prestation['formateur']['q6_communication']),
+                prestation['formateur']['count'],
+            ]
+            writer.writerow(row)
+    else:
+        headers = [
+            "Code Prestation", "Prestataire", "Bénéficiaire",
+            "Clarté exposés", "Interaction form.", "Maîtrise contenu",
+            "Salle adéquate", "Matériel", "Org. temps",
+            "Utilité form.", "Adéquation besoins", "Satisfaction",
+            "N enquêtes"
+        ]
+        writer.writerow(headers)
+
+        for prestation in prestation_indicators_table:
+            row = [
+                prestation['code'],
+                prestation['prestataire'],
+                prestation['beneficiaire'],
+                prestation['apprenant']['q1_clarte_exposes'] or '',
+                prestation['apprenant']['q2_interaction_formateur'] or '',
+                prestation['apprenant']['q3_maitrise_contenu'] or '',
+                prestation['apprenant']['q4_salle_adequate'] or '',
+                prestation['apprenant']['q5_materiel_disponible'] or '',
+                prestation['apprenant']['q6_organisation_temps'] or '',
+                prestation['apprenant']['q7_utilite_formation'] or '',
+                prestation['apprenant']['q8_adequation_besoins'] or '',
+                prestation['apprenant']['q9_satisfaction_globale'] or '',
+                prestation['apprenant']['count'],
+            ]
+            writer.writerow(row)
+
     return response
 
 

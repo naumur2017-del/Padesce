@@ -145,4 +145,20 @@ urlpatterns = [
         ),
         name="satisfaction_api_classes_excel",
     ),
+    path(
+        "analyse/export/indicateurs/xlsx/",
+        lazy_view(
+            "App_PADESCE.satisfaction_apprenants.views."
+            "satisfaction_dashboard_export_indicators_xlsx"
+        ),
+        name="satisfaction_dashboard_export_indicators_xlsx",
+    ),
+    path(
+        "analyse/export/indicateurs/csv/",
+        lazy_view(
+            "App_PADESCE.satisfaction_apprenants.views."
+            "satisfaction_dashboard_export_indicators_csv"
+        ),
+        name="satisfaction_dashboard_export_indicators_csv",
+    ),
 ]
