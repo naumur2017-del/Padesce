@@ -2553,6 +2553,102 @@ def _build_missing_prestations_analysis(
     }
 
 
+def _build_prestation_indicators_table():
+    """Construit une table agrégée des prestations avec les indicateurs de satisfaction."""
+    from App_PADESCE.satisfaction_apprenants.models import SatisfactionApprenant
+    from App_PADESCE.satisfaction_formateurs.models import SatisfactionFormateur
+    from App_PADESCE.formations.models import Classe
+
+    # Récupérer toutes les prestations uniques depuis les classes
+    prestations = (
+        Classe.objects
+        .filter(prestation__isnull=False, actif=True)
+        .values('prestation__code', 'prestation__pk', 'prestation__prestataire__raison_sociale', 'prestation__beneficiaire__nom_structure')
+        .distinct()
+        .order_by('prestation__code')
+    )
+
+    table_data = []
+
+    for prestation in prestations:
+        prestation_code = prestation.get('prestation__code', '')
+        prestation_pk = prestation.get('prestation__pk')
+        prestataire = prestation.get('prestation__prestataire__raison_sociale', '')
+        beneficiaire = prestation.get('prestation__beneficiaire__nom_structure', '')
+
+        if not prestation_code:
+            continue
+
+        # Récupérer les classes de cette prestation
+        classe_ids = (
+            Classe.objects
+            .filter(prestation__pk=prestation_pk, actif=True)
+            .values_list('pk', flat=True)
+        )
+
+        # Indicateurs Apprenant (notes moyennes)
+        apprenant_satisfactions = SatisfactionApprenant.objects.filter(
+            classe__pk__in=classe_ids
+        )
+
+        apprenant_data = {
+            'q1_clarte_exposes': None,
+            'q2_interaction_formateur': None,
+            'q3_maitrise_contenu': None,
+            'q4_salle_adequate': None,
+            'q5_materiel_disponible': None,
+            'q6_organisation_temps': None,
+            'q7_utilite_formation': None,
+            'q8_adequation_besoins': None,
+            'q9_satisfaction_globale': None,
+            'count': apprenant_satisfactions.count(),
+        }
+
+        # Calculer les moyennes
+        for field in ['q1_clarte_exposes', 'q2_interaction_formateur', 'q3_maitrise_contenu',
+                      'q4_salle_adequate', 'q5_materiel_disponible', 'q6_organisation_temps',
+                      'q7_utilite_formation', 'q8_adequation_besoins', 'q9_satisfaction_globale']:
+            values = apprenant_satisfactions.filter(**{f'{field}__isnull': False}).values_list(field, flat=True)
+            if values:
+                apprenant_data[field] = sum(values) / len(values)
+
+        # Indicateurs Formateur (notes moyennes pour q1-q3, texte pour q4-q6)
+        formateur_satisfactions = SatisfactionFormateur.objects.filter(
+            classe__pk__in=classe_ids
+        )
+
+        formateur_data = {
+            'q1_prerequis_apprenants': None,
+            'q2_interaction_apprenants': None,
+            'q3_competences_acquises': None,
+            'q4_gestion_administrative': [],
+            'q5_gestion_financiere': [],
+            'q6_communication': [],
+            'count': formateur_satisfactions.count(),
+        }
+
+        # Calculer les moyennes pour q1-q3
+        for field in ['q1_prerequis_apprenants', 'q2_interaction_apprenants', 'q3_competences_acquises']:
+            values = formateur_satisfactions.filter(**{f'{field}__isnull': False}).values_list(field, flat=True)
+            if values:
+                formateur_data[field] = sum(values) / len(values)
+
+        # Récupérer les textes pour q4-q6
+        for field in ['q4_gestion_administrative', 'q5_gestion_financiere', 'q6_communication']:
+            texts = formateur_satisfactions.filter(**{f'{field}__isnull': False}).exclude(**{f'{field}': ''}).values_list(field, flat=True)
+            formateur_data[field] = list(texts)
+
+        table_data.append({
+            'code': prestation_code,
+            'prestataire': prestataire,
+            'beneficiaire': beneficiaire,
+            'apprenant': apprenant_data,
+            'formateur': formateur_data,
+        })
+
+    return table_data
+
+
 def _build_satisfaction_dashboard_data(request):
     selected_source = _analysis_selected_source(request)
     source_options = get_workbook_source_options()
@@ -3156,6 +3252,7 @@ def _build_satisfaction_dashboard_data(request):
         "cohortes": filter_options.get("cohorte", []),
         "status": filter_options.get("status", []),
         "filter_map_json": filter_map_json,
+        "prestation_indicators_table": _build_prestation_indicators_table(),
     }
     appels_cibles_class_codes = [
         str(item.get("code") or "").strip()

@@ -1807,6 +1807,10 @@ def _build_satisfaction_formateurs_dashboard_context(request) -> dict:
 
     appel_summary = _build_formateur_appel_status_summary(qs)
 
+    # Import the prestation indicators builder from apprenants views
+    from App_PADESCE.satisfaction_apprenants.views import _build_prestation_indicators_table
+    prestation_indicators_table = _build_prestation_indicators_table()
+
     context = {
         "active_tab": active_tab,
         "total": total,
@@ -1834,6 +1838,7 @@ def _build_satisfaction_formateurs_dashboard_context(request) -> dict:
         "formulaires_remplis_sans_audio_appels": appel_summary["formulaires_remplis_sans_audio"],
         "formulaires_avec_audio_appels": appel_summary["formulaires_avec_audio"],
         "audios_enregistres_appels": appel_summary["audios_enregistres"],
+        "prestation_indicators_table": prestation_indicators_table,
     }
     context.update(build_fast_stats_context(request, default_mode="formateur"))
     cache.set(_cache_key, context, timeout=_FORMATEURS_CACHE_TIMEOUT)
