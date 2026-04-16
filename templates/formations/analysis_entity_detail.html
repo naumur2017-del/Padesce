@@ -334,6 +334,9 @@
         {% if channel_link %}
           <a href="{{ channel_link }}" target="_blank" class="badge badge-ok" style="background: rgba(15, 139, 141, 0.1); color: #0f5f61; border-color: rgba(15, 139, 141, 0.28); text-decoration: none; padding: 6px 12px; cursor: pointer; transition: background 0.2s;" onmouseover="this.style.background='rgba(15, 139, 141, 0.2)'" onmouseout="this.style.background='rgba(15, 139, 141, 0.1)'">Ouvrir lien du canal</a>
         {% endif %}
+        {% if sharepoint_csv_url %}
+          <a href="{{ sharepoint_csv_url }}" target="_blank" class="badge" style="background: rgba(33, 115, 70, 0.1); color: #155a38; border: 1px solid rgba(33, 115, 70, 0.28); text-decoration: none; padding: 6px 12px; border-radius: 999px; font-size: 0.82rem; font-weight: 600; cursor: pointer; transition: background 0.2s;" onmouseover="this.style.background='rgba(33, 115, 70, 0.2)'" onmouseout="this.style.background='rgba(33, 115, 70, 0.1)'">&#8659; CSV SharePoint</a>
+        {% endif %}
       </div>
       </div>
     {% if summary.has_analysis %}

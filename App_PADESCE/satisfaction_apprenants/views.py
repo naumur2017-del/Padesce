@@ -5200,6 +5200,8 @@ def satisfaction_api_classes_excel(request):
         return JsonResponse({"error": "Clé API manquante ou invalide."}, status=403)
 
     from django.conf import settings as _s
+    from App_PADESCE.satisfaction_apprenants.sharepoint_csv_links import SHAREPOINT_CSV_LINKS
+
     site_url = (getattr(_s, "SITE_URL", "") or "https://call.naumur.com").rstrip("/")
     base_app = "/satisfaction-apprenants"
 
@@ -5214,6 +5216,7 @@ def satisfaction_api_classes_excel(request):
         if not code or code == "Non renseignée":
             continue
         if code not in seen:
+            fallback_csv = f"{site_url}{base_app}/analyse/export/classe/{code}/csv/"
             seen[code] = {
                 "code": code,
                 "label": row.get("formation_intitule") or row.get("classe_intitule") or code,
@@ -5221,7 +5224,7 @@ def satisfaction_api_classes_excel(request):
                 "beneficiaire": row.get("beneficiaire", ""),
                 "cohorte": row.get("cohorte", ""),
                 "enquete_url": f"{site_url}/classe/{code.lower()}/",
-                "csv_url": f"{site_url}{base_app}/analyse/export/classe/{code}/csv/",
+                "csv_url": SHAREPOINT_CSV_LINKS.get(code, fallback_csv),
             }
 
     return JsonResponse({"classes": list(seen.values())})

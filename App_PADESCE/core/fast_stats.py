@@ -15,6 +15,7 @@ from openpyxl import Workbook, load_workbook
 from openpyxl.cell.cell import MergedCell
 
 from App_PADESCE.appels.models import Appel, AppelAnswers, AppelFormateur
+from App_PADESCE.satisfaction_apprenants.sharepoint_csv_links import SHAREPOINT_CSV_LINKS
 from App_PADESCE.apprenants.models import Apprenant
 from App_PADESCE.formations.models import Classe, Formateur
 from App_PADESCE.reporting.network_excel import (
@@ -1133,7 +1134,10 @@ def _build_descentes_sa_rows(classes) -> list[dict]:
             "prestataire": prestataire,
             "beneficiaire": beneficiaire,
             "enquete_url": f"{site_url}/classe/{code.lower()}/",
-            "csv_url": f"{site_url}/satisfaction-apprenants/analyse/export/classe/{code}/csv/",
+            "csv_url": SHAREPOINT_CSV_LINKS.get(
+                code,
+                f"{site_url}/satisfaction-apprenants/analyse/export/classe/{code}/csv/",
+            ),
         })
     return rows
 
