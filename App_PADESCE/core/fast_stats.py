@@ -1077,18 +1077,25 @@ def _build_padesce_rows(
 ) -> list[dict]:
     """Une ligne par prestation analysée : mêmes calculs que General + note_globale /100.
 
-    Affiche les 64 prestations terminées (pas seulement les 57 qualifiées).
+    Affiche les 64 prestations terminées, y compris les 7 non qualifiées.
     """
     from collections import defaultdict
 
     groups: dict[str, list] = defaultdict(list)
+    prestation_codes_in_classes: set[str] = set()
+    prestation_keys_in_classes: set[str] = set()
+
     for classe in classes:
         code = (
             _safe_text(getattr(getattr(classe, "prestation", None), "code", "")) or "—"
         )
         groups[code].append(classe)
+        prestation_codes_in_classes.add(code)
+        prestation_keys_in_classes.add(normalize_network_lookup(code))
 
     all_rows = []
+
+    # 1. Ajouter les prestations présentes dans les classes (57 qualifiées)
     for prestation_code in sorted(groups):
         prestation_classes = groups[prestation_code]
         g = _build_general_global_row(prestation_classes, source_class_counts=source_class_counts)
@@ -1118,7 +1125,33 @@ def _build_padesce_rows(
             "note_globale":                note_globale,
         })
 
-    # Garder toutes les prestations (pas de filtrage sur qualified_keys pour afficher les 64)
+    # 2. Ajouter les 7 prestations manquantes depuis la source (sans données DB)
+    if source_bundle:
+        source_prestations = source_bundle.get("prestations", {})
+        for prestation_key, prestation_info in sorted(source_prestations.items()):
+            # Ignorer si déjà présente dans les classes
+            normalized_key = normalize_network_lookup(prestation_key)
+            if normalized_key in prestation_keys_in_classes:
+                continue
+
+            # Ajouter avec données vides/nulles (pas de satisfaction DB)
+            prestation_code = _safe_text(prestation_info.get("prestation_id", prestation_key)) or prestation_key
+            all_rows.append({
+                "prestation_id": prestation_code,
+                "classe_count": prestation_info.get("classe_count", 0),
+                "taux_presence_base":          None,
+                "resp_horaire_base":           None,
+                "resp_theme_base":             None,
+                "resp_parité_base":            None,
+                "qualite_environnement_base":  None,
+                "satisfaction_apprenant_base": None,
+                "satisfaction_formateur_base": None,
+                "attitude_enquete_base":       None,
+                "note_globale":                None,
+            })
+
+    # Trier et indexer
+    all_rows.sort(key=lambda r: _safe_text(r.get("prestation_id", "")))
     for i, row in enumerate(all_rows, start=1):
         row["index"] = i
 
