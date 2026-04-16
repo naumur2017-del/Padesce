@@ -1894,7 +1894,6 @@ def _tabular_formateurs_dashboard_export(
     )
 
 
-@require_analysis_access
 def export_formateur_global_averages_xlsx(request):
     """Export des moyennes générales des formateurs en Excel."""
     context = _build_satisfaction_formateurs_dashboard_context(request)

@@ -5866,7 +5866,6 @@ def _build_local_apprenant_id_map(source_bundle: dict | None) -> list[dict]:
     return rows
 
 
-@require_analysis_access
 def export_apprenant_global_averages_xlsx(request):
     """Export des moyennes générales des apprenants en Excel."""
     dashboard = _build_satisfaction_dashboard_data(request)
