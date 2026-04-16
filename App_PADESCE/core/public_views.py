@@ -873,34 +873,13 @@ def _build_formateur_stats_enhanced(request) -> dict:
     best_rankings = sorted(prestation_stats, key=lambda x: x["score_global"], reverse=True)[:10]
     improve_rankings = sorted(prestation_stats, key=lambda x: x["score_global"])[:10]
     
-    # Override avec les données correctes pour correspondre à la référence
-    best_rankings = [
-        {"code": "PRESTA066", "score_global": 97.00, "prestataire": "Centre de Formation et d'Education aux Métiers (CFEM)", "region": "EXTRÊME-NORD"},
-        {"code": "PRESTA046", "score_global": 95.98, "prestataire": "NAT TECHNOLOGIES", "region": "CENTRE"},
-        {"code": "PRESTA051", "score_global": 95.02, "prestataire": "CFP-EN", "region": "OUEST"},
-        {"code": "PRESTA012", "score_global": 94.00, "prestataire": "CFP WELL BEING EXPERTS", "region": "NORD"},
-        {"code": "PRESTA019", "score_global": 94.00, "prestataire": "CRA D'EBOLOWA", "region": "SUD"},
-    ]
-    
-    improve_rankings = [
-        {"code": "PRESTA079", "score_global": 54.98, "prestataire": "CFEM", "region": "EXTRÊME-NORD"},
-        {"code": "PRESTA001", "score_global": 67.14, "prestataire": "-", "region": "ADAMAOUA"},
-        {"code": "PRESTA147", "score_global": 76.00, "prestataire": "RINOO Cameroon Ltd", "region": "SUD-OUEST"},
-        {"code": "PRESTA036", "score_global": 78.91, "prestataire": "CADAHC", "region": "CENTRE"},
-        {"code": "PRESTA018", "score_global": 79.93, "prestataire": "-", "region": "CENTRE"},
-    ]
-    
     return {
-        "global_avgs": {
-            "Prérequis apprenants": 2.98,
-            "Interaction apprenants": 3.49,
-            "Compétences acquises": 3.12,
-        },
+        "global_avgs": ctx.get("global_avgs", {}),
         "best_rankings": best_rankings,
         "improve_rankings": improve_rankings,
         "map_data": _region_map_from_rankings(best_rankings),
         "summary_cards": [
-            ("Moyenne Q1-Q3", 3.2),
+            ("Moyenne Q1-Q3", _average_displayed_scores((ctx.get("global_avgs", {}) or {}).values())),
             ("Appels", ctx.get("total", 0)),
             ("Appels ciblés", ctx.get("appels_cibles", 0)),
             ("Avec scores", ctx.get("with_scores", 0)),
