@@ -36,6 +36,16 @@ urlpatterns = [
         name="satisfaction_formateurs_dashboard_export_chapeau",
     ),
     path(
+        "analyse/export/prestations-zip/",
+        lazy_view(
+            (
+                "App_PADESCE.satisfaction_formateurs.views."
+                "satisfaction_formateurs_dashboard_export_prestation_zip"
+            ),
+        ),
+        name="satisfaction_formateurs_dashboard_export_prestation_zip",
+    ),
+    path(
         "analyse/update-form/",
         lazy_view(
             "App_PADESCE.satisfaction_formateurs.views.satisfaction_formateurs_update_form_page"
@@ -53,5 +63,25 @@ urlpatterns = [
             "App_PADESCE.satisfaction_formateurs.views.export_formateur_global_averages_xlsx"
         ),
         name="export_formateur_global_averages",
+    ),
+    path(
+        "analyse/export/prestation/<str:code>/csv/",
+        lazy_view(
+            (
+                "App_PADESCE.satisfaction_formateurs.views."
+                "satisfaction_formateurs_export_prestation_csv"
+            ),
+        ),
+        name="satisfaction_formateurs_export_prestation_csv",
+    ),
+    path(
+        "api/prestations-excel/",
+        lazy_view(
+            (
+                "App_PADESCE.satisfaction_formateurs.views."
+                "satisfaction_formateurs_api_prestations_excel"
+            ),
+        ),
+        name="satisfaction_formateurs_api_prestations_excel",
     ),
 ]

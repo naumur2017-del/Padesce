@@ -168,6 +168,7 @@
     <div style="display:flex;gap:8px;flex-wrap:wrap;">
       <a class="btn btn-ghost btn-sm" id="js-export-active-csv" href="{% url 'satisfaction_formateurs_dashboard_export_csv' %}{% if request.GET.urlencode %}?{{ request.GET.urlencode }}{% endif %}">Exporter la table active (CSV)</a>
       <a class="btn btn-ghost btn-sm" id="js-export-active-chapeau" href="{% url 'satisfaction_formateurs_dashboard_export_chapeau' %}{% if request.GET.urlencode %}?{{ request.GET.urlencode }}{% endif %}">Exporter le chapeau (DOCX)</a>
+      <a class="btn btn-ghost btn-sm" href="{% url 'satisfaction_formateurs_dashboard_export_prestation_zip' %}{% if request.GET.urlencode %}?{{ request.GET.urlencode }}{% endif %}">Exporter les prestations (ZIP CSV)</a>
     </div>
   </div>
   <div class="tab-bar">
