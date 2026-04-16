@@ -1005,10 +1005,20 @@ def class_detail(request, pk: int):
     except Exception:
         logger.exception("Unable to read class channel workbook: %s", _class_channel_workbook_path())
 
+    from App_PADESCE.satisfaction_apprenants.sharepoint_csv_links import SHAREPOINT_CSV_LINKS
+
+    sharepoint_csv_url = SHAREPOINT_CSV_LINKS.get(classe.code.upper(), "")
+
     return render(
         request,
         "formations/class_detail.html",
-        {"classe": classe, "enquetes": enquete_list, "apprenants": apprenants, "channel_link": channel_link},
+        {
+            "classe": classe,
+            "enquetes": enquete_list,
+            "apprenants": apprenants,
+            "channel_link": channel_link,
+            "sharepoint_csv_url": sharepoint_csv_url,
+        },
     )
 
 
@@ -1238,6 +1248,10 @@ def class_analysis_detail(request, code: str):
             "Unable to read class channel workbook: %s", _class_channel_workbook_path()
         )
 
+    from App_PADESCE.satisfaction_apprenants.sharepoint_csv_links import SHAREPOINT_CSV_LINKS
+
+    sharepoint_csv_url = SHAREPOINT_CSV_LINKS.get(code.upper(), "")
+
     return render(
         request,
         "formations/analysis_entity_detail.html",
@@ -1261,6 +1275,7 @@ def class_analysis_detail(request, code: str):
             "prestation_detail_url": prestation_detail_url,
             "reference_warning": reference_warning,
             "channel_link": channel_link,
+            "sharepoint_csv_url": sharepoint_csv_url,
         },
     )
 

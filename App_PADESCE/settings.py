@@ -430,6 +430,9 @@ LOGGING = {
     },
 }
 
+# Clé secrète pour l'export Excel automatisé (script fill_excel.py)
+EXPORT_API_KEY = os.getenv("EXPORT_API_KEY", "")
+
 # SMS provider (Obit SMS)
 OBIT_API_KEY = os.getenv("OBIT_API_KEY", "")
 OBIT_SENDER = os.getenv("OBIT_SENDER", "NAUMUR")

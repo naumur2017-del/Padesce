@@ -6,6 +6,7 @@ import logging
 import os
 import re
 import uuid
+import zipfile
 from collections import defaultdict
 from datetime import date as date_cls
 
@@ -17,7 +18,7 @@ from django.core.files.storage import default_storage
 from django.core.paginator import Paginator
 from django.db import transaction
 from django.db.models import Count, Q
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -2046,6 +2047,162 @@ def satisfaction_formateurs_dashboard_export_chapeau(request):
     )
     response["Content-Disposition"] = f'attachment; filename="{filename}"'
     return response
+
+
+@require_analysis_access
+def satisfaction_formateurs_dashboard_export_prestation_zip(request):
+    """Export one CSV per prestataire as a ZIP archive (Satisfaction_PRESTA_SF.csv)."""
+    context = _build_satisfaction_formateurs_dashboard_context(request)
+    all_rows = context["all_rows"]
+
+    prestation_rows: dict[str, list] = {}
+    for row in all_rows:
+        code = str(row.get("prestataire") or "").strip() or "-"
+        prestation_rows.setdefault(code, []).append(row)
+
+    headers = [
+        "N°",
+        "Prestataire",
+        "Bénéficiaire",
+        "Formation",
+        "Cohorte",
+        "Téléphone",
+        "Statut",
+        *[label for _, label in Q_FORM_FIELDS],
+        "Q4 - Gestion administrative",
+        "Q5 - Gestion financière",
+        "Q6 - Communication",
+        "Commentaires",
+        "Recommandations",
+    ]
+
+    archive_buffer = io.BytesIO()
+    with zipfile.ZipFile(archive_buffer, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+        for prestataire_code in sorted(prestation_rows.keys()):
+            csv_buffer = io.StringIO()
+            writer = csv.writer(csv_buffer, lineterminator="\n")
+            writer.writerow(headers)
+            for idx, row in enumerate(prestation_rows[prestataire_code], start=1):
+                writer.writerow(
+                    [
+                        idx,
+                        row.get("prestataire", ""),
+                        row.get("beneficiaire", ""),
+                        row.get("formation", ""),
+                        row.get("cohorte", ""),
+                        row.get("telephone", ""),
+                        row.get("status", ""),
+                        *[row.get(field) for field, _ in Q_FORM_FIELDS],
+                        row.get("q4_gestion_administrative", ""),
+                        row.get("q5_gestion_financiere", ""),
+                        row.get("q6_communication", ""),
+                        row.get("commentaires", ""),
+                        row.get("recommandations", ""),
+                    ]
+                )
+            safe_code = re.sub(r'[\\/:*?"<>|]', "_", prestataire_code)
+            archive.writestr(
+                f"Satisfaction_{safe_code}_SF.csv",
+                csv_buffer.getvalue().encode("utf-8-sig"),
+            )
+
+    archive_buffer.seek(0)
+    response = HttpResponse(archive_buffer.getvalue(), content_type="application/zip")
+    response["Content-Disposition"] = (
+        'attachment; filename="satisfaction-formateurs-prestations.zip"'
+    )
+    return response
+
+
+def satisfaction_formateurs_export_prestation_csv(request, code: str):
+    """Export CSV des enquêtes d'un seul prestataire (pour fill_excel.py).
+    Authentification par clé API (X-Export-Api-Key) — pas de login requis.
+    """
+    from App_PADESCE.satisfaction_apprenants.views import _check_export_api_key
+
+    if not _check_export_api_key(request):
+        return JsonResponse({"error": "Clé API manquante ou invalide."}, status=403)
+    context = _build_satisfaction_formateurs_dashboard_context(request)
+    target = code.strip()
+    rows = [r for r in context["all_rows"] if str(r.get("prestataire") or "").strip() == target]
+
+    headers = [
+        "N°",
+        "Prestataire",
+        "Bénéficiaire",
+        "Formation",
+        "Cohorte",
+        "Téléphone",
+        "Statut",
+        *[label for _, label in Q_FORM_FIELDS],
+        "Q4 - Gestion administrative",
+        "Q5 - Gestion financière",
+        "Q6 - Communication",
+        "Commentaires",
+        "Recommandations",
+    ]
+
+    safe_code = re.sub(r"[^A-Za-z0-9_-]", "_", code)
+    filename = f"Satisfaction_{safe_code}_SF.csv"
+    response = HttpResponse(content_type="text/csv; charset=utf-8")
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    response.write("\ufeff")
+    writer = csv.writer(response)
+    writer.writerow(headers)
+    for idx, row in enumerate(rows, start=1):
+        writer.writerow(
+            [
+                idx,
+                row.get("prestataire", ""),
+                row.get("beneficiaire", ""),
+                row.get("formation", ""),
+                row.get("cohorte", ""),
+                row.get("telephone", ""),
+                row.get("status", ""),
+                *[row.get(field) for field, _ in Q_FORM_FIELDS],
+                row.get("q4_gestion_administrative", ""),
+                row.get("q5_gestion_financiere", ""),
+                row.get("q6_communication", ""),
+                row.get("commentaires", ""),
+                row.get("recommandations", ""),
+            ]
+        )
+    return response
+
+
+def satisfaction_formateurs_api_prestations_excel(request):
+    """
+    API JSON — liste des prestataires/prestations formateurs (pour fill_excel.py).
+    Authentification via en-tête HTTP : X-Export-Api-Key: <EXPORT_API_KEY>
+    """
+    from App_PADESCE.satisfaction_apprenants.views import _check_export_api_key
+
+    if not _check_export_api_key(request):
+        return JsonResponse({"error": "Clé API manquante ou invalide."}, status=403)
+
+    from django.conf import settings as _s
+
+    site_url = (getattr(_s, "SITE_URL", "") or "https://call.naumur.com").rstrip("/")
+    base_app = "/satisfaction-formateurs"
+
+    context = _build_satisfaction_formateurs_dashboard_context(request)
+    seen: dict[str, dict] = {}
+    for row in context["all_rows"]:
+        code = str(row.get("prestataire") or "").strip()
+        if not code or code == "-":
+            continue
+        if code not in seen:
+            seen[code] = {
+                "code": code,
+                "prestataire": code,
+                "beneficiaire": row.get("beneficiaire", ""),
+                "formation": row.get("formation", ""),
+                "cohorte": row.get("cohorte", ""),
+                "enquete_url": f"{site_url}/prestation/{code.lower()}/",
+                "csv_url": f"{site_url}{base_app}/analyse/export/prestation/{code}/csv/",
+            }
+
+    return JsonResponse({"prestations": list(seen.values())})
 
 
 @require_analysis_access

@@ -376,6 +376,43 @@ def _iter_formateur_excel_rows(file_obj):
             yield item
 
 
+# Mots-clés indiquant qu'un formateur n'a pas assuré la formation.
+# Recherchés dans commentaires, recommandations et les champs Q4-Q6.
+_PAS_FORME_KEYWORDS = [
+    "n'a pas formé",
+    "na pas formé",
+    "n'a pas forme",
+    "na pas forme",
+    "pas formé",
+    "pas forme",
+    "n'a pas assuré",
+    "n'a pas assure",
+    "n'a pas pu former",
+    "pas de formation",
+    "n'a pas travaillé",
+    "n'a pas travaille",
+    "non formé",
+    "non forme",
+]
+
+_PAS_FORME_TEXT_FIELDS = (
+    "commentaires",
+    "recommandations",
+    "q4_gestion_administrative",
+    "q5_gestion_financiere",
+    "q6_communication",
+)
+
+
+def _pas_forme_q_filter():
+    """Retourne un Q combiné pour détecter les formateurs signalés comme non-formateurs."""
+    combined = Q()
+    for field in _PAS_FORME_TEXT_FIELDS:
+        for kw in _PAS_FORME_KEYWORDS:
+            combined |= Q(**{f"{field}__icontains": kw})
+    return combined
+
+
 def _build_filtered_formateurs_queryset(request):
     qs = AppelFormateur.objects.filter(is_active=True).select_related("locked_by")
     status_filter = (request.GET.get("status") or "").strip()
@@ -388,6 +425,7 @@ def _build_filtered_formateurs_queryset(request):
     date_from_str = (request.GET.get("date_from") or "").strip()
     date_to_str = (request.GET.get("date_to") or "").strip()
     search = (request.GET.get("q") or "").strip()
+    pas_forme_filter = request.GET.get("pas_forme") == "1"
 
     if status_filter:
         if status_filter == "completed":
@@ -417,7 +455,14 @@ def _build_filtered_formateurs_queryset(request):
             | Q(formation__icontains=search)
             | Q(lieu__icontains=search)
             | Q(reference_code__icontains=search)
+            | Q(commentaires__icontains=search)
+            | Q(recommandations__icontains=search)
+            | Q(q4_gestion_administrative__icontains=search)
+            | Q(q5_gestion_financiere__icontains=search)
+            | Q(q6_communication__icontains=search)
         )
+    if pas_forme_filter:
+        qs = qs.filter(_pas_forme_q_filter())
     if date_from_str:
         try:
             qs = qs.filter(created_at__gte=datetime.datetime.fromisoformat(date_from_str))
@@ -440,6 +485,7 @@ def _build_filtered_formateurs_queryset(request):
         "date_from": date_from_str,
         "date_to": date_to_str,
         "q": search,
+        "pas_forme": pas_forme_filter,
         "prestataires": sorted(
             {
                 v.strip()
@@ -925,11 +971,15 @@ def formateurs_index(request):
     )
     page_obj = paginator.get_page(request.GET.get("page"))
     rows = _bind_audio_state(list(page_obj.object_list))
+    _pas_forme_ids = set(
+        AppelFormateur.objects.filter(_pas_forme_q_filter()).values_list("id", flat=True)
+    )
     for row in rows:
         row.formateur_nom = resolve_formateur_db_name_from_values(
             getattr(row, "telephone", ""),
             getattr(row, "source_contact", ""),
         )
+        row.pas_forme_detecte = row.id in _pas_forme_ids
     page_obj.object_list = rows
     params = request.GET.copy()
     params.pop("page", None)

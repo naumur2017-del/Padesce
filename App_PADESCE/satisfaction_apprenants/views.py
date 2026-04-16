@@ -3335,74 +3335,6 @@ def satisfaction_dashboard_export_chapeau(request):
 
 
 @require_analysis_access
-def satisfaction_dashboard_export_class_lists_zip(request):
-    """Export one CSV per class as a ZIP archive (no operator/enqueteur column)."""
-    dashboard = _build_satisfaction_dashboard_data(request)
-    rows = dashboard["rows"]
-    context = dashboard["context"]
-
-    # Only export analyzed classes (those that reached the analysis threshold)
-    analyzed_class_codes = {
-        normalize_network_lookup(item["code"])
-        for item in context.get("analyzed_classes", [])
-        if item.get("code")
-    }
-
-    # Group rows by classe_code — restrict to analyzed classes only
-    classes: dict[str, list[dict]] = {}
-    for row in _ordered_survey_rows(rows):
-        code = str(row.get("classe_code") or "").strip()
-        if code and (
-            not analyzed_class_codes or normalize_network_lookup(code) in analyzed_class_codes
-        ):
-            classes.setdefault(code, []).append(row)
-
-    headers = [
-        "N°",
-        "Apprenant ID",
-        "Apprenant",
-        "Bénéficiaire",
-        "Prestataire",
-        "Formation",
-        "Classe",
-        "Date",
-        *[label for _, label in Q_FIELDS],
-        "Commentaire",
-        "Recommandations",
-    ]
-
-    zip_buffer = io.BytesIO()
-    with zipfile.ZipFile(zip_buffer, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
-        for code, class_rows in sorted(classes.items()):
-            csv_buffer = io.StringIO()
-            writer = csv.writer(csv_buffer)
-            writer.writerow(headers)
-            for idx, row in enumerate(class_rows, start=1):
-                writer.writerow(
-                    [
-                        idx,
-                        row.get("apprenant_id") or row.get("apprenant_code", ""),
-                        row.get("apprenant_nom", ""),
-                        row.get("beneficiaire", ""),
-                        row.get("prestataire", ""),
-                        row.get("formation_intitule") or row.get("classe_intitule", ""),
-                        code,
-                        _format_export_date(row.get("survey_date")),
-                        *[row.get(field) for field, _ in Q_FIELDS],
-                        row.get("commentaire", ""),
-                        row.get("recommandations", ""),
-                    ]
-                )
-            safe_code = re.sub(r'[\\/:*?"<>|]', "_", code)
-            zf.writestr(f"{safe_code}.csv", csv_buffer.getvalue().encode("utf-8-sig"))
-
-    zip_buffer.seek(0)
-    response = HttpResponse(zip_buffer.getvalue(), content_type="application/zip")
-    response["Content-Disposition"] = 'attachment; filename="listes-par-classe.zip"'
-    return response
-
-
-@require_analysis_access
 def satisfaction_dashboard_export_prestation_lists_xlsx(request):
     """Export one sheet per prestation as an XLSX workbook."""
     dashboard = _build_satisfaction_dashboard_data(request)
@@ -5131,6 +5063,7 @@ def satisfaction_dashboard_export_csv(request):
 
 @require_analysis_access
 def satisfaction_dashboard_export_class_lists_zip(request):
+    """Export one CSV per class as a ZIP archive (sans colonnes Date/Heure)."""
     dashboard = _build_satisfaction_dashboard_data(request)
     rows = dashboard["rows"]
 
@@ -5139,54 +5072,162 @@ def satisfaction_dashboard_export_class_lists_zip(request):
         class_code = str(row.get("classe_code") or "").strip()
         class_rows.setdefault(class_code, []).append(row)
 
+    headers = [
+        "N°",
+        "ID local de l'apprenant",
+        "Apprenant",
+        "Bénéficiaire",
+        "Prestataire",
+        "Formation",
+        "Inspecteur",
+        "Classe",
+        *[label for _, label in Q_FIELDS],
+        "Commentaire",
+        "Recommandations",
+        "ID Enquête",
+    ]
+
     archive_buffer = io.BytesIO()
     with zipfile.ZipFile(archive_buffer, "w", compression=zipfile.ZIP_DEFLATED) as archive:
         for class_code in sorted(class_rows.keys()):
             csv_buffer = io.StringIO()
             writer = csv.writer(csv_buffer, lineterminator="\n")
-            writer.writerow(
-                [
-                    "ApprenantID réseau",
-                    "Apprenant",
-                    "Bénéficiaire",
-                    "Prestataire",
-                    "Formation",
-                    "Inspecteur",
-                    "Classe",
-                    *[label for _, label in Q_FIELDS],
-                    "Commentaire",
-                    "Recommandations",
-                    "EnquêteID",
-                    "Date",
-                    "Heure",
-                ]
-            )
-            for row in class_rows[class_code]:
+            writer.writerow(headers)
+            for idx, row in enumerate(class_rows[class_code], start=1):
                 writer.writerow(
                     [
-                        row.get("source_apprenant_id", ""),
+                        idx,
+                        row.get("apprenant_id") or row.get("apprenant_code", ""),
                         row.get("apprenant_nom", ""),
                         row.get("beneficiaire", ""),
                         row.get("prestataire", ""),
                         row.get("formation_intitule") or row.get("classe_intitule", ""),
-                        row.get("inspecteur_code")
-                        or row.get("source_inspecteur_id")
-                        or row.get("source_inspecteur_label", ""),
+                        row.get("inspecteur_code") or "",
                         row.get("classe_code", ""),
                         *[row.get(field, "") for field, _ in Q_FIELDS],
                         row.get("commentaire", ""),
                         row.get("recommandations", ""),
                         row.get("source_enquete_id", ""),
-                        _format_export_date(row.get("survey_date")),
-                        _format_export_time(row.get("survey_time")),
                     ]
                 )
-            archive.writestr(f"{class_code}.csv", csv_buffer.getvalue())
+            safe_code = re.sub(r'[\\/:*?"<>|]', "_", class_code)
+            archive.writestr(
+                f"Satisfaction_{safe_code}_SA.csv",
+                csv_buffer.getvalue().encode("utf-8-sig"),
+            )
 
     archive_buffer.seek(0)
     response = HttpResponse(archive_buffer.getvalue(), content_type="application/zip")
     response["Content-Disposition"] = 'attachment; filename="satisfaction-class-lists.zip"'
     return response
+
+
+# ---------------------------------------------------------------------------
+# Export CSV par classe individuelle + API JSON pour fill_excel.py
+# ---------------------------------------------------------------------------
+
+def _check_export_api_key(request) -> bool:
+    """Vérifie la clé X-Export-Api-Key contre EXPORT_API_KEY dans settings."""
+    from django.conf import settings as _s
+    expected = getattr(_s, "EXPORT_API_KEY", "")
+    if not expected:
+        return False
+    return request.headers.get("X-Export-Api-Key", "") == expected
+
+
+def satisfaction_dashboard_export_classe_csv(request, code: str):
+    """Export CSV des enquêtes d'une seule classe (pour fill_excel.py).
+    Authentification par clé API (X-Export-Api-Key) — pas de login requis.
+    """
+    if not _check_export_api_key(request):
+        return JsonResponse({"error": "Clé API manquante ou invalide."}, status=403)
+    dashboard = _build_satisfaction_dashboard_data(request)
+    rows = dashboard["rows"]
+
+    target = code.strip().upper()
+    class_rows = [
+        row for row in _ordered_survey_rows(rows)
+        if str(row.get("classe_code") or "").strip().upper() == target
+    ]
+
+    headers = [
+        "N°",
+        "ID local de l'apprenant",
+        "Apprenant",
+        "Bénéficiaire",
+        "Prestataire",
+        "Formation",
+        "Inspecteur",
+        "Classe",
+        *[label for _, label in Q_FIELDS],
+        "Commentaire",
+        "Recommandations",
+        "ID Enquête",
+    ]
+
+    filename = f"Satisfaction_{re.sub(r'[^A-Za-z0-9_-]', '_', code)}_SA.csv"
+    response = HttpResponse(content_type="text/csv; charset=utf-8")
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    response.write("\ufeff")
+    writer = csv.writer(response)
+    writer.writerow(headers)
+    for idx, row in enumerate(class_rows, start=1):
+        writer.writerow(
+            [
+                idx,
+                row.get("apprenant_id") or row.get("apprenant_code", ""),
+                row.get("apprenant_nom", ""),
+                row.get("beneficiaire", ""),
+                row.get("prestataire", ""),
+                row.get("formation_intitule") or row.get("classe_intitule", ""),
+                row.get("inspecteur_code") or "",
+                row.get("classe_code", ""),
+                *[row.get(field, "") for field, _ in Q_FIELDS],
+                row.get("commentaire", ""),
+                row.get("recommandations", ""),
+                row.get("source_enquete_id", ""),
+            ]
+        )
+    return response
+
+
+def satisfaction_api_classes_excel(request):
+    """
+    API JSON — liste des classes analysées avec leurs URLs (pour fill_excel.py).
+    Authentification via en-tête HTTP : X-Export-Api-Key: <EXPORT_API_KEY>
+    """
+    if not _check_export_api_key(request):
+        return JsonResponse({"error": "Clé API manquante ou invalide."}, status=403)
+
+    from django.conf import settings as _s
+    from App_PADESCE.satisfaction_apprenants.sharepoint_csv_links import SHAREPOINT_CSV_LINKS
+
+    site_url = (getattr(_s, "SITE_URL", "") or "https://call.naumur.com").rstrip("/")
+    base_app = "/satisfaction-apprenants"
+
+    dashboard = _build_satisfaction_dashboard_data(request)
+    rows = dashboard["rows"]
+    context = dashboard["context"]
+
+    # Regrouper par classe_code pour obtenir les métadonnées
+    seen: dict[str, dict] = {}
+    for row in _ordered_survey_rows(rows):
+        code = str(row.get("classe_code") or "").strip()
+        if not code or code == "Non renseignée":
+            continue
+        if code not in seen:
+            fallback_csv = f"{site_url}{base_app}/analyse/export/classe/{code}/csv/"
+            seen[code] = {
+                "code": code,
+                "label": row.get("formation_intitule") or row.get("classe_intitule") or code,
+                "prestataire": row.get("prestataire", ""),
+                "beneficiaire": row.get("beneficiaire", ""),
+                "cohorte": row.get("cohorte", ""),
+                "enquete_url": f"{site_url}/classe/{code.lower()}/",
+                "csv_url": SHAREPOINT_CSV_LINKS.get(code, fallback_csv),
+            }
+
+    return JsonResponse({"classes": list(seen.values())})
 
 
 # ---------------------------------------------------------------------------
