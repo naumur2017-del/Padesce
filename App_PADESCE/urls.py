@@ -1,3 +1,12 @@
+
+# Vue de debug du contexte
+from App_PADESCE.core.public_views import debug_context_stats
+
+# Vue de debug pour les stats formateurs
+from App_PADESCE.core.public_views import debug_formateur_stats
+
+# Vues de test pour diagnostiquer l'erreur 500
+from App_PADESCE.core.public_views import test_formateur_stats_minimal, test_formateur_stats_with_template
 from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
@@ -175,6 +184,15 @@ app_urlpatterns = [
         lazy_view("App_PADESCE.core.deployment_views.deployment_config_save"),
         name="deployment_config_save",
     ),
+
+    # URLs de test pour diagnostiquer l'erreur 500
+    path('test-stats-minimal/', test_formateur_stats_minimal, name='test_stats_minimal'),
+    path('test-stats-template/', test_formateur_stats_with_template, name='test_stats_template'),
+
+    # URL de debug pour les stats formateurs
+    path('debug-formateur-stats/', debug_formateur_stats, name='debug_formateur_stats'),
+
+    path('debug-context-stats/', debug_context_stats, name='debug_context_stats'),
 ]
 
 root_only_urlpatterns = [
