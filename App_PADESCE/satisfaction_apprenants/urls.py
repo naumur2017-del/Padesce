@@ -67,14 +67,20 @@ urlpatterns = [
     path(
         "analyse/export/classes-zip/",
         lazy_view(
-            "App_PADESCE.satisfaction_apprenants.views.satisfaction_dashboard_export_class_lists_zip"
+            (
+                "App_PADESCE.satisfaction_apprenants.views."
+                "satisfaction_dashboard_export_class_lists_zip"
+            ),
         ),
         name="satisfaction_dashboard_export_class_lists_zip",
     ),
     path(
         "analyse/export/prestations-xlsx/",
         lazy_view(
-            "App_PADESCE.satisfaction_apprenants.views.satisfaction_dashboard_export_prestation_lists_xlsx"
+            (
+                "App_PADESCE.satisfaction_apprenants.views."
+                "satisfaction_dashboard_export_prestation_lists_xlsx"
+            ),
         ),
         name="satisfaction_dashboard_export_prestation_lists_xlsx",
     ),
@@ -117,7 +123,10 @@ urlpatterns = [
     ),
     path(
         "export/moyennes-generales/xlsx/",
-        lazy_view("App_PADESCE.satisfaction_apprenants.views.export_apprenant_global_averages_xlsx"),
+        lazy_view(
+            "App_PADESCE.satisfaction_apprenants.views."
+            "export_apprenant_global_averages_xlsx"
+        ),
         name="export_apprenant_global_averages",
     ),
 ]
