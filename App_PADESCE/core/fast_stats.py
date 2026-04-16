@@ -457,7 +457,9 @@ def _build_apprenant_row(
     }
 
 
-def _build_general_global_row(classes: list[Classe], source_class_counts: dict[str, int] | None = None) -> dict:
+def _build_general_global_row(
+    classes: list[Classe], source_class_counts: dict[str, int] | None = None
+) -> dict:
     """Build a single global statistics row aggregating all classes."""
     all_satisfactions = []
     total_apprenants = 0
@@ -466,15 +468,15 @@ def _build_general_global_row(classes: list[Classe], source_class_counts: dict[s
     for classe in classes:
         local_apprenant_count = len(list(classe.apprenants.all()))
         classe_key = normalize_network_lookup(classe.code)
-        apprenant_count = int((source_class_counts or {}).get(classe_key, local_apprenant_count) or 0)
+        apprenant_count = int(
+            (source_class_counts or {}).get(classe_key, local_apprenant_count) or 0
+        )
         total_apprenants += apprenant_count
 
         appels = list(classe.appels.all())
 
         # Get all satisfactions for this class
-        class_satisfactions = [
-            _get_completed_satisfaction(appel) for appel in appels
-        ]
+        class_satisfactions = [_get_completed_satisfaction(appel) for appel in appels]
         all_satisfactions.extend([s for s in class_satisfactions if s is not None])
 
         # Count effectued calls
@@ -484,38 +486,66 @@ def _build_general_global_row(classes: list[Classe], source_class_counts: dict[s
             person_flags = people.setdefault(key, {"effectue": False})
             person_flags["effectue"] = person_flags["effectue"] or _apprenant_call_effectue(appel)
 
-        calls_effectues = min(apprenant_count, sum(1 for flags in people.values() if flags["effectue"]))
+        calls_effectues = min(
+            apprenant_count, sum(1 for flags in people.values() if flags["effectue"])
+        )
         total_calls_effectues += calls_effectues
 
-    # Calculate global metrics with proper scaling
-    # Taux de présence: scaled to /20
-    pct_presence = _percentage(total_calls_effectues, total_apprenants)
-    taux_presence_20 = (pct_presence * 20) if pct_presence else None
+    # Calculate base metrics (raw values in their native scales)
+    pct_presence_base = _percentage(total_calls_effectues, total_apprenants)
+    pct_presence_base = (pct_presence_base * 100) if pct_presence_base else None
 
-    # Average scores (1-5 scale) converted to respective scales
     resp_horaire_avg = _average_score(all_satisfactions, "q6_organisation_temps")
-    resp_horaire_10 = (resp_horaire_avg * 2) if resp_horaire_avg else None  # /5 * 10
+    resp_horaire_base = (resp_horaire_avg / 5 * 100) if resp_horaire_avg else None
 
     resp_theme_avg = _average_score(all_satisfactions, "q3_maitrise_contenu")
-    resp_theme_10 = (resp_theme_avg * 2) if resp_theme_avg else None  # /5 * 10
+    resp_theme_base = (resp_theme_avg / 5 * 100) if resp_theme_avg else None
 
     resp_parité_avg = _average_score(all_satisfactions, "q2_interaction_formateur")
-    resp_parité_10 = (resp_parité_avg * 2) if resp_parité_avg else None  # /5 * 10
+    resp_parité_base = (resp_parité_avg / 5 * 100) if resp_parité_avg else None
 
     qualite_environnement_avg = _average_score(all_satisfactions, "q4_salle_adequate")
-    qualite_environnement_10 = (qualite_environnement_avg * 2) if qualite_environnement_avg else None  # /5 * 10
+    qualite_environnement_base = (
+        (qualite_environnement_avg / 5 * 13) if qualite_environnement_avg else None
+    )
 
     satisfaction_apprenant_avg = _average_score(all_satisfactions, "q9_satisfaction_globale")
-    satisfaction_apprenant_20 = (satisfaction_apprenant_avg * 4) if satisfaction_apprenant_avg else None  # /5 * 20
 
     satisfaction_formateur_avg = _average_score(all_satisfactions, "q8_adequation_besoins")
-    satisfaction_formateur_10 = (satisfaction_formateur_avg * 2) if satisfaction_formateur_avg else None  # /5 * 10
 
     attitude_enquete_avg = _average_score(all_satisfactions, "q1_clarte_exposes")
-    attitude_enquete_10 = (attitude_enquete_avg * 2) if attitude_enquete_avg else None  # /5 * 10
+    attitude_enquete_base = (attitude_enquete_avg / 5 * 10) if attitude_enquete_avg else None
+
+    # Calculate scaled metrics for target scales
+    taux_presence_20 = (pct_presence_base / 100 * 20) if pct_presence_base else None
+    resp_horaire_10 = (resp_horaire_base / 100 * 10) if resp_horaire_base else None
+    resp_theme_10 = (resp_theme_base / 100 * 10) if resp_theme_base else None
+    resp_parité_10 = (resp_parité_base / 100 * 10) if resp_parité_base else None
+    qualite_environnement_10 = (
+        (qualite_environnement_base / 13 * 10) if qualite_environnement_base else None
+    )
+    satisfaction_apprenant_20 = (
+        (satisfaction_apprenant_avg / 5 * 20) if satisfaction_apprenant_avg else None
+    )
+    satisfaction_formateur_10 = (
+        (satisfaction_formateur_avg / 5 * 10) if satisfaction_formateur_avg else None
+    )
+    attitude_enquete_scale = (
+        (attitude_enquete_base / 10 * 10) if attitude_enquete_base else attitude_enquete_base
+    )
 
     return {
         "metric_type": "global",
+        # Base values (raw scales)
+        "taux_presence_base": pct_presence_base,
+        "resp_horaire_base": resp_horaire_base,
+        "resp_theme_base": resp_theme_base,
+        "resp_parité_base": resp_parité_base,
+        "qualite_environnement_base": qualite_environnement_base,
+        "satisfaction_apprenant_base": satisfaction_apprenant_avg,
+        "satisfaction_formateur_base": satisfaction_formateur_avg,
+        "attitude_enquete_base": attitude_enquete_base,
+        # Scaled values (target scales)
         "taux_presence": taux_presence_20,
         "taux_presence_scale": 20,
         "resp_horaire": resp_horaire_10,
@@ -530,7 +560,7 @@ def _build_general_global_row(classes: list[Classe], source_class_counts: dict[s
         "satisfaction_apprenant_scale": 20,
         "satisfaction_formateur": satisfaction_formateur_10,
         "satisfaction_formateur_scale": 10,
-        "attitude_enquete": attitude_enquete_10,
+        "attitude_enquete": attitude_enquete_scale,
         "attitude_enquete_scale": 10,
     }
 
@@ -548,9 +578,7 @@ def _build_general_row(
     appels = list(classe.appels.all())
 
     # Get all satisfactions for this class
-    satisfactions = [
-        _get_completed_satisfaction(appel) for appel in appels
-    ]
+    satisfactions = [_get_completed_satisfaction(appel) for appel in appels]
     satisfactions = [s for s in satisfactions if s is not None]
 
     # Calculate presence rate
@@ -575,7 +603,8 @@ def _build_general_row(
 
     return {
         "index": index,
-        "prestation_id": _safe_text(getattr(getattr(classe, "prestation", None), "code", "")) or "—",
+        "prestation_id": _safe_text(getattr(getattr(classe, "prestation", None), "code", ""))
+        or "—",
         "classe_id": _safe_text(classe.code) or "—",
         "taux_presence": pct_presence,
         "taux_presence_label": _percentage_label(pct_presence),
@@ -586,11 +615,17 @@ def _build_general_row(
         "resp_parité": resp_parité,
         "resp_parité_label": f"{resp_parité:.2f}/5" if resp_parité else "—",
         "qualite_environnement": qualite_environnement,
-        "qualite_environnement_label": f"{qualite_environnement:.2f}/5" if qualite_environnement else "—",
+        "qualite_environnement_label": (
+            f"{qualite_environnement:.2f}/5" if qualite_environnement else "—"
+        ),
         "satisfaction_apprenant": satisfaction_apprenant,
-        "satisfaction_apprenant_label": f"{satisfaction_apprenant:.2f}/5" if satisfaction_apprenant else "—",
+        "satisfaction_apprenant_label": (
+            f"{satisfaction_apprenant:.2f}/5" if satisfaction_apprenant else "—"
+        ),
         "satisfaction_formateur": satisfaction_formateur,
-        "satisfaction_formateur_label": f"{satisfaction_formateur:.2f}/5" if satisfaction_formateur else "—",
+        "satisfaction_formateur_label": (
+            f"{satisfaction_formateur:.2f}/5" if satisfaction_formateur else "—"
+        ),
         "attitude_enquete": attitude_enquete,
         "attitude_enquete_label": f"{attitude_enquete:.2f}/5" if attitude_enquete else "—",
         "status_label": _status_label(classe),
@@ -899,30 +934,37 @@ def _general_summary_cards(rows: list[dict]) -> list[dict]:
 
     row = rows[0]  # Global row
 
-    def format_score(value, scale):
+    def format_base(value, metric):
         if value is None:
             return "—"
-        return f"{value:.1f}/{scale}"
+        if metric.startswith("resp_") or metric == "taux_presence":
+            return f"{value:.0f}%"
+        elif metric == "satisfaction":
+            return f"{value:.1f}/5"
+        elif metric == "qualite_environnement":
+            return f"{value:.1f}/13"
+        else:
+            return f"{value:.1f}"
 
     return [
         {
             "label": "Taux de présence",
-            "value": format_score(row.get('taux_presence'), row.get('taux_presence_scale')),
+            "value": format_base(row.get("taux_presence_base"), "taux_presence"),
             "meta": "Présence globale de tous les apprenants analysés.",
         },
         {
             "label": "Satisfaction apprenant",
-            "value": format_score(row.get('satisfaction_apprenant'), row.get('satisfaction_apprenant_scale')),
+            "value": format_base(row.get("satisfaction_apprenant_base"), "satisfaction"),
             "meta": "Score de satisfaction global moyen.",
         },
         {
             "label": "Resp horaire",
-            "value": format_score(row.get('resp_horaire'), row.get('resp_horaire_scale')),
+            "value": format_base(row.get("resp_horaire_base"), "resp_horaire"),
             "meta": "Réponse au rythme de formation.",
         },
         {
             "label": "Qualité environnement",
-            "value": format_score(row.get('qualite_environnement'), row.get('qualite_environnement_scale')),
+            "value": format_base(row.get("qualite_environnement_base"), "qualite_environnement"),
             "meta": "Score de qualité environnement.",
         },
     ]
@@ -1237,36 +1279,99 @@ def _write_general_sheet(worksheet, mode_payload: dict) -> None:
     worksheet["B1"] = "Statistiques générales de satisfaction"
     worksheet["C1"] = "TRUE"
     worksheet["B3"] = "Métrique"
-    worksheet["C3"] = "Score"
+    worksheet["C3"] = "Base"
+    worksheet["D3"] = "Échelles"
 
-    _clear_data_rows(worksheet, start_row=FAST_STATS_TEMPLATE_ROW_START, max_col=3)
+    _clear_data_rows(worksheet, start_row=FAST_STATS_TEMPLATE_ROW_START, max_col=4)
 
     if mode_payload["rows"]:
         row = mode_payload["rows"][0]  # Global row
 
         metrics = [
-            ("Taux de présence", row.get("taux_presence"), row.get("taux_presence_scale")),
-            ("Resp horaire", row.get("resp_horaire"), row.get("resp_horaire_scale")),
-            ("Resp thème", row.get("resp_theme"), row.get("resp_theme_scale")),
-            ("Resp parité", row.get("resp_parité"), row.get("resp_parité_scale")),
-            ("Qualité environnement", row.get("qualite_environnement"), row.get("qualite_environnement_scale")),
-            ("Satisfaction apprenant", row.get("satisfaction_apprenant"), row.get("satisfaction_apprenant_scale")),
-            ("Satis faction formateur", row.get("satisfaction_formateur"), row.get("satisfaction_formateur_scale")),
-            ("Attitude enquête / respect consigne", row.get("attitude_enquete"), row.get("attitude_enquete_scale")),
+            (
+                "Taux de présence",
+                row.get("taux_presence_base"),
+                row.get("taux_presence"),
+                row.get("taux_presence_scale"),
+                "percent",
+            ),
+            (
+                "Resp horaire",
+                row.get("resp_horaire_base"),
+                row.get("resp_horaire"),
+                row.get("resp_horaire_scale"),
+                "percent",
+            ),
+            (
+                "Resp thème",
+                row.get("resp_theme_base"),
+                row.get("resp_theme"),
+                row.get("resp_theme_scale"),
+                "percent",
+            ),
+            (
+                "Resp parité",
+                row.get("resp_parité_base"),
+                row.get("resp_parité"),
+                row.get("resp_parité_scale"),
+                "percent",
+            ),
+            (
+                "Qualité environnement",
+                row.get("qualite_environnement_base"),
+                row.get("qualite_environnement"),
+                row.get("qualite_environnement_scale"),
+                "decimal",
+            ),
+            (
+                "Satisfaction apprenant",
+                row.get("satisfaction_apprenant_base"),
+                row.get("satisfaction_apprenant"),
+                row.get("satisfaction_apprenant_scale"),
+                "decimal",
+            ),
+            (
+                "Satis faction formateur",
+                row.get("satisfaction_formateur_base"),
+                row.get("satisfaction_formateur"),
+                row.get("satisfaction_formateur_scale"),
+                "decimal",
+            ),
+            (
+                "Attitude enquête / respect consigne",
+                row.get("attitude_enquete_base"),
+                row.get("attitude_enquete"),
+                row.get("attitude_enquete_scale"),
+                "decimal",
+            ),
         ]
 
         last_row = FAST_STATS_TEMPLATE_ROW_START + len(metrics) - 1
-        _ensure_sheet_capacity(worksheet, last_row=last_row, max_col=3)
+        _ensure_sheet_capacity(worksheet, last_row=last_row, max_col=4)
 
-        for offset, (label, value, scale) in enumerate(metrics, start=FAST_STATS_TEMPLATE_ROW_START):
+        for offset, (label, base_val, scaled_val, scale, fmt_type) in enumerate(
+            metrics, start=FAST_STATS_TEMPLATE_ROW_START
+        ):
             worksheet[f"B{offset}"] = label
-            if value is not None and scale is not None:
-                worksheet[f"C{offset}"] = f"{value:.1f}/{scale}"
+
+            # Write base value
+            if base_val is not None:
+                if fmt_type == "percent":
+                    worksheet[f"C{offset}"] = base_val / 100 if base_val <= 100 else 1.0
+                    worksheet[f"C{offset}"].number_format = "0%"
+                else:
+                    worksheet[f"C{offset}"] = f"{base_val:.1f}"
+                    worksheet[f"C{offset}"].number_format = "@"
             else:
                 worksheet[f"C{offset}"] = "—"
+                worksheet[f"C{offset}"].number_format = "@"
 
-            # Set text format for the score column to preserve the format
-            worksheet[f"C{offset}"].number_format = "@"
+            # Write scaled value
+            if scaled_val is not None and scale is not None:
+                worksheet[f"D{offset}"] = f"{scaled_val:.1f}/{scale}"
+            else:
+                worksheet[f"D{offset}"] = "—"
+            worksheet[f"D{offset}"].number_format = "@"
 
 
 def _write_formateur_sheet(worksheet, mode_payload: dict) -> None:
