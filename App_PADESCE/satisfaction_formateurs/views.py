@@ -1895,6 +1895,53 @@ def _tabular_formateurs_dashboard_export(
 
 
 @require_analysis_access
+def export_formateur_global_averages_xlsx(request):
+    """Export des moyennes générales des formateurs en Excel."""
+    context = _build_satisfaction_formateurs_dashboard_context(request)
+    
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Moyennes générales"
+    
+    # En-têtes
+    q_labels = [label for _, label in Q_FORM_FIELDS]
+    ws.append(["Indicateur"] + q_labels + ["Moyenne générale GLOBALE"])
+    
+    # Données des moyennes générales
+    row_data = ["Moyenne générale"]
+    for label in q_labels:
+        avg = context.get("global_avgs", {}).get(label, 0)
+        row_data.append(round(avg, 2))
+    # Ajouter la moyenne générale globale
+    moyenne_globale = context.get("moyenne_generale_globale", 0)
+    row_data.append(round(moyenne_globale, 2))
+    ws.append(row_data)
+    
+    # Style
+    for col in range(1, len(q_labels) + 3):
+        cell = ws.cell(row=1, column=col)
+        cell.font = openpyxl.styles.Font(bold=True)
+        cell.fill = openpyxl.styles.PatternFill(start_color="E6E6FA", end_color="E6E6FA", fill_type="solid")
+    
+    for col in range(1, len(q_labels) + 3):
+        cell = ws.cell(row=2, column=col)
+        cell.font = openpyxl.styles.Font(bold=True)
+        cell.fill = openpyxl.styles.PatternFill(start_color="FFE6E6", end_color="FFE6E6", fill_type="solid")
+    
+    # Ajuster la largeur des colonnes
+    for col in range(1, len(q_labels) + 3):
+        ws.column_dimensions[openpyxl.utils.get_column_letter(col)].width = 15
+    
+    # Créer la réponse HTTP
+    response = HttpResponse(
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+    response["Content-Disposition"] = 'attachment; filename="moyennes-generales-formateurs.xlsx"'
+    wb.save(response)
+    return response
+
+
+@require_analysis_access
 def satisfaction_formateurs_dashboard_export_csv(request):
     context = _build_satisfaction_formateurs_dashboard_context(request)
     active_tab = _active_formateurs_tab(request)

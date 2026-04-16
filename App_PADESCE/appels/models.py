@@ -215,24 +215,45 @@ def infer_padesce_status(
     current_status: str, *, has_form: bool, has_audio: bool, has_success_signal: bool = False
 ) -> str:
     normalized_status = normalize_call_status(current_status)
+
+    # Preserver les statuts actifs et à rappeler
     if normalized_status in CALL_ACTIVE_STATUSES:
         return normalized_status
     if normalized_status == "a_rappeler":
         return "a_rappeler"
+
+    # NOUVELLE LOGIQUE - Priorité aux conditions métier
+    # 1. Formulaire + Audio = statut le plus complet
     if has_form and has_audio:
         return "formulaire_avec_audio"
-    if has_form:
-        return "formulaire_rempli"
-    if has_audio or has_success_signal:
+
+    # 2. Appel démarré mais pas encore décroché = appel tenté
+    if normalized_status in ("en_cours", "appel_tente"):
+        return "appel_tente"
+
+    # 3. Appel décroché avec audio = appel réussi
+    if has_audio and not has_form:
         return "appel_reussi"
+
+    # 4. Formulaire seul = formulaire rempli
+    if has_form and not has_audio:
+        return "formulaire_rempli"
+
+    # 5. Signal de réussite sans audio/formulaire = appel réussi
+    if has_success_signal:
+        return "appel_reussi"
+
+    # 6. Statuts par défaut selon état actuel
     if normalized_status == "en_attente":
         return "en_attente"
-    if normalized_status in CALL_TENTATIVE_STATUSES:
-        return "appel_tente"
+
+    # 7. Pour les anciens statuts, conserver la compatibilité
     if normalized_status in CALL_SUCCESS_STATUSES:
         return "appel_reussi"
-    if normalized_status:
+    if normalized_status in CALL_TENTATIVE_STATUSES:
         return "appel_tente"
+
+    # 8. Par défaut = en attente
     return "en_attente"
 
 

@@ -29,6 +29,7 @@ from App_PADESCE.appels.models import (
     AppelImportArchive,
     appel_answers_completed_q,
     appel_answers_modified_completion_q,
+    derive_padesce_status,
     padesce_form_tracking_cutoff,
 )
 from App_PADESCE.apprenants.models import Apprenant
@@ -535,12 +536,6 @@ def _parse_excel(file_obj):
 
 def _parse_excel_non_forme(file_obj):
     return _parse_excel_sheet(file_obj, "Feuil2")
-
-
-def _parse_bool_flag(value):
-    if value is None:
-        return None
-    return str(value).strip().lower() in {"1", "true", "yes", "on"}
 
 
 def _archive_before_import_overwrite(appel: Appel, import_mode: str):
@@ -1499,16 +1494,22 @@ def appel_action(request, pk: int):
     satisfaction_message = ""  # noqa: F841
 
     if action == "start":
-        appel.status = "appel_tente"
+        # Démarrer l'appel = mettre en cours pour permettre transition
+        appel.status = "en_cours"
         appel.locked_by = request.user
         appel.locked_at = now
     elif action == "pause":
+        # Mettre en pause l'appel = statut tenté
         appel.status = "appel_tente"
+        appel.locked_by = None
+        appel.locked_at = None
     elif action == "resume":
-        appel.status = "appel_tente"
+        # Reprendre l'appel = revenir en cours
+        appel.status = "en_cours"
         appel.locked_by = request.user
         appel.locked_at = now
     elif action == "rappeler":
+        # Marquer pour rappel ultérieur
         appel.status = "a_rappeler"
         appel.locked_by = request.user
         appel.locked_at = now
@@ -1519,6 +1520,7 @@ def appel_action(request, pk: int):
             except (ValueError, TypeError):
                 appel.rappel_at = None
     elif action == "terminer":
+        # Terminer manuellement l'appel
         appel.status = "termine"
     else:
         return JsonResponse({"ok": False, "error": "Action inconnue."}, status=400)
@@ -1544,6 +1546,14 @@ def appel_action(request, pk: int):
             update_fields.append(flag_name)
 
     appel.save(update_fields=update_fields)
+
+    # Recalculer automatiquement le statut selon la nouvelle logique
+    # pour les futures actions (audio, formulaire, etc.)
+    new_status = derive_padesce_status(appel)
+    if new_status != appel.status:
+        appel.status = new_status
+        appel.save(update_fields=["status", "updated_at"])
+
     # Progress info for the UI
     class_info = None
     if appel.classe_label:

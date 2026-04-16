@@ -25,6 +25,7 @@ from App_PADESCE.appels.models import (
     CALL_FORM_STATUSES,
     CALL_SUCCESS_STATUSES,
     AppelFormateur,
+    _short_slug,
     sync_formateur_status,
 )
 from App_PADESCE.appels.views import (
@@ -50,12 +51,14 @@ FORMATEUR_SATISFACTION_HEADER_FIELDS = (
     (
         "q2_interaction_apprenants",
         "Q2 - Niveau d'interaction des apprenants",
-        "Les apprenants ont-ils ete suffisamment interactifs, posant des questions et participant activement ?",
+        "Les apprenants ont-ils ete suffisamment interactifs, posant des questions "
+        "et participant activement ?",
     ),
     (
         "q3_competences_acquises",
         "Q3 - Competences acquises par les apprenants",
-        "Estimez-vous que les apprenants ont acquis les competences cibles a l'issue de la formation ?",
+        "Estimez-vous que les apprenants ont acquis les competences cibles "
+        "a l'issue de la formation ?",
     ),
 )
 
@@ -131,10 +134,12 @@ def _build_formateur_progress_metrics(queryset):
             "threshold_remaining": threshold_remaining,
             "threshold_reached": threshold_reached,
             "threshold_message": (
-                f"Seuil de {FORMATEUR_THRESHOLD_PERCENT}% atteint. Vous pouvez passer a autre chose."
+                f"Seuil de {FORMATEUR_THRESHOLD_PERCENT}% atteint. "
+                f"Vous pouvez passer a autre chose."
                 if threshold_reached
                 else (
-                    f"Encore {threshold_remaining} appel(s) pour atteindre {FORMATEUR_THRESHOLD_PERCENT}%."
+                    f"Encore {threshold_remaining} appel(s) pour atteindre "
+                    f"{FORMATEUR_THRESHOLD_PERCENT}%."
                     if total
                     else "Aucun appel dans ce filtre."
                 )
@@ -300,19 +305,15 @@ def _parse_french_date(value):
 
 
 def _build_reference_code(item):
-    date_part = (
-        item["session_date"].isoformat()
-        if item.get("session_date")
-        else slugify(item.get("date_label") or "date")
-    )
-    start_part = slugify(item.get("heure_debut") or "debut")
-    phone_part = item.get("telephone") or "sans-telephone"
-    return (
-        f"FORM-{item.get('numero_seance') or '0'}-"
-        f"{slugify(item.get('prestataire') or 'prestataire')[:18]}-"
-        f"{slugify(item.get('beneficiaire') or 'beneficiaire')[:18]}-"
-        f"{phone_part}-{date_part}-{start_part}"
-    )[:120]
+    # Extraire les informations pertinentes
+    numero_seance = item.get("numero_seance") or "0"
+    formateur = item.get("formateur") or item.get("contact_formateur") or ""
+
+    # Formater le nom du formateur (prendre les premiers caractères significatifs)
+    formateur_slug = _short_slug(formateur, "formateur", max_len=20)
+
+    # Construire un code simple et lisible avec seulement le numéro et le formateur
+    return f"FORM-{numero_seance}-{formateur_slug}"
 
 
 def _iter_formateur_excel_rows(file_obj):
@@ -888,18 +889,22 @@ def formateurs_index(request):
                     warning_parts.append(f"{duplicate_refs} doublon(s) detecte(s) pendant l'upload")
                 if removed_duplicates:
                     warning_parts.append(
-                        f"{removed_duplicates} doublon(s) supplementaire(s) desactive(s) apres import"
+                        f"{removed_duplicates} doublon(s) supplementaire(s) "
+                        f"desactive(s) apres import"
                     )
                 if files_without_numbers:
                     warning_parts.append(
-                        "fichier(s) sans contact exploitable: "
-                        + ", ".join(files_without_numbers[:5])
+                        (
+                            "fichier(s) sans contact exploitable: "
+                            + ", ".join(files_without_numbers[:5])
+                        )
                     )
                 messages.warning(request, "Import formateurs: " + " ; ".join(warning_parts) + ".")
             if raw_count == 0:
                 messages.warning(
                     request,
-                    "Aucun numero de telephone n'a ete pris dans les fichiers importes. Verifiez la colonne CONTACT DU FORMATEUR.",
+                    "Aucun numero de telephone n'a ete pris dans les fichiers importes. "
+                    "Verifiez la colonne CONTACT DU FORMATEUR.",
                 )
         except Exception as exc:
             messages.error(request, f"Impossible de lire la feuille Calendrier : {exc}")
@@ -990,7 +995,8 @@ def formateur_action(request, pk: int):
             return JsonResponse(
                 {
                     "ok": False,
-                    "error": "Renseignez d'abord Q1, Q2 et Q3 via Demarrer ou en cliquant sur la ligne du formateur.",
+                    "error": "Renseignez d'abord Q1, Q2 et Q3 via Demarrer ou en cliquant "
+                    "sur la ligne du formateur.",
                 },
                 status=400,
             )
@@ -1151,7 +1157,8 @@ def formateur_transcription_download(request, pk: int):
         return HttpResponse(str(exc), status=400, content_type="text/plain; charset=utf-8")
     response = HttpResponse(obj.transcription_text or "", content_type="text/plain; charset=utf-8")
     response["Content-Disposition"] = (
-        f'attachment; filename="transcription-formateur-{slugify(row.reference_code) or row.pk}.txt"'
+        f'attachment; filename="transcription-formateur-'
+        f'{slugify(row.reference_code) or row.pk}.txt"'
     )
     return response
 

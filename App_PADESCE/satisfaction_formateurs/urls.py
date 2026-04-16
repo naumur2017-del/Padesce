@@ -44,4 +44,9 @@ urlpatterns = [
         lazy_view("App_PADESCE.satisfaction_formateurs.views.formateurs_prestataires_management"),
         name="formateurs_prestataires_management",
     ),
+    path(
+        "export/moyennes-generales/xlsx/",
+        lazy_view("App_PADESCE.satisfaction_formateurs.views.export_formateur_global_averages_xlsx"),
+        name="export_formateur_global_averages",
+    ),
 ]

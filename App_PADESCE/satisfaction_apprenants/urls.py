@@ -115,4 +115,9 @@ urlpatterns = [
         lazy_view("App_PADESCE.satisfaction_apprenants.views.satisfaction_sync_reference_page"),
         name="satisfaction_sync_reference_page",
     ),
+    path(
+        "export/moyennes-generales/xlsx/",
+        lazy_view("App_PADESCE.satisfaction_apprenants.views.export_apprenant_global_averages_xlsx"),
+        name="export_apprenant_global_averages",
+    ),
 ]
