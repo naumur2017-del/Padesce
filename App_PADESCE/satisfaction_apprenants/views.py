@@ -5135,9 +5135,12 @@ def _check_export_api_key(request) -> bool:
     return request.headers.get("X-Export-Api-Key", "") == expected
 
 
-@require_analysis_access
 def satisfaction_dashboard_export_classe_csv(request, code: str):
-    """Export CSV des enquêtes d'une seule classe (pour fill_excel.py)."""
+    """Export CSV des enquêtes d'une seule classe (pour fill_excel.py).
+    Authentification par clé API (X-Export-Api-Key) — pas de login requis.
+    """
+    if not _check_export_api_key(request):
+        return JsonResponse({"error": "Clé API manquante ou invalide."}, status=403)
     dashboard = _build_satisfaction_dashboard_data(request)
     rows = dashboard["rows"]
 

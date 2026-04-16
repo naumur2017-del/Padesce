@@ -18,7 +18,7 @@ from django.core.files.storage import default_storage
 from django.core.paginator import Paginator
 from django.db import transaction
 from django.db.models import Count, Q
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -2115,9 +2115,14 @@ def satisfaction_formateurs_dashboard_export_prestation_zip(request):
     return response
 
 
-@require_analysis_access
 def satisfaction_formateurs_export_prestation_csv(request, code: str):
-    """Export CSV des enquêtes d'un seul prestataire (pour fill_excel.py)."""
+    """Export CSV des enquêtes d'un seul prestataire (pour fill_excel.py).
+    Authentification par clé API (X-Export-Api-Key) — pas de login requis.
+    """
+    from App_PADESCE.satisfaction_apprenants.views import _check_export_api_key
+
+    if not _check_export_api_key(request):
+        return JsonResponse({"error": "Clé API manquante ou invalide."}, status=403)
     context = _build_satisfaction_formateurs_dashboard_context(request)
     target = code.strip()
     rows = [r for r in context["all_rows"] if str(r.get("prestataire") or "").strip() == target]
@@ -2177,7 +2182,6 @@ def satisfaction_formateurs_api_prestations_excel(request):
         return JsonResponse({"error": "Clé API manquante ou invalide."}, status=403)
 
     from django.conf import settings as _s
-    from django.http import JsonResponse
 
     site_url = (getattr(_s, "SITE_URL", "") or "https://call.naumur.com").rstrip("/")
     base_app = "/satisfaction-formateurs"
