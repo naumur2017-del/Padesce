@@ -27,7 +27,10 @@
       "Bash(grep -n \"FAST STATS\" ./App_PADESCE/satisfaction_apprenants/*)",
       "Read(//home/user/projects/**)",
       "Bash(python manage.py runserver 0.0.0.0:8000)",
-      "Bash(python -m py_compile App_PADESCE/core/fast_stats.py)"
+      "Bash(python -m py_compile App_PADESCE/core/fast_stats.py)",
+      "Bash(grep -n \"PRESTATIONS\\\\|card_prestations_count\" templates/satisfaction_apprenants/*.html)",
+      "Bash(git add:*)",
+      "Bash(git commit -m 'fix: Padesce — afficher les 64 prestations analysées au lieu de 57:*)"
     ]
   }
 }

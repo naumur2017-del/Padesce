@@ -1077,12 +1077,9 @@ def _build_padesce_rows(
 ) -> list[dict]:
     """Une ligne par prestation analysée : mêmes calculs que General + note_globale /100.
 
-    Seules les 64 prestations analysées (terminées + seuil 25 % atteint) sont incluses,
-    en utilisant la même logique que le ratio 64/78 de la page d'analyse de satisfaction.
+    Affiche les 64 prestations terminées (pas seulement les 57 qualifiées).
     """
     from collections import defaultdict
-
-    qualified_keys = _padesce_qualified_prestation_keys(source_bundle, classes)
 
     groups: dict[str, list] = defaultdict(list)
     for classe in classes:
@@ -1093,12 +1090,6 @@ def _build_padesce_rows(
 
     all_rows = []
     for prestation_code in sorted(groups):
-        # Filtrer aux seules prestations analysées (64/78)
-        if qualified_keys is not None:
-            p_key = normalize_network_lookup(prestation_code)
-            if p_key not in qualified_keys:
-                continue
-
         prestation_classes = groups[prestation_code]
         g = _build_general_global_row(prestation_classes, source_class_counts=source_class_counts)
 
@@ -1127,12 +1118,11 @@ def _build_padesce_rows(
             "note_globale":                note_globale,
         })
 
-    # Garder uniquement les prestations analysées (au moins une métrique renseignée)
-    analysed = [r for r in all_rows if r["note_globale"] is not None]
-    for i, row in enumerate(analysed, start=1):
+    # Garder toutes les prestations (pas de filtrage sur qualified_keys pour afficher les 64)
+    for i, row in enumerate(all_rows, start=1):
         row["index"] = i
 
-    return analysed
+    return all_rows
 
 
 def _general_summary_cards(rows: list[dict]) -> list[dict]:
