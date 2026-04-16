@@ -28,7 +28,10 @@ urlpatterns = [
     path(
         "analyse/export/chapeau/",
         lazy_view(
-            "App_PADESCE.satisfaction_formateurs.views.satisfaction_formateurs_dashboard_export_chapeau"
+            (
+                "App_PADESCE.satisfaction_formateurs.views."
+                "satisfaction_formateurs_dashboard_export_chapeau"
+            ),
         ),
         name="satisfaction_formateurs_dashboard_export_chapeau",
     ),
@@ -46,7 +49,9 @@ urlpatterns = [
     ),
     path(
         "export/moyennes-generales/xlsx/",
-        lazy_view("App_PADESCE.satisfaction_formateurs.views.export_formateur_global_averages_xlsx"),
+        lazy_view(
+            "App_PADESCE.satisfaction_formateurs.views.export_formateur_global_averages_xlsx"
+        ),
         name="export_formateur_global_averages",
     ),
 ]
