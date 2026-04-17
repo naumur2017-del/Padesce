@@ -1657,7 +1657,7 @@ def _average_displayed_scores(values) -> float:
     return round(sum(displayed_values) / len(displayed_values), 2) if displayed_values else 0
 
 
-FORMATEUR_DASHBOARD_TABS = {"prestataire", "beneficiaire", "cohorte", "detail"}
+FORMATEUR_DASHBOARD_TABS = {"prestataire", "beneficiaire", "cohorte", "prestation", "detail"}
 
 
 def _active_formateurs_tab(request) -> str:
@@ -1786,7 +1786,7 @@ def _build_satisfaction_formateurs_dashboard_context(request) -> dict:
                 {
                     "label": k,
                     "nb": len(v),
-                    "avgs": [_avg_num([r[f] for r in v]) for f, _ in Q_FORM_FIELDS],
+                    "avgs": [_avg_num([r[field] for r in v]) for field, _ in Q_FORM_FIELDS],
                 }
                 for k, v in groups.items()
             ],
@@ -1796,6 +1796,7 @@ def _build_satisfaction_formateurs_dashboard_context(request) -> dict:
     prestataire_stats = _group_stats(lambda r: r["prestataire"] or "-")
     beneficiaire_stats = _group_stats(lambda r: r["beneficiaire"] or "-")
     cohorte_stats = _group_stats(lambda r: r["cohorte"] or "-")
+    prestation_stats = _group_stats(lambda r: r["reference_code"] or "-")
 
     all_qs = AppelFormateur.objects.filter(is_active=True)
     prestataires = sorted(set(all_qs.values_list("prestataire", flat=True)) - {""})
@@ -1931,6 +1932,7 @@ def _build_satisfaction_formateurs_dashboard_context(request) -> dict:
         "prestataire_stats": prestataire_stats,
         "beneficiaire_stats": beneficiaire_stats,
         "cohorte_stats": cohorte_stats,
+        "prestation_stats": prestation_stats,
         "status_counts": dict(status_counts),
         "prestataires": prestataires,
         "beneficiaires": beneficiaires,
@@ -1971,6 +1973,11 @@ def _tabular_formateurs_dashboard_export(
         return (
             ["Cohorte", "Nb appels", *[label for _, label in Q_FORM_FIELDS]],
             [[item["label"], item["nb"], *item["avgs"]] for item in context["cohorte_stats"]],
+        )
+    if active_tab == "prestation":
+        return (
+            ["Prestation", "Nb appels", *[label for _, label in Q_FORM_FIELDS]],
+            [[item["label"], item["nb"], *item["avgs"]] for item in context["prestation_stats"]],
         )
     if active_tab == "detail":
         return (
@@ -2157,6 +2164,7 @@ def satisfaction_formateurs_dashboard_export_chapeau(request):
         "prestataire": context["prestataire_stats"],
         "beneficiaire": context["beneficiaire_stats"],
         "cohorte": context["cohorte_stats"],
+        "prestation": context["prestation_stats"],
     }
 
     if active_tab == "detail":

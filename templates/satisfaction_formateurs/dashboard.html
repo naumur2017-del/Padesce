@@ -409,6 +409,7 @@
     <button class="tab-btn {% if active_tab == 'prestataire' %}active{% endif %}" onclick="switchTab('prestataire',this)">Par prestataire</button>
     <button class="tab-btn {% if active_tab == 'beneficiaire' %}active{% endif %}" onclick="switchTab('beneficiaire',this)">Par bénéficiaire</button>
     <button class="tab-btn {% if active_tab == 'cohorte' %}active{% endif %}" onclick="switchTab('cohorte',this)">Par cohorte</button>
+    <button class="tab-btn {% if active_tab == 'prestation' %}active{% endif %}" onclick="switchTab('prestation',this)">Par prestation</button>
     <button class="tab-btn {% if active_tab == 'detail' %}active{% endif %}" onclick="switchTab('detail',this)">Détail</button>
   </div>
 
@@ -468,6 +469,29 @@
         </tr></thead>
         <tbody>
           {% for item in cohorte_stats %}
+          <tr>
+            <td>{{ item.label }}</td>
+            <td style="text-align:center;font-weight:700;">{{ item.nb }}</td>
+            {% for avg in item.avgs %}<td><span class="score-pill">{{ avg|floatformat:2 }}</span></td>{% endfor %}
+          </tr>
+          {% empty %}
+          <tr><td colspan="5" style="text-align:center;color:var(--muted);">Aucune donnée.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Par prestation -->
+  <div class="tab-panel {% if active_tab == 'prestation' %}active{% endif %}" id="tab-prestation">
+    <div class="table-scroll">
+      <table>
+        <thead><tr>
+          <th>Prestation</th><th>Nb</th>
+          {% for lbl in q_labels %}<th>{{ lbl }}</th>{% endfor %}
+        </tr></thead>
+        <tbody>
+          {% for item in prestation_stats %}
           <tr>
             <td>{{ item.label }}</td>
             <td style="text-align:center;font-weight:700;">{{ item.nb }}</td>
