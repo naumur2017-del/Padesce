@@ -97,6 +97,15 @@ def _normalize_dashboard_fenetre(value: str) -> str:
     return digits if digits in {"2", "3"} else ""
 
 
+def _sorted_distinct_non_empty_strings(values) -> list[str]:
+    items = set()
+    for value in values:
+        text = str(value or "").strip()
+        if text:
+            items.add(text)
+    return sorted(items)
+
+
 def _group_appel_ids_by_user(queryset, user_field: str) -> dict[int, set[int]]:
     grouped: dict[int, set[int]] = defaultdict(set)
     for row in queryset.values("id", user_field):
@@ -404,11 +413,11 @@ def _consultant_row_sort_key(appel: Appel) -> tuple:
 def _fallback_consultant_analysis_snapshot(rows: list[Appel]) -> dict:
     class_options = []
     seen_classes: set[str] = set()
-    prestataire_options = sorted(
-        {(row.prestataire or "").strip() for row in rows if (row.prestataire or "").strip()}
+    prestataire_options = _sorted_distinct_non_empty_strings(
+        getattr(row, "prestataire", "") for row in rows
     )
-    beneficiaire_options = sorted(
-        {(row.beneficiaire or "").strip() for row in rows if (row.beneficiaire or "").strip()}
+    beneficiaire_options = _sorted_distinct_non_empty_strings(
+        getattr(row, "beneficiaire", "") for row in rows
     )
     fenetre_options = sorted(
         {
@@ -417,14 +426,9 @@ def _fallback_consultant_analysis_snapshot(rows: list[Appel]) -> dict:
             if _consultant_dashboard_fenetre(row) in {"2", "3"}
         }
     )
-    prestation_codes = sorted(
-        {
-            str(
-                getattr(getattr(getattr(row, "classe", None), "prestation", None), "code", "") or ""
-            ).strip()
-            for row in rows
-            if getattr(getattr(getattr(row, "classe", None), "prestation", None), "code", "")
-        }
+    prestation_codes = _sorted_distinct_non_empty_strings(
+        getattr(getattr(getattr(row, "classe", None), "prestation", None), "code", "")
+        for row in rows
     )
 
     for row in rows:
@@ -1237,15 +1241,17 @@ def _consultant_formateurs_dashboard_context(request):
             "cohorte": cohorte_filter,
             "formation": formation_filter,
             "status": status_filter,
-            "formations": sorted(
-                list(set(row["formation"] for row in _filter_rows if row["formation"]))
+            "formations": _sorted_distinct_non_empty_strings(
+                row.get("formation", "") for row in _filter_rows
             ),
-            "cohortes": sorted(list(set(row["cohorte"] for row in _filter_rows if row["cohorte"]))),
-            "prestataires": sorted(
-                list(set(row["prestataire"] for row in _filter_rows if row["prestataire"]))
+            "cohortes": _sorted_distinct_non_empty_strings(
+                row.get("cohorte", "") for row in _filter_rows
             ),
-            "beneficiaires": sorted(
-                list(set(row["beneficiaire"] for row in _filter_rows if row["beneficiaire"]))
+            "prestataires": _sorted_distinct_non_empty_strings(
+                row.get("prestataire", "") for row in _filter_rows
+            ),
+            "beneficiaires": _sorted_distinct_non_empty_strings(
+                row.get("beneficiaire", "") for row in _filter_rows
             ),
         },
         "filter_map_json": json.dumps(_filter_rows, ensure_ascii=False),
