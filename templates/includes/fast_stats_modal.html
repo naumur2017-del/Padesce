@@ -216,58 +216,70 @@
         return `<div class="fast-stats-empty">Aucune donnée FAST STATS disponible pour les filtres courants.</div>`;
       }
 
-      const row = rows[0];
+      // Helpers
+      const fPct  = v => v == null ? "—" : `${v.toFixed(1)}%`;       // base % (0-100)
+      const fOn13 = v => v == null ? "—" : `${v.toFixed(2)}/13`;     // qualité env base
+      const fOn5  = v => v == null ? "—" : `${v.toFixed(2)}/5`;      // satisfaction base
+      const fOn10 = v => v == null ? "—" : `${v.toFixed(2)}/10`;     // attitude base
+      const fScore = (v, max) => v == null ? "—" : `${v.toFixed(2)}/${max}`;
 
-      const formatBase = (val, metric) => {
-        if (val == null) return "—";
-        if (metric.startsWith("resp_") || metric === "taux_presence") return `${val.toFixed(0)}%`;
-        if (metric === "qualite_environnement") return `${val.toFixed(1)}/13`;
-        if (metric.includes("satisfaction")) return `${val.toFixed(1)}/5`;
-        if (metric === "attitude_enquete") return `${val.toFixed(1)}/10`;
-        return `${val.toFixed(1)}`;
-      };
-
-      const formatScale = (val, scale) => val == null ? "—" : `${val.toFixed(1)}/${scale}`;
-
-      const metrics = [
-        { label: "Taux de présence", base: formatBase(row.taux_presence_base, "taux_presence"), scale: formatScale(row.taux_presence, row.taux_presence_scale) },
-        { label: "Resp horaire", base: formatBase(row.resp_horaire_base, "resp_horaire"), scale: formatScale(row.resp_horaire, row.resp_horaire_scale) },
-        { label: "Resp thème", base: formatBase(row.resp_theme_base, "resp_theme"), scale: formatScale(row.resp_theme, row.resp_theme_scale) },
-        { label: "Resp parité", base: formatBase(row.resp_parité_base, "resp_parité"), scale: formatScale(row.resp_parité, row.resp_parité_scale) },
-        { label: "Qualité environnement", base: formatBase(row.qualite_environnement_base, "qualite_environnement"), scale: formatScale(row.qualite_environnement, row.qualite_environnement_scale) },
-        { label: "Satisfaction apprenant", base: formatBase(row.satisfaction_apprenant_base, "satisfaction_apprenant"), scale: formatScale(row.satisfaction_apprenant, row.satisfaction_apprenant_scale) },
-        { label: "Satisfaction formateur", base: formatBase(row.satisfaction_formateur_base, "satisfaction_formateur"), scale: formatScale(row.satisfaction_formateur, row.satisfaction_formateur_scale) },
-        { label: "Attitude enquête / respect consigne", base: formatBase(row.attitude_enquete_base, "attitude_enquete"), scale: formatScale(row.attitude_enquete, row.attitude_enquete_scale) },
-      ];
-
-      const noteGlobale = row.note_globale != null ? row.note_globale.toFixed(1) : "—";
-
-      const metricsBody = metrics.map(m => `
-        <tr>
-          <td style="text-align:left;font-weight:600;">${escapeHtml(m.label)}</td>
-          <td class="num">${displayValue(m.base)}</td>
-          <td class="num" style="font-weight:700;">${displayValue(m.scale)}</td>
-        </tr>
-      `).join("");
-
-      const scoreRow = `
-        <tr style="border-top:2px solid var(--border);background:rgba(111,60,195,0.06);">
-          <td style="text-align:left;font-weight:800;color:var(--accent-strong);">NOTE GLOBALE</td>
-          <td class="num"></td>
-          <td class="num" style="font-weight:900;font-size:1.1rem;color:var(--accent-strong);">${escapeHtml(noteGlobale)}/100</td>
-        </tr>`;
+      const tableRows = rows.map(row => {
+        const note = row.note_globale != null ? row.note_globale.toFixed(2) : "—";
+        return `
+          <tr>
+            <td class="num">${displayValue(row.index)}</td>
+            <td style="font-weight:700;">${displayValue(row.prestation_id)}</td>
+            <td class="num">${displayValue(row.classe_count)}</td>
+            <td class="num" style="color:var(--muted);font-size:0.8rem;">${fPct(row.taux_presence_base)}</td>
+            <td class="num" style="font-weight:600;">${fScore(row.taux_presence, 20)}</td>
+            <td class="num" style="color:var(--muted);font-size:0.8rem;">${fPct(row.resp_horaire_base)}</td>
+            <td class="num" style="font-weight:600;">${fScore(row.resp_horaire, 10)}</td>
+            <td class="num" style="color:var(--muted);font-size:0.8rem;">${fPct(row.resp_theme_base)}</td>
+            <td class="num" style="font-weight:600;">${fScore(row.resp_theme, 10)}</td>
+            <td class="num" style="color:var(--muted);font-size:0.8rem;">${fPct(row.resp_parité_base)}</td>
+            <td class="num" style="font-weight:600;">${fScore(row.resp_parité, 10)}</td>
+            <td class="num" style="color:var(--muted);font-size:0.8rem;">${fOn13(row.qualite_environnement_base)}</td>
+            <td class="num" style="font-weight:600;">${fScore(row.qualite_environnement, 10)}</td>
+            <td class="num" style="color:var(--muted);font-size:0.8rem;">${fOn5(row.satisfaction_apprenant_base)}</td>
+            <td class="num" style="font-weight:600;">${fScore(row.satisfaction_apprenant, 20)}</td>
+            <td class="num" style="color:var(--muted);font-size:0.8rem;">${fOn5(row.satisfaction_formateur_base)}</td>
+            <td class="num" style="font-weight:600;">${fScore(row.satisfaction_formateur, 10)}</td>
+            <td class="num" style="color:var(--muted);font-size:0.8rem;">${fOn10(row.attitude_enquete_base)}</td>
+            <td class="num" style="font-weight:600;">${fScore(row.attitude_enquete, 10)}</td>
+            <td class="num" style="font-weight:900;color:var(--accent-strong);font-size:0.95rem;">${escapeHtml(note)}/100</td>
+          </tr>`;
+      }).join("");
 
       return `
         <div class="table-scroll" style="max-height:60vh;">
-          <table class="fast-stats-table">
+          <table class="fast-stats-table" style="font-size:0.8rem;">
             <thead>
               <tr>
-                <th style="text-align:left;">Métrique</th>
-                <th>Base</th>
-                <th>Score Padesce</th>
+                <th rowspan="2">#</th>
+                <th rowspan="2" style="text-align:left;">Prestation</th>
+                <th rowspan="2">Classes</th>
+                <th colspan="2">Taux présence</th>
+                <th colspan="2">Resp horaire</th>
+                <th colspan="2">Resp thème</th>
+                <th colspan="2">Resp parité</th>
+                <th colspan="2">Qualité env.</th>
+                <th colspan="2">Sat. apprenant</th>
+                <th colspan="2">Sat. formateur</th>
+                <th colspan="2">Attitude enquête</th>
+                <th rowspan="2" style="color:var(--accent-strong);">Note /100</th>
+              </tr>
+              <tr>
+                <th style="color:var(--muted);">Base</th><th>Score /20</th>
+                <th style="color:var(--muted);">Base</th><th>Score /10</th>
+                <th style="color:var(--muted);">Base</th><th>Score /10</th>
+                <th style="color:var(--muted);">Base</th><th>Score /10</th>
+                <th style="color:var(--muted);">Base</th><th>Score /10</th>
+                <th style="color:var(--muted);">Base</th><th>Score /20</th>
+                <th style="color:var(--muted);">Base</th><th>Score /10</th>
+                <th style="color:var(--muted);">Base</th><th>Score /10</th>
               </tr>
             </thead>
-            <tbody>${metricsBody}${scoreRow}</tbody>
+            <tbody>${tableRows}</tbody>
           </table>
         </div>`;
     }
