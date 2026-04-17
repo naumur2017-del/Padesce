@@ -1821,8 +1821,133 @@ def _build_satisfaction_formateurs_dashboard_context(request) -> dict:
     prestataire_stats = _group_stats(lambda r: r["prestataire"] or "-")
     beneficiaire_stats = _group_stats(lambda r: r["beneficiaire"] or "-")
     cohorte_stats = _group_stats(lambda r: r["cohorte"] or "-")
-    # Calculer les statistiques par prestation avec une approche simplifiée
-    prestation_stats = _group_stats(lambda r: r["reference_code"] or "-")
+    # Calculer les statistiques par prestation avec combinaison prestataire-bénéficiaire
+    def _build_prestation_stats_with_combination():
+        """Crée une table masquée avec les combinaisons IDprestations-prestataires-bénéficiaires"""
+        from django.db import connection
+        
+        # 1. Récupérer toutes les combinaisons prestataires-bénéficiaires des appels formateurs
+        formateur_combinations = {}
+        for r in records:
+            prestataire = str(r.get("prestataire") or "").strip().lower()
+            beneficiaire = str(r.get("beneficiaire") or "").strip().lower()
+            reference_code = str(r.get("reference_code") or "").strip()
+            
+            if not prestataire or not beneficiaire or not reference_code:
+                continue
+                
+            combo_key = f"{prestataire}|{beneficiaire}"
+            if combo_key not in formateur_combinations:
+                formateur_combinations[combo_key] = {
+                    "prestataire": r.get("prestataire"),
+                    "beneficiaire": r.get("beneficiaire"),
+                    "reference_codes": set(),
+                    "q1_scores": [],
+                    "q2_scores": [],
+                    "q3_scores": [],
+                    "form_count": 0
+                }
+            
+            combo = formateur_combinations[combo_key]
+            combo["reference_codes"].add(reference_code)
+            combo["form_count"] += 1
+            
+            # Ajouter les scores s'ils existent
+            q1 = r.get("q1_prerequis_apprenants")
+            q2 = r.get("q2_interaction_apprenants")
+            q3 = r.get("q3_competences_acquises")
+            
+            if q1 is not None:
+                combo["q1_scores"].append(float(q1))
+            if q2 is not None:
+                combo["q2_scores"].append(float(q2))
+            if q3 is not None:
+                combo["q3_scores"].append(float(q3))
+        
+        # 2. Récupérer la table "Indicateurs par prestataire" de la page apprenants
+        prestation_officielles = {}
+        with connection.cursor() as cursor:
+            cursor.execute("""
+                SELECT p.code, pr.raison_sociale as prestataire_nom, 
+                       b.nom_structure as beneficiaire_nom
+                FROM formations_prestation p
+                LEFT JOIN formations_prestataire pr ON p.prestataire_id = pr.id
+                LEFT JOIN formations_beneficiaire b ON p.beneficiaire_id = b.id
+                WHERE p.actif = 1
+            """)
+            for code, prestataire_nom, beneficiaire_nom in cursor.fetchall():
+                if code and prestataire_nom and beneficiaire_nom:
+                    prestation_officielles[code] = {
+                        "prestataire_nom": str(prestataire_nom).strip().lower(),
+                        "beneficiaire_nom": str(beneficiaire_nom).strip().lower()
+                    }
+        
+        # 3. Créer la table masquée des combinaisons valides
+        table_masquee = []
+        for combo_key, combo_data in formateur_combinations.items():
+            prestataire_nom = combo_data["prestataire"]
+            beneficiaire_nom = combo_data["beneficiaire"]
+            
+            # Chercher la prestation officielle correspondante
+            code_prestation = None
+            for code, prestation_info in prestation_officielles.items():
+                if (prestation_info["prestataire_nom"] == prestataire_nom.strip().lower() and 
+                    prestation_info["beneficiaire_nom"] == beneficiaire_nom.strip().lower()):
+                    code_prestation = code
+                    break
+            
+            if code_prestation:
+                # Calculer les moyennes pour cette combinaison
+                q1_avg = round(sum(combo_data["q1_scores"]) / len(combo_data["q1_scores"]), 2) if combo_data["q1_scores"] else 0.0
+                q2_avg = round(sum(combo_data["q2_scores"]) / len(combo_data["q2_scores"]), 2) if combo_data["q2_scores"] else 0.0
+                q3_avg = round(sum(combo_data["q3_scores"]) / len(combo_data["q3_scores"]), 2) if combo_data["q3_scores"] else 0.0
+                
+                table_masquee.append({
+                    "id_prestation": code_prestation,
+                    "prestataire": prestataire_nom,
+                    "beneficiaire": beneficiaire_nom,
+                    "q1_moyenne": q1_avg,
+                    "q2_moyenne": q2_avg,
+                    "q3_moyenne": q3_avg,
+                    "nb_formulaires": combo_data["form_count"],
+                    "reference_codes": list(combo_data["reference_codes"])
+                })
+        
+        # 4. Calculer les statistiques finales par prestation pour la table "Indicateurs par prestation"
+        prestation_stats_final = {}
+        
+        # Initialiser avec toutes les prestations officielles
+        for code in prestation_officielles.keys():
+            prestation_stats_final[code] = {
+                "label": code,
+                "nb": 0,
+                "avgs": [0.0, 0.0, 0.0]  # Q1, Q2, Q3
+            }
+        
+        # Ajouter les données de la table masquée
+        for ligne in table_masquee:
+            code = ligne["id_prestation"]
+            if code in prestation_stats_final:
+                prestation_stats_final[code]["nb"] = ligne["nb_formulaires"]
+                prestation_stats_final[code]["avgs"] = [
+                    ligne["q1_moyenne"],
+                    ligne["q2_moyenne"], 
+                    ligne["q3_moyenne"]
+                ]
+        
+        # Ajouter les prestations qui existent seulement dans les appels formateurs
+        all_reference_codes = set(r.get("reference_code") or "" for r in records if r.get("reference_code"))
+        for code in all_reference_codes:
+            if code and code not in prestation_stats_final:
+                prestation_stats_final[code] = {
+                    "label": code,
+                    "nb": 0,
+                    "avgs": [0.0, 0.0, 0.0]  # Afficher un tiret = 0.0
+                }
+        
+        return sorted(prestation_stats_final.values(), key=lambda x: x["label"])
+    
+    prestation_stats = _build_prestation_stats_with_combination()
 
     all_qs = AppelFormateur.objects.filter(is_active=True)
     prestataires = _sorted_distinct_non_empty_values(all_qs.values_list("prestataire", flat=True))
