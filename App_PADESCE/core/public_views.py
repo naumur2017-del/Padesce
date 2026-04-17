@@ -586,22 +586,24 @@ def _build_formateur_stats_original(request) -> dict:
     with connection.cursor() as cursor:
         cursor.execute("""
             SELECT p.code, p.id, pr.raison_sociale as prestataire_nom, 
-                   b.nom_structure as beneficiaire_nom, f.nom as formation_nom
+                   b.nom_structure as beneficiaire_nom, f.nom as formation_nom,
+                   b.region as beneficiaire_region
             FROM formations_prestation p
             LEFT JOIN formations_prestataire pr ON p.prestataire_id = pr.id
             LEFT JOIN formations_beneficiaire b ON p.beneficiaire_id = b.id  
             LEFT JOIN formations_formation f ON p.formation_id = f.id
-            WHERE p.actif = 1
+            WHERE p.actif IS TRUE
         """)
         prestations_info = cursor.fetchall()
 
         # Create mapping dictionary
-        for code, id, prestataire_nom, beneficiaire_nom, formation_nom in prestations_info:
+        for code, id, prestataire_nom, beneficiaire_nom, formation_nom, beneficiaire_region in prestations_info:
             prestation_mapping[code] = {
                 "id": id,
                 "prestataire_nom": str(prestataire_nom or "").strip().lower(),
                 "beneficiaire_nom": str(beneficiaire_nom or "").strip().lower(),
                 "formation_nom": str(formation_nom or "").strip().lower(),
+                "beneficiaire_region": str(beneficiaire_region or "").strip().upper(),
             }
 
     def find_best_prestation_match(prestataire_val, beneficiaire_val, formation_val):

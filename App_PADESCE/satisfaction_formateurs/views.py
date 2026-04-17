@@ -1854,17 +1854,17 @@ def _build_satisfaction_formateurs_dashboard_context(request) -> dict:
             LEFT JOIN formations_prestataire pr ON p.prestataire_id = pr.id
             LEFT JOIN formations_beneficiaire b ON p.beneficiaire_id = b.id
             LEFT JOIN formations_formation f ON p.formation_id = f.id
-            WHERE p.actif = 1
+            WHERE p.actif IS TRUE
         """
         )
         prestations_info = cursor.fetchall()
-        for code, id, prestataire_nom, beneficiaire_nom, formation_nom, region in prestations_info:
+        for code, id, prestataire_nom, beneficiaire_nom, formation_nom, beneficiaire_region in prestations_info:
             prestation_mapping[code] = {
                 "id": id,
                 "prestataire_nom": str(prestataire_nom or "").strip().lower(),
                 "beneficiaire_nom": str(beneficiaire_nom or "").strip().lower(),
                 "formation_nom": str(formation_nom or "").strip().lower(),
-                "beneficiaire_region": str(region or "").strip().upper(),
+                "beneficiaire_region": str(beneficiaire_region or "").strip().upper(),
             }
 
     grouped_ranking = {}

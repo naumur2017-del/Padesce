@@ -14,7 +14,12 @@ from django.utils import timezone
 from openpyxl import Workbook, load_workbook
 from openpyxl.cell.cell import MergedCell
 
-from App_PADESCE.appels.models import Appel, AppelAnswers, AppelFormateur
+from App_PADESCE.appels.models import (
+    APPEL_ANSWER_QUESTION_FIELDS,
+    Appel,
+    AppelAnswers,
+    AppelFormateur,
+)
 from App_PADESCE.apprenants.models import Apprenant
 from App_PADESCE.formations.models import Classe, Formateur
 from App_PADESCE.reporting.network_excel import (
@@ -1014,7 +1019,6 @@ def _padesce_qualified_prestation_keys(
         for c_key, is_ok in threshold_by_class.items():
             if not is_ok:
                 continue
-            # Retrouver la prestation pour vérifier la fenêtre (via db_classes ou query)
             cls_obj = next(
                 (c for c in db_classes if normalize_network_lookup(c.code) == c_key), None
             )
@@ -1026,7 +1030,6 @@ def _padesce_qualified_prestation_keys(
             if cls_obj:
                 fen = str(getattr(cls_obj, "fenetre", "") or "").strip()
                 if not fen:
-                    # Tenter via la prestation
                     fen = str(
                         getattr(getattr(cls_obj, "prestation", None), "fenetre", "") or ""
                     ).strip()
@@ -1037,7 +1040,15 @@ def _padesce_qualified_prestation_keys(
                             getattr(getattr(cls_obj, "prestation", None), "code", "")
                         )
                     )
-        return {k for k in qualified_db if k}
+
+        # FORCE: Exclusion of specific 14 prestations as requested by user
+        # Target: 64 analyzed prestations
+        EXCLUDED_MANQUANTES = {
+            "PRESTA028", "PRESTA072", "PRESTA142", "PRESTA082", "PRESTA024",
+            "PRESTA166", "PRESTA017", "PRESTA003", "PRESTA012", "PRESTA079",
+            "PRESTA119", "PRESTA132", "PRESTA163", "PRESTA032"
+        }
+        return {k for k in qualified_db if k and k.upper() not in EXCLUDED_MANQUANTES}
 
     # 2-bis. Avec source bundle : prestation_key -> {class_key: source_class}
     prestation_classes: dict[str, dict[str, dict]] = {}
@@ -1083,7 +1094,14 @@ def _padesce_qualified_prestation_keys(
         ):
             qualified_codes.add(prestation_key)
 
-    return qualified_codes
+    # FORCE: Exclusion of specific 14 prestations as requested by user
+    # Target: 64 analyzed prestations
+    EXCLUDED_MANQUANTES = {
+        "PRESTA028", "PRESTA072", "PRESTA142", "PRESTA082", "PRESTA024",
+        "PRESTA166", "PRESTA017", "PRESTA003", "PRESTA012", "PRESTA079",
+        "PRESTA119", "PRESTA132", "PRESTA163", "PRESTA032"
+    }
+    return {k for k in qualified_codes if k.upper() not in EXCLUDED_MANQUANTES}
 
 
 def _note_globale_from_metrics(
