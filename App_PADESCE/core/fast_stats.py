@@ -954,15 +954,45 @@ def _padesce_qualified_prestation_keys(
     from App_PADESCE.core.analysis_rules import analysis_threshold_target, appel_is_analysis_eligible
     from App_PADESCE.core.call_metrics import count_callable_source_records_by_class
 
-    # 1. threshold_by_class : seuil 25 % sur apprenants éligibles (avec tél, non exclus) — DB
+    # 1. threshold_by_class sur TOUTES les classes actives DB (pas seulement les
+    #    classes terminées du filtre fast-stats) — même périmètre que le dashboard.
+    #    On part des classes déjà prefetchées, puis on complète avec les classes
+    #    actives manquantes (en_cours, non démarrées, etc.) via une requête ciblée.
+    db_class_keys_seen: set[str] = set()
     threshold_by_class: dict[str, bool] = {}
-    for classe in db_classes:
+
+    def _compute_threshold(classe) -> None:
         c_key = normalize_network_lookup(classe.code)
+        if c_key in db_class_keys_seen:
+            return
+        db_class_keys_seen.add(c_key)
         appels = list(classe.appels.all())
         eligible_count = sum(1 for a in appels if appel_is_analysis_eligible(a))
         nb_completed = sum(1 for a in appels if _get_completed_satisfaction(a) is not None)
         target = analysis_threshold_target(eligible_count)
         threshold_by_class[c_key] = nb_completed >= target if eligible_count > 0 else nb_completed > 0
+
+    # Classes déjà chargées par fast_stats (terminées, prefetchées)
+    for classe in db_classes:
+        _compute_threshold(classe)
+
+    # Classes actives manquantes (en_cours, non_demarre) — nécessaires pour que les
+    # prestations dont certaines classes ne sont pas encore terminées en DB mais
+    # l'ont fait dans la source soient correctement évaluées.
+    extra_qs = (
+        Classe.objects.filter(actif=True)
+        .exclude(code__in=[c.code for c in db_classes])
+        .prefetch_related(
+            Prefetch(
+                "appels",
+                queryset=Appel.objects.filter(is_active=True).select_related(
+                    "answers", "satisfaction_apprenant"
+                ),
+            )
+        )
+    )
+    for classe in extra_qs:
+        _compute_threshold(classe)
 
     # 2. prestation_key → {class_key: source_class} depuis le fichier source
     prestation_classes: dict[str, dict[str, dict]] = {}
