@@ -19,6 +19,11 @@ urlpatterns = [
         name="formateurs_export_filtered_csv",
     ),
     path(
+        "export/filtered-xlsx/",
+        lazy_view("App_PADESCE.appels.formateurs_views.formateurs_export_filtered_xlsx"),
+        name="formateurs_export_filtered_xlsx",
+    ),
+    path(
         "tools/delete-missing-phones/",
         lazy_view("App_PADESCE.appels.formateurs_views.formateurs_delete_missing_phones"),
         name="formateurs_delete_missing_phones",

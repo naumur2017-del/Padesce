@@ -307,6 +307,7 @@
       <option value="500" {% if page_size == 500 %}selected{% endif %}>500 / page</option>
     </select>
     <button type="submit" class="btn btn-primary btn-sm">Filtrer</button>
+    <a class="btn btn-ghost btn-sm" href="{% url 'formateurs_export_filtered_xlsx' %}{% if request.GET.urlencode %}?{{ request.GET.urlencode }}{% endif %}">Exporter le tableau filtré (XLSX)</a>
     <a class="btn btn-ghost btn-sm" href="/appels-formateurs/">Reset</a>
     <label style="display:inline-flex; align-items:center; gap:6px; padding:8px 12px; border-radius:12px; border:1px solid rgba(220,38,38,0.3); background:{% if filters.pas_forme %}rgba(220,38,38,0.12){% else %}rgba(220,38,38,0.06){% endif %}; cursor:pointer; font-weight:600; font-size:0.9rem; color:#991b1b;" title="Afficher uniquement les formateurs signalés comme n'ayant pas formé (détecté dans les commentaires)">
       <input type="checkbox" name="pas_forme" value="1" {% if filters.pas_forme %}checked{% endif %} style="accent-color:#dc2626;">

@@ -830,6 +830,106 @@ def formateurs_export_filtered_csv(request):
 
 
 @login_required
+def formateurs_export_filtered_xlsx(request):
+    """Export XLSX des appels formateurs filtrés selon les filtres appliqués."""
+    import openpyxl
+    from openpyxl.styles import Font, PatternFill, Alignment
+    
+    qs, _ = _build_filtered_formateurs_queryset(request)
+    
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Appels Formateurs Filtrés"
+    
+    # En-têtes
+    headers = [
+        "Reference",
+        "Numero seance",
+        "Prestataire",
+        "Beneficiaire",
+        "Formation",
+        "Lieu",
+        "Telephone",
+        "Cohorte",
+        "Date label",
+        "Date ISO",
+        "Heure debut",
+        "Heure fin",
+        "Statut",
+        "Agent",
+        "Rappel at",
+        "Audio URL",
+        "Q1 prerequis apprenants",
+        "Q2 interaction apprenants",
+        "Q3 competences acquises",
+        "Q4 gestion administrative",
+        "Q5 gestion financiere",
+        "Q6 communication",
+        "Commentaires",
+        "Recommandations",
+        "Satisfaction completed at",
+        "Created at",
+        "Updated at",
+    ]
+    ws.append(headers)
+    
+    # Style des en-têtes
+    header_font = Font(bold=True, color="FFFFFF")
+    header_fill = PatternFill(start_color="4F46E5", end_color="4F46E5", fill_type="solid")
+    header_alignment = Alignment(horizontal="center", vertical="center")
+    
+    for col_num, header in enumerate(headers, 1):
+        cell = ws.cell(row=1, column=col_num)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = header_alignment
+    
+    # Données
+    for row in qs.order_by("status", "session_date", "numero_seance", "telephone").iterator(chunk_size=2000):
+        ws.append([
+            row.reference_code,
+            row.numero_seance or "",
+            row.prestataire,
+            row.beneficiaire,
+            row.formation,
+            row.lieu,
+            row.telephone,
+            row.cohorte,
+            row.date_label,
+            row.session_date.isoformat() if row.session_date else "",
+            row.heure_debut,
+            row.heure_fin,
+            row.get_status_display(),
+            row.locked_by.username if row.locked_by else "",
+            row.rappel_at.isoformat() if row.rappel_at else "",
+            _safe_audio_url(row),
+            row.q1_prerequis_apprenants,
+            row.q2_interaction_apprenants,
+            row.q3_competences_acquises,
+            row.q4_gestion_administrative,
+            row.q5_gestion_financiere,
+            row.q6_communication,
+            row.commentaires,
+            row.recommandations,
+            row.satisfaction_completed_at.isoformat() if row.satisfaction_completed_at else "",
+            row.created_at.isoformat() if getattr(row, "created_at", None) else "",
+            row.updated_at.isoformat() if getattr(row, "updated_at", None) else "",
+        ])
+    
+    # Ajuster la largeur des colonnes
+    for col in range(1, len(headers) + 1):
+        ws.column_dimensions[openpyxl.utils.get_column_letter(col)].width = 15
+    
+    # Créer la réponse HTTP
+    response = HttpResponse(
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+    response["Content-Disposition"] = 'attachment; filename="appels-formateurs-filtres.xlsx"'
+    wb.save(response)
+    return response
+
+
+@login_required
 def formateurs_index(request):
     if request.method == "POST" and request.FILES.getlist("files"):
         if not request.user.is_superuser:
