@@ -2559,32 +2559,28 @@ def _build_prestation_indicators_table():
     from App_PADESCE.satisfaction_formateurs.models import SatisfactionFormateur
     from App_PADESCE.formations.models import Classe, Prestation
 
-    # Récupérer toutes les prestations avec au moins une classe active
-    prestations = (
+    # Récupérer toutes les prestations (même sans classes, elles apparaîtront vides)
+    all_prestations = (
         Prestation.objects
-        .filter(classes__actif=True)
-        .distinct()
         .select_related('prestataire', 'beneficiaire')
         .order_by('code')
     )
 
     table_data = []
 
-    for prestation in prestations:
-        # Récupérer les classes actives de cette prestation
-        classe_ids = list(
-            Classe.objects
-            .filter(prestation=prestation, actif=True)
-            .values_list('pk', flat=True)
-        )
-
-        if not classe_ids:
-            continue
+    for prestation in all_prestations:
+        # Récupérer les classes actives ET inactives de cette prestation
+        # Car les satisfactions peuvent exister même si la classe est inactive
+        classes_qs = Classe.objects.filter(prestation=prestation)
+        classe_ids = list(classes_qs.values_list('pk', flat=True))
 
         # Indicateurs Apprenant (notes moyennes)
-        apprenant_satisfactions = SatisfactionApprenant.objects.filter(
-            classe__pk__in=classe_ids
-        )
+        if classe_ids:
+            apprenant_satisfactions = SatisfactionApprenant.objects.filter(
+                classe__pk__in=classe_ids
+            )
+        else:
+            apprenant_satisfactions = SatisfactionApprenant.objects.none()
 
         apprenant_data = {
             'q1_clarte_exposes': None,
@@ -2603,14 +2599,20 @@ def _build_prestation_indicators_table():
         for field in ['q1_clarte_exposes', 'q2_interaction_formateur', 'q3_maitrise_contenu',
                       'q4_salle_adequate', 'q5_materiel_disponible', 'q6_organisation_temps',
                       'q7_utilite_formation', 'q8_adequation_besoins', 'q9_satisfaction_globale']:
-            values = apprenant_satisfactions.filter(**{f'{field}__isnull': False}).values_list(field, flat=True)
-            if values:
-                apprenant_data[field] = sum(values) / len(values)
+            try:
+                values = list(apprenant_satisfactions.filter(**{f'{field}__isnull': False}).values_list(field, flat=True))
+                if values:
+                    apprenant_data[field] = round(sum(values) / len(values), 2)
+            except Exception:
+                pass
 
         # Indicateurs Formateur (notes moyennes pour q1-q3, texte pour q4-q6)
-        formateur_satisfactions = SatisfactionFormateur.objects.filter(
-            classe__pk__in=classe_ids
-        )
+        if classe_ids:
+            formateur_satisfactions = SatisfactionFormateur.objects.filter(
+                classe__pk__in=classe_ids
+            )
+        else:
+            formateur_satisfactions = SatisfactionFormateur.objects.none()
 
         formateur_data = {
             'q1_prerequis_apprenants': None,
@@ -2624,14 +2626,20 @@ def _build_prestation_indicators_table():
 
         # Calculer les moyennes pour q1-q3 (formateur)
         for field in ['q1_prerequis_apprenants', 'q2_interaction_apprenants', 'q3_competences_acquises']:
-            values = formateur_satisfactions.filter(**{f'{field}__isnull': False}).values_list(field, flat=True)
-            if values:
-                formateur_data[field] = sum(values) / len(values)
+            try:
+                values = list(formateur_satisfactions.filter(**{f'{field}__isnull': False}).values_list(field, flat=True))
+                if values:
+                    formateur_data[field] = round(sum(values) / len(values), 2)
+            except Exception:
+                pass
 
         # Récupérer les textes pour q4-q6
         for field in ['q4_gestion_administrative', 'q5_gestion_financiere', 'q6_communication']:
-            texts = formateur_satisfactions.filter(**{f'{field}__isnull': False}).exclude(**{f'{field}': ''}).values_list(field, flat=True)
-            formateur_data[field] = list(texts)
+            try:
+                texts = list(formateur_satisfactions.filter(**{f'{field}__isnull': False}).exclude(**{f'{field}': ''}).distinct().values_list(field, flat=True))
+                formateur_data[field] = texts
+            except Exception:
+                pass
 
         table_data.append({
             'code': prestation.code,

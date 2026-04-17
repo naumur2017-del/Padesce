@@ -1941,6 +1941,48 @@ def _write_formateur_sheet(worksheet, mode_payload: dict) -> None:
         worksheet[f"R{offset}"] = descente_contacts[3]["phone"]
 
 
+def _write_padesce_sheet(worksheet, mode_payload: dict) -> None:
+    worksheet["B1"] = "Score Padesce par prestation"
+    worksheet["C1"] = "TRUE"
+    worksheet["B3"] = "Prestation ID"
+    worksheet["C3"] = "Classes"
+    worksheet["D3"] = "Taux présence (%)"
+    worksheet["E3"] = "Resp horaire (%)"
+    worksheet["F3"] = "Resp thème (%)"
+    worksheet["G3"] = "Resp parité (%)"
+    worksheet["H3"] = "Qualité env. (/13)"
+    worksheet["I3"] = "Sat. apprenant (/5)"
+    worksheet["J3"] = "Sat. formateur (/5)"
+    worksheet["K3"] = "Attitude enquête (/10)"
+    worksheet["L3"] = "Note globale (/100)"
+
+    _clear_data_rows(worksheet, start_row=FAST_STATS_TEMPLATE_ROW_START, max_col=12)
+    last_row = max(
+        FAST_STATS_TEMPLATE_ROW_START, FAST_STATS_TEMPLATE_ROW_START + len(mode_payload["rows"]) - 1
+    )
+    _ensure_sheet_capacity(worksheet, last_row=last_row, max_col=12)
+
+    for offset, row in enumerate(mode_payload["rows"], start=FAST_STATS_TEMPLATE_ROW_START):
+        worksheet[f"A{offset}"] = row["index"]
+        worksheet[f"B{offset}"] = row["prestation_id"]
+        worksheet[f"C{offset}"] = row["classe_count"]
+        worksheet[f"D{offset}"] = row["taux_presence_base"]
+        worksheet[f"E{offset}"] = row["resp_horaire_base"]
+        worksheet[f"F{offset}"] = row["resp_theme_base"]
+        worksheet[f"G{offset}"] = row["resp_parité_base"]
+        worksheet[f"H{offset}"] = row["qualite_environnement_base"]
+        worksheet[f"I{offset}"] = row["satisfaction_apprenant_base"]
+        worksheet[f"J{offset}"] = row["satisfaction_formateur_base"]
+        worksheet[f"K{offset}"] = row["attitude_enquete_base"]
+        worksheet[f"L{offset}"] = row["note_globale"]
+
+        # Format with custom number format (values are already in percentage form like 92.5)
+        worksheet[f"D{offset}"].number_format = '0.00"%"'
+        worksheet[f"E{offset}"].number_format = '0.00"%"'
+        worksheet[f"F{offset}"].number_format = '0.00"%"'
+        worksheet[f"G{offset}"].number_format = '0.00"%"'
+
+
 def build_fast_stats_workbook(request, *, active_mode: str = "apprenant") -> Workbook:
     if FAST_STATS_TEMPLATE_PATH.exists():
         template_workbook = load_workbook(FAST_STATS_TEMPLATE_PATH)
@@ -1956,13 +1998,16 @@ def build_fast_stats_workbook(request, *, active_mode: str = "apprenant") -> Wor
         apprenant_sheet = workbook.active
         formateur_sheet = workbook.create_sheet("Enquête de formateur")
 
-    # Create general sheet
+    # Create general and padesce sheets
     general_sheet = workbook.create_sheet("General", 1)
+    padesce_sheet = workbook.create_sheet("Padesce", 2)
 
     modes = {mode["id"]: mode for mode in build_fast_stats_bundle(request)["modes"]}
     _write_apprenant_sheet(apprenant_sheet, modes["apprenant"])
     _write_general_sheet(general_sheet, modes["general"])
     _write_formateur_sheet(formateur_sheet, modes["formateur"])
+    if "padesce" in modes:
+        _write_padesce_sheet(padesce_sheet, modes["padesce"])
     if "descentes" in modes:
         _write_descentes_sheets(workbook, modes["descentes"])
 
@@ -1971,6 +2016,8 @@ def build_fast_stats_workbook(request, *, active_mode: str = "apprenant") -> Wor
         active_sheet_name = formateur_sheet.title
     elif active_mode == "general":
         active_sheet_name = general_sheet.title
+    elif active_mode == "padesce":
+        active_sheet_name = padesce_sheet.title
     elif active_mode == "descentes":
         active_sheet_name = "SA"
     else:
@@ -2000,7 +2047,7 @@ def build_fast_stats_context(request, *, default_mode: str) -> dict:
     return {
         "fast_stats_default_mode": (
             default_mode
-            if default_mode in {"apprenant", "general", "formateur", "descentes"}
+            if default_mode in {"apprenant", "general", "formateur", "padesce", "descentes"}
             else "apprenant"
         ),
     }

@@ -30,7 +30,17 @@
       "Bash(python -m py_compile App_PADESCE/core/fast_stats.py)",
       "Bash(grep -n \"PRESTATIONS\\\\|card_prestations_count\" templates/satisfaction_apprenants/*.html)",
       "Bash(git add:*)",
-      "Bash(git commit -m 'fix: Padesce — afficher les 64 prestations analysées au lieu de 57:*)"
+      "Bash(git commit -m 'fix: Padesce — afficher les 64 prestations analysées au lieu de 57:*)",
+      "Bash(git commit -m ':*)",
+      "Bash(git push:*)",
+      "Bash(gh pr create --title 'feat: Add toggle functionality for prestation indicators table' --body ':*)",
+      "Bash(git fetch:*)",
+      "Bash(git checkout:*)",
+      "Bash(git merge:*)",
+      "Bash(git rebase:*)",
+      "Bash(git restore:*)",
+      "Bash(cd /App_PADESCE)",
+      "Bash(python manage.py shell)"
     ]
   }
 }
