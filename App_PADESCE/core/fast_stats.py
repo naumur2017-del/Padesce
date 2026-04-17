@@ -928,6 +928,96 @@ def _apprenant_summary_cards(rows: list[dict]) -> list[dict]:
     ]
 
 
+def _note_globale_from_metrics(
+    taux_presence_base,
+    resp_horaire_base,
+    resp_theme_base,
+    resp_parité_base,
+    qualite_environnement_base,
+    satisfaction_apprenant_base,
+    satisfaction_formateur_base,
+    attitude_enquete_base,
+) -> float | None:
+    """Traduit la formule Excel =SUM((B6/B$3)*B$5; ...) pour la note globale /100.
+
+    Maximums (B$3) : 100, 100, 100, 100, 13, 5, 5, 10
+    Points   (B$5) : 20,  10,  10,  10, 10, 20, 10, 10
+    """
+    vals = [
+        taux_presence_base, resp_horaire_base, resp_theme_base,
+        resp_parité_base, qualite_environnement_base,
+        satisfaction_apprenant_base, satisfaction_formateur_base,
+        attitude_enquete_base,
+    ]
+    if not any(v is not None for v in vals):
+        return None
+
+    def _t(v, mx, pts):
+        return (v / mx) * pts if v is not None else 0.0
+
+    return (
+        _t(taux_presence_base,         100, 20)
+        + _t(resp_horaire_base,         100, 10)
+        + _t(resp_theme_base,           100, 10)
+        + _t(resp_parité_base,          100, 10)
+        + _t(qualite_environnement_base, 13, 10)
+        + _t(satisfaction_apprenant_base, 5, 20)
+        + _t(satisfaction_formateur_base, 5, 10)
+        + _t(attitude_enquete_base,      10, 10)
+    )
+
+
+def _build_padesce_rows(
+    classes: list[Classe], source_class_counts: dict[str, int] | None = None
+) -> list[dict]:
+    """Une ligne par prestation : mêmes calculs que General + note_globale /100."""
+    from collections import defaultdict
+
+    groups: dict[str, list] = defaultdict(list)
+    for classe in classes:
+        code = (
+            _safe_text(getattr(getattr(classe, "prestation", None), "code", "")) or "—"
+        )
+        groups[code].append(classe)
+
+    all_rows = []
+    for prestation_code in sorted(groups):
+        prestation_classes = groups[prestation_code]
+        g = _build_general_global_row(prestation_classes, source_class_counts=source_class_counts)
+
+        note_globale = _note_globale_from_metrics(
+            g.get("taux_presence_base"),
+            g.get("resp_horaire_base"),
+            g.get("resp_theme_base"),
+            g.get("resp_parité_base"),
+            g.get("qualite_environnement_base"),
+            g.get("satisfaction_apprenant_base"),
+            g.get("satisfaction_formateur_base"),
+            g.get("attitude_enquete_base"),
+        )
+
+        all_rows.append({
+            "prestation_id": prestation_code,
+            "classe_count": len(prestation_classes),
+            "taux_presence_base":          g.get("taux_presence_base"),
+            "resp_horaire_base":           g.get("resp_horaire_base"),
+            "resp_theme_base":             g.get("resp_theme_base"),
+            "resp_parité_base":            g.get("resp_parité_base"),
+            "qualite_environnement_base":  g.get("qualite_environnement_base"),
+            "satisfaction_apprenant_base": g.get("satisfaction_apprenant_base"),
+            "satisfaction_formateur_base": g.get("satisfaction_formateur_base"),
+            "attitude_enquete_base":       g.get("attitude_enquete_base"),
+            "note_globale":                note_globale,
+        })
+
+    # Garder uniquement les prestations analysées (au moins une métrique renseignée)
+    analysed = [r for r in all_rows if r["note_globale"] is not None]
+    for i, row in enumerate(analysed, start=1):
+        row["index"] = i
+
+    return analysed
+
+
 def _general_summary_cards(rows: list[dict]) -> list[dict]:
     """Summary cards for general statistics mode."""
     if not rows:
@@ -967,6 +1057,34 @@ def _general_summary_cards(rows: list[dict]) -> list[dict]:
             "label": "Qualité environnement",
             "value": format_base(row.get("qualite_environnement_base"), "qualite_environnement"),
             "meta": "Score de qualité environnement.",
+        },
+    ]
+
+
+def _padesce_summary_cards(rows: list[dict]) -> list[dict]:
+    """Summary cards for Padesce mode (per-prestation rows)."""
+    if not rows:
+        return []
+
+    notes = [r["note_globale"] for r in rows if r.get("note_globale") is not None]
+    avg_note = sum(notes) / len(notes) if notes else None
+    best = max(notes) if notes else None
+
+    return [
+        {
+            "label": "Prestations",
+            "value": len(rows),
+            "meta": "Nombre de prestations analysées.",
+        },
+        {
+            "label": "Note moyenne",
+            "value": f"{avg_note:.1f}/100" if avg_note is not None else "—",
+            "meta": "Moyenne des notes globales Padesce.",
+        },
+        {
+            "label": "Meilleure note",
+            "value": f"{best:.1f}/100" if best is not None else "—",
+            "meta": "Meilleure note globale parmi les prestations.",
         },
     ]
 
@@ -1027,6 +1145,24 @@ def _mode_payload(
             ],
             "rows": rows,
             "note": "Structure alignée sur la feuille Enquête de satisfaction du fichier FAST STATS.",  # noqa: E501
+        }
+
+    if mode_id == "padesce":
+        return {
+            "id": mode_id,
+            "label": "Padesce",
+            "sheet_name": "Padesce",
+            "table_variant": "padesce",
+            "row_count": len(rows),
+            "class_count": len(rows),
+            "summary_cards": summary_cards,
+            "metadata": {
+                "terminated_only_label": "Total classe de la prestation terminée",
+                "terminated_only_value": scope["terminated_only"],
+                "scope_label": scope["scope_label"],
+            },
+            "rows": rows,
+            "note": "Score Padesce — mêmes calculs que Général avec note globale /100.",
         }
 
     if mode_id == "general":
@@ -1353,6 +1489,9 @@ def build_fast_stats_bundle(request) -> dict:
     general_global_row = _build_general_global_row(classes, source_class_counts=source_class_counts)
     general_rows = [general_global_row]
 
+    # Build per-prestation Padesce rows (base + score + note_globale par prestation)
+    padesce_rows = _build_padesce_rows(classes, source_class_counts=source_class_counts)
+
     formateur_rows = [
         _build_formateur_row(
             index,
@@ -1386,6 +1525,13 @@ def build_fast_stats_bundle(request) -> dict:
                 rows=general_rows,
                 summary_cards=_general_summary_cards(general_rows),
                 sheet_name="General",
+                scope=scope,
+            ),
+            _mode_payload(
+                "padesce",
+                rows=padesce_rows,
+                summary_cards=_padesce_summary_cards(padesce_rows),
+                sheet_name="Padesce",
                 scope=scope,
             ),
             _mode_payload(
