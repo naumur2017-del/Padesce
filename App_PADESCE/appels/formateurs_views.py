@@ -25,6 +25,7 @@ from App_PADESCE.appels.models import (
     CALL_FORM_STATUSES,
     CALL_SUCCESS_STATUSES,
     AppelFormateur,
+    _short_slug,
     sync_formateur_status,
 )
 from App_PADESCE.appels.views import (
@@ -50,12 +51,14 @@ FORMATEUR_SATISFACTION_HEADER_FIELDS = (
     (
         "q2_interaction_apprenants",
         "Q2 - Niveau d'interaction des apprenants",
-        "Les apprenants ont-ils ete suffisamment interactifs, posant des questions et participant activement ?",
+        "Les apprenants ont-ils ete suffisamment interactifs, posant des questions "
+        "et participant activement ?",
     ),
     (
         "q3_competences_acquises",
         "Q3 - Competences acquises par les apprenants",
-        "Estimez-vous que les apprenants ont acquis les competences cibles a l'issue de la formation ?",
+        "Estimez-vous que les apprenants ont acquis les competences cibles "
+        "a l'issue de la formation ?",
     ),
 )
 
@@ -131,10 +134,12 @@ def _build_formateur_progress_metrics(queryset):
             "threshold_remaining": threshold_remaining,
             "threshold_reached": threshold_reached,
             "threshold_message": (
-                f"Seuil de {FORMATEUR_THRESHOLD_PERCENT}% atteint. Vous pouvez passer a autre chose."
+                f"Seuil de {FORMATEUR_THRESHOLD_PERCENT}% atteint. "
+                f"Vous pouvez passer a autre chose."
                 if threshold_reached
                 else (
-                    f"Encore {threshold_remaining} appel(s) pour atteindre {FORMATEUR_THRESHOLD_PERCENT}%."
+                    f"Encore {threshold_remaining} appel(s) pour atteindre "
+                    f"{FORMATEUR_THRESHOLD_PERCENT}%."
                     if total
                     else "Aucun appel dans ce filtre."
                 )
@@ -300,19 +305,15 @@ def _parse_french_date(value):
 
 
 def _build_reference_code(item):
-    date_part = (
-        item["session_date"].isoformat()
-        if item.get("session_date")
-        else slugify(item.get("date_label") or "date")
-    )
-    start_part = slugify(item.get("heure_debut") or "debut")
-    phone_part = item.get("telephone") or "sans-telephone"
-    return (
-        f"FORM-{item.get('numero_seance') or '0'}-"
-        f"{slugify(item.get('prestataire') or 'prestataire')[:18]}-"
-        f"{slugify(item.get('beneficiaire') or 'beneficiaire')[:18]}-"
-        f"{phone_part}-{date_part}-{start_part}"
-    )[:120]
+    # Extraire les informations pertinentes
+    numero_seance = item.get("numero_seance") or "0"
+    formateur = item.get("formateur") or item.get("contact_formateur") or ""
+
+    # Formater le nom du formateur (prendre les premiers caractères significatifs)
+    formateur_slug = _short_slug(formateur, "formateur", max_len=20)
+
+    # Construire un code simple et lisible avec seulement le numéro et le formateur
+    return f"FORM-{numero_seance}-{formateur_slug}"
 
 
 def _iter_formateur_excel_rows(file_obj):
@@ -375,6 +376,43 @@ def _iter_formateur_excel_rows(file_obj):
             yield item
 
 
+# Mots-clés indiquant qu'un formateur n'a pas assuré la formation.
+# Recherchés dans commentaires, recommandations et les champs Q4-Q6.
+_PAS_FORME_KEYWORDS = [
+    "n'a pas formé",
+    "na pas formé",
+    "n'a pas forme",
+    "na pas forme",
+    "pas formé",
+    "pas forme",
+    "n'a pas assuré",
+    "n'a pas assure",
+    "n'a pas pu former",
+    "pas de formation",
+    "n'a pas travaillé",
+    "n'a pas travaille",
+    "non formé",
+    "non forme",
+]
+
+_PAS_FORME_TEXT_FIELDS = (
+    "commentaires",
+    "recommandations",
+    "q4_gestion_administrative",
+    "q5_gestion_financiere",
+    "q6_communication",
+)
+
+
+def _pas_forme_q_filter():
+    """Retourne un Q combiné pour détecter les formateurs signalés comme non-formateurs."""
+    combined = Q()
+    for field in _PAS_FORME_TEXT_FIELDS:
+        for kw in _PAS_FORME_KEYWORDS:
+            combined |= Q(**{f"{field}__icontains": kw})
+    return combined
+
+
 def _build_filtered_formateurs_queryset(request):
     qs = AppelFormateur.objects.filter(is_active=True).select_related("locked_by")
     status_filter = (request.GET.get("status") or "").strip()
@@ -387,6 +425,7 @@ def _build_filtered_formateurs_queryset(request):
     date_from_str = (request.GET.get("date_from") or "").strip()
     date_to_str = (request.GET.get("date_to") or "").strip()
     search = (request.GET.get("q") or "").strip()
+    pas_forme_filter = request.GET.get("pas_forme") == "1"
 
     if status_filter:
         if status_filter == "completed":
@@ -416,7 +455,14 @@ def _build_filtered_formateurs_queryset(request):
             | Q(formation__icontains=search)
             | Q(lieu__icontains=search)
             | Q(reference_code__icontains=search)
+            | Q(commentaires__icontains=search)
+            | Q(recommandations__icontains=search)
+            | Q(q4_gestion_administrative__icontains=search)
+            | Q(q5_gestion_financiere__icontains=search)
+            | Q(q6_communication__icontains=search)
         )
+    if pas_forme_filter:
+        qs = qs.filter(_pas_forme_q_filter())
     if date_from_str:
         try:
             qs = qs.filter(created_at__gte=datetime.datetime.fromisoformat(date_from_str))
@@ -439,6 +485,7 @@ def _build_filtered_formateurs_queryset(request):
         "date_from": date_from_str,
         "date_to": date_to_str,
         "q": search,
+        "pas_forme": pas_forme_filter,
         "prestataires": sorted(
             {
                 v.strip()
@@ -783,6 +830,106 @@ def formateurs_export_filtered_csv(request):
 
 
 @login_required
+def formateurs_export_filtered_xlsx(request):
+    """Export XLSX des appels formateurs filtrés selon les filtres appliqués."""
+    import openpyxl
+    from openpyxl.styles import Font, PatternFill, Alignment
+    
+    qs, _ = _build_filtered_formateurs_queryset(request)
+    
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Appels Formateurs Filtrés"
+    
+    # En-têtes
+    headers = [
+        "Reference",
+        "Numero seance",
+        "Prestataire",
+        "Beneficiaire",
+        "Formation",
+        "Lieu",
+        "Telephone",
+        "Cohorte",
+        "Date label",
+        "Date ISO",
+        "Heure debut",
+        "Heure fin",
+        "Statut",
+        "Agent",
+        "Rappel at",
+        "Audio URL",
+        "Q1 prerequis apprenants",
+        "Q2 interaction apprenants",
+        "Q3 competences acquises",
+        "Q4 gestion administrative",
+        "Q5 gestion financiere",
+        "Q6 communication",
+        "Commentaires",
+        "Recommandations",
+        "Satisfaction completed at",
+        "Created at",
+        "Updated at",
+    ]
+    ws.append(headers)
+    
+    # Style des en-têtes
+    header_font = Font(bold=True, color="FFFFFF")
+    header_fill = PatternFill(start_color="4F46E5", end_color="4F46E5", fill_type="solid")
+    header_alignment = Alignment(horizontal="center", vertical="center")
+    
+    for col_num, header in enumerate(headers, 1):
+        cell = ws.cell(row=1, column=col_num)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = header_alignment
+    
+    # Données
+    for row in qs.order_by("status", "session_date", "numero_seance", "telephone").iterator(chunk_size=2000):
+        ws.append([
+            row.reference_code,
+            row.numero_seance or "",
+            row.prestataire,
+            row.beneficiaire,
+            row.formation,
+            row.lieu,
+            row.telephone,
+            row.cohorte,
+            row.date_label,
+            row.session_date.isoformat() if row.session_date else "",
+            row.heure_debut,
+            row.heure_fin,
+            row.get_status_display(),
+            row.locked_by.username if row.locked_by else "",
+            row.rappel_at.isoformat() if row.rappel_at else "",
+            _safe_audio_url(row),
+            row.q1_prerequis_apprenants,
+            row.q2_interaction_apprenants,
+            row.q3_competences_acquises,
+            row.q4_gestion_administrative,
+            row.q5_gestion_financiere,
+            row.q6_communication,
+            row.commentaires,
+            row.recommandations,
+            row.satisfaction_completed_at.isoformat() if row.satisfaction_completed_at else "",
+            row.created_at.isoformat() if getattr(row, "created_at", None) else "",
+            row.updated_at.isoformat() if getattr(row, "updated_at", None) else "",
+        ])
+    
+    # Ajuster la largeur des colonnes
+    for col in range(1, len(headers) + 1):
+        ws.column_dimensions[openpyxl.utils.get_column_letter(col)].width = 15
+    
+    # Créer la réponse HTTP
+    response = HttpResponse(
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+    response["Content-Disposition"] = 'attachment; filename="appels-formateurs-filtres.xlsx"'
+    wb.save(response)
+    return response
+
+
+@login_required
 def formateurs_index(request):
     if request.method == "POST" and request.FILES.getlist("files"):
         if not request.user.is_superuser:
@@ -888,18 +1035,22 @@ def formateurs_index(request):
                     warning_parts.append(f"{duplicate_refs} doublon(s) detecte(s) pendant l'upload")
                 if removed_duplicates:
                     warning_parts.append(
-                        f"{removed_duplicates} doublon(s) supplementaire(s) desactive(s) apres import"
+                        f"{removed_duplicates} doublon(s) supplementaire(s) "
+                        f"desactive(s) apres import"
                     )
                 if files_without_numbers:
                     warning_parts.append(
-                        "fichier(s) sans contact exploitable: "
-                        + ", ".join(files_without_numbers[:5])
+                        (
+                            "fichier(s) sans contact exploitable: "
+                            + ", ".join(files_without_numbers[:5])
+                        )
                     )
                 messages.warning(request, "Import formateurs: " + " ; ".join(warning_parts) + ".")
             if raw_count == 0:
                 messages.warning(
                     request,
-                    "Aucun numero de telephone n'a ete pris dans les fichiers importes. Verifiez la colonne CONTACT DU FORMATEUR.",
+                    "Aucun numero de telephone n'a ete pris dans les fichiers importes. "
+                    "Verifiez la colonne CONTACT DU FORMATEUR.",
                 )
         except Exception as exc:
             messages.error(request, f"Impossible de lire la feuille Calendrier : {exc}")
@@ -920,11 +1071,15 @@ def formateurs_index(request):
     )
     page_obj = paginator.get_page(request.GET.get("page"))
     rows = _bind_audio_state(list(page_obj.object_list))
+    _pas_forme_ids = set(
+        AppelFormateur.objects.filter(_pas_forme_q_filter()).values_list("id", flat=True)
+    )
     for row in rows:
         row.formateur_nom = resolve_formateur_db_name_from_values(
             getattr(row, "telephone", ""),
             getattr(row, "source_contact", ""),
         )
+        row.pas_forme_detecte = row.id in _pas_forme_ids
     page_obj.object_list = rows
     params = request.GET.copy()
     params.pop("page", None)
@@ -990,7 +1145,8 @@ def formateur_action(request, pk: int):
             return JsonResponse(
                 {
                     "ok": False,
-                    "error": "Renseignez d'abord Q1, Q2 et Q3 via Demarrer ou en cliquant sur la ligne du formateur.",
+                    "error": "Renseignez d'abord Q1, Q2 et Q3 via Demarrer ou en cliquant "
+                    "sur la ligne du formateur.",
                 },
                 status=400,
             )
@@ -1151,7 +1307,8 @@ def formateur_transcription_download(request, pk: int):
         return HttpResponse(str(exc), status=400, content_type="text/plain; charset=utf-8")
     response = HttpResponse(obj.transcription_text or "", content_type="text/plain; charset=utf-8")
     response["Content-Disposition"] = (
-        f'attachment; filename="transcription-formateur-{slugify(row.reference_code) or row.pk}.txt"'
+        f'attachment; filename="transcription-formateur-'
+        f'{slugify(row.reference_code) or row.pk}.txt"'
     )
     return response
 

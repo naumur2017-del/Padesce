@@ -6,6 +6,7 @@ import logging
 import os
 import re
 import uuid
+import zipfile
 from collections import defaultdict
 from datetime import date as date_cls
 
@@ -17,7 +18,7 @@ from django.core.files.storage import default_storage
 from django.core.paginator import Paginator
 from django.db import transaction
 from django.db.models import Count, Q
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -51,6 +52,7 @@ from App_PADESCE.formations.models import (
     Prestataire,
     Prestation,
 )
+from App_PADESCE.satisfaction_apprenants.services import get_prestations_ranking
 from App_PADESCE.satisfaction_formateurs.forms import (
     SatisfactionFormateurBatchUpdateForm,
     SatisfactionFormateurForm,
@@ -1646,21 +1648,46 @@ Q_FORM_FIELDS = [
 
 
 def _avg_num(values):
-    nums = [v for v in values if v is not None]
+    nums = []
+    for v in values:
+        if v is not None:
+            try:
+                # Convertir en float si ce n'est pas déjà un nombre
+                if isinstance(v, (int, float)):
+                    nums.append(v)
+                else:
+                    nums.append(float(v))
+            except (ValueError, TypeError):
+                continue
     return round(sum(nums) / len(nums), 2) if nums else 0
 
 
 def _average_displayed_scores(values) -> float:
-    displayed_values = [round(float(value), 2) for value in values if value is not None]
+    displayed_values = []
+    for value in values:
+        if value is not None:
+            try:
+                displayed_values.append(round(float(value), 2))
+            except (ValueError, TypeError):
+                continue
     return round(sum(displayed_values) / len(displayed_values), 2) if displayed_values else 0
 
 
-FORMATEUR_DASHBOARD_TABS = {"prestataire", "beneficiaire", "cohorte", "detail"}
+FORMATEUR_DASHBOARD_TABS = {"prestataire", "beneficiaire", "cohorte", "prestation", "detail"}
 
 
 def _active_formateurs_tab(request) -> str:
     tab = (request.GET.get("tab") or "prestataire").strip().lower()
     return tab if tab in FORMATEUR_DASHBOARD_TABS else "prestataire"
+
+
+def _sorted_distinct_non_empty_values(values) -> list[str]:
+    normalized_values = set()
+    for value in values:
+        text = str(value or "").strip()
+        if text:
+            normalized_values.add(text)
+    return sorted(normalized_values)
 
 
 def _build_formateur_appel_status_summary(queryset) -> dict[str, int]:
@@ -1784,7 +1811,7 @@ def _build_satisfaction_formateurs_dashboard_context(request) -> dict:
                 {
                     "label": k,
                     "nb": len(v),
-                    "avgs": [_avg_num([r[f] for r in v]) for f, _ in Q_FORM_FIELDS],
+                    "avgs": [_avg_num([r[field] for r in v]) for field, _ in Q_FORM_FIELDS],
                 }
                 for k, v in groups.items()
             ],
@@ -1794,17 +1821,132 @@ def _build_satisfaction_formateurs_dashboard_context(request) -> dict:
     prestataire_stats = _group_stats(lambda r: r["prestataire"] or "-")
     beneficiaire_stats = _group_stats(lambda r: r["beneficiaire"] or "-")
     cohorte_stats = _group_stats(lambda r: r["cohorte"] or "-")
+    prestation_stats = _group_stats(lambda r: r["reference_code"] or "-")
 
     all_qs = AppelFormateur.objects.filter(is_active=True)
-    prestataires = sorted(set(all_qs.values_list("prestataire", flat=True)) - {""})
-    beneficiaires = sorted(set(all_qs.values_list("beneficiaire", flat=True)) - {""})
-    cohortes = sorted(set(all_qs.values_list("cohorte", flat=True)) - {""})
+    prestataires = _sorted_distinct_non_empty_values(all_qs.values_list("prestataire", flat=True))
+    beneficiaires = _sorted_distinct_non_empty_values(all_qs.values_list("beneficiaire", flat=True))
+    cohortes = _sorted_distinct_non_empty_values(all_qs.values_list("cohorte", flat=True))
 
     status_counts = defaultdict(int)
     for r in records:
         status_counts[r["status"]] += 1
 
     appel_summary = _build_formateur_appel_status_summary(qs)
+
+    # Import the prestation indicators builder from apprenants views
+    from App_PADESCE.satisfaction_apprenants.views import _build_prestation_indicators_table
+
+    prestation_indicators_table = _build_prestation_indicators_table()
+
+    # Prestation Ranking Logic (Mirrored from Espace PADESCE)
+    from django.db import connection
+
+    prestation_mapping = {}
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT p.code, p.id, pr.raison_sociale as prestataire_nom,
+                   b.nom_structure as beneficiaire_nom, f.nom as formation_nom,
+                   b.region as beneficiaire_region
+            FROM formations_prestation p
+            LEFT JOIN formations_prestataire pr ON p.prestataire_id = pr.id
+            LEFT JOIN formations_beneficiaire b ON p.beneficiaire_id = b.id
+            LEFT JOIN formations_formation f ON p.formation_id = f.id
+            WHERE p.actif = 1
+        """
+        )
+        prestations_info = cursor.fetchall()
+        for code, id, prestataire_nom, beneficiaire_nom, formation_nom, region in prestations_info:
+            prestation_mapping[code] = {
+                "id": id,
+                "prestataire_nom": str(prestataire_nom or "").strip().lower(),
+                "beneficiaire_nom": str(beneficiaire_nom or "").strip().lower(),
+                "formation_nom": str(formation_nom or "").strip().lower(),
+                "beneficiaire_region": str(region or "").strip().upper(),
+            }
+
+    grouped_ranking = {}
+    resolution_cache = {}
+
+    from App_PADESCE.core.public_views import _resolve_formateur_classe
+
+    # We use all_rows (unfiltered by current dashboard filters) for the ranking
+    # to maintain consistency, or maybe we should use the filtered ones?
+    # Usually ranking is global.
+    # but the user asked for "classement complet".
+    # Let's use all active records if not filtered?
+    # Actually, dashboards usually show rankings for the current selection.
+
+    for record in records:
+        classe = _resolve_formateur_classe(record, resolution_cache)
+        prestation = getattr(classe, "prestation", None)
+        code = str(getattr(prestation, "code", "") or "").strip()
+
+        if not code:
+            # Synthetic matching logic from public_views
+            prestataire_val = record.get("prestataire") or "-"
+            beneficiaire_val = record.get("beneficiaire") or "-"
+
+            # Simple fallback key
+            code = f"{prestataire_val}|{beneficiaire_val}"
+
+        group_key = code
+        bucket = grouped_ranking.setdefault(
+            group_key,
+            {
+                "code": code,
+                "prestataire": record.get("prestataire") or "-",
+                "beneficiaire": record.get("beneficiaire") or "-",
+                "effectif": 0,
+                "nb": 0,
+                "scores": {field_name: [] for field_name in FORMATEUR_SCORE_FIELDS},
+            },
+        )
+        bucket["effectif"] += 1
+
+        values = [record.get(field_name) for field_name in FORMATEUR_SCORE_FIELDS]
+        if not all(v not in (None, "") for v in values):
+            continue
+
+        bucket["nb"] += 1
+        for field_name, value in zip(FORMATEUR_SCORE_FIELDS, values):
+            bucket["scores"][field_name].append(float(value))
+
+    prestation_stats_form = []
+    for item in grouped_ranking.values():
+        if not item["nb"] and not item["effectif"]:
+            continue
+        avgs = []
+        for field_name in FORMATEUR_SCORE_FIELDS:
+            vals = item["scores"][field_name]
+            avgs.append(round(sum(vals) / len(vals), 2) if vals else 0)
+        avg = round(sum(avgs) / len(avgs), 2) if avgs else 0
+
+        # Enrich with real data if possible
+        code = item["code"]
+        real_prestataire = item["prestataire"]
+        real_region = "Inconnu"
+        if code in prestation_mapping:
+            minfo = prestation_mapping[code]
+            if minfo["prestataire_nom"] and minfo["prestataire_nom"] != "-":
+                real_prestataire = minfo["prestataire_nom"].title()
+            real_region = minfo["beneficiaire_region"] or "Inconnu"
+
+        prestation_stats_form.append(
+            {
+                "code": item["code"],
+                "prestataire": real_prestataire,
+                "beneficiaire": item["beneficiaire"],
+                "region": real_region,
+                "nb": item["nb"],
+                "avg": avg,
+                "avgs": avgs,
+                "effectif": item["effectif"],
+            }
+        )
+
+    toutes_prestations_classees = get_prestations_ranking(prestation_stats_form, order="desc")
 
     context = {
         "active_tab": active_tab,
@@ -1817,6 +1959,7 @@ def _build_satisfaction_formateurs_dashboard_context(request) -> dict:
         "prestataire_stats": prestataire_stats,
         "beneficiaire_stats": beneficiaire_stats,
         "cohorte_stats": cohorte_stats,
+        "prestation_stats": prestation_stats,
         "status_counts": dict(status_counts),
         "prestataires": prestataires,
         "beneficiaires": beneficiaires,
@@ -1833,6 +1976,8 @@ def _build_satisfaction_formateurs_dashboard_context(request) -> dict:
         "formulaires_remplis_sans_audio_appels": appel_summary["formulaires_remplis_sans_audio"],
         "formulaires_avec_audio_appels": appel_summary["formulaires_avec_audio"],
         "audios_enregistres_appels": appel_summary["audios_enregistres"],
+        "prestation_indicators_table": prestation_indicators_table,
+        "toutes_prestations_classees": toutes_prestations_classees,
     }
     context.update(build_fast_stats_context(request, default_mode="formateur"))
     cache.set(_cache_key, context, timeout=_FORMATEURS_CACHE_TIMEOUT)
@@ -1855,6 +2000,11 @@ def _tabular_formateurs_dashboard_export(
         return (
             ["Cohorte", "Nb appels", *[label for _, label in Q_FORM_FIELDS]],
             [[item["label"], item["nb"], *item["avgs"]] for item in context["cohorte_stats"]],
+        )
+    if active_tab == "prestation":
+        return (
+            ["Prestation", "Nb appels", *[label for _, label in Q_FORM_FIELDS]],
+            [[item["label"], item["nb"], *item["avgs"]] for item in context["prestation_stats"]],
         )
     if active_tab == "detail":
         return (
@@ -1894,6 +2044,123 @@ def _tabular_formateurs_dashboard_export(
     )
 
 
+def export_formateur_global_averages_xlsx(request):
+    """Export des moyennes générales des formateurs en Excel."""
+    context = _build_satisfaction_formateurs_dashboard_context(request)
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Moyennes générales"
+
+    # En-têtes
+    q_labels = [label for _, label in Q_FORM_FIELDS]
+    ws.append(["Indicateur"] + q_labels + ["Moyenne générale GLOBALE"])
+
+    # Données des moyennes générales
+    row_data = ["Moyenne générale"]
+    for label in q_labels:
+        avg = context.get("global_avgs", {}).get(label, 0)
+        row_data.append(round(avg, 2))
+    # Ajouter la moyenne générale globale
+    moyenne_globale = context.get("moyenne_generale_globale", 0)
+    row_data.append(round(moyenne_globale, 2))
+    ws.append(row_data)
+
+    # Style
+    for col in range(1, len(q_labels) + 3):
+        cell = ws.cell(row=1, column=col)
+        cell.font = openpyxl.styles.Font(bold=True)
+        cell.fill = openpyxl.styles.PatternFill(
+            start_color="E6E6FA", end_color="E6E6FA", fill_type="solid"
+        )
+
+    for col in range(1, len(q_labels) + 3):
+        cell = ws.cell(row=2, column=col)
+        cell.font = openpyxl.styles.Font(bold=True)
+        cell.fill = openpyxl.styles.PatternFill(
+            start_color="FFE6E6", end_color="FFE6E6", fill_type="solid"
+        )
+
+    # Ajuster la largeur des colonnes
+    for col in range(1, len(q_labels) + 3):
+        ws.column_dimensions[openpyxl.utils.get_column_letter(col)].width = 15
+
+    # Créer la réponse HTTP
+    response = HttpResponse(
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+    response["Content-Disposition"] = 'attachment; filename="moyennes-generales-formateurs.xlsx"'
+    wb.save(response)
+    return response
+
+
+def _autosize_worksheet(worksheet, max_width=48):
+    for column_cells in worksheet.columns:
+        length = max(
+            (len(str(cell.value)) if cell.value is not None else 0 for cell in column_cells),
+            default=0,
+        )
+        # 1.2 factor for padding
+        worksheet.column_dimensions[column_cells[0].column_letter].width = min(
+            max_width, length + 2
+        )
+
+
+@require_analysis_access
+def satisfaction_formateurs_dashboard_export_ranking(request):
+    """Génère un Excel contenant le classement complet des prestations (Vision Formateurs)."""
+    context = _build_satisfaction_formateurs_dashboard_context(request)
+    ranking = context.get("toutes_prestations_classees", [])
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Classement Formateurs"
+
+    # Header
+    headers = [
+        "Rang",
+        "Code Prestation",
+        "Intitulé Formation",
+        "Prestataire",
+        "Bénéficiaire",
+        "Région",
+        "Effectif Formateurs",
+        "Nb Enquêtes",
+        "Taux de Réponse (%)",
+        "Satisfaction (0-5)",
+        "Score Global",
+    ]
+    ws.append(headers)
+
+    # Data
+    for idx, p in enumerate(ranking, start=1):
+        ws.append(
+            [
+                idx,
+                p["code"],
+                p["intitule"],
+                p["prestataire"],
+                p["beneficiaire"],
+                p["region"],
+                p["effectif"],
+                p["nb_reponses"],
+                p["taux_reponse"],
+                p["avg_satisfaction"],
+                p["score_global"],
+            ]
+        )
+
+    _autosize_worksheet(ws)
+
+    filename = f"Classement_Prestation_Formateurs_{timezone.now().strftime('%Y%m%d')}.xlsx"
+    response = HttpResponse(
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    wb.save(response)
+    return response
+
+
 @require_analysis_access
 def satisfaction_formateurs_dashboard_export_csv(request):
     context = _build_satisfaction_formateurs_dashboard_context(request)
@@ -1924,6 +2191,7 @@ def satisfaction_formateurs_dashboard_export_chapeau(request):
         "prestataire": context["prestataire_stats"],
         "beneficiaire": context["beneficiaire_stats"],
         "cohorte": context["cohorte_stats"],
+        "prestation": context["prestation_stats"],
     }
 
     if active_tab == "detail":
@@ -1996,6 +2264,162 @@ def satisfaction_formateurs_dashboard_export_chapeau(request):
     )
     response["Content-Disposition"] = f'attachment; filename="{filename}"'
     return response
+
+
+@require_analysis_access
+def satisfaction_formateurs_dashboard_export_prestation_zip(request):
+    """Export one CSV per prestataire as a ZIP archive (Satisfaction_PRESTA_SF.csv)."""
+    context = _build_satisfaction_formateurs_dashboard_context(request)
+    all_rows = context["all_rows"]
+
+    prestation_rows: dict[str, list] = {}
+    for row in all_rows:
+        code = str(row.get("prestataire") or "").strip() or "-"
+        prestation_rows.setdefault(code, []).append(row)
+
+    headers = [
+        "N°",
+        "Prestataire",
+        "Bénéficiaire",
+        "Formation",
+        "Cohorte",
+        "Téléphone",
+        "Statut",
+        *[label for _, label in Q_FORM_FIELDS],
+        "Q4 - Gestion administrative",
+        "Q5 - Gestion financière",
+        "Q6 - Communication",
+        "Commentaires",
+        "Recommandations",
+    ]
+
+    archive_buffer = io.BytesIO()
+    with zipfile.ZipFile(archive_buffer, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+        for prestataire_code in sorted(prestation_rows.keys()):
+            csv_buffer = io.StringIO()
+            writer = csv.writer(csv_buffer, lineterminator="\n")
+            writer.writerow(headers)
+            for idx, row in enumerate(prestation_rows[prestataire_code], start=1):
+                writer.writerow(
+                    [
+                        idx,
+                        row.get("prestataire", ""),
+                        row.get("beneficiaire", ""),
+                        row.get("formation", ""),
+                        row.get("cohorte", ""),
+                        row.get("telephone", ""),
+                        row.get("status", ""),
+                        *[row.get(field) for field, _ in Q_FORM_FIELDS],
+                        row.get("q4_gestion_administrative", ""),
+                        row.get("q5_gestion_financiere", ""),
+                        row.get("q6_communication", ""),
+                        row.get("commentaires", ""),
+                        row.get("recommandations", ""),
+                    ]
+                )
+            safe_code = re.sub(r'[\\/:*?"<>|]', "_", prestataire_code)
+            archive.writestr(
+                f"Satisfaction_{safe_code}_SF.csv",
+                csv_buffer.getvalue().encode("utf-8-sig"),
+            )
+
+    archive_buffer.seek(0)
+    response = HttpResponse(archive_buffer.getvalue(), content_type="application/zip")
+    response["Content-Disposition"] = (
+        'attachment; filename="satisfaction-formateurs-prestations.zip"'
+    )
+    return response
+
+
+def satisfaction_formateurs_export_prestation_csv(request, code: str):
+    """Export CSV des enquêtes d'un seul prestataire (pour fill_excel.py).
+    Authentification par clé API (X-Export-Api-Key) — pas de login requis.
+    """
+    from App_PADESCE.satisfaction_apprenants.views import _check_export_api_key
+
+    if not _check_export_api_key(request):
+        return JsonResponse({"error": "Clé API manquante ou invalide."}, status=403)
+    context = _build_satisfaction_formateurs_dashboard_context(request)
+    target = code.strip()
+    rows = [r for r in context["all_rows"] if str(r.get("prestataire") or "").strip() == target]
+
+    headers = [
+        "N°",
+        "Prestataire",
+        "Bénéficiaire",
+        "Formation",
+        "Cohorte",
+        "Téléphone",
+        "Statut",
+        *[label for _, label in Q_FORM_FIELDS],
+        "Q4 - Gestion administrative",
+        "Q5 - Gestion financière",
+        "Q6 - Communication",
+        "Commentaires",
+        "Recommandations",
+    ]
+
+    safe_code = re.sub(r"[^A-Za-z0-9_-]", "_", code)
+    filename = f"Satisfaction_{safe_code}_SF.csv"
+    response = HttpResponse(content_type="text/csv; charset=utf-8")
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    response.write("\ufeff")
+    writer = csv.writer(response)
+    writer.writerow(headers)
+    for idx, row in enumerate(rows, start=1):
+        writer.writerow(
+            [
+                idx,
+                row.get("prestataire", ""),
+                row.get("beneficiaire", ""),
+                row.get("formation", ""),
+                row.get("cohorte", ""),
+                row.get("telephone", ""),
+                row.get("status", ""),
+                *[row.get(field) for field, _ in Q_FORM_FIELDS],
+                row.get("q4_gestion_administrative", ""),
+                row.get("q5_gestion_financiere", ""),
+                row.get("q6_communication", ""),
+                row.get("commentaires", ""),
+                row.get("recommandations", ""),
+            ]
+        )
+    return response
+
+
+def satisfaction_formateurs_api_prestations_excel(request):
+    """
+    API JSON — liste des prestataires/prestations formateurs (pour fill_excel.py).
+    Authentification via en-tête HTTP : X-Export-Api-Key: <EXPORT_API_KEY>
+    """
+    from App_PADESCE.satisfaction_apprenants.views import _check_export_api_key
+
+    if not _check_export_api_key(request):
+        return JsonResponse({"error": "Clé API manquante ou invalide."}, status=403)
+
+    from django.conf import settings as _s
+
+    site_url = (getattr(_s, "SITE_URL", "") or "https://call.naumur.com").rstrip("/")
+    base_app = "/satisfaction-formateurs"
+
+    context = _build_satisfaction_formateurs_dashboard_context(request)
+    seen: dict[str, dict] = {}
+    for row in context["all_rows"]:
+        code = str(row.get("prestataire") or "").strip()
+        if not code or code == "-":
+            continue
+        if code not in seen:
+            seen[code] = {
+                "code": code,
+                "prestataire": code,
+                "beneficiaire": row.get("beneficiaire", ""),
+                "formation": row.get("formation", ""),
+                "cohorte": row.get("cohorte", ""),
+                "enquete_url": f"{site_url}/prestation/{code.lower()}/",
+                "csv_url": f"{site_url}{base_app}/analyse/export/prestation/{code}/csv/",
+            }
+
+    return JsonResponse({"prestations": list(seen.values())})
 
 
 @require_analysis_access

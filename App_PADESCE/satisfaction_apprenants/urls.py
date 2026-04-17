@@ -67,14 +67,20 @@ urlpatterns = [
     path(
         "analyse/export/classes-zip/",
         lazy_view(
-            "App_PADESCE.satisfaction_apprenants.views.satisfaction_dashboard_export_class_lists_zip"
+            (
+                "App_PADESCE.satisfaction_apprenants.views."
+                "satisfaction_dashboard_export_class_lists_zip"
+            ),
         ),
         name="satisfaction_dashboard_export_class_lists_zip",
     ),
     path(
         "analyse/export/prestations-xlsx/",
         lazy_view(
-            "App_PADESCE.satisfaction_apprenants.views.satisfaction_dashboard_export_prestation_lists_xlsx"
+            (
+                "App_PADESCE.satisfaction_apprenants.views."
+                "satisfaction_dashboard_export_prestation_lists_xlsx"
+            ),
         ),
         name="satisfaction_dashboard_export_prestation_lists_xlsx",
     ),
@@ -114,5 +120,45 @@ urlpatterns = [
         "analyse/sync-reference/",
         lazy_view("App_PADESCE.satisfaction_apprenants.views.satisfaction_sync_reference_page"),
         name="satisfaction_sync_reference_page",
+    ),
+    path(
+        "export/moyennes-generales/xlsx/",
+        lazy_view(
+            "App_PADESCE.satisfaction_apprenants.views." "export_apprenant_global_averages_xlsx"
+        ),
+        name="export_apprenant_global_averages",
+    ),
+    path(
+        "analyse/export/classe/<str:code>/csv/",
+        lazy_view(
+            "App_PADESCE.satisfaction_apprenants.views." "satisfaction_dashboard_export_classe_csv"
+        ),
+        name="satisfaction_dashboard_export_classe_csv",
+    ),
+    path(
+        "api/classes-excel/",
+        lazy_view("App_PADESCE.satisfaction_apprenants.views." "satisfaction_api_classes_excel"),
+        name="satisfaction_api_classes_excel",
+    ),
+    path(
+        "analyse/export/indicateurs/xlsx/",
+        lazy_view(
+            "App_PADESCE.satisfaction_apprenants.views."
+            "satisfaction_dashboard_export_indicators_xlsx"
+        ),
+        name="satisfaction_dashboard_export_indicators_xlsx",
+    ),
+    path(
+        "analyse/export/indicateurs/csv/",
+        lazy_view(
+            "App_PADESCE.satisfaction_apprenants.views."
+            "satisfaction_dashboard_export_indicators_csv"
+        ),
+        name="satisfaction_dashboard_export_indicators_csv",
+    ),
+    path(
+        "analyse/export/ranking/xlsx/",
+        lazy_view("App_PADESCE.satisfaction_apprenants.views.satisfaction_dashboard_export_ranking"),
+        name="satisfaction_dashboard_export_ranking",
     ),
 ]

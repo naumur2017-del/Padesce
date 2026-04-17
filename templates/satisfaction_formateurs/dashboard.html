@@ -161,6 +161,240 @@
 </div>
 {% endif %}
 
+  <!-- Table des prestations avec indicateurs -->
+  <div style="margin-bottom: 20px; padding: 14px; background: rgba(111,60,195,0.03); border-radius: 10px; border: 1px solid var(--border);">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+      <div class="section-title" style="margin-bottom:0;">Indicateurs par Prestation</div>
+      {% if prestation_indicators_table %}
+      <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+        <button type="button" class="btn btn-ghost btn-sm js-indicator-toggle" data-indicator="apprenant">
+          Apprenant
+        </button>
+        <button type="button" class="btn btn-ghost btn-sm js-indicator-toggle active" data-indicator="formateur">
+          Formateur
+        </button>
+        <a class="btn btn-ghost btn-sm" href="{% url 'satisfaction_dashboard_export_indicators_xlsx' %}">Exporter XLSX</a>
+        <a class="btn btn-ghost btn-sm" href="{% url 'satisfaction_dashboard_export_indicators_csv' %}?type=formateur" id="js-export-indicators-csv-form">Exporter CSV</a>
+      </div>
+      {% endif %}
+    </div>
+    {% if prestation_indicators_table %}
+    <!-- Zone Classement des Prestations -->
+  {% if toutes_prestations_classees %}
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; margin-top:24px;">
+    <div style="font-size:1.1rem; font-weight:700; color:var(--accent-strong);">Classement général des prestations</div>
+    <a href="{% url 'satisfaction_formateurs_dashboard_export_ranking' %}?source={{ filter_source|urlencode }}{% if request.GET.urlencode %}&{{ request.GET.urlencode }}{% endif %}" class="btn btn-primary btn-sm">
+      &#128229; Télécharger le classement complet (Excel)
+    </a>
+  </div>
+
+  <div class="kpi-row" style="grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));">
+    <div class="panel" style="margin-bottom:0px;">
+      <div class="section-title" style="color: #166534;">Top 5 des meilleures prestations (Vision Formateurs)</div>
+      <p style="margin:0 0 12px; color:var(--muted); font-size:0.85rem;">Score Global = 70% Taux de réponse + 30% Satisfaction Globale normalisée.</p>
+      <div class="table-scroll">
+        <table style="font-size: 0.8rem;" id="js-top-best-table">
+          <thead>
+            <tr>
+              <th>Prestation</th>
+              <th>Effectif</th>
+              <th>Rép.</th>
+              <th title="Taux de réponse">T.R.</th>
+              <th title="Satisfaction">Sat.</th>
+              <th>Score</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for p in toutes_prestations_classees %}
+            <tr class="presta-row js-best-col" data-index="{{ forloop.counter0 }}">
+              <td title="{{ p.intitule }}"><strong>{{ p.code }}</strong><br><span style="font-size:0.75rem; color:var(--muted);">{{ p.prestataire|truncatechars:35 }} | {{ p.beneficiaire|truncatechars:35 }}</span></td>
+              <td>{{ p.effectif }}</td>
+              <td>{{ p.nb_reponses }}</td>
+              <td>{{ p.taux_reponse|floatformat:1 }}%</td>
+              <td>{{ p.avg_satisfaction|floatformat:1 }}</td>
+              <td style="color:var(--accent-strong); font-weight:800;">{{ p.score_global|floatformat:1 }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    
+    <div class="panel" style="margin-bottom:0px;">
+      <div class="section-title" style="color: #991b1b;">Top 5 des prestations à améliorer (Vision Formateurs)</div>
+      <p style="margin:0 0 12px; color:var(--muted); font-size:0.85rem;">Score Global = 70% Taux de réponse + 30% Satisfaction Globale normalisée.</p>
+      <div class="table-scroll">
+        <table style="font-size: 0.8rem;" id="js-top-worst-table">
+          <thead>
+            <tr>
+              <th>Prestation</th>
+              <th>Effectif</th>
+              <th>Rép.</th>
+              <th title="Taux de réponse">T.R.</th>
+              <th title="Satisfaction">Sat.</th>
+              <th>Score</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for p in toutes_prestations_classees reversed %}
+            <tr class="presta-row js-worst-col" data-score="{{ p.score_global }}">
+              <td title="{{ p.intitule }}"><strong>{{ p.code }}</strong><br><span style="font-size:0.75rem; color:var(--muted);">{{ p.prestataire|truncatechars:35 }} | {{ p.beneficiaire|truncatechars:35 }}</span></td>
+              <td>{{ p.effectif }}</td>
+              <td>{{ p.nb_reponses }}</td>
+              <td>{{ p.taux_reponse|floatformat:1 }}%</td>
+              <td>{{ p.avg_satisfaction|floatformat:1 }}</td>
+              <td style="color:var(--accent-strong); font-weight:800;">{{ p.score_global|floatformat:1 }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  (function() {
+      function resetRankingDisplay() {
+          const bestRows = document.querySelectorAll('.js-best-col');
+          const worstRows = document.querySelectorAll('.js-worst-col');
+          const total = bestRows.length;
+
+          bestRows.forEach((r, idx) => {
+              r.style.display = (idx < 5) ? '' : 'none';
+          });
+          worstRows.forEach((r, idx) => {
+              r.style.display = (idx < 5 && idx < total - 5) ? '' : 'none';
+          });
+      }
+      document.addEventListener('DOMContentLoaded', resetRankingDisplay);
+  })();
+  </script>
+  {% endif %}
+
+  <div style="margin-bottom:12px; margin-top:32px;">
+    <div style="font-size:1.1rem; font-weight:700; color:var(--accent-strong); margin-bottom:6px;">Performance détaillée par prestation</div>
+    <div style="font-size:0.85rem; color:var(--muted);">Tableau croisé des indicateurs Apprenants et Formateurs.</div>
+  </div>
+
+  <div class="table-scroll" style="max-height:600px; margin-top:12px;">
+      <table style="font-size:0.82rem;" class="js-indicators-table">
+        <thead>
+          <tr>
+            <th>Code Prestation</th>
+            <th>Prestataire</th>
+            <th>Bénéficiaire</th>
+            <!-- Indicateurs Apprenant -->
+            <th class="indicator-col indicator-apprenant" style="display:none;" title="Note sur la clarté des exposés">Clarté exposés</th>
+            <th class="indicator-col indicator-apprenant" style="display:none;" title="Note sur l'Interaction avec le formateur">Interaction form.</th>
+            <th class="indicator-col indicator-apprenant" style="display:none;" title="Note sur la maîtrise du contenu">Maîtrise contenu</th>
+            <th class="indicator-col indicator-apprenant" style="display:none;" title="Note sur l'adéquation de la salle">Salle adéquate</th>
+            <th class="indicator-col indicator-apprenant" style="display:none;" title="Note sur le matériel disponible">Matériel</th>
+            <th class="indicator-col indicator-apprenant" style="display:none;" title="Note sur l'organisation du temps">Org. temps</th>
+            <th class="indicator-col indicator-apprenant" style="display:none;" title="Note sur l'utilité de la formation">Utilité form.</th>
+            <th class="indicator-col indicator-apprenant" style="display:none;" title="Note sur l'adéquation aux besoins">Adéquation besoins</th>
+            <th class="indicator-col indicator-apprenant" style="display:none;" title="Note sur la satisfaction globale" style="color:var(--accent-strong);">Satisfaction</th>
+            <th class="indicator-col indicator-apprenant" style="display:none; text-align:center;">N enquêtes appr.</th>
+            <!-- Indicateurs Formateur -->
+            <th class="indicator-col indicator-formateur" title="Note sur les prérequis des apprenants">Prérequis app.</th>
+            <th class="indicator-col indicator-formateur" title="Note sur l'interaction avec les apprenants">Interaction app.</th>
+            <th class="indicator-col indicator-formateur" title="Note sur les compétences acquises" style="color:var(--accent-strong);">Compétences acquises</th>
+            <th class="indicator-col indicator-formateur" style="text-align:center;">N enquêtes form.</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for prestation in prestation_indicators_table %}
+          <tr>
+            <td><strong>{{ prestation.code }}</strong></td>
+            <td>{{ prestation.prestataire|truncatechars:30 }}</td>
+            <td>{{ prestation.beneficiaire|truncatechars:30 }}</td>
+            <!-- Indicateurs Apprenant -->
+            <td class="indicator-col indicator-apprenant" style="display:none; text-align:center; {% if prestation.apprenant.q1_clarte_exposes %}font-weight:600;{% else %}color:var(--muted);{% endif %}">
+              {% if prestation.apprenant.q1_clarte_exposes %}{{ prestation.apprenant.q1_clarte_exposes|floatformat:1 }}{% else %}—{% endif %}
+            </td>
+            <td class="indicator-col indicator-apprenant" style="display:none; text-align:center; {% if prestation.apprenant.q2_interaction_formateur %}font-weight:600;{% else %}color:var(--muted);{% endif %}">
+              {% if prestation.apprenant.q2_interaction_formateur %}{{ prestation.apprenant.q2_interaction_formateur|floatformat:1 }}{% else %}—{% endif %}
+            </td>
+            <td class="indicator-col indicator-apprenant" style="display:none; text-align:center; {% if prestation.apprenant.q3_maitrise_contenu %}font-weight:600;{% else %}color:var(--muted);{% endif %}">
+              {% if prestation.apprenant.q3_maitrise_contenu %}{{ prestation.apprenant.q3_maitrise_contenu|floatformat:1 }}{% else %}—{% endif %}
+            </td>
+            <td class="indicator-col indicator-apprenant" style="display:none; text-align:center; {% if prestation.apprenant.q4_salle_adequate %}font-weight:600;{% else %}color:var(--muted);{% endif %}">
+              {% if prestation.apprenant.q4_salle_adequate %}{{ prestation.apprenant.q4_salle_adequate|floatformat:1 }}{% else %}—{% endif %}
+            </td>
+            <td class="indicator-col indicator-apprenant" style="display:none; text-align:center; {% if prestation.apprenant.q5_materiel_disponible %}font-weight:600;{% else %}color:var(--muted);{% endif %}">
+              {% if prestation.apprenant.q5_materiel_disponible %}{{ prestation.apprenant.q5_materiel_disponible|floatformat:1 }}{% else %}—{% endif %}
+            </td>
+            <td class="indicator-col indicator-apprenant" style="display:none; text-align:center; {% if prestation.apprenant.q6_organisation_temps %}font-weight:600;{% else %}color:var(--muted);{% endif %}">
+              {% if prestation.apprenant.q6_organisation_temps %}{{ prestation.apprenant.q6_organisation_temps|floatformat:1 }}{% else %}—{% endif %}
+            </td>
+            <td class="indicator-col indicator-apprenant" style="display:none; text-align:center; {% if prestation.apprenant.q7_utilite_formation %}font-weight:600;{% else %}color:var(--muted);{% endif %}">
+              {% if prestation.apprenant.q7_utilite_formation %}{{ prestation.apprenant.q7_utilite_formation|floatformat:1 }}{% else %}—{% endif %}
+            </td>
+            <td class="indicator-col indicator-apprenant" style="display:none; text-align:center; {% if prestation.apprenant.q8_adequation_besoins %}font-weight:600;{% else %}color:var(--muted);{% endif %}">
+              {% if prestation.apprenant.q8_adequation_besoins %}{{ prestation.apprenant.q8_adequation_besoins|floatformat:1 }}{% else %}—{% endif %}
+            </td>
+            <td class="indicator-col indicator-apprenant" style="display:none; text-align:center; {% if prestation.apprenant.q9_satisfaction_globale %}font-weight:600; color:var(--accent-strong);{% else %}color:var(--muted);{% endif %}">
+              {% if prestation.apprenant.q9_satisfaction_globale %}{{ prestation.apprenant.q9_satisfaction_globale|floatformat:1 }}{% else %}—{% endif %}
+            </td>
+            <td class="indicator-col indicator-apprenant" style="display:none; text-align:center;">{{ prestation.apprenant.count }}</td>
+            <!-- Indicateurs Formateur -->
+            <td class="indicator-col indicator-formateur" style="text-align:center; {% if prestation.formateur.q1_prerequis_apprenants %}font-weight:600;{% else %}color:var(--muted);{% endif %}">
+              {% if prestation.formateur.q1_prerequis_apprenants %}{{ prestation.formateur.q1_prerequis_apprenants|floatformat:1 }}{% else %}—{% endif %}
+            </td>
+            <td class="indicator-col indicator-formateur" style="text-align:center; {% if prestation.formateur.q2_interaction_apprenants %}font-weight:600;{% else %}color:var(--muted);{% endif %}">
+              {% if prestation.formateur.q2_interaction_apprenants %}{{ prestation.formateur.q2_interaction_apprenants|floatformat:1 }}{% else %}—{% endif %}
+            </td>
+            <td class="indicator-col indicator-formateur" style="text-align:center; {% if prestation.formateur.q3_competences_acquises %}font-weight:600; color:var(--accent-strong);{% else %}color:var(--muted);{% endif %}">
+              {% if prestation.formateur.q3_competences_acquises %}{{ prestation.formateur.q3_competences_acquises|floatformat:1 }}{% else %}—{% endif %}
+            </td>
+            <td class="indicator-col indicator-formateur" style="text-align:center;">{{ prestation.formateur.count }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p style="color:var(--muted); font-size:0.9rem; margin:0;">Aucune donnée de prestation disponible.</p>
+    {% endif %}
+  </div>
+
+  <script>
+  (function() {
+    const toggleButtons = document.querySelectorAll('.js-indicator-toggle');
+    const table = document.querySelector('.js-indicators-table');
+    const csvExportLink = document.getElementById('js-export-indicators-csv-form');
+
+    if (!toggleButtons.length || !table) return;
+
+    function switchIndicator(indicator) {
+      // Update button state
+      toggleButtons.forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.indicator === indicator);
+      });
+
+      // Update table columns visibility
+      const apprenantCols = table.querySelectorAll('.indicator-apprenant');
+      const formateurCols = table.querySelectorAll('.indicator-formateur');
+
+      if (indicator === 'apprenant') {
+        apprenantCols.forEach(col => col.style.display = '');
+        formateurCols.forEach(col => col.style.display = 'none');
+        if (csvExportLink) csvExportLink.href = '{% url "satisfaction_dashboard_export_indicators_csv" %}?type=apprenant';
+      } else {
+        apprenantCols.forEach(col => col.style.display = 'none');
+        formateurCols.forEach(col => col.style.display = '');
+        if (csvExportLink) csvExportLink.href = '{% url "satisfaction_dashboard_export_indicators_csv" %}?type=formateur';
+      }
+    }
+
+    toggleButtons.forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        switchIndicator(btn.dataset.indicator);
+      });
+    });
+  })();
+  </script>
+
 <!-- Onglets par groupe -->
 <div class="panel">
   <div class="dash-header" style="margin-bottom:12px;">
@@ -168,12 +402,14 @@
     <div style="display:flex;gap:8px;flex-wrap:wrap;">
       <a class="btn btn-ghost btn-sm" id="js-export-active-csv" href="{% url 'satisfaction_formateurs_dashboard_export_csv' %}{% if request.GET.urlencode %}?{{ request.GET.urlencode }}{% endif %}">Exporter la table active (CSV)</a>
       <a class="btn btn-ghost btn-sm" id="js-export-active-chapeau" href="{% url 'satisfaction_formateurs_dashboard_export_chapeau' %}{% if request.GET.urlencode %}?{{ request.GET.urlencode }}{% endif %}">Exporter le chapeau (DOCX)</a>
+      <a class="btn btn-ghost btn-sm" href="{% url 'satisfaction_formateurs_dashboard_export_prestation_zip' %}{% if request.GET.urlencode %}?{{ request.GET.urlencode }}{% endif %}">Exporter les prestations (ZIP CSV)</a>
     </div>
   </div>
   <div class="tab-bar">
     <button class="tab-btn {% if active_tab == 'prestataire' %}active{% endif %}" onclick="switchTab('prestataire',this)">Par prestataire</button>
     <button class="tab-btn {% if active_tab == 'beneficiaire' %}active{% endif %}" onclick="switchTab('beneficiaire',this)">Par bénéficiaire</button>
     <button class="tab-btn {% if active_tab == 'cohorte' %}active{% endif %}" onclick="switchTab('cohorte',this)">Par cohorte</button>
+    <button class="tab-btn {% if active_tab == 'prestation' %}active{% endif %}" onclick="switchTab('prestation',this)">Par prestation</button>
     <button class="tab-btn {% if active_tab == 'detail' %}active{% endif %}" onclick="switchTab('detail',this)">Détail</button>
   </div>
 
@@ -246,6 +482,29 @@
     </div>
   </div>
 
+  <!-- Par prestation -->
+  <div class="tab-panel {% if active_tab == 'prestation' %}active{% endif %}" id="tab-prestation">
+    <div class="table-scroll">
+      <table>
+        <thead><tr>
+          <th>Prestation</th><th>Nb</th>
+          {% for lbl in q_labels %}<th>{{ lbl }}</th>{% endfor %}
+        </tr></thead>
+        <tbody>
+          {% for item in prestation_stats %}
+          <tr>
+            <td>{{ item.label }}</td>
+            <td style="text-align:center;font-weight:700;">{{ item.nb }}</td>
+            {% for avg in item.avgs %}<td><span class="score-pill">{{ avg|floatformat:2 }}</span></td>{% endfor %}
+          </tr>
+          {% empty %}
+          <tr><td colspan="5" style="text-align:center;color:var(--muted);">Aucune donnée.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
   <!-- Détail -->
   <div class="tab-panel {% if active_tab == 'detail' %}active{% endif %}" id="tab-detail">
     <div class="table-scroll">
@@ -293,7 +552,11 @@
 </div>
 
 <div class="panel">
-  <div class="section-title">Moyennes générales</div>
+  <div class="section-title">Moyennes générales 
+    <a href="{% url 'export_formateur_global_averages' %}" class="btn-export" style="float:right; font-size:0.8rem; padding:4px 12px; background:var(--accent); color:white; text-decoration:none; border-radius:4px;">
+      Exporter
+    </a>
+  </div>
   <div class="table-scroll" style="max-height:none;">
     <table style="text-align:center;">
       <thead>

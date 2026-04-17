@@ -176,14 +176,14 @@
       </div>
     </div>
     <div style="display:flex; gap:10px; margin-top:10px;">
-      <a class="btn" href="{% url 'appels_index' %}">Ouvrir appels PADESCE</a>
-      <a class="btn" href="{% url 'satisfaction_dashboard' %}">Ouvrir Analyses de satisfaction</a>
+      <a class="btn" href="{% url 'appels_index' %}">Ouvrir les appels PADESCE</a>
+      <a class="btn" href="{% url 'satisfaction_dashboard' %}">Ouvrir les analyses de satisfaction</a>
     </div>
   </article>
   <article class="card">
     <h2>CGA</h2>
-    <div class="big">{{ cga_effectues }} / {{ cga_total }} appels effectues</div>
-    <div class="muted">Statut effectue = hors "En attente".</div>
+    <div class="big">{{ cga_effectues }} / {{ cga_total }} appels effectués</div>
+    <div class="muted">Statut effectué = hors "En attente".</div>
     <a class="btn" href="{% url 'cga_index' %}">Ouvrir CGA</a>
   </article>
   {% endif %}

@@ -22,7 +22,25 @@
       "mcp__plugin_chrome-devtools-mcp_chrome-devtools__list_network_requests",
       "mcp__plugin_chrome-devtools-mcp_chrome-devtools__get_network_request",
       "Bash(timeout 5 curl -s https://call.naumur.com)",
-      "Bash(curl -s -m 8 https://call.naumur.com)"
+      "Bash(curl -s -m 8 https://call.naumur.com)",
+      "Bash(xargs grep:*)",
+      "Bash(grep -n \"FAST STATS\" ./App_PADESCE/satisfaction_apprenants/*)",
+      "Read(//home/user/projects/**)",
+      "Bash(python manage.py runserver 0.0.0.0:8000)",
+      "Bash(python -m py_compile App_PADESCE/core/fast_stats.py)",
+      "Bash(grep -n \"PRESTATIONS\\\\|card_prestations_count\" templates/satisfaction_apprenants/*.html)",
+      "Bash(git add:*)",
+      "Bash(git commit -m 'fix: Padesce — afficher les 64 prestations analysées au lieu de 57:*)",
+      "Bash(git commit -m ':*)",
+      "Bash(git push:*)",
+      "Bash(gh pr create --title 'feat: Add toggle functionality for prestation indicators table' --body ':*)",
+      "Bash(git fetch:*)",
+      "Bash(git checkout:*)",
+      "Bash(git merge:*)",
+      "Bash(git rebase:*)",
+      "Bash(git restore:*)",
+      "Bash(cd /App_PADESCE)",
+      "Bash(python manage.py shell)"
     ]
   }
 }

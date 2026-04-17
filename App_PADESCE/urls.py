@@ -50,6 +50,16 @@ app_urlpatterns = [
         name="user_tracking_live_api",
     ),
     path(
+        "export/moyennes-generales/apprenants/xlsx/",
+        lazy_view("App_PADESCE.core.views.public_export_apprenant_global_averages_xlsx"),
+        name="public_export_apprenant_global_averages",
+    ),
+    path(
+        "export/moyennes-generales/formateurs/xlsx/",
+        lazy_view("App_PADESCE.core.views.public_export_formateur_global_averages_xlsx"),
+        name="public_export_formateur_global_averages",
+    ),
+    path(
         "api/activity/track/",
         lazy_view("App_PADESCE.core.views.activity_track_api"),
         name="activity_track_api",

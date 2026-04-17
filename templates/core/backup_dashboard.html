@@ -138,6 +138,53 @@
     border-collapse: collapse;
     font-size: 0.88rem;
   }
+
+  /* Pagination */
+  .backup-pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 6px;
+    margin-top: 16px;
+    padding: 12px 0;
+    flex-wrap: wrap;
+  }
+  .backup-pagination button,
+  .backup-pagination .page-btn {
+    padding: 6px 10px;
+    border: 1px solid var(--border);
+    background: var(--panel);
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    color: var(--accent-strong);
+    transition: all 0.15s ease;
+    min-width: 32px;
+  }
+  .backup-pagination button:hover:not(:disabled),
+  .backup-pagination .page-btn:hover {
+    background: rgba(124, 58, 237, 0.1);
+  }
+  .backup-pagination button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  .backup-pagination .page-btn.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+    font-weight: 700;
+  }
+  .backup-pagination .page-numbers {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+  }
+  .pagination-info {
+    font-size: 0.82rem;
+    color: var(--muted);
+    margin-right: 12px;
+  }
   .history-table thead th {
     text-align: left;
     padding: 7px 12px;
@@ -237,8 +284,8 @@
       <table class="history-table">
         <thead>
           <tr>
-            <th>Statut</th>
-            <th>Fichier</th>
+            <th>Statuts</th>
+            <th>Fichiers</th>
             <th>Déclenché par</th>
             <th>Démarré le</th>
             <th>Terminé le</th>
@@ -295,6 +342,36 @@
       {% else %}
       <p class="empty-history" id="empty-msg">Aucun backup enregistré pour le moment.</p>
       {% endif %}
+      
+      <!-- Pagination -->
+      {% if history and history.paginator.num_pages > 1 %}
+      <div class="backup-pagination" id="backup-pagination">
+        <div class="pagination-info">
+          {{ history.start_index }}-{{ history.end_index }} sur {{ history.paginator.count }} backups
+        </div>
+        {% if history.has_previous %}
+          <button data-page="{{ history.previous_page_number }}" class="pagination-btn" type="button">Précédent</button>
+        {% else %}
+          <button type="button" disabled>Précédent</button>
+        {% endif %}
+        <div class="page-numbers">
+          {% for num in history.paginator.page_range %}
+            {% if num >= history.number|add:"-2" and num <= history.number|add:"2" %}
+              {% if num == history.number %}
+                <span class="page-btn active">{{ num }}</span>
+              {% else %}
+                <a class="page-btn pagination-link" href="#" data-page="{{ num }}">{{ num }}</a>
+              {% endif %}
+            {% endif %}
+          {% endfor %}
+        </div>
+        {% if history.has_next %}
+          <button data-page="{{ history.next_page_number }}" class="pagination-btn" type="button">Suivant</button>
+        {% else %}
+          <button type="button" disabled>Suivant</button>
+        {% endif %}
+      </div>
+      {% endif %}
     </div>
   </div>
 
@@ -309,6 +386,39 @@
     const m = document.cookie.match(/csrftoken=([^;]+)/);
     return m ? m[1] : '';
   }
+
+  // Fonction pour charger une page spécifique
+  window.loadPage = function(pageNum) {
+    const url = new URL(window.location);
+    url.searchParams.set('page', pageNum);
+    window.location.href = url.toString();
+  };
+
+  // Gérer les clics sur les éléments de pagination
+  document.addEventListener('DOMContentLoaded', function() {
+    // Gérer les boutons de pagination
+    const paginationBtns = document.querySelectorAll('.pagination-btn');
+    paginationBtns.forEach(btn => {
+      btn.addEventListener('click', function() {
+        const pageNum = this.getAttribute('data-page');
+        if (pageNum) {
+          loadPage(parseInt(pageNum));
+        }
+      });
+    });
+
+    // Gérer les liens de pagination
+    const paginationLinks = document.querySelectorAll('.pagination-link');
+    paginationLinks.forEach(link => {
+      link.addEventListener('click', function(e) {
+        e.preventDefault();
+        const pageNum = this.getAttribute('data-page');
+        if (pageNum) {
+          loadPage(parseInt(pageNum));
+        }
+      });
+    });
+  });
 
   function fmtSize(bytes) {
     if (!bytes) return '—';

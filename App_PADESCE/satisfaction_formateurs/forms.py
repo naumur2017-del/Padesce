@@ -53,13 +53,13 @@ class SatisfactionFormateurBatchUpdateForm(forms.Form):
     target_status = forms.ChoiceField(
         required=False,
         label="Statut a appliquer",
-        help_text="Utilise uniquement le bouton de changement de statut.",
+        help_text="Utilise uniquement par le bouton de changement de statut.",
         choices=(),
     )
     q1_prerequis_apprenants = forms.CharField(
         required=False,
         label="Q1 Prerequis apprenants",
-        help_text="Une valeur unique (ex: 4) ou une liste ordonnee [4,5].",
+        help_text="Une valeur unique (ex. : 4) ou une liste ordonnee [4,5].",
         widget=forms.TextInput(
             attrs={
                 "placeholder": "4 ou [4,5]",
@@ -70,7 +70,7 @@ class SatisfactionFormateurBatchUpdateForm(forms.Form):
     q2_interaction_apprenants = forms.CharField(
         required=False,
         label="Q2 Interaction apprenants",
-        help_text="Une valeur unique (ex: 4) ou une liste ordonnee [4,5].",
+        help_text="Une valeur unique (ex. : 4) ou une liste ordonnee [4,5].",
         widget=forms.TextInput(
             attrs={
                 "placeholder": "4 ou [4,5]",
@@ -81,7 +81,7 @@ class SatisfactionFormateurBatchUpdateForm(forms.Form):
     q3_competences_acquises = forms.CharField(
         required=False,
         label="Q3 Competences acquises",
-        help_text="Une valeur unique (ex: 4) ou une liste ordonnee [4,5].",
+        help_text="Une valeur unique (ex. : 4) ou une liste ordonnee [4,5].",
         widget=forms.TextInput(
             attrs={
                 "placeholder": "4 ou [4,5]",
@@ -147,7 +147,10 @@ class SatisfactionFormateurBatchUpdateForm(forms.Form):
     class_codes_values = forms.CharField(
         required=False,
         label="Code classe",
-        help_text="Valeur unique ou liste ordonnee entre crochets. Exemple: CLA001 ou [CLA001, CLA002].",
+        help_text=(
+            "Valeur unique ou liste ordonnee entre crochets. "
+            "Exemple : CLA001 ou [CLA001, CLA002]."
+        ),
         widget=forms.TextInput(
             attrs={
                 "placeholder": "CLA001 ou [CLA001, CLA002]",
@@ -157,8 +160,11 @@ class SatisfactionFormateurBatchUpdateForm(forms.Form):
     )
     prestation_codes_values = forms.CharField(
         required=False,
-        label="Prestation ID",
-        help_text="Valeur unique ou liste ordonnee entre crochets. Exemple: PRE001 ou [PRE001, PRE002].",
+        label="ID prestation",
+        help_text=(
+            "Valeur unique ou liste ordonnee entre crochets. "
+            "Exemple : PRE001 ou [PRE001, PRE002]."
+        ),
         widget=forms.TextInput(
             attrs={
                 "placeholder": "PRE001 ou [PRE001, PRE002]",
@@ -170,19 +176,19 @@ class SatisfactionFormateurBatchUpdateForm(forms.Form):
         required=False,
         label="Prestataire",
         help_text="Valeur unique ou liste ordonnee entre crochets.",
-        widget=forms.Textarea(attrs={"rows": 2, "placeholder": "Nom prestataire"}),
+        widget=forms.Textarea(attrs={"rows": 2, "placeholder": "Nom du prestataire"}),
     )
     beneficiaire_values = forms.CharField(
         required=False,
         label="Beneficiaire",
         help_text="Valeur unique ou liste ordonnee entre crochets.",
-        widget=forms.Textarea(attrs={"rows": 2, "placeholder": "Nom beneficiaire"}),
+        widget=forms.Textarea(attrs={"rows": 2, "placeholder": "Nom du beneficiaire"}),
     )
     formation_values = forms.CharField(
         required=False,
-        label="Titre de formation",
+        label="Titre de la formation",
         help_text="Valeur unique ou liste ordonnee entre crochets.",
-        widget=forms.Textarea(attrs={"rows": 2, "placeholder": "Titre de formation"}),
+        widget=forms.Textarea(attrs={"rows": 2, "placeholder": "Titre de la formation"}),
     )
     cohorte_values = forms.CharField(
         required=False,

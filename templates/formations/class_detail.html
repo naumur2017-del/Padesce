@@ -62,7 +62,10 @@
       <a class="btn btn-outline" href="/presences/" id="btn-pres">Enquête présence</a>
       <a class="btn btn-outline" href="{% url 'class_reports' classe.id %}" id="btn-rapports">Rapports enquetes</a>
       {% if channel_link %}
-        <a class="btn btn-outline" href="{{ channel_link }}" target="_blank" rel="noopener noreferrer" onclick="event.preventDefault();var opened=window.open(this.href,'_blank'); if(!opened){ window.location.href=this.href; }" id="btn-channel">Ouvrir lien du canal</a>
+        <a class="btn btn-outline" href="{{ channel_link }}" target="_blank" rel="noopener noreferrer" onclick="event.preventDefault();var opened=window.open(this.href,'_blank'); if(!opened){ window.location.href=this.href; }" id="btn-channel">&#128101; Canal Teams</a>
+      {% endif %}
+      {% if sharepoint_csv_url %}
+        <a class="btn btn-outline" href="{{ sharepoint_csv_url }}" target="_blank" rel="noopener noreferrer" id="btn-csv-sharepoint" style="border-color: rgba(33,115,70,0.3); color: #155a38;">&#8659; CSV SharePoint</a>
       {% endif %}
     </div>
     <div class="table-wrap">

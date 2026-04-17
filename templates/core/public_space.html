@@ -415,8 +415,8 @@
       <table class="stats-table">
         <thead>
           <tr>
-            <th>Indicateur</th>
-            <th>Valeur</th>
+            <th>Indicateurs</th>
+            <th>Valeurs</th>
           </tr>
         </thead>
         <tbody>
@@ -499,17 +499,17 @@
       <table>
         <thead>
           <tr>
-            <th>Nom apprenant</th>
-            <th>Apprenant ID</th>
-            <th>Classe</th>
-            <th>Prestataire</th>
-            <th>Bénéficiaire</th>
-            <th>Téléphone</th>
+            <th>Noms apprenants</th>
+            <th>Apprenants ID</th>
+            <th>Classes</th>
+            <th>Prestataires</th>
+            <th>Bénéficiaires</th>
+            <th>Téléphones</th>
             <th>C1</th>
             <th>C2</th>
             <th>C3</th>
             <th>C4</th>
-            <th>Taux Présence</th>
+            <th>Taux de Présence</th>
           </tr>
         </thead>
         <tbody>
@@ -580,8 +580,8 @@
       <table class="stats-table">
         <thead>
           <tr>
-            <th>Question</th>
-            <th title="Moyenne des réponses — échelle 1 à 5">Note /5</th>
+            <th>Questions</th>
+            <th title="Moyenne des réponses — échelle 1 à 5">Notes /5</th>
           </tr>
         </thead>
         <tbody>
@@ -590,7 +590,7 @@
             <td><strong>{{ principal.summary_moyenne_prerequis|floatformat:1 }}</strong></td>
           </tr>
           <tr>
-            <td>Q2 — Interaction apprenants <span style="display:block;font-size:.76rem;color:var(--muted);">Qualité des interactions formateur–apprenants</span></td>
+            <td>Q2 — Interactions apprenants <span style="display:block;font-size:.76rem;color:var(--muted);">Qualité des interactions formateur–apprenants</span></td>
             <td><strong>{{ principal.summary_moyenne_interaction|floatformat:1 }}</strong></td>
           </tr>
           <tr>
@@ -615,7 +615,7 @@
     <article class="public-card"><div class="value">{{ principal.card_beneficiaires_count }}</div><div class="label">Bénéficiaires analysés</div></article>
     <article class="public-card"><div class="value">{{ principal.card_formations_count }}</div><div class="label">Formations analysées</div></article>
     <article class="public-card"><div class="value">{{ principal.card_cohortes_count }}</div><div class="label">Cohortes analysées</div></article>
-    <article class="public-card"><div class="value">{{ principal.summary_appels_cibles }}</div><div class="label">Appels ciblés</div></article>
+    <article class="public-card"><div class="value">{{ principal.summary_appels_cibles }}</div><div class="label">Appels cibles</div></article>
     <article class="public-card"><div class="value">{{ principal.summary_tentes }}</div><div class="label">Appels tentés</div></article>
     <article class="public-card"><div class="value">{{ principal.summary_reussis }}</div><div class="label">Appels réussis</div></article>
     <article class="public-card"><div class="value">{{ principal.summary_form_remplis }}</div><div class="label">Formulaires remplis</div></article>
@@ -667,15 +667,15 @@
       <table>
         <thead>
           <tr>
-            <th>Nom</th>
-            <th>Classe</th>
-            <th>Prestation ID</th>
-            <th>Prestataire</th>
-            <th>Bénéficiaire</th>
-            <th>Formation</th>
-            <th>Cohorte</th>
-            <th>Téléphone</th>
-            <th>Statut</th>
+            <th>Noms</th>
+            <th>Classes</th>
+            <th>Prestations ID</th>
+            <th>Prestataires</th>
+            <th>Bénéficiaires</th>
+            <th>Formations</th>
+            <th>Cohortes</th>
+            <th>Téléphones</th>
+            <th>Statuts</th>
             <th>Formulaire</th>
             <th>Audio</th>
           </tr>
@@ -761,12 +761,12 @@
           <table>
             <thead>
               <tr>
-                <th>Classe</th>
-                <th>Formation</th>
-                <th>Prestation ID</th>
-                <th>Cohorte</th>
-                <th>Fenêtre</th>
-                <th>Total Formulaire</th>
+                <th>Classes</th>
+                <th>Formations</th>
+                <th>Prestations ID</th>
+                <th>Cohortes</th>
+                <th>Fenêtres</th>
+                <th>Total Formulaires</th>
               </tr>
             </thead>
             <tbody>
@@ -799,10 +799,10 @@
           <table>
             <thead>
               <tr>
-                {% if scope == "formateur" %}<th>Formation</th>{% else %}<th>Prestation ID</th>{% endif %}
-                <th>Prestataire</th>
-                <th>Bénéficiaire</th>
-                {% if scope == "formateur" %}<th>Cohorte</th>{% endif %}
+                {% if scope == "formateur" %}<th>Formations</th>{% else %}<th>Prestations ID</th>{% endif %}
+                <th>Prestataires</th>
+                <th>Bénéficiaires</th>
+                {% if scope == "formateur" %}<th>Cohortes</th>{% endif %}
               </tr>
             </thead>
             <tbody>
@@ -839,11 +839,25 @@
 
   <div class="stats-grid">
     <section class="public-panel{% if scope == "formateur" %} full-width{% endif %}">
-      <div class="title-with-help"><h2>Moyennes générales</h2>{% include "includes/help_tooltip.html" with title="Moyennes générales" text="Moyennes par indicateur de satisfaction calculées sur l'ensemble des réponses éligibles (seuil de 25% par classe)." section="methodologie-de-calcul-et-formules" %}</div>
+      <div class="title-with-help" style="display: flex; justify-content: space-between; align-items: center;">
+        <div style="display: flex; align-items: center; gap: 5px;">
+          <h2 style="margin: 0;">Moyennes générales</h2>
+          {% include "includes/help_tooltip.html" with title="Moyennes générales" text="Moyennes par indicateur de satisfaction calculées sur l'ensemble des réponses éligibles (seuil de 25% par classe)." section="methodologie-de-calcul-et-formules" %}
+        </div>
+        {% if scope == "formateur" %}
+          <a href="{% url 'public_export_formateur_global_averages' %}" class="btn-export" style="font-size:0.8rem; padding:4px 12px; background:var(--accent); color:white; text-decoration:none; border-radius:4px;">
+            Exporter
+          </a>
+        {% elif scope == "apprenant" %}
+          <a href="{% url 'public_export_apprenant_global_averages' %}" class="btn-export" style="font-size:0.8rem; padding:4px 12px; background:var(--accent); color:white; text-decoration:none; border-radius:4px;">
+            Exporter
+          </a>
+        {% endif %}
+      </div>
       <div class="table-wrap">
         <table class="stats-table">
           <thead>
-            <tr><th>Indicateur</th><th>Moyenne</th></tr>
+            <tr><th>Indicateurs</th><th>Moyennes</th></tr>
           </thead>
           <tbody>
             {% for label, value in stats.global_avgs.items %}
@@ -878,10 +892,10 @@
         <table class="stats-table">
           <thead>
             <tr>
-              <th>Prestation ID</th>
-              <th>Prestataire</th>
-              <th>Région</th>
-              <th>Score</th>
+              <th>Prestations ID</th>
+              <th>Prestataires</th>
+              <th>Régions</th>
+              <th>Scores</th>
             </tr>
           </thead>
           <tbody>
@@ -906,10 +920,10 @@
         <table class="stats-table">
           <thead>
             <tr>
-              <th>Prestation ID</th>
-              <th>Prestataire</th>
-              <th>Région</th>
-              <th>Score</th>
+              <th>Prestations ID</th>
+              <th>Prestataires</th>
+              <th>Régions</th>
+              <th>Scores</th>
             </tr>
           </thead>
           <tbody>

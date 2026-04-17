@@ -6,9 +6,9 @@ from App_PADESCE.formations.models import Classe
 class ClasseCreateForm(forms.ModelForm):
     lieu_nom = forms.CharField(
         required=False,
-        label="Nom du lieu / Quartier",
+        label="Nom du lieu / quartier",
         widget=forms.TextInput(
-            attrs={"class": "form-control", "placeholder": "Ex: Hotel de ville"}
+            attrs={"class": "form-control", "placeholder": "Ex. : Hotel de ville"}
         ),
     )
     lieu_precision = forms.CharField(
@@ -24,10 +24,14 @@ class ClasseCreateForm(forms.ModelForm):
         widget=forms.TextInput(attrs={"class": "form-control"}),
     )
     lieu_departement = forms.CharField(
-        required=False, label="Departement", widget=forms.TextInput(attrs={"class": "form-control"})
+        required=False,
+        label="Departement",
+        widget=forms.TextInput(attrs={"class": "form-control"}),
     )
     lieu_ville = forms.CharField(
-        required=False, label="Ville", widget=forms.TextInput(attrs={"class": "form-control"})
+        required=False,
+        label="Ville",
+        widget=forms.TextInput(attrs={"class": "form-control"}),
     )
     lieu_region = forms.CharField(
         required=False,
@@ -35,10 +39,14 @@ class ClasseCreateForm(forms.ModelForm):
         widget=forms.TextInput(attrs={"class": "form-control"}),
     )
     lieu_longitude = forms.CharField(
-        required=False, label="Longitude", widget=forms.TextInput(attrs={"class": "form-control"})
+        required=False,
+        label="Longitude",
+        widget=forms.TextInput(attrs={"class": "form-control"}),
     )
     lieu_latitude = forms.CharField(
-        required=False, label="Latitude", widget=forms.TextInput(attrs={"class": "form-control"})
+        required=False,
+        label="Latitude",
+        widget=forms.TextInput(attrs={"class": "form-control"}),
     )
 
     class Meta:
@@ -55,12 +63,15 @@ class ClasseCreateForm(forms.ModelForm):
         widgets = {
             "code": forms.TextInput(attrs={"readonly": "readonly", "class": "form-control"}),
             "intitule_formation": forms.TextInput(
-                attrs={"class": "form-control", "placeholder": "Ex: Transformation agroalimentaire"}
+                attrs={
+                    "class": "form-control",
+                    "placeholder": "Ex. : Transformation agroalimentaire",
+                }
             ),
             "prestation": forms.Select(attrs={"class": "form-select"}),
             "formateur": forms.Select(attrs={"class": "form-select"}),
             "fenetre": forms.TextInput(
-                attrs={"class": "form-control", "placeholder": "Fenêtre 2 ou 3"}
+                attrs={"class": "form-control", "placeholder": "Fenetre 2 ou 3"}
             ),
             "cohorte": forms.NumberInput(attrs={"readonly": "readonly", "class": "form-control"}),
             "statut": forms.Select(attrs={"class": "form-select"}),

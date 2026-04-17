@@ -12,6 +12,7 @@ import re
 # ---------------------------------------------------------------------------
 import threading as _threading
 import time as _time
+import unicodedata
 import uuid
 import zipfile
 from collections import Counter, defaultdict
@@ -2553,6 +2554,182 @@ def _build_missing_prestations_analysis(
     }
 
 
+def _build_prestation_indicators_table():
+    """Construit une table agrégée des prestations avec les indicateurs de satisfaction."""
+    from App_PADESCE.formations.models import Classe, Prestation
+    from App_PADESCE.satisfaction_apprenants.models import SatisfactionApprenant
+
+    def _normalize_indicator_match_text(value: str) -> str:
+        text = " ".join(str(value or "").split()).casefold()
+        if not text:
+            return ""
+        normalized = unicodedata.normalize("NFKD", text)
+        return "".join(ch for ch in normalized if not unicodedata.combining(ch))
+
+    def _build_formateur_metrics_by_combo() -> dict[tuple[str, str], dict]:
+        score_fields = (
+            "q1_prerequis_apprenants",
+            "q2_interaction_apprenants",
+            "q3_competences_acquises",
+        )
+        text_fields = (
+            "q4_gestion_administrative",
+            "q5_gestion_financiere",
+            "q6_communication",
+        )
+        grouped: dict[tuple[str, str], dict] = {}
+        rows = AppelFormateur.objects.filter(is_active=True).values(
+            "prestataire",
+            "beneficiaire",
+            "satisfaction_completed_at",
+            *score_fields,
+            *text_fields,
+        )
+
+        for row in rows:
+            combo_key = (
+                _normalize_indicator_match_text(row.get("prestataire")),
+                _normalize_indicator_match_text(row.get("beneficiaire")),
+            )
+            if not any(combo_key):
+                continue
+
+            bucket = grouped.setdefault(
+                combo_key,
+                {
+                    "count": 0,
+                    "scores": {field: [] for field in score_fields},
+                    "texts": {field: set() for field in text_fields},
+                },
+            )
+
+            has_complete_scores = all(row.get(field) is not None for field in score_fields)
+            if has_complete_scores:
+                bucket["count"] += 1
+                for field in score_fields:
+                    bucket["scores"][field].append(float(row[field]))
+
+            has_form_payload = has_complete_scores or bool(row.get("satisfaction_completed_at"))
+            if not has_form_payload:
+                has_form_payload = any(str(row.get(field) or "").strip() for field in text_fields)
+
+            if has_form_payload:
+                for field in text_fields:
+                    text_value = str(row.get(field) or "").strip()
+                    if text_value:
+                        bucket["texts"][field].add(text_value)
+
+        return grouped
+
+    formateur_metrics_by_combo = _build_formateur_metrics_by_combo()
+
+    # Récupérer toutes les prestations (même sans classes, elles apparaîtront vides)
+    all_prestations = Prestation.objects.select_related("prestataire", "beneficiaire").order_by(
+        "code"
+    )
+
+    table_data = []
+
+    for prestation in all_prestations:
+        # Récupérer les classes actives ET inactives de cette prestation
+        # Car les satisfactions peuvent exister même si la classe est inactive
+        classes_qs = Classe.objects.filter(prestation=prestation)
+        classe_ids = list(classes_qs.values_list("pk", flat=True))
+
+        # Indicateurs Apprenant (notes moyennes)
+        if classe_ids:
+            apprenant_satisfactions = SatisfactionApprenant.objects.filter(
+                classe__pk__in=classe_ids
+            )
+        else:
+            apprenant_satisfactions = SatisfactionApprenant.objects.none()
+
+        apprenant_data = {
+            "q1_clarte_exposes": None,
+            "q2_interaction_formateur": None,
+            "q3_maitrise_contenu": None,
+            "q4_salle_adequate": None,
+            "q5_materiel_disponible": None,
+            "q6_organisation_temps": None,
+            "q7_utilite_formation": None,
+            "q8_adequation_besoins": None,
+            "q9_satisfaction_globale": None,
+            "count": apprenant_satisfactions.count(),
+        }
+
+        # Calculer les moyennes pour apprenant
+        for field in [
+            "q1_clarte_exposes",
+            "q2_interaction_formateur",
+            "q3_maitrise_contenu",
+            "q4_salle_adequate",
+            "q5_materiel_disponible",
+            "q6_organisation_temps",
+            "q7_utilite_formation",
+            "q8_adequation_besoins",
+            "q9_satisfaction_globale",
+        ]:
+            try:
+                values = list(
+                    apprenant_satisfactions.filter(**{f"{field}__isnull": False}).values_list(
+                        field, flat=True
+                    )
+                )
+                if values:
+                    apprenant_data[field] = round(sum(values) / len(values), 2)
+            except Exception:
+                pass
+
+        combo_key = (
+            _normalize_indicator_match_text(
+                prestation.prestataire.raison_sociale if prestation.prestataire else ""
+            ),
+            _normalize_indicator_match_text(
+                prestation.beneficiaire.nom_structure if prestation.beneficiaire else ""
+            ),
+        )
+        formateur_metrics = formateur_metrics_by_combo.get(combo_key)
+
+        formateur_data = {
+            "q1_prerequis_apprenants": None,
+            "q2_interaction_apprenants": None,
+            "q3_competences_acquises": None,
+            "q4_gestion_administrative": [],
+            "q5_gestion_financiere": [],
+            "q6_communication": [],
+            "count": int((formateur_metrics or {}).get("count") or 0),
+        }
+
+        if formateur_metrics:
+            for field in [
+                "q1_prerequis_apprenants",
+                "q2_interaction_apprenants",
+                "q3_competences_acquises",
+            ]:
+                values = formateur_metrics["scores"].get(field, [])
+                if values:
+                    formateur_data[field] = round(sum(values) / len(values), 2)
+            for field in ["q4_gestion_administrative", "q5_gestion_financiere", "q6_communication"]:
+                formateur_data[field] = sorted(formateur_metrics["texts"].get(field, set()))
+
+        # Récupérer les textes pour q4-q6
+        table_data.append(
+            {
+                "code": prestation.code,
+                "prestataire": (
+                    prestation.prestataire.raison_sociale if prestation.prestataire else ""
+                ),
+                "beneficiaire": (
+                    prestation.beneficiaire.nom_structure if prestation.beneficiaire else ""
+                ),
+                "apprenant": apprenant_data,
+                "formateur": formateur_data,
+            }
+        )
+
+    return table_data
+
+
 def _build_satisfaction_dashboard_data(request):
     selected_source = _analysis_selected_source(request)
     source_options = get_workbook_source_options()
@@ -3156,6 +3333,7 @@ def _build_satisfaction_dashboard_data(request):
         "cohortes": filter_options.get("cohorte", []),
         "status": filter_options.get("status", []),
         "filter_map_json": filter_map_json,
+        "prestation_indicators_table": _build_prestation_indicators_table(),
     }
     appels_cibles_class_codes = [
         str(item.get("code") or "").strip()
@@ -3335,74 +3513,6 @@ def satisfaction_dashboard_export_chapeau(request):
 
 
 @require_analysis_access
-def satisfaction_dashboard_export_class_lists_zip(request):
-    """Export one CSV per class as a ZIP archive (no operator/enqueteur column)."""
-    dashboard = _build_satisfaction_dashboard_data(request)
-    rows = dashboard["rows"]
-    context = dashboard["context"]
-
-    # Only export analyzed classes (those that reached the analysis threshold)
-    analyzed_class_codes = {
-        normalize_network_lookup(item["code"])
-        for item in context.get("analyzed_classes", [])
-        if item.get("code")
-    }
-
-    # Group rows by classe_code — restrict to analyzed classes only
-    classes: dict[str, list[dict]] = {}
-    for row in _ordered_survey_rows(rows):
-        code = str(row.get("classe_code") or "").strip()
-        if code and (
-            not analyzed_class_codes or normalize_network_lookup(code) in analyzed_class_codes
-        ):
-            classes.setdefault(code, []).append(row)
-
-    headers = [
-        "N°",
-        "Apprenant ID",
-        "Apprenant",
-        "Bénéficiaire",
-        "Prestataire",
-        "Formation",
-        "Classe",
-        "Date",
-        *[label for _, label in Q_FIELDS],
-        "Commentaire",
-        "Recommandations",
-    ]
-
-    zip_buffer = io.BytesIO()
-    with zipfile.ZipFile(zip_buffer, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
-        for code, class_rows in sorted(classes.items()):
-            csv_buffer = io.StringIO()
-            writer = csv.writer(csv_buffer)
-            writer.writerow(headers)
-            for idx, row in enumerate(class_rows, start=1):
-                writer.writerow(
-                    [
-                        idx,
-                        row.get("apprenant_id") or row.get("apprenant_code", ""),
-                        row.get("apprenant_nom", ""),
-                        row.get("beneficiaire", ""),
-                        row.get("prestataire", ""),
-                        row.get("formation_intitule") or row.get("classe_intitule", ""),
-                        code,
-                        _format_export_date(row.get("survey_date")),
-                        *[row.get(field) for field, _ in Q_FIELDS],
-                        row.get("commentaire", ""),
-                        row.get("recommandations", ""),
-                    ]
-                )
-            safe_code = re.sub(r'[\\/:*?"<>|]', "_", code)
-            zf.writestr(f"{safe_code}.csv", csv_buffer.getvalue().encode("utf-8-sig"))
-
-    zip_buffer.seek(0)
-    response = HttpResponse(zip_buffer.getvalue(), content_type="application/zip")
-    response["Content-Disposition"] = 'attachment; filename="listes-par-classe.zip"'
-    return response
-
-
-@require_analysis_access
 def satisfaction_dashboard_export_prestation_lists_xlsx(request):
     """Export one sheet per prestation as an XLSX workbook."""
     dashboard = _build_satisfaction_dashboard_data(request)
@@ -3514,6 +3624,68 @@ def satisfaction_dashboard_export_prestation_lists_xlsx(request):
         content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
     response["Content-Disposition"] = 'attachment; filename="listes-par-prestation.xlsx"'
+    return response
+
+
+@require_analysis_access
+@require_analysis_access
+def satisfaction_dashboard_export_ranking(request):
+    """Génère un Excel contenant le classement complet des prestations."""
+    dashboard = _build_satisfaction_dashboard_data(request)
+    ctx = dashboard["context"]
+    source_key = _analysis_selected_source(request)
+
+    # On utilise toutes_prestations_classees (déjà trié par get_prestations_ranking)
+    # Note: get_prestations_ranking a été modifié pour inclure les effectifs=1
+    ranking = get_prestations_ranking(ctx.get("prestation_stats_all", []), order="desc")
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Classement Prestations"
+
+    # Header
+    headers = [
+        "Rang",
+        "Code Prestation",
+        "Intitulé Formation",
+        "Prestataire",
+        "Bénéficiaire",
+        "Région",
+        "Effectif à former",
+        "Nb Enquêtes",
+        "Taux de Réponse (%)",
+        "Satisfaction (0-5)",
+        "Score Global",
+    ]
+    ws.append(headers)
+
+    # Data
+    for idx, p in enumerate(ranking, start=1):
+        ws.append(
+            [
+                idx,
+                p["code"],
+                p["intitule"],
+                p["prestataire"],
+                p["beneficiaire"],
+                p["region"],
+                p["effectif"],
+                p["nb_reponses"],
+                p["taux_reponse"],
+                p["avg_satisfaction"],
+                p["score_global"],
+            ]
+        )
+
+    # Mise en forme basique
+    _autosize_worksheet(ws)
+
+    filename = f"Classement_Prestation_Apprenants_{source_key}.xlsx"
+    response = HttpResponse(
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    wb.save(response)
     return response
 
 
@@ -3962,6 +4134,192 @@ def satisfaction_dashboard_daily_report_xlsx(request):
 
 
 @require_analysis_access
+def satisfaction_dashboard_export_indicators_xlsx(request):
+    """Export du tableau des indicateurs de prestations en XLSX."""
+    prestation_indicators_table = _build_prestation_indicators_table()
+
+    wb = openpyxl.Workbook()
+
+    # Feuille Apprenant
+    ws_apprenant = wb.active
+    ws_apprenant.title = "Apprenant"
+
+    headers_apprenant = [
+        "Code Prestation",
+        "Prestataire",
+        "Bénéficiaire",
+        "Clarté exposés",
+        "Interaction form.",
+        "Maîtrise contenu",
+        "Salle adéquate",
+        "Matériel",
+        "Org. temps",
+        "Utilité form.",
+        "Adéquation besoins",
+        "Satisfaction",
+        "N enquêtes",
+    ]
+    ws_apprenant.append(headers_apprenant)
+
+    for prestation in prestation_indicators_table:
+        row = [
+            prestation["code"],
+            prestation["prestataire"],
+            prestation["beneficiaire"],
+            prestation["apprenant"]["q1_clarte_exposes"],
+            prestation["apprenant"]["q2_interaction_formateur"],
+            prestation["apprenant"]["q3_maitrise_contenu"],
+            prestation["apprenant"]["q4_salle_adequate"],
+            prestation["apprenant"]["q5_materiel_disponible"],
+            prestation["apprenant"]["q6_organisation_temps"],
+            prestation["apprenant"]["q7_utilite_formation"],
+            prestation["apprenant"]["q8_adequation_besoins"],
+            prestation["apprenant"]["q9_satisfaction_globale"],
+            prestation["apprenant"]["count"],
+        ]
+        ws_apprenant.append(row)
+
+    # Feuille Formateur
+    ws_formateur = wb.create_sheet("Formateur")
+
+    headers_formateur = [
+        "Code Prestation",
+        "Prestataire",
+        "Bénéficiaire",
+        "Prérequis app.",
+        "Interaction app.",
+        "Compétences acquises",
+        "Gestion administrative",
+        "Gestion financière",
+        "Communication",
+        "N enquêtes",
+    ]
+    ws_formateur.append(headers_formateur)
+
+    for prestation in prestation_indicators_table:
+        row = [
+            prestation["code"],
+            prestation["prestataire"],
+            prestation["beneficiaire"],
+            prestation["formateur"]["q1_prerequis_apprenants"],
+            prestation["formateur"]["q2_interaction_apprenants"],
+            prestation["formateur"]["q3_competences_acquises"],
+            "; ".join(prestation["formateur"]["q4_gestion_administrative"]),
+            "; ".join(prestation["formateur"]["q5_gestion_financiere"]),
+            "; ".join(prestation["formateur"]["q6_communication"]),
+            prestation["formateur"]["count"],
+        ]
+        ws_formateur.append(row)
+
+    # Styling
+    for ws in [ws_apprenant, ws_formateur]:
+        for col in range(1, len(ws[1]) + 1):
+            cell = ws.cell(row=1, column=col)
+            cell.font = openpyxl.styles.Font(bold=True, color="FFFFFF")
+            cell.fill = openpyxl.styles.PatternFill(
+                start_color="4C1D95", end_color="4C1D95", fill_type="solid"
+            )
+
+        # Ajuster la largeur
+        ws.column_dimensions["A"].width = 15
+        ws.column_dimensions["B"].width = 30
+        ws.column_dimensions["C"].width = 30
+        for col in range(4, len(ws[1]) + 1):
+            ws.column_dimensions[openpyxl.utils.get_column_letter(col)].width = 14
+
+    response = HttpResponse(
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+    response["Content-Disposition"] = 'attachment; filename="indicateurs-prestations.xlsx"'
+    wb.save(response)
+    return response
+
+
+@require_analysis_access
+def satisfaction_dashboard_export_indicators_csv(request):
+    """Export du tableau des indicateurs de prestations en CSV."""
+    prestation_indicators_table = _build_prestation_indicators_table()
+
+    # Récupérer le type d'export demandé (apprenant ou formateur)
+    indicator_type = request.GET.get("type", "apprenant").lower()
+
+    response = HttpResponse(content_type="text/csv; charset=utf-8")
+    response["Content-Disposition"] = (
+        f'attachment; filename="indicateurs-prestations-{indicator_type}.csv"'
+    )
+    response.write("\ufeff")  # BOM for Excel
+
+    writer = csv.writer(response)
+
+    if indicator_type == "formateur":
+        headers = [
+            "Code Prestation",
+            "Prestataire",
+            "Bénéficiaire",
+            "Prérequis app.",
+            "Interaction app.",
+            "Compétences acquises",
+            "Gestion administrative",
+            "Gestion financière",
+            "Communication",
+            "N enquêtes",
+        ]
+        writer.writerow(headers)
+
+        for prestation in prestation_indicators_table:
+            row = [
+                prestation["code"],
+                prestation["prestataire"],
+                prestation["beneficiaire"],
+                prestation["formateur"]["q1_prerequis_apprenants"] or "",
+                prestation["formateur"]["q2_interaction_apprenants"] or "",
+                prestation["formateur"]["q3_competences_acquises"] or "",
+                "; ".join(prestation["formateur"]["q4_gestion_administrative"]),
+                "; ".join(prestation["formateur"]["q5_gestion_financiere"]),
+                "; ".join(prestation["formateur"]["q6_communication"]),
+                prestation["formateur"]["count"],
+            ]
+            writer.writerow(row)
+    else:
+        headers = [
+            "Code Prestation",
+            "Prestataire",
+            "Bénéficiaire",
+            "Clarté exposés",
+            "Interaction form.",
+            "Maîtrise contenu",
+            "Salle adéquate",
+            "Matériel",
+            "Org. temps",
+            "Utilité form.",
+            "Adéquation besoins",
+            "Satisfaction",
+            "N enquêtes",
+        ]
+        writer.writerow(headers)
+
+        for prestation in prestation_indicators_table:
+            row = [
+                prestation["code"],
+                prestation["prestataire"],
+                prestation["beneficiaire"],
+                prestation["apprenant"]["q1_clarte_exposes"] or "",
+                prestation["apprenant"]["q2_interaction_formateur"] or "",
+                prestation["apprenant"]["q3_maitrise_contenu"] or "",
+                prestation["apprenant"]["q4_salle_adequate"] or "",
+                prestation["apprenant"]["q5_materiel_disponible"] or "",
+                prestation["apprenant"]["q6_organisation_temps"] or "",
+                prestation["apprenant"]["q7_utilite_formation"] or "",
+                prestation["apprenant"]["q8_adequation_besoins"] or "",
+                prestation["apprenant"]["q9_satisfaction_globale"] or "",
+                prestation["apprenant"]["count"],
+            ]
+            writer.writerow(row)
+
+    return response
+
+
+@require_analysis_access
 def satisfaction_dashboard(request):
     dashboard = _build_satisfaction_dashboard_data(request)
     ctx = dashboard["context"]
@@ -4391,7 +4749,7 @@ def _apply_update_form_table_filters(queryset, classe_id_filter: str, prestation
 
 def _normalize_presence_marker(value: str) -> str:
     marker = str(value or "").strip().upper()
-    return marker if marker in {"PR", "AB"} else "AB"
+    return marker if marker in {"PR", "AB"} else ""
 
 
 def _import_presence_controls_from_excel(uploaded_file) -> tuple[int, list[str]]:
@@ -5131,6 +5489,7 @@ def satisfaction_dashboard_export_csv(request):
 
 @require_analysis_access
 def satisfaction_dashboard_export_class_lists_zip(request):
+    """Export one CSV per class as a ZIP archive (sans colonnes Date/Heure)."""
     dashboard = _build_satisfaction_dashboard_data(request)
     rows = dashboard["rows"]
 
@@ -5139,54 +5498,166 @@ def satisfaction_dashboard_export_class_lists_zip(request):
         class_code = str(row.get("classe_code") or "").strip()
         class_rows.setdefault(class_code, []).append(row)
 
+    headers = [
+        "N°",
+        "ID local de l'apprenant",
+        "Apprenant",
+        "Bénéficiaire",
+        "Prestataire",
+        "Formation",
+        "Inspecteur",
+        "Classe",
+        *[label for _, label in Q_FIELDS],
+        "Commentaire",
+        "Recommandations",
+        "ID Enquête",
+    ]
+
     archive_buffer = io.BytesIO()
     with zipfile.ZipFile(archive_buffer, "w", compression=zipfile.ZIP_DEFLATED) as archive:
         for class_code in sorted(class_rows.keys()):
             csv_buffer = io.StringIO()
             writer = csv.writer(csv_buffer, lineterminator="\n")
-            writer.writerow(
-                [
-                    "ApprenantID réseau",
-                    "Apprenant",
-                    "Bénéficiaire",
-                    "Prestataire",
-                    "Formation",
-                    "Inspecteur",
-                    "Classe",
-                    *[label for _, label in Q_FIELDS],
-                    "Commentaire",
-                    "Recommandations",
-                    "EnquêteID",
-                    "Date",
-                    "Heure",
-                ]
-            )
-            for row in class_rows[class_code]:
+            writer.writerow(headers)
+            for idx, row in enumerate(class_rows[class_code], start=1):
                 writer.writerow(
                     [
-                        row.get("source_apprenant_id", ""),
+                        idx,
+                        row.get("apprenant_id") or row.get("apprenant_code", ""),
                         row.get("apprenant_nom", ""),
                         row.get("beneficiaire", ""),
                         row.get("prestataire", ""),
                         row.get("formation_intitule") or row.get("classe_intitule", ""),
-                        row.get("inspecteur_code")
-                        or row.get("source_inspecteur_id")
-                        or row.get("source_inspecteur_label", ""),
+                        row.get("inspecteur_code") or "",
                         row.get("classe_code", ""),
                         *[row.get(field, "") for field, _ in Q_FIELDS],
                         row.get("commentaire", ""),
                         row.get("recommandations", ""),
                         row.get("source_enquete_id", ""),
-                        _format_export_date(row.get("survey_date")),
-                        _format_export_time(row.get("survey_time")),
                     ]
                 )
-            archive.writestr(f"{class_code}.csv", csv_buffer.getvalue())
+            safe_code = re.sub(r'[\\/:*?"<>|]', "_", class_code)
+            archive.writestr(
+                f"Satisfaction_{safe_code}_SA.csv",
+                csv_buffer.getvalue().encode("utf-8-sig"),
+            )
 
     archive_buffer.seek(0)
     response = HttpResponse(archive_buffer.getvalue(), content_type="application/zip")
     response["Content-Disposition"] = 'attachment; filename="satisfaction-class-lists.zip"'
     return response
+
+
+# ---------------------------------------------------------------------------
+# Export CSV par classe individuelle + API JSON pour fill_excel.py
+# ---------------------------------------------------------------------------
+
+
+def _check_export_api_key(request) -> bool:
+    """Vérifie la clé X-Export-Api-Key contre EXPORT_API_KEY dans settings."""
+    from django.conf import settings as _s
+
+    expected = getattr(_s, "EXPORT_API_KEY", "")
+    if not expected:
+        return False
+    return request.headers.get("X-Export-Api-Key", "") == expected
+
+
+def satisfaction_dashboard_export_classe_csv(request, code: str):
+    """Export CSV des enquêtes d'une seule classe (pour fill_excel.py).
+    Authentification par clé API (X-Export-Api-Key) — pas de login requis.
+    """
+    if not _check_export_api_key(request):
+        return JsonResponse({"error": "Clé API manquante ou invalide."}, status=403)
+    dashboard = _build_satisfaction_dashboard_data(request)
+    rows = dashboard["rows"]
+
+    target = code.strip().upper()
+    class_rows = [
+        row
+        for row in _ordered_survey_rows(rows)
+        if str(row.get("classe_code") or "").strip().upper() == target
+    ]
+
+    headers = [
+        "N°",
+        "ID local de l'apprenant",
+        "Apprenant",
+        "Bénéficiaire",
+        "Prestataire",
+        "Formation",
+        "Inspecteur",
+        "Classe",
+        *[label for _, label in Q_FIELDS],
+        "Commentaire",
+        "Recommandations",
+        "ID Enquête",
+    ]
+
+    filename = f"Satisfaction_{re.sub(r'[^A-Za-z0-9_-]', '_', code)}_SA.csv"
+    response = HttpResponse(content_type="text/csv; charset=utf-8")
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    response.write("\ufeff")
+    writer = csv.writer(response)
+    writer.writerow(headers)
+    for idx, row in enumerate(class_rows, start=1):
+        writer.writerow(
+            [
+                idx,
+                row.get("apprenant_id") or row.get("apprenant_code", ""),
+                row.get("apprenant_nom", ""),
+                row.get("beneficiaire", ""),
+                row.get("prestataire", ""),
+                row.get("formation_intitule") or row.get("classe_intitule", ""),
+                row.get("inspecteur_code") or "",
+                row.get("classe_code", ""),
+                *[row.get(field, "") for field, _ in Q_FIELDS],
+                row.get("commentaire", ""),
+                row.get("recommandations", ""),
+                row.get("source_enquete_id", ""),
+            ]
+        )
+    return response
+
+
+def satisfaction_api_classes_excel(request):
+    """
+    API JSON — liste des classes analysées avec leurs URLs (pour fill_excel.py).
+    Authentification via en-tête HTTP : X-Export-Api-Key: <EXPORT_API_KEY>
+    """
+    if not _check_export_api_key(request):
+        return JsonResponse({"error": "Clé API manquante ou invalide."}, status=403)
+
+    from django.conf import settings as _s
+
+    from App_PADESCE.satisfaction_apprenants.sharepoint_csv_links import SHAREPOINT_CSV_LINKS
+
+    site_url = (getattr(_s, "SITE_URL", "") or "https://call.naumur.com").rstrip("/")
+    base_app = "/satisfaction-apprenants"
+
+    dashboard = _build_satisfaction_dashboard_data(request)
+    rows = dashboard["rows"]
+    context = dashboard["context"]
+
+    # Regrouper par classe_code pour obtenir les métadonnées
+    seen: dict[str, dict] = {}
+    for row in _ordered_survey_rows(rows):
+        code = str(row.get("classe_code") or "").strip()
+        if not code or code == "Non renseignée":
+            continue
+        if code not in seen:
+            fallback_csv = f"{site_url}{base_app}/analyse/export/classe/{code}/csv/"
+            seen[code] = {
+                "code": code,
+                "label": row.get("formation_intitule") or row.get("classe_intitule") or code,
+                "prestataire": row.get("prestataire", ""),
+                "beneficiaire": row.get("beneficiaire", ""),
+                "cohorte": row.get("cohorte", ""),
+                "enquete_url": f"{site_url}/classe/{code.lower()}/",
+                "csv_url": SHAREPOINT_CSV_LINKS.get(code, fallback_csv),
+            }
+
+    return JsonResponse({"classes": list(seen.values())})
 
 
 # ---------------------------------------------------------------------------
@@ -5864,6 +6335,54 @@ def _build_local_apprenant_id_map(source_bundle: dict | None) -> list[dict]:
         )
     rows.sort(key=lambda r: (0 if not r["apprenant_id"] else 1, r["code"]))
     return rows
+
+
+def export_apprenant_global_averages_xlsx(request):
+    """Export des moyennes générales des apprenants en Excel."""
+    dashboard = _build_satisfaction_dashboard_data(request)
+    context = dashboard["context"]
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Moyennes générales"
+
+    # En-têtes
+    q_labels = [label for _, label in Q_FIELDS]
+    ws.append(["Indicateur"] + q_labels)
+
+    # Données des moyennes générales
+    row_data = ["Moyenne générale"]
+    for label in q_labels:
+        avg = context.get("global_avgs", {}).get(label, 0)
+        row_data.append(round(avg, 2))
+    ws.append(row_data)
+
+    # Style
+    for col in range(1, len(q_labels) + 2):
+        cell = ws.cell(row=1, column=col)
+        cell.font = openpyxl.styles.Font(bold=True)
+        cell.fill = openpyxl.styles.PatternFill(
+            start_color="E6E6FA", end_color="E6E6FA", fill_type="solid"
+        )
+
+    for col in range(1, len(q_labels) + 2):
+        cell = ws.cell(row=2, column=col)
+        cell.font = openpyxl.styles.Font(bold=True)
+        cell.fill = openpyxl.styles.PatternFill(
+            start_color="FFE6E6", end_color="FFE6E6", fill_type="solid"
+        )
+
+    # Ajuster la largeur des colonnes
+    for col in range(1, len(q_labels) + 2):
+        ws.column_dimensions[openpyxl.utils.get_column_letter(col)].width = 15
+
+    # Créer la réponse HTTP
+    response = HttpResponse(
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+    response["Content-Disposition"] = 'attachment; filename="moyennes-generales-apprenants.xlsx"'
+    wb.save(response)
+    return response
 
 
 @require_analysis_access

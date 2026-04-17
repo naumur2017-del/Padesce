@@ -15,7 +15,7 @@ from django.core.cache import cache
 from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
 from django.db import OperationalError, ProgrammingError
 from django.db.models import Count, Q
-from django.http import Http404, JsonResponse, QueryDict
+from django.http import Http404, JsonResponse, QueryDict, HttpResponse
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
 from django.utils import timezone
@@ -2315,3 +2315,111 @@ def user_tracking_view(request):
 
     payload = _build_tracking_payload(user_search=(request.GET.get("user_search") or "").strip())
     return render(request, "core/user_tracking.html", payload)
+
+
+# ---------------------------------------------------------------------------
+# VUES D'EXPORT PUBLIQUES POUR LES MOYENNES GENERALES
+# ---------------------------------------------------------------------------
+
+def public_export_apprenant_global_averages_xlsx(request):
+    """Export public des moyennes générales des apprenants en Excel."""
+    try:
+        import openpyxl
+        from App_PADESCE.satisfaction_apprenants.views import _build_satisfaction_dashboard_data, Q_FIELDS
+        
+        dashboard = _build_satisfaction_dashboard_data(request)
+        context = dashboard["context"]
+        
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "Moyennes générales"
+        
+        # En-têtes
+        q_labels = [label for _, label in Q_FIELDS]
+        ws.append(["Indicateur"] + q_labels)
+        
+        # Données des moyennes générales
+        row_data = ["Moyenne générale"]
+        for label in q_labels:
+            avg = context.get("global_avgs", {}).get(label, 0)
+            row_data.append(round(avg, 2))
+        ws.append(row_data)
+        
+        # Style
+        for col in range(1, len(q_labels) + 2):
+            cell = ws.cell(row=1, column=col)
+            cell.font = openpyxl.styles.Font(bold=True)
+            cell.fill = openpyxl.styles.PatternFill(start_color="E6E6FA", end_color="E6E6FA", fill_type="solid")
+        
+        for col in range(1, len(q_labels) + 2):
+            cell = ws.cell(row=2, column=col)
+            cell.font = openpyxl.styles.Font(bold=True)
+            cell.fill = openpyxl.styles.PatternFill(start_color="FFE6E6", end_color="FFE6E6", fill_type="solid")
+        
+        # Ajuster la largeur des colonnes
+        for col in range(1, len(q_labels) + 2):
+            ws.column_dimensions[openpyxl.utils.get_column_letter(col)].width = 15
+        
+        # Créer la réponse HTTP
+        response = HttpResponse(
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+        response["Content-Disposition"] = 'attachment; filename="moyennes-generales-apprenants.xlsx"'
+        wb.save(response)
+        return response
+        
+    except Exception as e:
+        return HttpResponse(f"Erreur lors de l'export: {str(e)}", status=500)
+
+
+def public_export_formateur_global_averages_xlsx(request):
+    """Export public des moyennes générales des formateurs en Excel."""
+    try:
+        import openpyxl
+        from App_PADESCE.satisfaction_formateurs.views import _build_satisfaction_formateurs_dashboard_context, Q_FORM_FIELDS
+        
+        context = _build_satisfaction_formateurs_dashboard_context(request)
+        
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "Moyennes générales"
+        
+        # En-têtes
+        q_labels = [label for _, label in Q_FORM_FIELDS]
+        ws.append(["Indicateur"] + q_labels + ["Moyenne générale GLOBALE"])
+        
+        # Données des moyennes générales
+        row_data = ["Moyenne générale"]
+        for label in q_labels:
+            avg = context.get("global_avgs", {}).get(label, 0)
+            row_data.append(round(avg, 2))
+        # Ajouter la moyenne générale globale
+        moyenne_globale = context.get("moyenne_generale_globale", 0)
+        row_data.append(round(moyenne_globale, 2))
+        ws.append(row_data)
+        
+        # Style
+        for col in range(1, len(q_labels) + 3):
+            cell = ws.cell(row=1, column=col)
+            cell.font = openpyxl.styles.Font(bold=True)
+            cell.fill = openpyxl.styles.PatternFill(start_color="E6E6FA", end_color="E6E6FA", fill_type="solid")
+        
+        for col in range(1, len(q_labels) + 3):
+            cell = ws.cell(row=2, column=col)
+            cell.font = openpyxl.styles.Font(bold=True)
+            cell.fill = openpyxl.styles.PatternFill(start_color="FFE6E6", end_color="FFE6E6", fill_type="solid")
+        
+        # Ajuster la largeur des colonnes
+        for col in range(1, len(q_labels) + 3):
+            ws.column_dimensions[openpyxl.utils.get_column_letter(col)].width = 15
+        
+        # Créer la réponse HTTP
+        response = HttpResponse(
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+        response["Content-Disposition"] = 'attachment; filename="moyennes-generales-formateurs.xlsx"'
+        wb.save(response)
+        return response
+        
+    except Exception as e:
+        return HttpResponse(f"Erreur lors de l'export: {str(e)}", status=500)

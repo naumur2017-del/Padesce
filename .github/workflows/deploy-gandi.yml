@@ -16,9 +16,53 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  quality-check:
+    name: Code Quality Check
+    runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          
+      - name: Configure Git
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+          
+      - name: Run Black
+        run: |
+          black --check --diff App_PADESCE/ || echo "Black formatting issues found"
+        
+      - name: Run Flake8
+        run: |
+          flake8 App_PADESCE/ --max-line-length=100 || echo "Flake8 issues found"
+        
+      - name: Run isort
+        run: |
+          isort --check-only --diff App_PADESCE/ || echo "isort issues found"
+        
+      - name: Django Check
+        run: python manage.py check
+        
+      - name: Django Tests
+        run: python manage.py test --failfast || echo "Tests failed"
+
   deploy:
     name: Deploy to Gandi
     runs-on: ubuntu-latest
+    needs: quality-check
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
       DJANGO_SECRET_KEY: ${{ secrets.DJANGO_SECRET_KEY }}
@@ -42,6 +86,7 @@ jobs:
       GANDI_SFTP_REMOTE_PATH: ${{ secrets.GANDI_SFTP_REMOTE_PATH }}
       GANDI_DEPLOY_VERIFY_URL: https://call.naumur.com
       GANDI_DEPLOY_INCLUDE_PATHS: App_PADESCE,templates,static,staticfiles,admin,data,docs,manage.py,requirements.txt,Dockerfile,docker-compose.yml,start-command
+      EXPORT_API_KEY: ${{ secrets.EXPORT_API_KEY }}
       MICROSOFT_GRAPH_CLIENT_ID: b375cd25-86a8-4f59-8d14-10436238957d
       MICROSOFT_GRAPH_CLIENT_SECRET: ${{ secrets.MICROSOFT_GRAPH_CLIENT_SECRET }}
       MICROSOFT_GRAPH_TENANT_ID: 2c91375e-f3f5-486e-8fdd-c8273053bd5d

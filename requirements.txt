@@ -27,3 +27,9 @@ langchain-anthropic
 langgraph>=0.1.0
 pillow>=10.0.0
 torch==2.10.0
+
+# Développement et formatage
+black
+flake8
+isort
+pre-commit

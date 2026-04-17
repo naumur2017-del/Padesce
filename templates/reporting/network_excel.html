@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Classeur reseau{% endblock %}
+{% block title %}Classeur réseau{% endblock %}
 {% block content %}
 <style>
   .excel-shell {
@@ -355,12 +355,12 @@
       <div class="metric-help" id="metric-updated">Vérification du réseau en cours...</div>
     </article>
     <article class="excel-card">
-      <div class="metric-label">Feuilles detectées</div>
+      <div class="metric-label">Feuilles détectées</div>
       <div class="metric-value" id="metric-sheets">0</div>
-      <div class="metric-help">Un onglet est génére pour chaque feuille du classeur.</div>
+      <div class="metric-help">Un onglet est généré pour chaque feuille du classeur.</div>
     </article>
     <article class="excel-card">
-      <div class="metric-label">Lignes repertoriées</div>
+      <div class="metric-label">Lignes répertoriées</div>
       <div class="metric-value" id="metric-rows">0</div>
       <div class="metric-help">Somme des lignes de données hors entêtes.</div>
     </article>
@@ -379,17 +379,17 @@
           id="sheet-search"
           class="search-input"
           type="search"
-          placeholder="Rechercher un mot, un code, un nom, un numero..."
+          placeholder="Rechercher un mot, un code, un nom, un numéro..."
           autocomplete="off"
         >
       </div>
       <div class="toolbar-actions">
         <div id="loading-note" class="loading-note" hidden>Chargement...</div>
-        <button id="refresh-button" type="button" class="excel-btn excel-btn-primary">Actualiser depuis le reseau</button>
+        <button id="refresh-button" type="button" class="excel-btn excel-btn-primary">Actualiser depuis le réseau</button>
       </div>
     </div>
     <div class="hint-box" style="margin-top:14px;">
-      Astuce: utilisez les onglets pour changer de feuille. Le filtre agit seulement sur la feuille ouverte, puis la table revient sur la page 1.
+      Astuce : utilisez les onglets pour changer de feuille. Le filtre agit seulement sur la feuille ouverte, puis la table revient sur la page 1.
     </div>
   </section>
 
@@ -559,7 +559,7 @@
 
       elements.sourcePath.textContent = payload.source.path;
       elements.metricFile.textContent = payload.source.name;
-      elements.metricUpdated.textContent = `Derniere modification reseau: ${payload.source.modified_label}`;
+      elements.metricUpdated.textContent = `Dernière modification réseau : ${payload.source.modified_label}`;
       elements.metricSheets.textContent = formatter.format(payload.sheet_count);
       elements.metricRows.textContent = formatter.format(payload.total_rows);
 
@@ -567,7 +567,7 @@
       elements.meta.textContent = `Page active sur le fichier ${payload.source.name}. Vous consultez la feuille ${sheet.name}.`;
       elements.columns.innerHTML = `<strong>${formatter.format(sheet.headers.length)}</strong> colonnes`;
       elements.rows.innerHTML = sheet.filtered
-        ? `<strong>${formatter.format(sheet.rows.length)}</strong> lignes affichees`
+        ? `<strong>${formatter.format(sheet.rows.length)}</strong> lignes affichées`
         : `<strong>${formatter.format(sheet.total_rows || 0)}</strong> lignes totales`;
       elements.summary.innerHTML = sheet.filtered
         ? `<strong>Filtre actif</strong>`
@@ -577,7 +577,7 @@
       renderTable(sheet.headers, sheet.rows);
 
       if (sheet.filtered) {
-        elements.pagerInfo.textContent = `${sheet.summary}. ${sheet.has_next ? "Utilisez Suivant pour continuer le filtre." : "Fin des resultats filtres."}`;
+        elements.pagerInfo.textContent = `${sheet.summary}. ${sheet.has_next ? "Utilisez Suivant pour continuer le filtre." : "Fin des résultats filtrés."}`;
       } else {
         elements.pagerInfo.textContent = `Page ${formatter.format(sheet.page)} sur ${formatter.format(sheet.total_pages || 1)} · ${sheet.summary}`;
       }
@@ -611,7 +611,7 @@
         }
         renderPayload(payload);
       } catch (error) {
-        showError(error.message || "Impossible de charger le classeur reseau.");
+        showError(error.message || "Impossible de charger le classeur réseau.");
       } finally {
         if (requestId === state.requestId) {
           setLoading(false);

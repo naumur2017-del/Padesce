@@ -54,7 +54,10 @@
 
     <div class="scope-tabs" role="tablist" aria-label="Choix du jeu de données FAST STATS">
       <button type="button" class="scope-tab {% if fast_stats_default_mode == 'apprenant' %}active{% endif %}" data-fast-stats-tab="apprenant">Apprenant</button>
+      <button type="button" class="scope-tab {% if fast_stats_default_mode == 'general' %}active{% endif %}" data-fast-stats-tab="general">General</button>
+      <button type="button" class="scope-tab {% if fast_stats_default_mode == 'padesce' %}active{% endif %}" data-fast-stats-tab="padesce">Padesce</button>
       <button type="button" class="scope-tab {% if fast_stats_default_mode == 'formateur' %}active{% endif %}" data-fast-stats-tab="formateur">Formateur</button>
+      <button type="button" class="scope-tab {% if fast_stats_default_mode == 'descentes' %}active{% endif %}" data-fast-stats-tab="descentes">Descentes</button>
     </div>
 
     <div id="js-fast-stats-content" class="fast-stats-content">
@@ -143,6 +146,124 @@
         </div>`;
     }
 
+    function renderGeneralTable(mode) {
+      const rows = mode.rows || [];
+      if (!rows.length) {
+        return `<div class="fast-stats-empty">Aucune donnée FAST STATS disponible pour les filtres courants.</div>`;
+      }
+
+      const row = rows[0]; // Get the global row
+
+      // Format base values with appropriate units
+      const formatBase = (val, metric) => {
+        if (val == null) return "—";
+        if (metric.startsWith("resp_") || metric === "taux_presence") {
+          return `${val.toFixed(0)}%`;
+        } else if (metric === "qualite_environnement") {
+          return `${val.toFixed(1)}/13`;
+        } else if (metric.includes("satisfaction")) {
+          return `${val.toFixed(1)}/5`;
+        } else if (metric === "attitude_enquete") {
+          return `${val.toFixed(1)}/10`;
+        }
+        return `${val.toFixed(1)}`;
+      };
+
+      // Format scaled values
+      const formatScale = (val, scale) => {
+        if (val == null) return "—";
+        return `${val.toFixed(1)}/${scale}`;
+      };
+
+      // Build the metrics table
+      const metrics = [
+        { label: "Taux de présence", base: formatBase(row.taux_presence_base, "taux_presence"), scale: formatScale(row.taux_presence, row.taux_presence_scale) },
+        { label: "Resp horaire", base: formatBase(row.resp_horaire_base, "resp_horaire"), scale: formatScale(row.resp_horaire, row.resp_horaire_scale) },
+        { label: "Resp thème", base: formatBase(row.resp_theme_base, "resp_theme"), scale: formatScale(row.resp_theme, row.resp_theme_scale) },
+        { label: "Resp parité", base: formatBase(row.resp_parité_base, "resp_parité"), scale: formatScale(row.resp_parité, row.resp_parité_scale) },
+        { label: "Qualité environnement", base: formatBase(row.qualite_environnement_base, "qualite_environnement"), scale: formatScale(row.qualite_environnement, row.qualite_environnement_scale) },
+        { label: "Satisfaction apprenant", base: formatBase(row.satisfaction_apprenant_base, "satisfaction_apprenant"), scale: formatScale(row.satisfaction_apprenant, row.satisfaction_apprenant_scale) },
+        { label: "Satis faction formateur", base: formatBase(row.satisfaction_formateur_base, "satisfaction_formateur"), scale: formatScale(row.satisfaction_formateur, row.satisfaction_formateur_scale) },
+        { label: "Attitude enquête / respect consigne", base: formatBase(row.attitude_enquete_base, "attitude_enquete"), scale: formatScale(row.attitude_enquete, row.attitude_enquete_scale) },
+      ];
+
+      const tableBody = metrics.map(m => `
+        <tr>
+          <td style="text-align: left; font-weight: 600;">${escapeHtml(m.label)}</td>
+          <td class="num">${displayValue(m.base)}</td>
+          <td class="num" style="font-weight: 700;">${displayValue(m.scale)}</td>
+        </tr>
+      `).join("");
+
+      return `
+        <div class="table-scroll" style="max-height:60vh;">
+          <table class="fast-stats-table">
+            <thead>
+              <tr>
+                <th style="text-align: left;">Métrique</th>
+                <th>Base</th>
+                <th>Échelles</th>
+              </tr>
+            </thead>
+            <tbody>${tableBody}</tbody>
+          </table>
+        </div>`;
+    }
+
+    function renderPadesceTable(mode) {
+      const rows = mode.rows || [];
+      if (!rows.length) {
+        return `<div class="fast-stats-empty">Aucune prestation analysée disponible pour les filtres courants.</div>`;
+      }
+
+      const fPct  = v => v == null ? "—" : `${v.toFixed(1)}%`;
+      const fOn13 = v => v == null ? "—" : `${v.toFixed(2)}/13`;
+      const fOn5  = v => v == null ? "—" : `${v.toFixed(2)}/5`;
+      const fOn10 = v => v == null ? "—" : `${v.toFixed(2)}/10`;
+
+      const tableRows = rows.map(row => {
+        const note = row.note_globale != null ? row.note_globale.toFixed(2) : "—";
+        return `
+          <tr>
+            <td class="num">${displayValue(row.index)}</td>
+            <td style="font-weight:700;">${displayValue(row.prestation_id)}</td>
+            <td class="num">${displayValue(row.classe_count)}</td>
+            <td class="num">${fPct(row.taux_presence_base)}</td>
+            <td class="num">${fPct(row.resp_horaire_base)}</td>
+            <td class="num">${fPct(row.resp_theme_base)}</td>
+            <td class="num">${fPct(row.resp_parité_base)}</td>
+            <td class="num">${fOn13(row.qualite_environnement_base)}</td>
+            <td class="num">${fOn5(row.satisfaction_apprenant_base)}</td>
+            <td class="num">${fOn5(row.satisfaction_formateur_base)}</td>
+            <td class="num">${fOn10(row.attitude_enquete_base)}</td>
+            <td class="num" style="font-weight:900;color:var(--accent-strong);">${escapeHtml(note)}/100</td>
+          </tr>`;
+      }).join("");
+
+      return `
+        <div class="table-scroll" style="max-height:60vh;">
+          <table class="fast-stats-table" style="font-size:0.82rem;">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th style="text-align:left;">Prestation</th>
+                <th>Classes</th>
+                <th>Taux présence (%)</th>
+                <th>Resp horaire (%)</th>
+                <th>Resp thème (%)</th>
+                <th>Resp parité (%)</th>
+                <th>Qualité env. (/13)</th>
+                <th>Sat. apprenant (/5)</th>
+                <th>Sat. formateur (/5)</th>
+                <th>Attitude enquête (/10)</th>
+                <th style="color:var(--accent-strong);">Note globale (/100)</th>
+              </tr>
+            </thead>
+            <tbody>${tableRows}</tbody>
+          </table>
+        </div>`;
+    }
+
     function renderFormateurTable(mode) {
       const rows = mode.rows || [];
       const body = rows.length ? rows.map((row) => `
@@ -188,9 +309,63 @@
         </div>`;
     }
 
+    function renderDescentesTable(mode) {
+      const groups = mode.row_groups || [];
+      if (!groups.length) return `<div class="fast-stats-empty">Aucune donnée.</div>`;
+
+      return groups.map((group) => {
+        const isSF = group.id === "sf";
+        const rows = group.rows || [];
+        const thStyle = isSF
+          ? "background:#1F4E79;color:#fff;"
+          : "background:#375623;color:#fff;";
+
+        const head = isSF
+          ? `<tr style="${thStyle}"><th>#</th><th>Code</th><th>Lien des enquêtes</th><th>Type</th><th>Statut</th><th>Liens CSV</th><th>Bénéficiaire</th><th>Formation</th></tr>`
+          : `<tr style="${thStyle}"><th>#</th><th>Classe</th><th>Lien des enquêtes</th><th>Type (H)</th><th>Statut (J)</th><th>Liens CSV (P)</th><th>Prestataire</th><th>Bénéficiaire</th></tr>`;
+
+        const body = rows.length ? rows.map((row) => `
+          <tr>
+            <td class="num">${displayValue(row.index)}</td>
+            <td><strong>${escapeHtml(row.code)}</strong></td>
+            <td><a class="fast-stats-link" href="${escapeHtml(row.enquete_url)}" target="_blank" rel="noreferrer">Lien des enquêtes</a></td>
+            <td><span style="font-weight:700;color:${isSF ? '#1F4E79' : '#375623'};">${escapeHtml(row.type)}</span></td>
+            <td>${escapeHtml(row.statut)}</td>
+            <td><a class="fast-stats-link" href="${escapeHtml(row.csv_url)}" target="_blank" rel="noreferrer">Liens CSV</a></td>
+            <td>${displayValue(isSF ? row.beneficiaire : row.prestataire)}</td>
+            <td>${displayValue(isSF ? row.formation : row.beneficiaire)}</td>
+          </tr>
+        `).join("") : `<tr><td colspan="8" class="fast-stats-empty">Aucune ligne.</td></tr>`;
+
+        return `
+          <div style="margin-bottom:24px;">
+            <div style="font-weight:700;margin-bottom:8px;padding:6px 10px;border-radius:8px;background:${isSF ? 'rgba(31,78,121,0.1)' : 'rgba(55,86,35,0.1)'};">
+              ${escapeHtml(group.label)} — <span style="color:var(--muted);font-weight:400;">${rows.length} ligne(s)</span>
+            </div>
+            <div class="table-scroll" style="max-height:40vh;">
+              <table class="fast-stats-table">
+                <thead>${head}</thead>
+                <tbody>${body}</tbody>
+              </table>
+            </div>
+          </div>`;
+      }).join("");
+    }
+
     function renderMode(mode) {
       const meta = mode.metadata || {};
-      const table = mode.id === "formateur" ? renderFormateurTable(mode) : renderApprenantTable(mode);
+      let table;
+      if (mode.id === "descentes") {
+        table = renderDescentesTable(mode);
+      } else if (mode.id === "formateur") {
+        table = renderFormateurTable(mode);
+      } else if (mode.id === "padesce") {
+        table = renderPadesceTable(mode);
+      } else if (mode.id === "general") {
+        table = renderGeneralTable(mode);
+      } else {
+        table = renderApprenantTable(mode);
+      }
       return `
         <section class="fast-stats-mode ${mode.id === activeMode ? "active" : ""}" data-fast-stats-panel="${escapeHtml(mode.id)}">
           ${renderSummary(mode.summary_cards || [])}
