@@ -968,8 +968,8 @@ def _padesce_qualified_prestation_keys(
         'PRESTA165', 'PRESTA166', 'PRESTA168', 'PRESTA170', 'PRESTA172', 'PRESTA173'
     }
 
-    - Si source indispo: Fallback sur les prestations DB Termitées (Win 2/3) & Qualifiées (Seuil).
-    """
+    # - Si source indispo: Fallback sur les prestations DB Termitées (Win 2/3) & Qualifiées (Seuil).
+    # """
     from django.db.models import Prefetch
 
     from App_PADESCE.core.analysis_rules import (
