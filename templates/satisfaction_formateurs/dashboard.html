@@ -426,7 +426,7 @@
           <tr>
             <td>{{ item.label }}</td>
             <td style="text-align:center;font-weight:700;">{{ item.nb }}</td>
-            {% for avg in item.avgs %}<td><span class="score-pill">{{ avg|floatformat:2 }}</span></td>{% endfor %}
+            {% for avg in item.avgs %}<td><span class="score-pill">{% if avg is not None %}{{ avg|floatformat:2 }}{% else %}0.00{% endif %}</span></td>{% endfor %}
           </tr>
           {% empty %}
           <tr><td colspan="5" style="text-align:center;color:var(--muted);">Aucune donnée.</td></tr>
@@ -449,7 +449,7 @@
           <tr>
             <td>{{ item.label }}</td>
             <td style="text-align:center;font-weight:700;">{{ item.nb }}</td>
-            {% for avg in item.avgs %}<td><span class="score-pill">{{ avg|floatformat:2 }}</span></td>{% endfor %}
+            {% for avg in item.avgs %}<td><span class="score-pill">{% if avg is not None %}{{ avg|floatformat:2 }}{% else %}0.00{% endif %}</span></td>{% endfor %}
           </tr>
           {% empty %}
           <tr><td colspan="5" style="text-align:center;color:var(--muted);">Aucune donnée.</td></tr>
@@ -472,7 +472,7 @@
           <tr>
             <td>{{ item.label }}</td>
             <td style="text-align:center;font-weight:700;">{{ item.nb }}</td>
-            {% for avg in item.avgs %}<td><span class="score-pill">{{ avg|floatformat:2 }}</span></td>{% endfor %}
+            {% for avg in item.avgs %}<td><span class="score-pill">{% if avg is not None %}{{ avg|floatformat:2 }}{% else %}0.00{% endif %}</span></td>{% endfor %}
           </tr>
           {% empty %}
           <tr><td colspan="5" style="text-align:center;color:var(--muted);">Aucune donnée.</td></tr>
@@ -495,10 +495,15 @@
           <tr>
             <td>{{ item.label }}</td>
             <td style="text-align:center;font-weight:700;">{{ item.nb }}</td>
-            {% for avg in item.avgs %}<td><span class="score-pill">{{ avg|floatformat:2 }}</span></td>{% endfor %}
+            {% for avg in item.avgs %}<td><span class="score-pill">{% if avg is not None %}{{ avg|floatformat:2 }}{% else %}0.00{% endif %}</span></td>{% endfor %}
           </tr>
           {% empty %}
-          <tr><td colspan="5" style="text-align:center;color:var(--muted);">Aucune donnée.</td></tr>
+          <tr><td colspan="{% if q_labels %}{{ q_labels|length|add:2 }}{% else %}3{% endif %}" style="text-align:center;color:var(--muted);">
+            <div style="padding:20px;">
+              <div style="font-size:1.1rem;font-weight:600;margin-bottom:8px;">Aucune donnée disponible</div>
+              <div style="font-size:0.9rem;">Aucun indicateur de satisfaction par prestation n'est disponible pour le moment.</div>
+            </div>
+          </td></tr>
           {% endfor %}
         </tbody>
       </table>
