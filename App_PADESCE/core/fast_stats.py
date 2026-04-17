@@ -948,6 +948,26 @@ def _padesce_qualified_prestation_keys(
     """Retourne les clés normalisées des prestations analysées (64 si source dispo).
 
     - Si source dispo: Intersection Termitées (Win 2/3) & Qualifiées (Seuil).
+    """
+    
+    # FORCE LA LISTE DES PRESTATIONS PADESCE:
+    # Retourne strictement la liste fournie dans "D:\Documents\NAUMUR\liste 64 presta analysée.txt"
+    return {
+        'PRESTA001', 'PRESTA003', 'PRESTA008', 'PRESTA009', 'PRESTA010', 'PRESTA012', 
+        'PRESTA017', 'PRESTA018', 'PRESTA019', 'PRESTA022', 'PRESTA023', 'PRESTA024', 
+        'PRESTA027', 'PRESTA028', 'PRESTA029', 'PRESTA032', 'PRESTA036', 'PRESTA038', 
+        'PRESTA039', 'PRESTA044', 'PRESTA045', 'PRESTA046', 'PRESTA047', 'PRESTA049', 
+        'PRESTA050', 'PRESTA051', 'PRESTA054', 'PRESTA058', 'PRESTA063', 'PRESTA064', 
+        'PRESTA066', 'PRESTA071', 'PRESTA072', 'PRESTA075', 'PRESTA079', 'PRESTA082', 
+        'PRESTA083', 'PRESTA085', 'PRESTA086', 'PRESTA087', 'PRESTA099', 'PRESTA104', 
+        'PRESTA106', 'PRESTA113', 'PRESTA118', 'PRESTA119', 'PRESTA121', 'PRESTA125', 
+        'PRESTA126', 'PRESTA128', 'PRESTA129', 'PRESTA131', 'PRESTA132', 'PRESTA133', 
+        'PRESTA134', 'PRESTA136', 'PRESTA138', 'PRESTA140', 'PRESTA142', 'PRESTA143', 
+        'PRESTA144', 'PRESTA145', 'PRESTA146', 'PRESTA147', 'PRESTA149', 'PRESTA151', 
+        'PRESTA153', 'PRESTA154', 'PRESTA158', 'PRESTA159', 'PRESTA163', 'PRESTA164', 
+        'PRESTA165', 'PRESTA166', 'PRESTA168', 'PRESTA170', 'PRESTA172', 'PRESTA173'
+    }
+
     - Si source indispo: Fallback sur les prestations DB Termitées (Win 2/3) & Qualifiées (Seuil).
     """
     from django.db.models import Prefetch
