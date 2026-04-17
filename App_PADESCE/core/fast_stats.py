@@ -928,6 +928,77 @@ def _apprenant_summary_cards(rows: list[dict]) -> list[dict]:
     ]
 
 
+def _padesce_source_class_is_finished(source_class: dict) -> bool:
+    """Même logique que _source_class_is_finished dans views.py."""
+    status = normalize_network_lookup(source_class.get("statut_prestation", ""))
+    if not status:
+        return True
+    return status in {"termine", "terminee", "arrete"}
+
+
+def _padesce_qualified_prestation_keys(
+    source_bundle: dict | None,
+    source_class_counts: dict[str, int],
+    db_classes: list,
+) -> set[str] | None:
+    """Retourne les clés normalisées des 64 prestations analysées.
+
+    Réplique la logique du ratio 64/78 de la page analyses de satisfaction :
+      - Terminée   : toutes les classes source ont statut terminé/arrêté
+      - Qualifiée  : toutes les classes joignables ont atteint le seuil (25 %)
+    Retourne None si aucun source_bundle n'est disponible (pas de filtrage).
+    """
+    if not source_bundle:
+        return None
+
+    from App_PADESCE.core.analysis_rules import analysis_threshold_target
+
+    # 1. threshold_by_class depuis la base de données (nb enquêtes ≥ seuil 25 %)
+    threshold_by_class: dict[str, bool] = {}
+    for classe in db_classes:
+        c_key = normalize_network_lookup(classe.code)
+        appels = list(classe.appels.all())
+        apprenant_count = int(source_class_counts.get(c_key, len(list(classe.apprenants.all()))) or 0)
+        nb_completed = sum(1 for a in appels if _get_completed_satisfaction(a) is not None)
+        target = analysis_threshold_target(apprenant_count)
+        threshold_by_class[c_key] = nb_completed >= target if apprenant_count > 0 else nb_completed > 0
+
+    # 2. prestation_key → {class_key: source_class} depuis le fichier source
+    prestation_classes: dict[str, dict[str, dict]] = {}
+    for cls_info in (source_bundle.get("classes") or {}).values():
+        p_key = normalize_network_lookup(cls_info.get("prestation_id", ""))
+        c_key = normalize_network_lookup(cls_info.get("classe_id", ""))
+        if p_key and c_key:
+            prestation_classes.setdefault(p_key, {})[c_key] = cls_info
+
+    # 3. Prestations terminées (toutes leurs classes source ont le statut terminé)
+    terminated: set[str] = set()
+    for p_key, class_map in prestation_classes.items():
+        if class_map and all(_padesce_source_class_is_finished(c) for c in class_map.values()):
+            terminated.add(p_key)
+    for p_key, p_info in (source_bundle.get("prestations") or {}).items():
+        if p_key and p_key not in prestation_classes and _padesce_source_class_is_finished(p_info):
+            terminated.add(p_key)
+
+    # 4. callable apprenant counts (clés normalisées) = source_class_counts déjà normalisé
+    callable_counts: dict[str, int] = {
+        normalize_network_lookup(k): int(v or 0) for k, v in source_class_counts.items()
+    }
+
+    # 5. Qualifiées = terminées ET seuil atteint sur toutes les classes joignables
+    qualified: set[str] = set()
+    for p_key, class_map in prestation_classes.items():
+        if p_key not in terminated:
+            continue
+        class_keys = set(class_map)
+        if class_keys and all(
+            threshold_by_class.get(ck, False) or callable_counts.get(ck, 0) == 0
+            for ck in class_keys
+        ):
+            qualified.add(p_key)
+    return qualified
+
+
 def _note_globale_from_metrics(
     taux_presence_base,
     resp_horaire_base,
@@ -968,10 +1039,20 @@ def _note_globale_from_metrics(
 
 
 def _build_padesce_rows(
-    classes: list[Classe], source_class_counts: dict[str, int] | None = None
+    classes: list[Classe],
+    source_class_counts: dict[str, int] | None = None,
+    source_bundle: dict | None = None,
 ) -> list[dict]:
-    """Une ligne par prestation : mêmes calculs que General + note_globale /100."""
+    """Une ligne par prestation analysée : mêmes calculs que General + note_globale /100.
+
+    Seules les 64 prestations analysées (terminées + seuil 25 % atteint) sont incluses,
+    en utilisant la même logique que le ratio 64/78 de la page d'analyse de satisfaction.
+    """
     from collections import defaultdict
+
+    qualified_keys = _padesce_qualified_prestation_keys(
+        source_bundle, source_class_counts or {}, classes
+    )
 
     groups: dict[str, list] = defaultdict(list)
     for classe in classes:
@@ -982,6 +1063,12 @@ def _build_padesce_rows(
 
     all_rows = []
     for prestation_code in sorted(groups):
+        # Filtrer aux seules prestations analysées (64/78)
+        if qualified_keys is not None:
+            p_key = normalize_network_lookup(prestation_code)
+            if p_key not in qualified_keys:
+                continue
+
         prestation_classes = groups[prestation_code]
         g = _build_general_global_row(prestation_classes, source_class_counts=source_class_counts)
 
@@ -1489,8 +1576,12 @@ def build_fast_stats_bundle(request) -> dict:
     general_global_row = _build_general_global_row(classes, source_class_counts=source_class_counts)
     general_rows = [general_global_row]
 
-    # Build per-prestation Padesce rows (base + score + note_globale par prestation)
-    padesce_rows = _build_padesce_rows(classes, source_class_counts=source_class_counts)
+    # Build per-prestation Padesce rows — filtrées aux 64 prestations analysées
+    padesce_rows = _build_padesce_rows(
+        classes,
+        source_class_counts=source_class_counts,
+        source_bundle=source_bundle,
+    )
 
     formateur_rows = [
         _build_formateur_row(
