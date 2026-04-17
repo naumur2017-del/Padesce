@@ -86,19 +86,18 @@ def _build_menu_items(user, path: str, consultant_only: bool) -> list[dict[str, 
         add_item("Backup", _safe_reverse("backup_dashboard"), "/backup/")
 
     if analysis_access:
-        add_item(
-            "Documentation Reporting",
-            _safe_reverse("reporting_manual"),
-            "/reporting/documentation/",
-        )
-        add_item("Espace Padesce", _safe_reverse("public_space"), "/")
-
         if not consultant_only:
             add_item(
                 "Rapport",
                 _safe_reverse("application_report_view"),
                 "/reporting/",
             )
+        add_item(
+            "Documentation Reporting",
+            _safe_reverse("reporting_manual"),
+            "/reporting/documentation/",
+        )
+        add_item("Espace Padesce", _safe_reverse("public_space"), "/")
 
         add_item(
             "Excel Source", _safe_reverse("reporting_network_excel"), "/reporting/excel-reseau/"
