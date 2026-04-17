@@ -1821,7 +1821,111 @@ def _build_satisfaction_formateurs_dashboard_context(request) -> dict:
     prestataire_stats = _group_stats(lambda r: r["prestataire"] or "-")
     beneficiaire_stats = _group_stats(lambda r: r["beneficiaire"] or "-")
     cohorte_stats = _group_stats(lambda r: r["cohorte"] or "-")
-    prestation_stats = _group_stats(lambda r: r["reference_code"] or "-")
+    # Calculer les statistiques par prestation en combinant prestataire-bénéficiaire
+    def _build_prestation_stats_by_combo():
+        """Construit les statistiques par prestation en se basant sur les combinaisons prestataire-bénéficiaire."""
+        score_fields = (
+            "q1_prerequis_apprenants",
+            "q2_interaction_apprenants",
+            "q3_competences_acquises",
+        )
+        
+        grouped = {}
+        for r in records:
+            prestataire = r.get("prestataire") or ""
+            beneficiaire = r.get("beneficiaire") or ""
+            reference_code = r.get("reference_code") or ""
+            
+            # Créer une clé de combinaison prestataire-bénéficiaire
+            combo_key = (prestataire.strip().lower(), beneficiaire.strip().lower())
+            
+            # Initialiser le bucket pour cette combinaison
+            if combo_key not in grouped:
+                grouped[combo_key] = {
+                    "prestataire": prestataire,
+                    "beneficiaire": beneficiaire,
+                    "reference_codes": set(),
+                    "scores": {field: [] for field in score_fields},
+                    "count": 0,
+                }
+            
+            # Ajouter les données
+            bucket = grouped[combo_key]
+            bucket["reference_codes"].add(reference_code)
+            bucket["count"] += 1
+            
+            # Ajouter les scores s'ils existent
+            for field in score_fields:
+                value = r.get(field)
+                if value is not None:
+                    bucket["scores"][field].append(float(value))
+        
+        return grouped
+    
+    # Récupérer le mapping des prestations (comme pour les apprenants)
+    from django.db import connection
+    prestation_mapping = {}
+    with connection.cursor() as cursor:
+        cursor.execute("""
+            SELECT p.code, p.id, pr.raison_sociale as prestataire_nom, 
+                   b.nom_structure as beneficiaire_nom, f.nom as formation_nom,
+                   b.region as beneficiaire_region
+            FROM formations_prestation p
+            LEFT JOIN formations_prestataire pr ON p.prestataire_id = pr.id
+            LEFT JOIN formations_beneficiaire b ON p.beneficiaire_id = b.id  
+            LEFT JOIN formations_formation f ON p.formation_id = f.id
+            WHERE p.actif = 1
+        """)
+        prestations_info = cursor.fetchall()
+        for code, id, prestataire_nom, beneficiaire_nom, formation_nom, region in prestations_info:
+            prestation_mapping[code] = {
+                "id": id,
+                "prestataire_nom": str(prestataire_nom or "").strip().lower(),
+                "beneficiaire_nom": str(beneficiaire_nom or "").strip().lower(),
+                "formation_nom": str(formation_nom or "").strip(),
+                "beneficiaire_region": str(region or "").strip().upper(),
+            }
+    
+    # Construire les statistiques par prestation
+    formateur_combo_stats = _build_prestation_stats_by_combo()
+    prestation_stats = []
+    
+    # Récupérer toutes les prestations uniques des appels formateurs
+    all_reference_codes = set(r.get("reference_code") or "" for r in records if r.get("reference_code"))
+    
+    for reference_code in sorted(all_reference_codes):
+        if not reference_code:
+            continue
+            
+        # Trouver la combinaison prestataire-bénéficiaire correspondante
+        matching_combo = None
+        for combo_key, combo_data in formateur_combo_stats.items():
+            if reference_code in combo_data["reference_codes"]:
+                matching_combo = combo_data
+                break
+        
+        if matching_combo:
+            # Calculer les moyennes pour cette prestation
+            avgs = []
+            for field in ["q1_prerequis_apprenants", "q2_interaction_apprenants", "q3_competences_acquises"]:
+                values = matching_combo["scores"][field]
+                if values:
+                    avgs.append(round(sum(values) / len(values), 2))
+                else:
+                    avgs.append(0.0)
+            
+            prestation_stats.append({
+                "label": reference_code,
+                "nb": matching_combo["count"],
+                "avgs": avgs,
+            })
+        else:
+            # Aucune combinaison trouvée - afficher un tiret
+            prestation_stats.append({
+                "label": reference_code,
+                "nb": 0,
+                "avgs": [0.0, 0.0, 0.0],
+            })
 
     all_qs = AppelFormateur.objects.filter(is_active=True)
     prestataires = _sorted_distinct_non_empty_values(all_qs.values_list("prestataire", flat=True))
