@@ -726,6 +726,13 @@
 </script>
 
 {% if toutes_prestations_classees %}
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; margin-top:24px;">
+  <div style="font-size:1.1rem; font-weight:700; color:var(--accent-strong);">Classement général des prestations</div>
+  <a href="{% url 'satisfaction_dashboard_export_ranking' %}?source={{ filter_source|urlencode }}{% if request.GET.urlencode %}&{{ request.GET.urlencode }}{% endif %}" class="btn btn-primary btn-sm">
+    &#128229; Télécharger le classement complet (Excel)
+  </a>
+</div>
+
 <div class="kpi-row" style="grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));">
   {% if toutes_prestations_classees %}
   <div class="panel" style="margin-bottom:0px;">

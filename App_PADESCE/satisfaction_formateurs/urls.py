@@ -84,4 +84,14 @@ urlpatterns = [
         ),
         name="satisfaction_formateurs_api_prestations_excel",
     ),
+    path(
+        "analyse/export/ranking/xlsx/",
+        lazy_view(
+            (
+                "App_PADESCE.satisfaction_formateurs.views."
+                "satisfaction_formateurs_dashboard_export_ranking"
+            ),
+        ),
+        name="satisfaction_formateurs_dashboard_export_ranking",
+    ),
 ]

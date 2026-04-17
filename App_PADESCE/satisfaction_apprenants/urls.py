@@ -156,4 +156,9 @@ urlpatterns = [
         ),
         name="satisfaction_dashboard_export_indicators_csv",
     ),
+    path(
+        "analyse/export/ranking/xlsx/",
+        lazy_view("App_PADESCE.satisfaction_apprenants.views.satisfaction_dashboard_export_ranking"),
+        name="satisfaction_dashboard_export_ranking",
+    ),
 ]

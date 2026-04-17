@@ -16,7 +16,7 @@ except Exception:  # pragma: no cover
 
 PRESENCE_CONTROLS_CACHE_KEY = "presence_controls_v1"
 PRESENCE_CONTROLS_DB_SYNC_TOKEN_KEY = "presence_controls_db_sync_token_v1"
-VALID_MARKERS = {"PR", "AB"}
+VALID_MARKERS = {"PR"}
 CONTROL_KEYS = ("c1", "c2", "c3", "c4")
 EXCEL_CONTROLS_XLSX = "fichier_concatene (1) 1 (1).xlsx"
 EXCEL_CONTROLS_SHEET = "Donnees"
@@ -28,7 +28,7 @@ def _normalize_identifier(value: str) -> str:
 
 def _normalized_marker(value: str) -> str:
     marker = _normalize_identifier(value)
-    return marker if marker in VALID_MARKERS else "AB"
+    return marker if marker in VALID_MARKERS else ""
 
 
 def _normalize_control_type(value: str) -> str:
@@ -90,7 +90,7 @@ def _presence_from_controls(controls: dict | None) -> dict:
 
 
 def _default_presence() -> dict:
-    return _presence_from_controls({"c1": "AB", "c2": "AB", "c3": "AB", "c4": "AB"})
+    return _presence_from_controls({"c1": "", "c2": "", "c3": "", "c4": ""})
 
 
 def _sync_controls_from_excel_to_db(force: bool = False) -> None:

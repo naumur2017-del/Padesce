@@ -3550,6 +3550,68 @@ def satisfaction_dashboard_export_prestation_lists_xlsx(request):
 
 
 @require_analysis_access
+@require_analysis_access
+def satisfaction_dashboard_export_ranking(request):
+    """Génère un Excel contenant le classement complet des prestations."""
+    dashboard = _build_satisfaction_dashboard_data(request)
+    ctx = dashboard["context"]
+    source_key = _analysis_selected_source(request)
+
+    # On utilise toutes_prestations_classees (déjà trié par get_prestations_ranking)
+    # Note: get_prestations_ranking a été modifié pour inclure les effectifs=1
+    ranking = get_prestations_ranking(ctx.get("prestation_stats_all", []), order="desc")
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Classement Prestations"
+
+    # Header
+    headers = [
+        "Rang",
+        "Code Prestation",
+        "Intitulé Formation",
+        "Prestataire",
+        "Bénéficiaire",
+        "Région",
+        "Effectif à former",
+        "Nb Enquêtes",
+        "Taux de Réponse (%)",
+        "Satisfaction (0-5)",
+        "Score Global",
+    ]
+    ws.append(headers)
+
+    # Data
+    for idx, p in enumerate(ranking, start=1):
+        ws.append(
+            [
+                idx,
+                p["code"],
+                p["intitule"],
+                p["prestataire"],
+                p["beneficiaire"],
+                p["region"],
+                p["effectif"],
+                p["nb_reponses"],
+                p["taux_reponse"],
+                p["avg_satisfaction"],
+                p["score_global"],
+            ]
+        )
+
+    # Mise en forme basique
+    _autosize_worksheet(ws)
+
+    filename = f"Classement_Prestation_Apprenants_{source_key}.xlsx"
+    response = HttpResponse(
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    wb.save(response)
+    return response
+
+
+@require_analysis_access
 def satisfaction_dashboard_export_xlsx(request):
     dashboard = _build_satisfaction_dashboard_data(request)
     rows = dashboard["rows"]
@@ -4579,7 +4641,7 @@ def _apply_update_form_table_filters(queryset, classe_id_filter: str, prestation
 
 def _normalize_presence_marker(value: str) -> str:
     marker = str(value or "").strip().upper()
-    return marker if marker in {"PR", "AB"} else "AB"
+    return marker if marker in {"PR", "AB"} else ""
 
 
 def _import_presence_controls_from_excel(uploaded_file) -> tuple[int, list[str]]:

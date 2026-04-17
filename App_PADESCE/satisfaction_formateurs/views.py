@@ -52,6 +52,7 @@ from App_PADESCE.formations.models import (
     Prestataire,
     Prestation,
 )
+from App_PADESCE.satisfaction_apprenants.services import get_prestations_ranking
 from App_PADESCE.satisfaction_formateurs.forms import (
     SatisfactionFormateurBatchUpdateForm,
     SatisfactionFormateurForm,
@@ -1809,7 +1810,115 @@ def _build_satisfaction_formateurs_dashboard_context(request) -> dict:
 
     # Import the prestation indicators builder from apprenants views
     from App_PADESCE.satisfaction_apprenants.views import _build_prestation_indicators_table
+
     prestation_indicators_table = _build_prestation_indicators_table()
+
+    # Prestation Ranking Logic (Mirrored from Espace PADESCE)
+    from django.db import connection
+
+    prestation_mapping = {}
+    with connection.cursor() as cursor:
+        cursor.execute("""
+            SELECT p.code, p.id, pr.raison_sociale as prestataire_nom, 
+                   b.nom_structure as beneficiaire_nom, f.nom as formation_nom,
+                   b.region as beneficiaire_region
+            FROM formations_prestation p
+            LEFT JOIN formations_prestataire pr ON p.prestataire_id = pr.id
+            LEFT JOIN formations_beneficiaire b ON p.beneficiaire_id = b.id  
+            LEFT JOIN formations_formation f ON p.formation_id = f.id
+            WHERE p.actif = 1
+        """)
+        prestations_info = cursor.fetchall()
+        for code, id, prestataire_nom, beneficiaire_nom, formation_nom, region in prestations_info:
+            prestation_mapping[code] = {
+                "id": id,
+                "prestataire_nom": str(prestataire_nom or "").strip().lower(),
+                "beneficiaire_nom": str(beneficiaire_nom or "").strip().lower(),
+                "formation_nom": str(formation_nom or "").strip().lower(),
+                "beneficiaire_region": str(region or "").strip().upper(),
+            }
+
+    grouped_ranking = {}
+    resolution_cache = {}
+
+    from App_PADESCE.core.public_views import _resolve_formateur_classe
+
+    # We use all_rows (unfiltered by current dashboard filters) for the ranking
+    # to maintain consistency, or maybe we should use the filtered ones?
+    # Usually ranking is global.
+    # but the user asked for "classement complet".
+    # Let's use all active records if not filtered?
+    # Actually, dashboards usually show rankings for the current selection.
+
+    for record in records:
+        classe = _resolve_formateur_classe(record, resolution_cache)
+        prestation = getattr(classe, "prestation", None)
+        code = str(getattr(prestation, "code", "") or "").strip()
+
+        if not code:
+            # Synthetic matching logic from public_views
+            prestataire_val = record.get("prestataire") or "-"
+            beneficiaire_val = record.get("beneficiaire") or "-"
+
+            # Simple fallback key
+            code = f"{prestataire_val}|{beneficiaire_val}"
+
+        group_key = code
+        bucket = grouped_ranking.setdefault(
+            group_key,
+            {
+                "code": code,
+                "prestataire": record.get("prestataire") or "-",
+                "beneficiaire": record.get("beneficiaire") or "-",
+                "effectif": 0,
+                "nb": 0,
+                "scores": {field_name: [] for field_name in FORMATEUR_SCORE_FIELDS},
+            },
+        )
+        bucket["effectif"] += 1
+
+        values = [record.get(field_name) for field_name in FORMATEUR_SCORE_FIELDS]
+        if not all(v not in (None, "") for v in values):
+            continue
+
+        bucket["nb"] += 1
+        for field_name, value in zip(FORMATEUR_SCORE_FIELDS, values):
+            bucket["scores"][field_name].append(float(value))
+
+    prestation_stats_form = []
+    for item in grouped_ranking.values():
+        if not item["nb"] and not item["effectif"]:
+            continue
+        avgs = []
+        for field_name in FORMATEUR_SCORE_FIELDS:
+            vals = item["scores"][field_name]
+            avgs.append(round(sum(vals) / len(vals), 2) if vals else 0)
+        avg = round(sum(avgs) / len(avgs), 2) if avgs else 0
+
+        # Enrich with real data if possible
+        code = item["code"]
+        real_prestataire = item["prestataire"]
+        real_region = "Inconnu"
+        if code in prestation_mapping:
+            minfo = prestation_mapping[code]
+            if minfo["prestataire_nom"] and minfo["prestataire_nom"] != "-":
+                real_prestataire = minfo["prestataire_nom"].title()
+            real_region = minfo["beneficiaire_region"] or "Inconnu"
+
+        prestation_stats_form.append(
+            {
+                "code": item["code"],
+                "prestataire": real_prestataire,
+                "beneficiaire": item["beneficiaire"],
+                "region": real_region,
+                "nb": item["nb"],
+                "avg": avg,
+                "avgs": avgs,
+                "effectif": item["effectif"],
+            }
+        )
+
+    toutes_prestations_classees = get_prestations_ranking(prestation_stats_form, order="desc")
 
     context = {
         "active_tab": active_tab,
@@ -1839,6 +1948,7 @@ def _build_satisfaction_formateurs_dashboard_context(request) -> dict:
         "formulaires_avec_audio_appels": appel_summary["formulaires_avec_audio"],
         "audios_enregistres_appels": appel_summary["audios_enregistres"],
         "prestation_indicators_table": prestation_indicators_table,
+        "toutes_prestations_classees": toutes_prestations_classees,
     }
     context.update(build_fast_stats_context(request, default_mode="formateur"))
     cache.set(_cache_key, context, timeout=_FORMATEURS_CACHE_TIMEOUT)
@@ -1946,6 +2056,73 @@ def export_formateur_global_averages_xlsx(request):
         content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
     response["Content-Disposition"] = 'attachment; filename="moyennes-generales-formateurs.xlsx"'
+    wb.save(response)
+    return response
+
+
+def _autosize_worksheet(worksheet, max_width=48):
+    for column_cells in worksheet.columns:
+        length = max(
+            (len(str(cell.value)) if cell.value is not None else 0 for cell in column_cells),
+            default=0,
+        )
+        # 1.2 factor for padding
+        worksheet.column_dimensions[column_cells[0].column_letter].width = min(
+            max_width, length + 2
+        )
+
+
+@require_analysis_access
+def satisfaction_formateurs_dashboard_export_ranking(request):
+    """Génère un Excel contenant le classement complet des prestations (Vision Formateurs)."""
+    context = _build_satisfaction_formateurs_dashboard_context(request)
+    ranking = context.get("toutes_prestations_classees", [])
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Classement Formateurs"
+
+    # Header
+    headers = [
+        "Rang",
+        "Code Prestation",
+        "Intitulé Formation",
+        "Prestataire",
+        "Bénéficiaire",
+        "Région",
+        "Effectif Formateurs",
+        "Nb Enquêtes",
+        "Taux de Réponse (%)",
+        "Satisfaction (0-5)",
+        "Score Global",
+    ]
+    ws.append(headers)
+
+    # Data
+    for idx, p in enumerate(ranking, start=1):
+        ws.append(
+            [
+                idx,
+                p["code"],
+                p["intitule"],
+                p["prestataire"],
+                p["beneficiaire"],
+                p["region"],
+                p["effectif"],
+                p["nb_reponses"],
+                p["taux_reponse"],
+                p["avg_satisfaction"],
+                p["score_global"],
+            ]
+        )
+
+    _autosize_worksheet(ws)
+
+    filename = f"Classement_Prestation_Formateurs_{timezone.now().strftime('%Y%m%d')}.xlsx"
+    response = HttpResponse(
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
     wb.save(response)
     return response
 

@@ -179,7 +179,104 @@
       {% endif %}
     </div>
     {% if prestation_indicators_table %}
-    <div class="table-scroll" style="max-height:500px;">
+    <!-- Zone Classement des Prestations -->
+  {% if toutes_prestations_classees %}
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; margin-top:24px;">
+    <div style="font-size:1.1rem; font-weight:700; color:var(--accent-strong);">Classement général des prestations</div>
+    <a href="{% url 'satisfaction_formateurs_dashboard_export_ranking' %}?source={{ filter_source|urlencode }}{% if request.GET.urlencode %}&{{ request.GET.urlencode }}{% endif %}" class="btn btn-primary btn-sm">
+      &#128229; Télécharger le classement complet (Excel)
+    </a>
+  </div>
+
+  <div class="kpi-row" style="grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));">
+    <div class="panel" style="margin-bottom:0px;">
+      <div class="section-title" style="color: #166534;">Top 5 des meilleures prestations (Vision Formateurs)</div>
+      <p style="margin:0 0 12px; color:var(--muted); font-size:0.85rem;">Score Global = 70% Taux de réponse + 30% Satisfaction Globale normalisée.</p>
+      <div class="table-scroll">
+        <table style="font-size: 0.8rem;" id="js-top-best-table">
+          <thead>
+            <tr>
+              <th>Prestation</th>
+              <th>Effectif</th>
+              <th>Rép.</th>
+              <th title="Taux de réponse">T.R.</th>
+              <th title="Satisfaction">Sat.</th>
+              <th>Score</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for p in toutes_prestations_classees %}
+            <tr class="presta-row js-best-col" data-index="{{ forloop.counter0 }}">
+              <td title="{{ p.intitule }}"><strong>{{ p.code }}</strong><br><span style="font-size:0.75rem; color:var(--muted);">{{ p.prestataire|truncatechars:35 }} | {{ p.beneficiaire|truncatechars:35 }}</span></td>
+              <td>{{ p.effectif }}</td>
+              <td>{{ p.nb_reponses }}</td>
+              <td>{{ p.taux_reponse|floatformat:1 }}%</td>
+              <td>{{ p.avg_satisfaction|floatformat:1 }}</td>
+              <td style="color:var(--accent-strong); font-weight:800;">{{ p.score_global|floatformat:1 }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    
+    <div class="panel" style="margin-bottom:0px;">
+      <div class="section-title" style="color: #991b1b;">Top 5 des prestations à améliorer (Vision Formateurs)</div>
+      <p style="margin:0 0 12px; color:var(--muted); font-size:0.85rem;">Score Global = 70% Taux de réponse + 30% Satisfaction Globale normalisée.</p>
+      <div class="table-scroll">
+        <table style="font-size: 0.8rem;" id="js-top-worst-table">
+          <thead>
+            <tr>
+              <th>Prestation</th>
+              <th>Effectif</th>
+              <th>Rép.</th>
+              <th title="Taux de réponse">T.R.</th>
+              <th title="Satisfaction">Sat.</th>
+              <th>Score</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for p in toutes_prestations_classees reversed %}
+            <tr class="presta-row js-worst-col" data-score="{{ p.score_global }}">
+              <td title="{{ p.intitule }}"><strong>{{ p.code }}</strong><br><span style="font-size:0.75rem; color:var(--muted);">{{ p.prestataire|truncatechars:35 }} | {{ p.beneficiaire|truncatechars:35 }}</span></td>
+              <td>{{ p.effectif }}</td>
+              <td>{{ p.nb_reponses }}</td>
+              <td>{{ p.taux_reponse|floatformat:1 }}%</td>
+              <td>{{ p.avg_satisfaction|floatformat:1 }}</td>
+              <td style="color:var(--accent-strong); font-weight:800;">{{ p.score_global|floatformat:1 }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  (function() {
+      function resetRankingDisplay() {
+          const bestRows = document.querySelectorAll('.js-best-col');
+          const worstRows = document.querySelectorAll('.js-worst-col');
+          const total = bestRows.length;
+
+          bestRows.forEach((r, idx) => {
+              r.style.display = (idx < 5) ? '' : 'none';
+          });
+          worstRows.forEach((r, idx) => {
+              r.style.display = (idx < 5 && idx < total - 5) ? '' : 'none';
+          });
+      }
+      document.addEventListener('DOMContentLoaded', resetRankingDisplay);
+  })();
+  </script>
+  {% endif %}
+
+  <div style="margin-bottom:12px; margin-top:32px;">
+    <div style="font-size:1.1rem; font-weight:700; color:var(--accent-strong); margin-bottom:6px;">Performance détaillée par prestation</div>
+    <div style="font-size:0.85rem; color:var(--muted);">Tableau croisé des indicateurs Apprenants et Formateurs.</div>
+  </div>
+
+  <div class="table-scroll" style="max-height:600px; margin-top:12px;">
       <table style="font-size:0.82rem;" class="js-indicators-table">
         <thead>
           <tr>
