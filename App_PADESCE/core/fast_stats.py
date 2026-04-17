@@ -953,19 +953,19 @@ def _padesce_qualified_prestation_keys(
     # FORCE LA LISTE DES PRESTATIONS PADESCE:
     # Retourne strictement la liste fournie dans "D:\Documents\NAUMUR\liste 64 presta analysée.txt"
     return {
-        'PRESTA001', 'PRESTA003', 'PRESTA008', 'PRESTA009', 'PRESTA010', 'PRESTA012', 
-        'PRESTA017', 'PRESTA018', 'PRESTA019', 'PRESTA022', 'PRESTA023', 'PRESTA024', 
-        'PRESTA027', 'PRESTA028', 'PRESTA029', 'PRESTA032', 'PRESTA036', 'PRESTA038', 
-        'PRESTA039', 'PRESTA044', 'PRESTA045', 'PRESTA046', 'PRESTA047', 'PRESTA049', 
-        'PRESTA050', 'PRESTA051', 'PRESTA054', 'PRESTA058', 'PRESTA063', 'PRESTA064', 
-        'PRESTA066', 'PRESTA071', 'PRESTA072', 'PRESTA075', 'PRESTA079', 'PRESTA082', 
-        'PRESTA083', 'PRESTA085', 'PRESTA086', 'PRESTA087', 'PRESTA099', 'PRESTA104', 
-        'PRESTA106', 'PRESTA113', 'PRESTA118', 'PRESTA119', 'PRESTA121', 'PRESTA125', 
-        'PRESTA126', 'PRESTA128', 'PRESTA129', 'PRESTA131', 'PRESTA132', 'PRESTA133', 
-        'PRESTA134', 'PRESTA136', 'PRESTA138', 'PRESTA140', 'PRESTA142', 'PRESTA143', 
-        'PRESTA144', 'PRESTA145', 'PRESTA146', 'PRESTA147', 'PRESTA149', 'PRESTA151', 
-        'PRESTA153', 'PRESTA154', 'PRESTA158', 'PRESTA159', 'PRESTA163', 'PRESTA164', 
-        'PRESTA165', 'PRESTA166', 'PRESTA168', 'PRESTA170', 'PRESTA172', 'PRESTA173'
+        'presta001', 'presta003', 'presta008', 'presta009', 'presta010', 'presta012', 
+        'presta017', 'presta018', 'presta019', 'presta022', 'presta023', 'presta024', 
+        'presta027', 'presta028', 'presta029', 'presta032', 'presta036', 'presta038', 
+        'presta039', 'presta044', 'presta045', 'presta046', 'presta047', 'presta049', 
+        'presta050', 'presta051', 'presta054', 'presta058', 'presta063', 'presta064', 
+        'presta066', 'presta071', 'presta072', 'presta075', 'presta079', 'presta082', 
+        'presta083', 'presta085', 'presta086', 'presta087', 'presta099', 'presta104', 
+        'presta106', 'presta113', 'presta118', 'presta119', 'presta121', 'presta125', 
+        'presta126', 'presta128', 'presta129', 'presta131', 'presta132', 'presta133', 
+        'presta134', 'presta136', 'presta138', 'presta140', 'presta142', 'presta143', 
+        'presta144', 'presta145', 'presta146', 'presta147', 'presta149', 'presta151', 
+        'presta153', 'presta154', 'presta158', 'presta159', 'presta163', 'presta164', 
+        'presta165', 'presta166', 'presta168', 'presta170', 'presta172', 'presta173'
     }
 
     # - Si source indispo: Fallback sur les prestations DB Termitées (Win 2/3) & Qualifiées (Seuil).
