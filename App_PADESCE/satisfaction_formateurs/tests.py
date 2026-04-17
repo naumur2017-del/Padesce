@@ -14,6 +14,7 @@ from App_PADESCE.formations.models import (
     Prestataire,
     Prestation,
 )
+from App_PADESCE.satisfaction_apprenants.views import _build_prestation_indicators_table
 from App_PADESCE.satisfaction_formateurs.models import SatisfactionFormateur
 from App_PADESCE.satisfaction_formateurs.views import (
     _average_displayed_scores,
@@ -211,3 +212,115 @@ class SatisfactionFormateurDashboardAverageTests(TestCase):
 
     def test_average_displayed_scores_matches_visible_q1_q3_values(self):
         self.assertEqual(_average_displayed_scores([2.98, 3.49, 3.12]), 3.20)
+
+
+class PrestationIndicatorsFormateurMappingTests(TestCase):
+    def setUp(self):
+        self.formateur = Formateur.objects.create(
+            code="FOR100",
+            nom_complet="Formateur Indicateurs",
+            telephone="699888777",
+        )
+        self.formation = Formation.objects.create(code="FORM100", nom="Formation Indicateurs")
+        self.prestataire = Prestataire.objects.create(
+            code="PTEST100",
+            raison_sociale="Prestataire École",
+        )
+        self.beneficiaire = Beneficiaire.objects.create(nom_structure="Bénéficiaire Coop")
+        self.prestation = Prestation.objects.create(
+            code="PRESTA100",
+            prestataire=self.prestataire,
+            formation=self.formation,
+            beneficiaire=self.beneficiaire,
+        )
+        self.other_prestataire = Prestataire.objects.create(
+            code="PTEST200",
+            raison_sociale="Prestataire Autre",
+        )
+        self.other_beneficiaire = Beneficiaire.objects.create(nom_structure="Autre Bénéficiaire")
+        self.other_prestation = Prestation.objects.create(
+            code="PRESTA200",
+            prestataire=self.other_prestataire,
+            formation=self.formation,
+            beneficiaire=self.other_beneficiaire,
+        )
+        Classe.objects.create(
+            code="CLA100",
+            prestation=self.prestation,
+            formation=self.formation,
+            intitule_formation="Formation Indicateurs",
+            formateur=self.formateur,
+            cohorte=1,
+        )
+        Classe.objects.create(
+            code="CLA200",
+            prestation=self.other_prestation,
+            formation=self.formation,
+            intitule_formation="Formation Indicateurs",
+            formateur=self.formateur,
+            cohorte=1,
+        )
+
+        AppelFormateur.objects.create(
+            reference_code="IND-001",
+            prestataire="prestataire ecole",
+            beneficiaire="beneficiaire coop",
+            formation=self.formation.nom,
+            cohorte="1",
+            telephone="699000001",
+            session_date=date(2026, 4, 12),
+            status="termine",
+            q1_prerequis_apprenants=4,
+            q2_interaction_apprenants=5,
+            q3_competences_acquises=3,
+            q4_gestion_administrative="RAS",
+            q5_gestion_financiere="OK",
+            q6_communication="Bien",
+            satisfaction_completed_at=timezone.make_aware(datetime(2026, 4, 12, 10, 0, 0)),
+        )
+        AppelFormateur.objects.create(
+            reference_code="IND-002",
+            prestataire="Prestataire École",
+            beneficiaire="Bénéficiaire Coop",
+            formation=self.formation.nom,
+            cohorte="1",
+            telephone="699000002",
+            session_date=date(2026, 4, 13),
+            status="termine",
+            q1_prerequis_apprenants=2,
+            q2_interaction_apprenants=3,
+            q3_competences_acquises=4,
+            q4_gestion_administrative="RAS",
+            q5_gestion_financiere="A suivre",
+            q6_communication="Bien",
+            satisfaction_completed_at=timezone.make_aware(datetime(2026, 4, 13, 11, 0, 0)),
+        )
+        AppelFormateur.objects.create(
+            reference_code="IND-003",
+            prestataire="Prestataire École",
+            beneficiaire="Bénéficiaire Coop",
+            formation=self.formation.nom,
+            cohorte="1",
+            telephone="699000003",
+            session_date=date(2026, 4, 14),
+            status="termine",
+            q1_prerequis_apprenants=5,
+            q2_interaction_apprenants=None,
+            q3_competences_acquises=5,
+        )
+
+    def test_prestation_indicator_table_uses_formateur_combo_mapping(self):
+        rows = _build_prestation_indicators_table()
+        row_by_code = {row["code"]: row for row in rows}
+
+        matched = row_by_code["PRESTA100"]["formateur"]
+        self.assertEqual(matched["count"], 2)
+        self.assertEqual(matched["q1_prerequis_apprenants"], 3.0)
+        self.assertEqual(matched["q2_interaction_apprenants"], 4.0)
+        self.assertEqual(matched["q3_competences_acquises"], 3.5)
+        self.assertEqual(matched["q4_gestion_administrative"], ["RAS"])
+        self.assertEqual(matched["q6_communication"], ["Bien"])
+
+        unmatched = row_by_code["PRESTA200"]["formateur"]
+        self.assertEqual(unmatched["count"], 0)
+        self.assertIsNone(unmatched["q1_prerequis_apprenants"])
