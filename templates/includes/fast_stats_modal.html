@@ -213,15 +213,13 @@
     function renderPadesceTable(mode) {
       const rows = mode.rows || [];
       if (!rows.length) {
-        return `<div class="fast-stats-empty">Aucune donnée FAST STATS disponible pour les filtres courants.</div>`;
+        return `<div class="fast-stats-empty">Aucune prestation analysée disponible pour les filtres courants.</div>`;
       }
 
-      // Helpers
-      const fPct  = v => v == null ? "—" : `${v.toFixed(1)}%`;       // base % (0-100)
-      const fOn13 = v => v == null ? "—" : `${v.toFixed(2)}/13`;     // qualité env base
-      const fOn5  = v => v == null ? "—" : `${v.toFixed(2)}/5`;      // satisfaction base
-      const fOn10 = v => v == null ? "—" : `${v.toFixed(2)}/10`;     // attitude base
-      const fScore = (v, max) => v == null ? "—" : `${v.toFixed(2)}/${max}`;
+      const fPct  = v => v == null ? "—" : `${v.toFixed(1)}%`;
+      const fOn13 = v => v == null ? "—" : `${v.toFixed(2)}/13`;
+      const fOn5  = v => v == null ? "—" : `${v.toFixed(2)}/5`;
+      const fOn10 = v => v == null ? "—" : `${v.toFixed(2)}/10`;
 
       const tableRows = rows.map(row => {
         const note = row.note_globale != null ? row.note_globale.toFixed(2) : "—";
@@ -230,53 +228,35 @@
             <td class="num">${displayValue(row.index)}</td>
             <td style="font-weight:700;">${displayValue(row.prestation_id)}</td>
             <td class="num">${displayValue(row.classe_count)}</td>
-            <td class="num" style="color:var(--muted);font-size:0.8rem;">${fPct(row.taux_presence_base)}</td>
-            <td class="num" style="font-weight:600;">${fScore(row.taux_presence, 20)}</td>
-            <td class="num" style="color:var(--muted);font-size:0.8rem;">${fPct(row.resp_horaire_base)}</td>
-            <td class="num" style="font-weight:600;">${fScore(row.resp_horaire, 10)}</td>
-            <td class="num" style="color:var(--muted);font-size:0.8rem;">${fPct(row.resp_theme_base)}</td>
-            <td class="num" style="font-weight:600;">${fScore(row.resp_theme, 10)}</td>
-            <td class="num" style="color:var(--muted);font-size:0.8rem;">${fPct(row.resp_parité_base)}</td>
-            <td class="num" style="font-weight:600;">${fScore(row.resp_parité, 10)}</td>
-            <td class="num" style="color:var(--muted);font-size:0.8rem;">${fOn13(row.qualite_environnement_base)}</td>
-            <td class="num" style="font-weight:600;">${fScore(row.qualite_environnement, 10)}</td>
-            <td class="num" style="color:var(--muted);font-size:0.8rem;">${fOn5(row.satisfaction_apprenant_base)}</td>
-            <td class="num" style="font-weight:600;">${fScore(row.satisfaction_apprenant, 20)}</td>
-            <td class="num" style="color:var(--muted);font-size:0.8rem;">${fOn5(row.satisfaction_formateur_base)}</td>
-            <td class="num" style="font-weight:600;">${fScore(row.satisfaction_formateur, 10)}</td>
-            <td class="num" style="color:var(--muted);font-size:0.8rem;">${fOn10(row.attitude_enquete_base)}</td>
-            <td class="num" style="font-weight:600;">${fScore(row.attitude_enquete, 10)}</td>
-            <td class="num" style="font-weight:900;color:var(--accent-strong);font-size:0.95rem;">${escapeHtml(note)}/100</td>
+            <td class="num">${fPct(row.taux_presence_base)}</td>
+            <td class="num">${fPct(row.resp_horaire_base)}</td>
+            <td class="num">${fPct(row.resp_theme_base)}</td>
+            <td class="num">${fPct(row.resp_parité_base)}</td>
+            <td class="num">${fOn13(row.qualite_environnement_base)}</td>
+            <td class="num">${fOn5(row.satisfaction_apprenant_base)}</td>
+            <td class="num">${fOn5(row.satisfaction_formateur_base)}</td>
+            <td class="num">${fOn10(row.attitude_enquete_base)}</td>
+            <td class="num" style="font-weight:900;color:var(--accent-strong);">${escapeHtml(note)}/100</td>
           </tr>`;
       }).join("");
 
       return `
         <div class="table-scroll" style="max-height:60vh;">
-          <table class="fast-stats-table" style="font-size:0.8rem;">
+          <table class="fast-stats-table" style="font-size:0.82rem;">
             <thead>
               <tr>
-                <th rowspan="2">#</th>
-                <th rowspan="2" style="text-align:left;">Prestation</th>
-                <th rowspan="2">Classes</th>
-                <th colspan="2">Taux présence</th>
-                <th colspan="2">Resp horaire</th>
-                <th colspan="2">Resp thème</th>
-                <th colspan="2">Resp parité</th>
-                <th colspan="2">Qualité env.</th>
-                <th colspan="2">Sat. apprenant</th>
-                <th colspan="2">Sat. formateur</th>
-                <th colspan="2">Attitude enquête</th>
-                <th rowspan="2" style="color:var(--accent-strong);">Note /100</th>
-              </tr>
-              <tr>
-                <th style="color:var(--muted);">Base</th><th>Score /20</th>
-                <th style="color:var(--muted);">Base</th><th>Score /10</th>
-                <th style="color:var(--muted);">Base</th><th>Score /10</th>
-                <th style="color:var(--muted);">Base</th><th>Score /10</th>
-                <th style="color:var(--muted);">Base</th><th>Score /10</th>
-                <th style="color:var(--muted);">Base</th><th>Score /20</th>
-                <th style="color:var(--muted);">Base</th><th>Score /10</th>
-                <th style="color:var(--muted);">Base</th><th>Score /10</th>
+                <th>#</th>
+                <th style="text-align:left;">Prestation</th>
+                <th>Classes</th>
+                <th>Taux présence (%)</th>
+                <th>Resp horaire (%)</th>
+                <th>Resp thème (%)</th>
+                <th>Resp parité (%)</th>
+                <th>Qualité env. (/13)</th>
+                <th>Sat. apprenant (/5)</th>
+                <th>Sat. formateur (/5)</th>
+                <th>Attitude enquête (/10)</th>
+                <th style="color:var(--accent-strong);">Note globale (/100)</th>
               </tr>
             </thead>
             <tbody>${tableRows}</tbody>

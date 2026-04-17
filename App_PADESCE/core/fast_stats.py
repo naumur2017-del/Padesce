@@ -980,8 +980,8 @@ def _build_padesce_rows(
         )
         groups[code].append(classe)
 
-    rows = []
-    for index, prestation_code in enumerate(sorted(groups), start=1):
+    all_rows = []
+    for prestation_code in sorted(groups):
         prestation_classes = groups[prestation_code]
         g = _build_general_global_row(prestation_classes, source_class_counts=source_class_counts)
 
@@ -996,15 +996,26 @@ def _build_padesce_rows(
             g.get("attitude_enquete_base"),
         )
 
-        rows.append({
-            "index": index,
+        all_rows.append({
             "prestation_id": prestation_code,
             "classe_count": len(prestation_classes),
-            **g,
-            "note_globale": note_globale,
+            "taux_presence_base":          g.get("taux_presence_base"),
+            "resp_horaire_base":           g.get("resp_horaire_base"),
+            "resp_theme_base":             g.get("resp_theme_base"),
+            "resp_parité_base":            g.get("resp_parité_base"),
+            "qualite_environnement_base":  g.get("qualite_environnement_base"),
+            "satisfaction_apprenant_base": g.get("satisfaction_apprenant_base"),
+            "satisfaction_formateur_base": g.get("satisfaction_formateur_base"),
+            "attitude_enquete_base":       g.get("attitude_enquete_base"),
+            "note_globale":                note_globale,
         })
 
-    return rows
+    # Garder uniquement les prestations analysées (au moins une métrique renseignée)
+    analysed = [r for r in all_rows if r["note_globale"] is not None]
+    for i, row in enumerate(analysed, start=1):
+        row["index"] = i
+
+    return analysed
 
 
 def _general_summary_cards(rows: list[dict]) -> list[dict]:
