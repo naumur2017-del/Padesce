@@ -15,7 +15,7 @@ from django.core.cache import cache
 from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
 from django.db import OperationalError, ProgrammingError
 from django.db.models import Count, Q
-from django.http import Http404, JsonResponse, QueryDict, HttpResponse
+from django.http import Http404, HttpResponse, JsonResponse, QueryDict
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
 from django.utils import timezone
@@ -2331,7 +2331,11 @@ def public_export_apprenant_global_averages_xlsx(request):
     """Export public des moyennes générales des apprenants en Excel."""
     try:
         import openpyxl
-        from App_PADESCE.satisfaction_apprenants.views import _build_satisfaction_dashboard_data, Q_FIELDS
+
+        from App_PADESCE.satisfaction_apprenants.views import (
+            Q_FIELDS,
+            _build_satisfaction_dashboard_data,
+        )
         
         dashboard = _build_satisfaction_dashboard_data(request)
         context = dashboard["context"]
@@ -2382,7 +2386,11 @@ def public_export_formateur_global_averages_xlsx(request):
     """Export public des moyennes générales des formateurs en Excel."""
     try:
         import openpyxl
-        from App_PADESCE.satisfaction_formateurs.views import _build_satisfaction_formateurs_dashboard_context, Q_FORM_FIELDS
+
+        from App_PADESCE.satisfaction_formateurs.views import (
+            Q_FORM_FIELDS,
+            _build_satisfaction_formateurs_dashboard_context,
+        )
         
         context = _build_satisfaction_formateurs_dashboard_context(request)
         

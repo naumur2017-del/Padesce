@@ -952,7 +952,6 @@ def _padesce_qualified_prestation_keys(
     """
     from django.db.models import Prefetch
 
-    from App_PADESCE.appels.models import APPEL_ANSWER_QUESTION_FIELDS
     from App_PADESCE.core.analysis_rules import (
         analysis_threshold_target,
         appel_is_analysis_eligible,

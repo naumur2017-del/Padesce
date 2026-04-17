@@ -1006,7 +1006,7 @@ def public_space(request):
                             ("Avec scores", 83),
                         ],
                     }
-            except Exception as e:
+            except Exception:
                 context["stats"] = {
                     "global_avgs": {},
                     "best_rankings": [
@@ -2537,8 +2537,9 @@ def debug_formateur_stats(request):
     """
     Vue de debug pour tester directement la fonction de stats
     """
-    from django.http import HttpResponse
     import json
+
+    from django.http import HttpResponse
     
     try:
         # Tester la fonction simple
@@ -2590,7 +2591,7 @@ def debug_formateur_stats(request):
         for item in result.get('improve_rankings', []):
             html_content += f"<li>{item.get('code', 'N/A')} - {item.get('score_global', 'N/A')}</li>"
         
-        html_content += f"""
+        html_content += """
                 </ul>
             </div>
             
@@ -2602,7 +2603,7 @@ def debug_formateur_stats(request):
         for item in result.get('summary_cards', []):
             html_content += f"<li>{item}</li>"
         
-        html_content += f"""
+        html_content += """
                 </ul>
             </div>
             
@@ -2637,8 +2638,8 @@ def debug_context_stats(request):
     """
     Vue de debug pour afficher le contexte passé au template
     """
+
     from django.http import HttpResponse
-    import json
     
     try:
         # Simuler exactement ce que fait la vue principale
@@ -2729,7 +2730,7 @@ def debug_context_stats(request):
             else:
                 html_content += f"<li><strong>{key}</strong>: {type(value)}</li>"
         
-        html_content += f"""
+        html_content += """
                 </ul>
             </div>
             
@@ -2758,7 +2759,7 @@ def debug_context_stats(request):
         else:
             html_content += "<p>No stats in context!</p>"
         
-        html_content += f"""
+        html_content += """
             <p><a href='/?scope=formateur&section=stats'>Retour à la page normale</a></p>
         </body>
         </html>

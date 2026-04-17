@@ -833,7 +833,7 @@ def formateurs_export_filtered_csv(request):
 def formateurs_export_filtered_xlsx(request):
     """Export XLSX des appels formateurs filtrés selon les filtres appliqués."""
     import openpyxl
-    from openpyxl.styles import Font, PatternFill, Alignment
+    from openpyxl.styles import Alignment, Font, PatternFill
     
     qs, _ = _build_filtered_formateurs_queryset(request)
     

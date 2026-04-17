@@ -1,6 +1,7 @@
 import csv
 import os
 import sys
+
 import django
 
 # Setup Django environment
@@ -9,6 +10,7 @@ os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'App_PADESCE.settings')
 django.setup()
 
 from App_PADESCE.apprenants.models import Apprenant
+
 
 def run():
     absents_path = r'D:\Documents\NAUMUR\tmp_apprenants_absents_excel.csv'
