@@ -23,6 +23,7 @@ from App_PADESCE.reporting.network_excel import (
     normalize_workbook_source_key,
 )
 from App_PADESCE.satisfaction_apprenants.models import SatisfactionApprenant
+from App_PADESCE.satisfaction_apprenants.sharepoint_csv_links import SHAREPOINT_CSV_LINKS
 
 FAST_STATS_TEMPLATE_PATH = (
     Path(settings.BASE_DIR) / "data" / "templates" / "fast_stats_template.xlsx"
@@ -407,6 +408,14 @@ def _load_source_bundle(filters: dict[str, str]) -> dict | None:
         return None
 
 
+def _average_score(satisfactions: list, field: str) -> float | None:
+    """Calculate average score for a satisfaction field."""
+    values = [getattr(s, field, None) for s in satisfactions if getattr(s, field, None) is not None]
+    if not values:
+        return None
+    return sum(values) / len(values)
+
+
 def _build_apprenant_row(
     index: int,
     classe: Classe,
@@ -445,6 +454,181 @@ def _build_apprenant_row(
         "pct_appel_termine_label": _percentage_label(pct_appel_termine),
         "pct_enquetes": pct_enquetes,
         "pct_enquetes_label": _percentage_label(pct_enquetes),
+        "status_label": _status_label(classe),
+    }
+
+
+def _build_general_global_row(
+    classes: list[Classe], source_class_counts: dict[str, int] | None = None
+) -> dict:
+    """Build a single global statistics row aggregating all classes."""
+    all_satisfactions = []
+    total_apprenants = 0
+    total_calls_effectues = 0
+
+    for classe in classes:
+        local_apprenant_count = len(list(classe.apprenants.all()))
+        classe_key = normalize_network_lookup(classe.code)
+        apprenant_count = int(
+            (source_class_counts or {}).get(classe_key, local_apprenant_count) or 0
+        )
+        total_apprenants += apprenant_count
+
+        appels = list(classe.appels.all())
+
+        # Get all satisfactions for this class
+        class_satisfactions = [_get_completed_satisfaction(appel) for appel in appels]
+        all_satisfactions.extend([s for s in class_satisfactions if s is not None])
+
+        # Count effectued calls
+        people: dict[str, dict[str, bool]] = {}
+        for appel in appels:
+            key = _apprenant_person_key(appel)
+            person_flags = people.setdefault(key, {"effectue": False})
+            person_flags["effectue"] = person_flags["effectue"] or _apprenant_call_effectue(appel)
+
+        calls_effectues = min(
+            apprenant_count, sum(1 for flags in people.values() if flags["effectue"])
+        )
+        total_calls_effectues += calls_effectues
+
+    # Calculate base metrics (raw values in their native scales)
+    pct_presence_base = _percentage(total_calls_effectues, total_apprenants)
+    pct_presence_base = (pct_presence_base * 100) if pct_presence_base else None
+
+    resp_horaire_avg = _average_score(all_satisfactions, "q6_organisation_temps")
+    resp_horaire_base = (resp_horaire_avg / 5 * 100) if resp_horaire_avg else None
+
+    resp_theme_avg = _average_score(all_satisfactions, "q3_maitrise_contenu")
+    resp_theme_base = (resp_theme_avg / 5 * 100) if resp_theme_avg else None
+
+    resp_parité_avg = _average_score(all_satisfactions, "q2_interaction_formateur")
+    resp_parité_base = (resp_parité_avg / 5 * 100) if resp_parité_avg else None
+
+    qualite_environnement_avg = _average_score(all_satisfactions, "q4_salle_adequate")
+    qualite_environnement_base = (
+        (qualite_environnement_avg / 5 * 13) if qualite_environnement_avg else None
+    )
+
+    satisfaction_apprenant_avg = _average_score(all_satisfactions, "q9_satisfaction_globale")
+
+    satisfaction_formateur_avg = _average_score(all_satisfactions, "q8_adequation_besoins")
+
+    attitude_enquete_avg = _average_score(all_satisfactions, "q1_clarte_exposes")
+    attitude_enquete_base = (attitude_enquete_avg / 5 * 10) if attitude_enquete_avg else None
+
+    # Calculate scaled metrics for target scales
+    taux_presence_20 = (pct_presence_base / 100 * 20) if pct_presence_base else None
+    resp_horaire_10 = (resp_horaire_base / 100 * 10) if resp_horaire_base else None
+    resp_theme_10 = (resp_theme_base / 100 * 10) if resp_theme_base else None
+    resp_parité_10 = (resp_parité_base / 100 * 10) if resp_parité_base else None
+    qualite_environnement_10 = (
+        (qualite_environnement_base / 13 * 10) if qualite_environnement_base else None
+    )
+    satisfaction_apprenant_20 = (
+        (satisfaction_apprenant_avg / 5 * 20) if satisfaction_apprenant_avg else None
+    )
+    satisfaction_formateur_10 = (
+        (satisfaction_formateur_avg / 5 * 10) if satisfaction_formateur_avg else None
+    )
+    attitude_enquete_scale = (
+        (attitude_enquete_base / 10 * 10) if attitude_enquete_base else attitude_enquete_base
+    )
+
+    return {
+        "metric_type": "global",
+        # Base values (raw scales)
+        "taux_presence_base": pct_presence_base,
+        "resp_horaire_base": resp_horaire_base,
+        "resp_theme_base": resp_theme_base,
+        "resp_parité_base": resp_parité_base,
+        "qualite_environnement_base": qualite_environnement_base,
+        "satisfaction_apprenant_base": satisfaction_apprenant_avg,
+        "satisfaction_formateur_base": satisfaction_formateur_avg,
+        "attitude_enquete_base": attitude_enquete_base,
+        # Scaled values (target scales)
+        "taux_presence": taux_presence_20,
+        "taux_presence_scale": 20,
+        "resp_horaire": resp_horaire_10,
+        "resp_horaire_scale": 10,
+        "resp_theme": resp_theme_10,
+        "resp_theme_scale": 10,
+        "resp_parité": resp_parité_10,
+        "resp_parité_scale": 10,
+        "qualite_environnement": qualite_environnement_10,
+        "qualite_environnement_scale": 10,
+        "satisfaction_apprenant": satisfaction_apprenant_20,
+        "satisfaction_apprenant_scale": 20,
+        "satisfaction_formateur": satisfaction_formateur_10,
+        "satisfaction_formateur_scale": 10,
+        "attitude_enquete": attitude_enquete_scale,
+        "attitude_enquete_scale": 10,
+    }
+
+
+def _build_general_row(
+    index: int,
+    classe: Classe,
+    *,
+    source_class_counts: dict[str, int] | None = None,
+) -> dict:
+    """Build a general statistics row for a class."""
+    local_apprenant_count = len(list(classe.apprenants.all()))
+    classe_key = normalize_network_lookup(classe.code)
+    apprenant_count = int((source_class_counts or {}).get(classe_key, local_apprenant_count) or 0)
+    appels = list(classe.appels.all())
+
+    # Get all satisfactions for this class
+    satisfactions = [_get_completed_satisfaction(appel) for appel in appels]
+    satisfactions = [s for s in satisfactions if s is not None]
+
+    # Calculate presence rate
+    people: dict[str, dict[str, bool]] = {}
+    for appel in appels:
+        key = _apprenant_person_key(appel)
+        person_flags = people.setdefault(key, {"effectue": False, "termine": False})
+        person_flags["effectue"] = person_flags["effectue"] or _apprenant_call_effectue(appel)
+        person_flags["termine"] = person_flags["termine"] or _apprenant_call_termine(appel)
+
+    calls_effectues = min(apprenant_count, sum(1 for flags in people.values() if flags["effectue"]))
+    pct_presence = _percentage(calls_effectues, apprenant_count)
+
+    # Calculate average scores
+    resp_horaire = _average_score(satisfactions, "q6_organisation_temps")
+    resp_theme = _average_score(satisfactions, "q3_maitrise_contenu")
+    resp_parité = _average_score(satisfactions, "q2_interaction_formateur")
+    qualite_environnement = _average_score(satisfactions, "q4_salle_adequate")
+    satisfaction_apprenant = _average_score(satisfactions, "q9_satisfaction_globale")
+    satisfaction_formateur = _average_score(satisfactions, "q8_adequation_besoins")
+    attitude_enquete = _average_score(satisfactions, "q1_clarte_exposes")
+
+    return {
+        "index": index,
+        "prestation_id": _safe_text(getattr(getattr(classe, "prestation", None), "code", ""))
+        or "—",
+        "classe_id": _safe_text(classe.code) or "—",
+        "taux_presence": pct_presence,
+        "taux_presence_label": _percentage_label(pct_presence),
+        "resp_horaire": resp_horaire,
+        "resp_horaire_label": f"{resp_horaire:.2f}/5" if resp_horaire else "—",
+        "resp_theme": resp_theme,
+        "resp_theme_label": f"{resp_theme:.2f}/5" if resp_theme else "—",
+        "resp_parité": resp_parité,
+        "resp_parité_label": f"{resp_parité:.2f}/5" if resp_parité else "—",
+        "qualite_environnement": qualite_environnement,
+        "qualite_environnement_label": (
+            f"{qualite_environnement:.2f}/5" if qualite_environnement else "—"
+        ),
+        "satisfaction_apprenant": satisfaction_apprenant,
+        "satisfaction_apprenant_label": (
+            f"{satisfaction_apprenant:.2f}/5" if satisfaction_apprenant else "—"
+        ),
+        "satisfaction_formateur": satisfaction_formateur,
+        "satisfaction_formateur_label": (
+            f"{satisfaction_formateur:.2f}/5" if satisfaction_formateur else "—"
+        ),
+        "attitude_enquete": attitude_enquete,
+        "attitude_enquete_label": f"{attitude_enquete:.2f}/5" if attitude_enquete else "—",
         "status_label": _status_label(classe),
     }
 
@@ -744,6 +928,379 @@ def _apprenant_summary_cards(rows: list[dict]) -> list[dict]:
     ]
 
 
+def _padesce_source_class_is_finished(source_class: dict) -> bool:
+    """Même logique que _source_class_is_finished dans views.py."""
+    status = normalize_network_lookup(source_class.get("statut_prestation", ""))
+    if not status:
+        return True
+    return status in {"termine", "terminee", "arrete"}
+
+
+def _padesce_qualified_prestation_keys(
+    source_bundle: dict | None,
+    db_classes: list,
+) -> set[str]:
+    """Retourne les clés normalisées des prestations analysées (64 si source dispo).
+
+    - Si source dispo: Intersection Termitées (Win 2/3) & Qualifiées (Seuil).
+    - Si source indispo: Fallback sur les prestations DB Termitées (Win 2/3) & Qualifiées (Seuil).
+    """
+    from django.db.models import Prefetch
+
+    from App_PADESCE.appels.models import APPEL_ANSWER_QUESTION_FIELDS
+    from App_PADESCE.core.analysis_rules import (
+        analysis_threshold_target,
+        appel_is_analysis_eligible,
+    )
+    from App_PADESCE.core.call_metrics import count_callable_source_records_by_class
+
+    # 1. threshold_by_class sur toutes les classes actives
+    db_class_keys_seen: set[str] = set()
+    threshold_by_class: dict[str, bool] = {}
+
+    def _compute_threshold(classe) -> None:
+        c_key = normalize_network_lookup(classe.code)
+        if c_key in db_class_keys_seen:
+            return
+        db_class_keys_seen.add(c_key)
+
+        # Filtrer les appels par fenêtre 2/3 pour le calcul du seuil
+        all_appels = list(classe.appels.all())
+        filtered_appels = [
+            a for a in all_appels if str(getattr(a, "fenetre", "") or "").strip() in ("2", "3")
+        ]
+
+        eligible_count = sum(1 for a in filtered_appels if appel_is_analysis_eligible(a))
+
+        # Un appel compte comme "complété" seulement si les 9 questions sont répondues
+        nb_completed = 0
+        for a in filtered_appels:
+            answ = getattr(a, "answers", None)
+            if not answ:
+                continue
+            # Vérifier que les 9 questions sont remplies
+            is_complete = all(
+                getattr(answ, field, None) not in (None, "")
+                for field in APPEL_ANSWER_QUESTION_FIELDS
+            )
+            if is_complete:
+                nb_completed += 1
+
+        target = analysis_threshold_target(eligible_count)
+        elig_ok = nb_completed >= target if eligible_count > 0 else nb_completed > 0
+        threshold_by_class[c_key] = elig_ok
+
+    for classe in db_classes:
+        _compute_threshold(classe)
+
+    extra_qs = (
+        Classe.objects.filter(actif=True)
+        .exclude(code__in=[c.code for c in db_classes])
+        .prefetch_related(
+            Prefetch(
+                "appels",
+                queryset=Appel.objects.filter(is_active=True).select_related(
+                    "answers", "satisfaction_apprenant"
+                ),
+            )
+        )
+    )
+    for classe in extra_qs:
+        _compute_threshold(classe)
+
+    # 2. Cas sans source bundle : on se base uniquement sur la DB
+    if not source_bundle:
+        qualified_db = set()
+        for c_key, is_ok in threshold_by_class.items():
+            if not is_ok:
+                continue
+            # Retrouver la prestation pour vérifier la fenêtre (via db_classes ou query)
+            cls_obj = next(
+                (c for c in db_classes if normalize_network_lookup(c.code) == c_key), None
+            )
+            if not cls_obj:
+                cls_obj = (
+                    Classe.objects.filter(code__iexact=c_key).select_related("prestation").first()
+                )
+
+            if cls_obj:
+                fen = str(getattr(cls_obj, "fenetre", "") or "").strip()
+                if not fen:
+                    # Tenter via la prestation
+                    fen = str(
+                        getattr(getattr(cls_obj, "prestation", None), "fenetre", "") or ""
+                    ).strip()
+
+                if fen in ("2", "3") and _safe_text(cls_obj.statut) == "termine":
+                    qualified_db.add(
+                        normalize_network_lookup(
+                            getattr(getattr(cls_obj, "prestation", None), "code", "")
+                        )
+                    )
+        return {k for k in qualified_db if k}
+
+    # 2-bis. Avec source bundle : prestation_key -> {class_key: source_class}
+    prestation_classes: dict[str, dict[str, dict]] = {}
+    for cls_info in (source_bundle.get("classes") or {}).values():
+        p_key = normalize_network_lookup(cls_info.get("prestation_id", ""))
+        c_key = normalize_network_lookup(cls_info.get("classe_id", ""))
+        if p_key and c_key:
+            prestation_classes.setdefault(p_key, {})[c_key] = cls_info
+
+    # 3. Prestations terminées (Windows 2/3 uniquement)
+    terminated_prestation_codes = set()
+    source_prestations = source_bundle.get("prestations") or {}
+
+    for p_key, class_map in prestation_classes.items():
+        if class_map and all(_padesce_source_class_is_finished(c) for c in class_map.values()):
+            p_info = source_prestations.get(p_key)
+            if not p_info:
+                p_info = next(iter(class_map.values()))
+            if str(p_info.get("fenetre", "")).strip() in ("2", "3"):
+                terminated_prestation_codes.add(p_key)
+
+    for p_key, p_info in source_prestations.items():
+        if p_key and p_key not in prestation_classes and _padesce_source_class_is_finished(p_info):
+            if str(p_info.get("fenetre", "")).strip() in ("2", "3"):
+                terminated_prestation_codes.add(p_key)
+
+    # 4. callable_counts
+    raw_callable = count_callable_source_records_by_class(source_bundle)
+    callable_class_counts: dict[str, int] = {
+        normalize_network_lookup(k): int(v or 0) for k, v in raw_callable.items()
+    }
+
+    # 5. Qualified intersection
+    qualified_codes = set()
+    for prestation_key, class_map in prestation_classes.items():
+        if prestation_key not in terminated_prestation_codes:
+            continue
+        class_keys = set(class_map)
+        if class_keys and all(
+            threshold_by_class.get(class_key, False)
+            or int(callable_class_counts.get(class_key, 0)) == 0
+            for class_key in class_keys
+        ):
+            qualified_codes.add(prestation_key)
+
+    return qualified_codes
+
+
+def _note_globale_from_metrics(
+    taux_presence_base,
+    resp_horaire_base,
+    resp_theme_base,
+    resp_parité_base,
+    qualite_environnement_base,
+    satisfaction_apprenant_base,
+    satisfaction_formateur_base,
+    attitude_enquete_base,
+) -> float | None:
+    """Traduit la formule Excel =SUM((B6/B$3)*B$5; ...) pour la note globale /100.
+
+    Maximums (B$3) : 100, 100, 100, 100, 13, 5, 5, 10
+    Points   (B$5) : 20,  10,  10,  10, 10, 20, 10, 10
+    """
+    vals = [
+        taux_presence_base,
+        resp_horaire_base,
+        resp_theme_base,
+        resp_parité_base,
+        qualite_environnement_base,
+        satisfaction_apprenant_base,
+        satisfaction_formateur_base,
+        attitude_enquete_base,
+    ]
+    if not any(v is not None for v in vals):
+        return None
+
+    def _t(v, mx, pts):
+        return (v / mx) * pts if v is not None else 0.0
+
+    return (
+        _t(taux_presence_base, 100, 20)
+        + _t(resp_horaire_base, 100, 10)
+        + _t(resp_theme_base, 100, 10)
+        + _t(resp_parité_base, 100, 10)
+        + _t(qualite_environnement_base, 13, 10)
+        + _t(satisfaction_apprenant_base, 5, 20)
+        + _t(satisfaction_formateur_base, 5, 10)
+        + _t(attitude_enquete_base, 10, 10)
+    )
+
+
+def _build_padesce_rows(
+    classes: list[Classe],
+    source_class_counts: dict[str, int] | None = None,
+    source_bundle: dict | None = None,
+) -> list[dict]:
+    """Une ligne par prestation analysée : mêmes calculs que General + note_globale /100.
+
+    Affiche exactement les 64 prestations qualifiées.
+    """
+    from collections import defaultdict
+
+    qualified_keys = _padesce_qualified_prestation_keys(source_bundle, classes)
+
+    groups: dict[str, list] = defaultdict(list)
+    prestation_codes_in_classes: set[str] = set()
+    prestation_keys_in_classes: set[str] = set()
+
+    for classe in classes:
+        code = _safe_text(getattr(getattr(classe, "prestation", None), "code", "")) or "—"
+        key = normalize_network_lookup(code)
+
+        if qualified_keys is not None and key not in qualified_keys:
+            continue
+
+        groups[code].append(classe)
+        prestation_codes_in_classes.add(code)
+        prestation_keys_in_classes.add(key)
+
+    all_rows = []
+
+    # 1. Ajouter les prestations présentes dans les classes (57 qualifiées)
+    for prestation_code in sorted(groups):
+        prestation_classes = groups[prestation_code]
+        g = _build_general_global_row(prestation_classes, source_class_counts=source_class_counts)
+
+        note_globale = _note_globale_from_metrics(
+            g.get("taux_presence_base"),
+            g.get("resp_horaire_base"),
+            g.get("resp_theme_base"),
+            g.get("resp_parité_base"),
+            g.get("qualite_environnement_base"),
+            g.get("satisfaction_apprenant_base"),
+            g.get("satisfaction_formateur_base"),
+            g.get("attitude_enquete_base"),
+        )
+
+        all_rows.append(
+            {
+                "prestation_id": prestation_code,
+                "classe_count": len(prestation_classes),
+                "taux_presence_base": g.get("taux_presence_base"),
+                "resp_horaire_base": g.get("resp_horaire_base"),
+                "resp_theme_base": g.get("resp_theme_base"),
+                "resp_parité_base": g.get("resp_parité_base"),
+                "qualite_environnement_base": g.get("qualite_environnement_base"),
+                "satisfaction_apprenant_base": g.get("satisfaction_apprenant_base"),
+                "satisfaction_formateur_base": g.get("satisfaction_formateur_base"),
+                "attitude_enquete_base": g.get("attitude_enquete_base"),
+                "note_globale": note_globale,
+            }
+        )
+
+    # 2. Ajouter les prestations manquantes depuis la source (sans données DB)
+    if source_bundle:
+        source_prestations = source_bundle.get("prestations", {})
+        for prestation_key, prestation_info in sorted(source_prestations.items()):
+            normalized_key = normalize_network_lookup(prestation_key)
+            if qualified_keys is not None and normalized_key not in qualified_keys:
+                continue
+
+            # Ignorer si déjà présente dans les classes
+            if normalized_key in prestation_keys_in_classes:
+                continue
+
+            # Ajouter avec données vides/nulles (pas de satisfaction DB)
+            fallback_p = prestation_info.get("prestation_id", prestation_key)
+            prestation_code = _safe_text(fallback_p) or prestation_key
+            all_rows.append(
+                {
+                    "prestation_id": prestation_code,
+                    "classe_count": prestation_info.get("classe_count", 0),
+                    "taux_presence_base": None,
+                    "resp_horaire_base": None,
+                    "resp_theme_base": None,
+                    "resp_parité_base": None,
+                    "qualite_environnement_base": None,
+                    "satisfaction_apprenant_base": None,
+                    "satisfaction_formateur_base": None,
+                    "attitude_enquete_base": None,
+                    "note_globale": None,
+                }
+            )
+
+    # Trier et indexer
+    all_rows.sort(key=lambda r: _safe_text(r.get("prestation_id", "")))
+    for i, row in enumerate(all_rows, start=1):
+        row["index"] = i
+
+    return all_rows
+
+
+def _general_summary_cards(rows: list[dict]) -> list[dict]:
+    """Summary cards for general statistics mode."""
+    if not rows:
+        return []
+
+    row = rows[0]  # Global row
+
+    def format_base(value, metric):
+        if value is None:
+            return "—"
+        if metric.startswith("resp_") or metric == "taux_presence":
+            return f"{value:.0f}%"
+        elif metric == "satisfaction":
+            return f"{value:.1f}/5"
+        elif metric == "qualite_environnement":
+            return f"{value:.1f}/13"
+        else:
+            return f"{value:.1f}"
+
+    return [
+        {
+            "label": "Taux de présence",
+            "value": format_base(row.get("taux_presence_base"), "taux_presence"),
+            "meta": "Présence globale de tous les apprenants analysés.",
+        },
+        {
+            "label": "Satisfaction apprenant",
+            "value": format_base(row.get("satisfaction_apprenant_base"), "satisfaction"),
+            "meta": "Score de satisfaction global moyen.",
+        },
+        {
+            "label": "Resp horaire",
+            "value": format_base(row.get("resp_horaire_base"), "resp_horaire"),
+            "meta": "Réponse au rythme de formation.",
+        },
+        {
+            "label": "Qualité environnement",
+            "value": format_base(row.get("qualite_environnement_base"), "qualite_environnement"),
+            "meta": "Score de qualité environnement.",
+        },
+    ]
+
+
+def _padesce_summary_cards(rows: list[dict]) -> list[dict]:
+    """Summary cards for Padesce mode (per-prestation rows)."""
+    if not rows:
+        return []
+
+    notes = [r["note_globale"] for r in rows if r.get("note_globale") is not None]
+    avg_note = sum(notes) / len(notes) if notes else None
+    best = max(notes) if notes else None
+
+    return [
+        {
+            "label": "Prestations",
+            "value": len(rows),
+            "meta": "Nombre de prestations analysées.",
+        },
+        {
+            "label": "Note moyenne",
+            "value": f"{avg_note:.1f}/100" if avg_note is not None else "—",
+            "meta": "Moyenne des notes globales Padesce.",
+        },
+        {
+            "label": "Meilleure note",
+            "value": f"{best:.1f}/100" if best is not None else "—",
+            "meta": "Meilleure note globale parmi les prestations.",
+        },
+    ]
+
+
 def _formateur_summary_cards(rows: list[dict]) -> list[dict]:
     matched_classes = sum(1 for row in rows if row["descente_contact_count"] > 0)
     return [
@@ -802,6 +1359,55 @@ def _mode_payload(
             "note": "Structure alignée sur la feuille Enquête de satisfaction du fichier FAST STATS.",  # noqa: E501
         }
 
+    if mode_id == "padesce":
+        return {
+            "id": mode_id,
+            "label": "Padesce",
+            "sheet_name": "Padesce",
+            "table_variant": "padesce",
+            "row_count": len(rows),
+            "class_count": len(rows),
+            "summary_cards": summary_cards,
+            "metadata": {
+                "terminated_only_label": "Total classe de la prestation terminée",
+                "terminated_only_value": scope["terminated_only"],
+                "scope_label": scope["scope_label"],
+            },
+            "rows": rows,
+            "note": "Score Padesce — mêmes calculs que Général avec note globale /100.",
+        }
+
+    if mode_id == "general":
+        return {
+            "id": mode_id,
+            "label": "General",
+            "sheet_name": sheet_name,
+            "table_variant": "general",
+            "row_count": len(rows),
+            "class_count": len(rows),
+            "summary_cards": summary_cards,
+            "metadata": {
+                "terminated_only_label": "Total classe de la prestation terminée",
+                "terminated_only_value": scope["terminated_only"],
+                "scope_label": scope["scope_label"],
+            },
+            "columns": [
+                {"key": "index", "label": "#"},
+                {"key": "prestation_id", "label": "Prestation ID"},
+                {"key": "classe_id", "label": "Classe ID"},
+                {"key": "taux_presence_label", "label": "Taux de présence"},
+                {"key": "resp_horaire_label", "label": "Resp horaire"},
+                {"key": "resp_theme_label", "label": "Resp thème"},
+                {"key": "resp_parité_label", "label": "Resp parité"},
+                {"key": "qualite_environnement_label", "label": "Qualité environnement"},
+                {"key": "satisfaction_apprenant_label", "label": "Satisfaction apprenant"},
+                {"key": "satisfaction_formateur_label", "label": "Satis faction formateur"},
+                {"key": "attitude_enquete_label", "label": "Attitude enquête / respect consigne"},
+            ],
+            "rows": rows,
+            "note": "Statistiques agrégées de satisfaction par classe.",
+        }
+
     return {
         "id": mode_id,
         "label": "Formateur",
@@ -845,6 +1451,256 @@ def _mode_payload(
     }
 
 
+# ---------------------------------------------------------------------------
+# Mode "descentes" — tableau SA + SF pour copier-coller dans DESCENTES CLASSES
+# ---------------------------------------------------------------------------
+
+
+def _get_site_url() -> str:
+    return str(getattr(settings, "SITE_URL", "") or "https://call.naumur.com").rstrip("/")
+
+
+def _load_sf_prestataires_mapping() -> dict:
+    """Load the SF prestataires mapping from JSON file at project root."""
+    mapping_file = Path(settings.BASE_DIR) / "sf_prestataires_mapping.json"
+    if mapping_file.exists():
+        import json
+
+        try:
+            with open(mapping_file, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {}
+
+
+def _build_descentes_sa_rows(classes) -> list[dict]:
+    """Une ligne par classe pour la feuille SA (CTR PUB MAN)."""
+    site_url = _get_site_url()
+    rows = []
+    for idx, classe in enumerate(classes, start=1):
+        code = _safe_text(getattr(classe, "code", "")) or "?"
+        prestation = getattr(classe, "prestation", None)
+        prestataire = getattr(getattr(prestation, "prestataire", None), "raison_sociale", "") or ""
+        beneficiaire = getattr(getattr(prestation, "beneficiaire", None), "nom_structure", "") or ""
+        rows.append(
+            {
+                "index": idx,
+                "code": code,
+                "type": "SA",
+                "statut": "Achevé",
+                "prestataire": prestataire,
+                "beneficiaire": beneficiaire,
+                "enquete_url": f"{site_url}/classe/{code.lower()}/",
+                "csv_url": SHAREPOINT_CSV_LINKS.get(
+                    code,
+                    f"{site_url}/satisfaction-apprenants/analyse/export/classe/{code}/csv/",
+                ),
+            }
+        )
+    return rows
+
+
+def _build_descentes_sf_rows() -> list[dict]:
+    """Une ligne par prestataire pour la feuille SF."""
+    site_url = _get_site_url()
+    mapping = _load_sf_prestataires_mapping()
+    qs = (
+        AppelFormateur.objects.filter(is_active=True)
+        .exclude(prestataire="")
+        .values("prestataire", "beneficiaire", "formation", "cohorte")
+        .distinct()
+        .order_by("prestataire")
+    )
+    seen: dict[str, dict] = {}
+    for r in qs:
+        prestataire_name = _safe_text(r.get("prestataire"))
+        if not prestataire_name or prestataire_name in seen:
+            continue
+
+        map_data = mapping.get(prestataire_name, {})
+        # If mapping exists, use it. Otherwise fallback to old logic.
+        code = map_data.get("code_prestataire", prestataire_name)
+        fallback_url = f"{site_url}/prestation/{prestataire_name.lower()}/"
+        enquete_url = map_data.get("lien_enquete", fallback_url)
+        csv_fallback = (
+            f"{site_url}/satisfaction-formateurs/analyse/export/prestation/{prestataire_name}/csv/"
+        )
+        csv_url = map_data.get("lien_csv", csv_fallback)
+
+        seen[prestataire_name] = {
+            "index": len(seen) + 1,
+            "code": code,
+            "type": "SF",
+            "statut": "Achevé",
+            "prestataire": prestataire_name,
+            "beneficiaire": _safe_text(r.get("beneficiaire")),
+            "formation": _safe_text(r.get("formation")),
+            "cohorte": _safe_text(r.get("cohorte")),
+            "enquete_url": enquete_url,
+            "csv_url": csv_url,
+        }
+    return list(seen.values())
+
+
+def _descentes_mode_payload(sa_rows: list[dict], sf_rows: list[dict], scope: dict) -> dict:
+    return {
+        "id": "descentes",
+        "label": "Descentes",
+        "sheet_name": "SA + SF",
+        "table_variant": "descentes",
+        "row_count": len(sa_rows) + len(sf_rows),
+        "class_count": len(sa_rows),
+        "summary_cards": [
+            {
+                "label": "Classes SA",
+                "value": len(sa_rows),
+                "meta": "Lignes prêtes pour CTR PUB MAN.",
+            },
+            {
+                "label": "Prestations SF",
+                "value": len(sf_rows),
+                "meta": "Lignes prêtes pour feuille SF.",
+            },
+        ],
+        "metadata": {
+            "terminated_only_label": "Total classes",
+            "terminated_only_value": scope["terminated_only"],
+            "scope_label": scope["scope_label"],
+        },
+        "row_groups": [
+            {
+                "id": "sa",
+                "label": "SA — Satisfaction Apprenants (→ CTR PUB MAN)",
+                "columns": [
+                    {"key": "index", "label": "#"},
+                    {"key": "code", "label": "Classe"},
+                    {"key": "enquete_url", "label": "Lien des enquêtes"},
+                    {"key": "type", "label": "Type (col H)"},
+                    {"key": "statut", "label": "Statut (col J)"},
+                    {"key": "csv_url", "label": "Liens CSV (col P)"},
+                    {"key": "prestataire", "label": "Prestataire"},
+                    {"key": "beneficiaire", "label": "Bénéficiaire"},
+                ],
+                "rows": sa_rows,
+            },
+            {
+                "id": "sf",
+                "label": "SF — Satisfaction Formateurs (→ feuille SF)",
+                "columns": [
+                    {"key": "index", "label": "#"},
+                    {"key": "code", "label": "Prestataire"},
+                    {"key": "enquete_url", "label": "Lien des enquêtes"},
+                    {"key": "type", "label": "Type (col I)"},
+                    {"key": "statut", "label": "Statut (col K)"},
+                    {"key": "csv_url", "label": "Liens CSV (col P)"},
+                    {"key": "beneficiaire", "label": "Bénéficiaire"},
+                    {"key": "formation", "label": "Formation"},
+                ],
+                "rows": sf_rows,
+            },
+        ],
+        "note": "Prêt à copier-coller dans DESCENTES CLASSES Vxx.xlsx.",
+    }
+
+
+def _write_descentes_sheets(workbook: Workbook, mode_payload: dict) -> None:
+    """Crée deux feuilles SA et SF dans le workbook avec le bon layout colonnes."""
+    from openpyxl.styles import Alignment, Font, PatternFill
+    from openpyxl.utils import get_column_letter
+
+    header_font = Font(bold=True, color="FFFFFF")
+    sa_fill = PatternFill(start_color="375623", end_color="375623", fill_type="solid")
+    sf_fill = PatternFill(start_color="1F4E79", end_color="1F4E79", fill_type="solid")
+    link_font = Font(color="0563C1", underline="single")
+    row_fill_sa = PatternFill(start_color="E2EFDA", end_color="E2EFDA", fill_type="solid")
+    row_fill_sf = PatternFill(start_color="DDEEFF", end_color="DDEEFF", fill_type="solid")
+
+    groups = {g["id"]: g for g in mode_payload.get("row_groups", [])}
+
+    # ---- Feuille SA ----
+    ws_sa = workbook.create_sheet("SA")
+    # En-têtes ligne 1 (colonnes A→P, seules les colonnes cibles sont renseignées)
+    sa_headers = {
+        1: "N°",
+        3: "LIEN DE LA PUBLICATION",
+        7: "Classe",
+        8: "TYPE DE CONTRÔLE",
+        10: "STATUT",
+        16: "CSV",
+    }
+    for col, label in sa_headers.items():
+        cell = ws_sa.cell(row=1, column=col, value=label)
+        cell.font = header_font
+        cell.fill = sa_fill
+        cell.alignment = Alignment(horizontal="center")
+    ws_sa.column_dimensions["A"].width = 5
+    ws_sa.column_dimensions["C"].width = 22
+    ws_sa.column_dimensions["G"].width = 12
+    ws_sa.column_dimensions["H"].width = 8
+    ws_sa.column_dimensions["J"].width = 10
+    ws_sa.column_dimensions["P"].width = 14
+
+    for sa_row in groups.get("sa", {}).get("rows", []):
+        r = sa_row["index"] + 1
+        ws_sa.cell(row=r, column=1, value=sa_row["index"])
+        c_link = ws_sa.cell(row=r, column=3, value="Lien des enquêtes")
+        c_link.hyperlink = sa_row["enquete_url"]
+        c_link.font = link_font
+        c_link.fill = row_fill_sa
+        c_type = ws_sa.cell(row=r, column=7, value=sa_row["code"])
+        c_type.fill = row_fill_sa
+        c_h = ws_sa.cell(row=r, column=8, value="SA")
+        c_h.fill = row_fill_sa
+        c_j = ws_sa.cell(row=r, column=10, value="Achevé")
+        c_j.fill = row_fill_sa
+        c_csv = ws_sa.cell(row=r, column=16, value="Liens CSV")
+        c_csv.hyperlink = sa_row["csv_url"]
+        c_csv.font = link_font
+        c_csv.fill = row_fill_sa
+
+    # ---- Feuille SF ----
+    ws_sf = workbook.create_sheet("SF")
+    sf_headers = {
+        1: "N°",
+        2: "Code Prestataire",
+        3: "LIEN DES ENQUÊTES",
+        4: "Prestataire",
+        5: "Bénéficiaire",
+        6: "Formation",
+        7: "Cohorte",
+        9: "TYPE",
+        11: "STATUT",
+        16: "CSV",
+    }
+    for col, label in sf_headers.items():
+        cell = ws_sf.cell(row=1, column=col, value=label)
+        cell.font = header_font
+        cell.fill = sf_fill
+        cell.alignment = Alignment(horizontal="center")
+    for col, w in {1: 5, 2: 14, 3: 22, 4: 30, 5: 30, 6: 35, 7: 18, 9: 6, 11: 10, 16: 14}.items():
+        ws_sf.column_dimensions[get_column_letter(col)].width = w
+
+    for sf_row in groups.get("sf", {}).get("rows", []):
+        r = sf_row["index"] + 1
+        ws_sf.cell(row=r, column=1, value=sf_row["index"])
+        ws_sf.cell(row=r, column=2, value=sf_row["code"]).fill = row_fill_sf
+        c_link = ws_sf.cell(row=r, column=3, value="Lien des enquêtes")
+        c_link.hyperlink = sf_row["enquete_url"]
+        c_link.font = link_font
+        c_link.fill = row_fill_sf
+        ws_sf.cell(row=r, column=4, value=sf_row.get("prestataire", "")).fill = row_fill_sf
+        ws_sf.cell(row=r, column=5, value=sf_row.get("beneficiaire", "")).fill = row_fill_sf
+        ws_sf.cell(row=r, column=6, value=sf_row.get("formation", "")).fill = row_fill_sf
+        ws_sf.cell(row=r, column=7, value=sf_row.get("cohorte", "")).fill = row_fill_sf
+        ws_sf.cell(row=r, column=9, value="SF").fill = row_fill_sf
+        ws_sf.cell(row=r, column=11, value="Achevé").fill = row_fill_sf
+        c_csv = ws_sf.cell(row=r, column=16, value="Liens CSV")
+        c_csv.hyperlink = sf_row["csv_url"]
+        c_csv.font = link_font
+        c_csv.fill = row_fill_sf
+
+
 def _find_sheet_name(workbook: Workbook, mode_id: str) -> str:
     hints = FAST_STATS_TEMPLATE_SHEET_HINTS[mode_id]
     for sheet_name in workbook.sheetnames:
@@ -873,6 +1729,17 @@ def build_fast_stats_bundle(request) -> dict:
         )
         for index, classe in enumerate(classes, start=1)
     ]
+    # Build single global row for general mode
+    general_global_row = _build_general_global_row(classes, source_class_counts=source_class_counts)
+    general_rows = [general_global_row]
+
+    # Build per-prestation Padesce rows — filtrées aux 64 prestations analysées
+    padesce_rows = _build_padesce_rows(
+        classes,
+        source_class_counts=source_class_counts,
+        source_bundle=source_bundle,
+    )
+
     formateur_rows = [
         _build_formateur_row(
             index,
@@ -884,6 +1751,9 @@ def build_fast_stats_bundle(request) -> dict:
         )
         for index, classe in enumerate(classes, start=1)
     ]
+
+    descentes_sa_rows = _build_descentes_sa_rows(classes)
+    descentes_sf_rows = _build_descentes_sf_rows()
 
     return {
         "generated_at": timezone.localtime().isoformat(),
@@ -899,12 +1769,27 @@ def build_fast_stats_bundle(request) -> dict:
                 scope=scope,
             ),
             _mode_payload(
+                "general",
+                rows=general_rows,
+                summary_cards=_general_summary_cards(general_rows),
+                sheet_name="General",
+                scope=scope,
+            ),
+            _mode_payload(
+                "padesce",
+                rows=padesce_rows,
+                summary_cards=_padesce_summary_cards(padesce_rows),
+                sheet_name="Padesce",
+                scope=scope,
+            ),
+            _mode_payload(
                 "formateur",
                 rows=formateur_rows,
                 summary_cards=_formateur_summary_cards(formateur_rows),
                 sheet_name="Enquête de formateur",
                 scope=scope,
             ),
+            _descentes_mode_payload(descentes_sa_rows, descentes_sf_rows, scope),
         ],
     }
 
@@ -1007,6 +1892,105 @@ def _write_apprenant_sheet(worksheet, mode_payload: dict) -> None:
         worksheet[f"I{offset}"].number_format = "0.00%"
 
 
+def _write_general_sheet(worksheet, mode_payload: dict) -> None:
+    worksheet["B1"] = "Statistiques générales de satisfaction"
+    worksheet["C1"] = "TRUE"
+    worksheet["B3"] = "Métrique"
+    worksheet["C3"] = "Base"
+    worksheet["D3"] = "Échelles"
+
+    _clear_data_rows(worksheet, start_row=FAST_STATS_TEMPLATE_ROW_START, max_col=4)
+
+    if mode_payload["rows"]:
+        row = mode_payload["rows"][0]  # Global row
+
+        metrics = [
+            (
+                "Taux de présence",
+                row.get("taux_presence_base"),
+                row.get("taux_presence"),
+                row.get("taux_presence_scale"),
+                "percent",
+            ),
+            (
+                "Resp horaire",
+                row.get("resp_horaire_base"),
+                row.get("resp_horaire"),
+                row.get("resp_horaire_scale"),
+                "percent",
+            ),
+            (
+                "Resp thème",
+                row.get("resp_theme_base"),
+                row.get("resp_theme"),
+                row.get("resp_theme_scale"),
+                "percent",
+            ),
+            (
+                "Resp parité",
+                row.get("resp_parité_base"),
+                row.get("resp_parité"),
+                row.get("resp_parité_scale"),
+                "percent",
+            ),
+            (
+                "Qualité environnement",
+                row.get("qualite_environnement_base"),
+                row.get("qualite_environnement"),
+                row.get("qualite_environnement_scale"),
+                "decimal",
+            ),
+            (
+                "Satisfaction apprenant",
+                row.get("satisfaction_apprenant_base"),
+                row.get("satisfaction_apprenant"),
+                row.get("satisfaction_apprenant_scale"),
+                "decimal",
+            ),
+            (
+                "Satis faction formateur",
+                row.get("satisfaction_formateur_base"),
+                row.get("satisfaction_formateur"),
+                row.get("satisfaction_formateur_scale"),
+                "decimal",
+            ),
+            (
+                "Attitude enquête / respect consigne",
+                row.get("attitude_enquete_base"),
+                row.get("attitude_enquete"),
+                row.get("attitude_enquete_scale"),
+                "decimal",
+            ),
+        ]
+
+        last_row = FAST_STATS_TEMPLATE_ROW_START + len(metrics) - 1
+        _ensure_sheet_capacity(worksheet, last_row=last_row, max_col=4)
+
+        for offset, (label, base_val, scaled_val, scale, fmt_type) in enumerate(
+            metrics, start=FAST_STATS_TEMPLATE_ROW_START
+        ):
+            worksheet[f"B{offset}"] = label
+
+            # Write base value
+            if base_val is not None:
+                if fmt_type == "percent":
+                    worksheet[f"C{offset}"] = base_val / 100 if base_val <= 100 else 1.0
+                    worksheet[f"C{offset}"].number_format = "0%"
+                else:
+                    worksheet[f"C{offset}"] = f"{base_val:.1f}"
+                    worksheet[f"C{offset}"].number_format = "@"
+            else:
+                worksheet[f"C{offset}"] = "—"
+                worksheet[f"C{offset}"].number_format = "@"
+
+            # Write scaled value
+            if scaled_val is not None and scale is not None:
+                worksheet[f"D{offset}"] = f"{scaled_val:.1f}/{scale}"
+            else:
+                worksheet[f"D{offset}"] = "—"
+            worksheet[f"D{offset}"].number_format = "@"
+
+
 def _write_formateur_sheet(worksheet, mode_payload: dict) -> None:
     worksheet["B1"] = "Total classe de la prestation termine"
     worksheet["C1"] = "TRUE"
@@ -1061,6 +2045,48 @@ def _write_formateur_sheet(worksheet, mode_payload: dict) -> None:
         worksheet[f"R{offset}"] = descente_contacts[3]["phone"]
 
 
+def _write_padesce_sheet(worksheet, mode_payload: dict) -> None:
+    worksheet["B1"] = "Score Padesce par prestation"
+    worksheet["C1"] = "TRUE"
+    worksheet["B3"] = "Prestation ID"
+    worksheet["C3"] = "Classes"
+    worksheet["D3"] = "Taux présence (%)"
+    worksheet["E3"] = "Resp horaire (%)"
+    worksheet["F3"] = "Resp thème (%)"
+    worksheet["G3"] = "Resp parité (%)"
+    worksheet["H3"] = "Qualité env. (/13)"
+    worksheet["I3"] = "Sat. apprenant (/5)"
+    worksheet["J3"] = "Sat. formateur (/5)"
+    worksheet["K3"] = "Attitude enquête (/10)"
+    worksheet["L3"] = "Note globale (/100)"
+
+    _clear_data_rows(worksheet, start_row=FAST_STATS_TEMPLATE_ROW_START, max_col=12)
+    last_row = max(
+        FAST_STATS_TEMPLATE_ROW_START, FAST_STATS_TEMPLATE_ROW_START + len(mode_payload["rows"]) - 1
+    )
+    _ensure_sheet_capacity(worksheet, last_row=last_row, max_col=12)
+
+    for offset, row in enumerate(mode_payload["rows"], start=FAST_STATS_TEMPLATE_ROW_START):
+        worksheet[f"A{offset}"] = row["index"]
+        worksheet[f"B{offset}"] = row["prestation_id"]
+        worksheet[f"C{offset}"] = row["classe_count"]
+        worksheet[f"D{offset}"] = row["taux_presence_base"]
+        worksheet[f"E{offset}"] = row["resp_horaire_base"]
+        worksheet[f"F{offset}"] = row["resp_theme_base"]
+        worksheet[f"G{offset}"] = row["resp_parité_base"]
+        worksheet[f"H{offset}"] = row["qualite_environnement_base"]
+        worksheet[f"I{offset}"] = row["satisfaction_apprenant_base"]
+        worksheet[f"J{offset}"] = row["satisfaction_formateur_base"]
+        worksheet[f"K{offset}"] = row["attitude_enquete_base"]
+        worksheet[f"L{offset}"] = row["note_globale"]
+
+        # Format with custom number format (values are already in percentage form like 92.5)
+        worksheet[f"D{offset}"].number_format = '0.00"%"'
+        worksheet[f"E{offset}"].number_format = '0.00"%"'
+        worksheet[f"F{offset}"].number_format = '0.00"%"'
+        worksheet[f"G{offset}"].number_format = '0.00"%"'
+
+
 def build_fast_stats_workbook(request, *, active_mode: str = "apprenant") -> Workbook:
     if FAST_STATS_TEMPLATE_PATH.exists():
         template_workbook = load_workbook(FAST_STATS_TEMPLATE_PATH)
@@ -1076,13 +2102,31 @@ def build_fast_stats_workbook(request, *, active_mode: str = "apprenant") -> Wor
         apprenant_sheet = workbook.active
         formateur_sheet = workbook.create_sheet("Enquête de formateur")
 
+    # Create general and padesce sheets
+    general_sheet = workbook.create_sheet("General", 1)
+    padesce_sheet = workbook.create_sheet("Padesce", 2)
+
     modes = {mode["id"]: mode for mode in build_fast_stats_bundle(request)["modes"]}
     _write_apprenant_sheet(apprenant_sheet, modes["apprenant"])
+    _write_general_sheet(general_sheet, modes["general"])
     _write_formateur_sheet(formateur_sheet, modes["formateur"])
+    if "padesce" in modes:
+        _write_padesce_sheet(padesce_sheet, modes["padesce"])
+    if "descentes" in modes:
+        _write_descentes_sheets(workbook, modes["descentes"])
 
-    active_sheet_name = (
-        formateur_sheet.title if active_mode == "formateur" else apprenant_sheet.title
-    )
+    # Determine active sheet based on mode
+    if active_mode == "formateur":
+        active_sheet_name = formateur_sheet.title
+    elif active_mode == "general":
+        active_sheet_name = general_sheet.title
+    elif active_mode == "padesce":
+        active_sheet_name = padesce_sheet.title
+    elif active_mode == "descentes":
+        active_sheet_name = "SA"
+    else:
+        active_sheet_name = apprenant_sheet.title
+
     workbook.active = workbook.sheetnames.index(active_sheet_name)
     return workbook
 
@@ -1106,7 +2150,9 @@ def build_fast_stats_export_response(request) -> HttpResponse:
 def build_fast_stats_context(request, *, default_mode: str) -> dict:
     return {
         "fast_stats_default_mode": (
-            default_mode if default_mode in {"apprenant", "formateur"} else "apprenant"
+            default_mode
+            if default_mode in {"apprenant", "general", "formateur", "padesce", "descentes"}
+            else "apprenant"
         ),
     }
 
