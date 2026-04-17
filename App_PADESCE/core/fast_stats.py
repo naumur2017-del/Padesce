@@ -938,30 +938,31 @@ def _padesce_source_class_is_finished(source_class: dict) -> bool:
 
 def _padesce_qualified_prestation_keys(
     source_bundle: dict | None,
-    source_class_counts: dict[str, int],
     db_classes: list,
 ) -> set[str] | None:
     """Retourne les clés normalisées des 64 prestations analysées.
 
-    Réplique la logique du ratio 64/78 de la page analyses de satisfaction :
-      - Terminée   : toutes les classes source ont statut terminé/arrêté
-      - Qualifiée  : toutes les classes joignables ont atteint le seuil (25 %)
+    Réplique exactement la logique du ratio 64/78 de la page d'analyse :
+      - Terminée  : toutes les classes source ont statut terminé/arrêté
+      - Qualifiée : toutes les classes joignables (avec tél) ont atteint
+                   le seuil 25 % calculé sur les apprenants éligibles DB
     Retourne None si aucun source_bundle n'est disponible (pas de filtrage).
     """
     if not source_bundle:
         return None
 
-    from App_PADESCE.core.analysis_rules import analysis_threshold_target
+    from App_PADESCE.core.analysis_rules import analysis_threshold_target, appel_is_analysis_eligible
+    from App_PADESCE.core.call_metrics import count_callable_source_records_by_class
 
-    # 1. threshold_by_class depuis la base de données (nb enquêtes ≥ seuil 25 %)
+    # 1. threshold_by_class : seuil 25 % sur apprenants éligibles (avec tél, non exclus) — DB
     threshold_by_class: dict[str, bool] = {}
     for classe in db_classes:
         c_key = normalize_network_lookup(classe.code)
         appels = list(classe.appels.all())
-        apprenant_count = int(source_class_counts.get(c_key, len(list(classe.apprenants.all()))) or 0)
+        eligible_count = sum(1 for a in appels if appel_is_analysis_eligible(a))
         nb_completed = sum(1 for a in appels if _get_completed_satisfaction(a) is not None)
-        target = analysis_threshold_target(apprenant_count)
-        threshold_by_class[c_key] = nb_completed >= target if apprenant_count > 0 else nb_completed > 0
+        target = analysis_threshold_target(eligible_count)
+        threshold_by_class[c_key] = nb_completed >= target if eligible_count > 0 else nb_completed > 0
 
     # 2. prestation_key → {class_key: source_class} depuis le fichier source
     prestation_classes: dict[str, dict[str, dict]] = {}
@@ -980,9 +981,10 @@ def _padesce_qualified_prestation_keys(
         if p_key and p_key not in prestation_classes and _padesce_source_class_is_finished(p_info):
             terminated.add(p_key)
 
-    # 4. callable apprenant counts (clés normalisées) = source_class_counts déjà normalisé
+    # 4. callable_counts depuis le fichier source (enregistrements avec numéro de tél)
+    raw_callable = count_callable_source_records_by_class(source_bundle)
     callable_counts: dict[str, int] = {
-        normalize_network_lookup(k): int(v or 0) for k, v in source_class_counts.items()
+        normalize_network_lookup(k): int(v or 0) for k, v in raw_callable.items()
     }
 
     # 5. Qualifiées = terminées ET seuil atteint sur toutes les classes joignables
@@ -1050,9 +1052,7 @@ def _build_padesce_rows(
     """
     from collections import defaultdict
 
-    qualified_keys = _padesce_qualified_prestation_keys(
-        source_bundle, source_class_counts or {}, classes
-    )
+    qualified_keys = _padesce_qualified_prestation_keys(source_bundle, classes)
 
     groups: dict[str, list] = defaultdict(list)
     for classe in classes:
