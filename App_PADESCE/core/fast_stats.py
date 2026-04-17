@@ -15,7 +15,6 @@ from openpyxl import Workbook, load_workbook
 from openpyxl.cell.cell import MergedCell
 
 from App_PADESCE.appels.models import Appel, AppelAnswers, AppelFormateur
-from App_PADESCE.satisfaction_apprenants.sharepoint_csv_links import SHAREPOINT_CSV_LINKS
 from App_PADESCE.apprenants.models import Apprenant
 from App_PADESCE.formations.models import Classe, Formateur
 from App_PADESCE.reporting.network_excel import (
@@ -24,6 +23,7 @@ from App_PADESCE.reporting.network_excel import (
     normalize_workbook_source_key,
 )
 from App_PADESCE.satisfaction_apprenants.models import SatisfactionApprenant
+from App_PADESCE.satisfaction_apprenants.sharepoint_csv_links import SHAREPOINT_CSV_LINKS
 
 FAST_STATS_TEMPLATE_PATH = (
     Path(settings.BASE_DIR) / "data" / "templates" / "fast_stats_template.xlsx"
@@ -951,7 +951,10 @@ def _padesce_qualified_prestation_keys(
     if not source_bundle:
         return None
 
-    from App_PADESCE.core.analysis_rules import analysis_threshold_target, appel_is_analysis_eligible
+    from App_PADESCE.core.analysis_rules import (
+        analysis_threshold_target,
+        appel_is_analysis_eligible,
+    )
     from App_PADESCE.core.call_metrics import count_callable_source_records_by_class
 
     # 1. threshold_by_class sur TOUTES les classes actives DB (pas seulement les
@@ -970,7 +973,8 @@ def _padesce_qualified_prestation_keys(
         eligible_count = sum(1 for a in appels if appel_is_analysis_eligible(a))
         nb_completed = sum(1 for a in appels if _get_completed_satisfaction(a) is not None)
         target = analysis_threshold_target(eligible_count)
-        threshold_by_class[c_key] = nb_completed >= target if eligible_count > 0 else nb_completed > 0
+        elig_ok = nb_completed >= target if eligible_count > 0 else nb_completed > 0
+        threshold_by_class[c_key] = elig_ok
 
     # Classes déjà chargées par fast_stats (terminées, prefetchées)
     for classe in db_classes:
@@ -1047,9 +1051,13 @@ def _note_globale_from_metrics(
     Points   (B$5) : 20,  10,  10,  10, 10, 20, 10, 10
     """
     vals = [
-        taux_presence_base, resp_horaire_base, resp_theme_base,
-        resp_parité_base, qualite_environnement_base,
-        satisfaction_apprenant_base, satisfaction_formateur_base,
+        taux_presence_base,
+        resp_horaire_base,
+        resp_theme_base,
+        resp_parité_base,
+        qualite_environnement_base,
+        satisfaction_apprenant_base,
+        satisfaction_formateur_base,
         attitude_enquete_base,
     ]
     if not any(v is not None for v in vals):
@@ -1059,14 +1067,14 @@ def _note_globale_from_metrics(
         return (v / mx) * pts if v is not None else 0.0
 
     return (
-        _t(taux_presence_base,         100, 20)
-        + _t(resp_horaire_base,         100, 10)
-        + _t(resp_theme_base,           100, 10)
-        + _t(resp_parité_base,          100, 10)
+        _t(taux_presence_base, 100, 20)
+        + _t(resp_horaire_base, 100, 10)
+        + _t(resp_theme_base, 100, 10)
+        + _t(resp_parité_base, 100, 10)
         + _t(qualite_environnement_base, 13, 10)
         + _t(satisfaction_apprenant_base, 5, 20)
         + _t(satisfaction_formateur_base, 5, 10)
-        + _t(attitude_enquete_base,      10, 10)
+        + _t(attitude_enquete_base, 10, 10)
     )
 
 
@@ -1086,9 +1094,7 @@ def _build_padesce_rows(
     prestation_keys_in_classes: set[str] = set()
 
     for classe in classes:
-        code = (
-            _safe_text(getattr(getattr(classe, "prestation", None), "code", "")) or "—"
-        )
+        code = _safe_text(getattr(getattr(classe, "prestation", None), "code", "")) or "—"
         groups[code].append(classe)
         prestation_codes_in_classes.add(code)
         prestation_keys_in_classes.add(normalize_network_lookup(code))
@@ -1111,19 +1117,21 @@ def _build_padesce_rows(
             g.get("attitude_enquete_base"),
         )
 
-        all_rows.append({
-            "prestation_id": prestation_code,
-            "classe_count": len(prestation_classes),
-            "taux_presence_base":          g.get("taux_presence_base"),
-            "resp_horaire_base":           g.get("resp_horaire_base"),
-            "resp_theme_base":             g.get("resp_theme_base"),
-            "resp_parité_base":            g.get("resp_parité_base"),
-            "qualite_environnement_base":  g.get("qualite_environnement_base"),
-            "satisfaction_apprenant_base": g.get("satisfaction_apprenant_base"),
-            "satisfaction_formateur_base": g.get("satisfaction_formateur_base"),
-            "attitude_enquete_base":       g.get("attitude_enquete_base"),
-            "note_globale":                note_globale,
-        })
+        all_rows.append(
+            {
+                "prestation_id": prestation_code,
+                "classe_count": len(prestation_classes),
+                "taux_presence_base": g.get("taux_presence_base"),
+                "resp_horaire_base": g.get("resp_horaire_base"),
+                "resp_theme_base": g.get("resp_theme_base"),
+                "resp_parité_base": g.get("resp_parité_base"),
+                "qualite_environnement_base": g.get("qualite_environnement_base"),
+                "satisfaction_apprenant_base": g.get("satisfaction_apprenant_base"),
+                "satisfaction_formateur_base": g.get("satisfaction_formateur_base"),
+                "attitude_enquete_base": g.get("attitude_enquete_base"),
+                "note_globale": note_globale,
+            }
+        )
 
     # 2. Ajouter les 7 prestations manquantes depuis la source (sans données DB)
     if source_bundle:
@@ -1135,20 +1143,23 @@ def _build_padesce_rows(
                 continue
 
             # Ajouter avec données vides/nulles (pas de satisfaction DB)
-            prestation_code = _safe_text(prestation_info.get("prestation_id", prestation_key)) or prestation_key
-            all_rows.append({
-                "prestation_id": prestation_code,
-                "classe_count": prestation_info.get("classe_count", 0),
-                "taux_presence_base":          None,
-                "resp_horaire_base":           None,
-                "resp_theme_base":             None,
-                "resp_parité_base":            None,
-                "qualite_environnement_base":  None,
-                "satisfaction_apprenant_base": None,
-                "satisfaction_formateur_base": None,
-                "attitude_enquete_base":       None,
-                "note_globale":                None,
-            })
+            fallback_p = prestation_info.get("prestation_id", prestation_key)
+            prestation_code = _safe_text(fallback_p) or prestation_key
+            all_rows.append(
+                {
+                    "prestation_id": prestation_code,
+                    "classe_count": prestation_info.get("classe_count", 0),
+                    "taux_presence_base": None,
+                    "resp_horaire_base": None,
+                    "resp_theme_base": None,
+                    "resp_parité_base": None,
+                    "qualite_environnement_base": None,
+                    "satisfaction_apprenant_base": None,
+                    "satisfaction_formateur_base": None,
+                    "attitude_enquete_base": None,
+                    "note_globale": None,
+                }
+            )
 
     # Trier et indexer
     all_rows.sort(key=lambda r: _safe_text(r.get("prestation_id", "")))
@@ -1383,8 +1394,23 @@ def _mode_payload(
 # Mode "descentes" — tableau SA + SF pour copier-coller dans DESCENTES CLASSES
 # ---------------------------------------------------------------------------
 
+
 def _get_site_url() -> str:
     return str(getattr(settings, "SITE_URL", "") or "https://call.naumur.com").rstrip("/")
+
+
+def _load_sf_prestataires_mapping() -> dict:
+    """Load the SF prestataires mapping from JSON file at project root."""
+    mapping_file = Path(settings.BASE_DIR) / "sf_prestataires_mapping.json"
+    if mapping_file.exists():
+        import json
+
+        try:
+            with open(mapping_file, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {}
 
 
 def _build_descentes_sa_rows(classes) -> list[dict]:
@@ -1394,33 +1420,30 @@ def _build_descentes_sa_rows(classes) -> list[dict]:
     for idx, classe in enumerate(classes, start=1):
         code = _safe_text(getattr(classe, "code", "")) or "?"
         prestation = getattr(classe, "prestation", None)
-        prestataire = (
-            getattr(getattr(prestation, "prestataire", None), "raison_sociale", "")
-            or ""
+        prestataire = getattr(getattr(prestation, "prestataire", None), "raison_sociale", "") or ""
+        beneficiaire = getattr(getattr(prestation, "beneficiaire", None), "nom_structure", "") or ""
+        rows.append(
+            {
+                "index": idx,
+                "code": code,
+                "type": "SA",
+                "statut": "Achevé",
+                "prestataire": prestataire,
+                "beneficiaire": beneficiaire,
+                "enquete_url": f"{site_url}/classe/{code.lower()}/",
+                "csv_url": SHAREPOINT_CSV_LINKS.get(
+                    code,
+                    f"{site_url}/satisfaction-apprenants/analyse/export/classe/{code}/csv/",
+                ),
+            }
         )
-        beneficiaire = (
-            getattr(getattr(prestation, "beneficiaire", None), "nom_structure", "")
-            or ""
-        )
-        rows.append({
-            "index": idx,
-            "code": code,
-            "type": "SA",
-            "statut": "Achevé",
-            "prestataire": prestataire,
-            "beneficiaire": beneficiaire,
-            "enquete_url": f"{site_url}/classe/{code.lower()}/",
-            "csv_url": SHAREPOINT_CSV_LINKS.get(
-                code,
-                f"{site_url}/satisfaction-apprenants/analyse/export/classe/{code}/csv/",
-            ),
-        })
     return rows
 
 
 def _build_descentes_sf_rows() -> list[dict]:
     """Une ligne par prestataire pour la feuille SF."""
     site_url = _get_site_url()
+    mapping = _load_sf_prestataires_mapping()
     qs = (
         AppelFormateur.objects.filter(is_active=True)
         .exclude(prestataire="")
@@ -1430,23 +1453,32 @@ def _build_descentes_sf_rows() -> list[dict]:
     )
     seen: dict[str, dict] = {}
     for r in qs:
-        code = _safe_text(r.get("prestataire"))
-        if code and code not in seen:
-            seen[code] = {
-                "index": len(seen) + 1,
-                "code": code,
-                "type": "SF",
-                "statut": "Achevé",
-                "prestataire": code,
-                "beneficiaire": _safe_text(r.get("beneficiaire")),
-                "formation": _safe_text(r.get("formation")),
-                "cohorte": _safe_text(r.get("cohorte")),
-                "enquete_url": f"{site_url}/prestation/{code.lower()}/",
-                "csv_url": (
-                    f"{site_url}/satisfaction-formateurs/analyse/"
-                    f"export/prestation/{code}/csv/"
-                ),
-            }
+        prestataire_name = _safe_text(r.get("prestataire"))
+        if not prestataire_name or prestataire_name in seen:
+            continue
+
+        map_data = mapping.get(prestataire_name, {})
+        # If mapping exists, use it. Otherwise fallback to old logic.
+        code = map_data.get("code_prestataire", prestataire_name)
+        fallback_url = f"{site_url}/prestation/{prestataire_name.lower()}/"
+        enquete_url = map_data.get("lien_enquete", fallback_url)
+        csv_fallback = (
+            f"{site_url}/satisfaction-formateurs/analyse/export/prestation/{prestataire_name}/csv/"
+        )
+        csv_url = map_data.get("lien_csv", csv_fallback)
+
+        seen[prestataire_name] = {
+            "index": len(seen) + 1,
+            "code": code,
+            "type": "SF",
+            "statut": "Achevé",
+            "prestataire": prestataire_name,
+            "beneficiaire": _safe_text(r.get("beneficiaire")),
+            "formation": _safe_text(r.get("formation")),
+            "cohorte": _safe_text(r.get("cohorte")),
+            "enquete_url": enquete_url,
+            "csv_url": csv_url,
+        }
     return list(seen.values())
 
 
@@ -1513,7 +1545,7 @@ def _descentes_mode_payload(sa_rows: list[dict], sf_rows: list[dict], scope: dic
 
 def _write_descentes_sheets(workbook: Workbook, mode_payload: dict) -> None:
     """Crée deux feuilles SA et SF dans le workbook avec le bon layout colonnes."""
-    from openpyxl.styles import Font, PatternFill, Alignment
+    from openpyxl.styles import Alignment, Font, PatternFill
     from openpyxl.utils import get_column_letter
 
     header_font = Font(bold=True, color="FFFFFF")
@@ -1529,8 +1561,12 @@ def _write_descentes_sheets(workbook: Workbook, mode_payload: dict) -> None:
     ws_sa = workbook.create_sheet("SA")
     # En-têtes ligne 1 (colonnes A→P, seules les colonnes cibles sont renseignées)
     sa_headers = {
-        1: "N°", 3: "LIEN DE LA PUBLICATION", 7: "Classe",
-        8: "TYPE DE CONTRÔLE", 10: "STATUT", 16: "CSV",
+        1: "N°",
+        3: "LIEN DE LA PUBLICATION",
+        7: "Classe",
+        8: "TYPE DE CONTRÔLE",
+        10: "STATUT",
+        16: "CSV",
     }
     for col, label in sa_headers.items():
         cell = ws_sa.cell(row=1, column=col, value=label)
@@ -1565,9 +1601,16 @@ def _write_descentes_sheets(workbook: Workbook, mode_payload: dict) -> None:
     # ---- Feuille SF ----
     ws_sf = workbook.create_sheet("SF")
     sf_headers = {
-        1: "N°", 2: "Code Prestataire", 3: "LIEN DES ENQUÊTES",
-        4: "Prestataire", 5: "Bénéficiaire", 6: "Formation", 7: "Cohorte",
-        9: "TYPE", 11: "STATUT", 16: "CSV",
+        1: "N°",
+        2: "Code Prestataire",
+        3: "LIEN DES ENQUÊTES",
+        4: "Prestataire",
+        5: "Bénéficiaire",
+        6: "Formation",
+        7: "Cohorte",
+        9: "TYPE",
+        11: "STATUT",
+        16: "CSV",
     }
     for col, label in sf_headers.items():
         cell = ws_sf.cell(row=1, column=col, value=label)
