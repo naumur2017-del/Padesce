@@ -213,6 +213,29 @@ class SatisfactionFormateurDashboardAverageTests(TestCase):
     def test_average_displayed_scores_matches_visible_q1_q3_values(self):
         self.assertEqual(_average_displayed_scores([2.98, 3.49, 3.12]), 3.20)
 
+    def test_dashboard_context_normalizes_filter_options_with_null_like_values(self):
+        AppelFormateur.objects.filter(reference_code="AVG-001").update(beneficiaire="   ")
+        AppelFormateur.objects.create(
+            reference_code="AVG-003",
+            prestataire="Prestataire B",
+            beneficiaire="",
+            formation="Formation B",
+            cohorte="",
+            telephone="699333333",
+            session_date=date(2026, 4, 12),
+            heure_debut="10:00",
+            status="en_attente",
+        )
+
+        request = self.factory.get(
+            reverse("satisfaction_formateurs_dashboard"), {"tab": "beneficiaire"}
+        )
+        request.user = self.user
+        context = _build_satisfaction_formateurs_dashboard_context(request)
+
+        self.assertEqual(context["beneficiaires"], ["Beneficiaire A"])
+        self.assertEqual(context["cohortes"], ["1"])
+
 
 class PrestationIndicatorsFormateurMappingTests(TestCase):
     def setUp(self):

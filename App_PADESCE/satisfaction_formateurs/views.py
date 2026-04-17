@@ -1648,12 +1648,28 @@ Q_FORM_FIELDS = [
 
 
 def _avg_num(values):
-    nums = [v for v in values if v is not None]
+    nums = []
+    for v in values:
+        if v is not None:
+            try:
+                # Convertir en float si ce n'est pas déjà un nombre
+                if isinstance(v, (int, float)):
+                    nums.append(v)
+                else:
+                    nums.append(float(v))
+            except (ValueError, TypeError):
+                continue
     return round(sum(nums) / len(nums), 2) if nums else 0
 
 
 def _average_displayed_scores(values) -> float:
-    displayed_values = [round(float(value), 2) for value in values if value is not None]
+    displayed_values = []
+    for value in values:
+        if value is not None:
+            try:
+                displayed_values.append(round(float(value), 2))
+            except (ValueError, TypeError):
+                continue
     return round(sum(displayed_values) / len(displayed_values), 2) if displayed_values else 0
 
 
@@ -1663,6 +1679,15 @@ FORMATEUR_DASHBOARD_TABS = {"prestataire", "beneficiaire", "cohorte", "prestatio
 def _active_formateurs_tab(request) -> str:
     tab = (request.GET.get("tab") or "prestataire").strip().lower()
     return tab if tab in FORMATEUR_DASHBOARD_TABS else "prestataire"
+
+
+def _sorted_distinct_non_empty_values(values) -> list[str]:
+    normalized_values = set()
+    for value in values:
+        text = str(value or "").strip()
+        if text:
+            normalized_values.add(text)
+    return sorted(normalized_values)
 
 
 def _build_formateur_appel_status_summary(queryset) -> dict[str, int]:
@@ -1799,9 +1824,9 @@ def _build_satisfaction_formateurs_dashboard_context(request) -> dict:
     prestation_stats = _group_stats(lambda r: r["reference_code"] or "-")
 
     all_qs = AppelFormateur.objects.filter(is_active=True)
-    prestataires = sorted(set(all_qs.values_list("prestataire", flat=True)) - {""})
-    beneficiaires = sorted(set(all_qs.values_list("beneficiaire", flat=True)) - {""})
-    cohortes = sorted(set(all_qs.values_list("cohorte", flat=True)) - {""})
+    prestataires = _sorted_distinct_non_empty_values(all_qs.values_list("prestataire", flat=True))
+    beneficiaires = _sorted_distinct_non_empty_values(all_qs.values_list("beneficiaire", flat=True))
+    cohortes = _sorted_distinct_non_empty_values(all_qs.values_list("cohorte", flat=True))
 
     status_counts = defaultdict(int)
     for r in records:
@@ -1819,16 +1844,18 @@ def _build_satisfaction_formateurs_dashboard_context(request) -> dict:
 
     prestation_mapping = {}
     with connection.cursor() as cursor:
-        cursor.execute("""
-            SELECT p.code, p.id, pr.raison_sociale as prestataire_nom, 
+        cursor.execute(
+            """
+            SELECT p.code, p.id, pr.raison_sociale as prestataire_nom,
                    b.nom_structure as beneficiaire_nom, f.nom as formation_nom,
                    b.region as beneficiaire_region
             FROM formations_prestation p
             LEFT JOIN formations_prestataire pr ON p.prestataire_id = pr.id
-            LEFT JOIN formations_beneficiaire b ON p.beneficiaire_id = b.id  
+            LEFT JOIN formations_beneficiaire b ON p.beneficiaire_id = b.id
             LEFT JOIN formations_formation f ON p.formation_id = f.id
             WHERE p.actif = 1
-        """)
+        """
+        )
         prestations_info = cursor.fetchall()
         for code, id, prestataire_nom, beneficiaire_nom, formation_nom, region in prestations_info:
             prestation_mapping[code] = {
