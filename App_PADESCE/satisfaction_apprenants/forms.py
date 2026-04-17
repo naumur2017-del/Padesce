@@ -39,7 +39,7 @@ class SatisfactionBatchUpdateForm(forms.Form):
     classe_code = forms.CharField(
         required=False,
         label="Code classe",
-        help_text="Optionnel. Appliqué à tous les codes sans classe explicite.",
+        help_text="Optionnel. Applique a tous les codes sans classe explicite.",
         widget=forms.TextInput(
             attrs={
                 "placeholder": "CLA001",
@@ -65,13 +65,13 @@ class SatisfactionBatchUpdateForm(forms.Form):
     target_status = forms.ChoiceField(
         required=False,
         label="Statut a appliquer",
-        help_text="Utilise uniquement le bouton de changement de statut.",
+        help_text="Utilise uniquement par le bouton de changement de statut.",
         choices=(),
     )
     q1_clarte_exposes = forms.CharField(
         required=False,
         label="Q1 Clarte des exposes",
-        help_text="Une valeur unique (ex: 4) ou une liste ordonnee [4,5].",
+        help_text="Une valeur unique (ex. : 4) ou une liste ordonnee [4,5].",
         widget=forms.TextInput(
             attrs={
                 "placeholder": "4 ou [4,5]",
@@ -82,7 +82,7 @@ class SatisfactionBatchUpdateForm(forms.Form):
     q2_interaction_formateur = forms.CharField(
         required=False,
         label="Q2 Interaction formateur",
-        help_text="Une valeur unique (ex: 4) ou une liste ordonnee [4,5].",
+        help_text="Une valeur unique (ex. : 4) ou une liste ordonnee [4,5].",
         widget=forms.TextInput(
             attrs={
                 "placeholder": "4 ou [4,5]",
@@ -93,7 +93,7 @@ class SatisfactionBatchUpdateForm(forms.Form):
     q3_maitrise_contenu = forms.CharField(
         required=False,
         label="Q3 Maitrise du contenu",
-        help_text="Une valeur unique (ex: 4) ou une liste ordonnee [4,5].",
+        help_text="Une valeur unique (ex. : 4) ou une liste ordonnee [4,5].",
         widget=forms.TextInput(
             attrs={
                 "placeholder": "4 ou [4,5]",
@@ -104,7 +104,7 @@ class SatisfactionBatchUpdateForm(forms.Form):
     q4_salle_adequate = forms.CharField(
         required=False,
         label="Q4 Salle adequate",
-        help_text="Une valeur unique (ex: 4) ou une liste ordonnee [4,5].",
+        help_text="Une valeur unique (ex. : 4) ou une liste ordonnee [4,5].",
         widget=forms.TextInput(
             attrs={
                 "placeholder": "4 ou [4,5]",
@@ -115,7 +115,7 @@ class SatisfactionBatchUpdateForm(forms.Form):
     q5_materiel_disponible = forms.CharField(
         required=False,
         label="Q5 Materiel disponible",
-        help_text="Une valeur unique (ex: 4) ou une liste ordonnee [4,5].",
+        help_text="Une valeur unique (ex. : 4) ou une liste ordonnee [4,5].",
         widget=forms.TextInput(
             attrs={
                 "placeholder": "4 ou [4,5]",
@@ -126,7 +126,7 @@ class SatisfactionBatchUpdateForm(forms.Form):
     q6_organisation_temps = forms.CharField(
         required=False,
         label="Q6 Organisation du temps",
-        help_text="Une valeur unique (ex: 4) ou une liste ordonnee [4,5].",
+        help_text="Une valeur unique (ex. : 4) ou une liste ordonnee [4,5].",
         widget=forms.TextInput(
             attrs={
                 "placeholder": "4 ou [4,5]",
@@ -137,7 +137,7 @@ class SatisfactionBatchUpdateForm(forms.Form):
     q7_utilite_formation = forms.CharField(
         required=False,
         label="Q7 Utilite de la formation",
-        help_text="Une valeur unique (ex: 4) ou une liste ordonnee [4,5].",
+        help_text="Une valeur unique (ex. : 4) ou une liste ordonnee [4,5].",
         widget=forms.TextInput(
             attrs={
                 "placeholder": "4 ou [4,5]",
@@ -148,7 +148,7 @@ class SatisfactionBatchUpdateForm(forms.Form):
     q8_adequation_besoins = forms.CharField(
         required=False,
         label="Q8 Adequation aux besoins",
-        help_text="Une valeur unique (ex: 4) ou une liste ordonnee [4,5].",
+        help_text="Une valeur unique (ex. : 4) ou une liste ordonnee [4,5].",
         widget=forms.TextInput(
             attrs={
                 "placeholder": "4 ou [4,5]",
@@ -159,7 +159,7 @@ class SatisfactionBatchUpdateForm(forms.Form):
     q9_satisfaction_globale = forms.CharField(
         required=False,
         label="Q9 Satisfaction globale",
-        help_text="Une valeur unique (ex: 4) ou une liste ordonnee [4,5].",
+        help_text="Une valeur unique (ex. : 4) ou une liste ordonnee [4,5].",
         widget=forms.TextInput(
             attrs={
                 "placeholder": "4 ou [4,5]",
@@ -171,7 +171,8 @@ class SatisfactionBatchUpdateForm(forms.Form):
         required=False,
         label="Commentaires",
         help_text=(
-            "Texte unique ou liste ordonnee entre crochets. Exemple: [RAS, Besoin de suivi]."
+            "Texte unique ou liste ordonnee entre crochets. "
+            "Exemple : [RAS, Besoin de suivi]."
         ),
         widget=forms.Textarea(
             attrs={
@@ -185,7 +186,7 @@ class SatisfactionBatchUpdateForm(forms.Form):
         label="Recommandations",
         help_text=(
             "Texte unique ou liste ordonnee entre crochets. "
-            "Exemple: [Continuer, Renforcer l'accompagnement]."
+            "Exemple : [Continuer, Renforcer l'accompagnement]."
         ),
         widget=forms.Textarea(
             attrs={

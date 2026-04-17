@@ -188,7 +188,7 @@
     <div class="toolbar-card">
       <form method="get" class="filters">
         <div class="field">
-          <label for="id_start">Debut</label>
+          <label for="id_start">Début</label>
           <input id="id_start" type="date" name="start" value="{{ start_value }}">
         </div>
         <div class="field">
@@ -288,7 +288,7 @@
 
     <article class="panel" style="grid-column: 1 / -1;">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
-        <h3 style="margin:0;">Anomalie classe</h3>
+        <h3 style="margin:0;">Anomalies de classe</h3>
         <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; justify-content:flex-end;">
           <a class="btn btn-soft" href="{% url 'application_report_export_anomalies_excel' %}?{{ download_query }}">Exporter les anomalies</a>
           <form method="get" id="anomaly-filter-form" style="display:flex; gap:10px; align-items:center;">
@@ -335,7 +335,7 @@
             <tr class="{% if row.anomaly_label == 'Pas forme' %}anomaly-not-formed{% elif row.anomaly_label == 'Doublon' %}anomaly-duplicate{% else %}anomaly-false-name{% endif %}">
               <td>{{ row.apprenant_id|default:"-" }}</td>
               {% if report.anomalies.selected_class.not_formed_count %}
-              <td>{% if row.anomaly_label == "Pas forme" %}Pas forme{% endif %}</td>
+              <td>{% if row.anomaly_label == "Pas forme" %}Pas formé{% endif %}</td>
               {% endif %}
               {% if report.anomalies.selected_class.duplicate_numbers_count %}
               <td>{% if row.anomaly_label == "Doublon" %}{{ row.phone_display }}{% endif %}</td>
@@ -345,7 +345,7 @@
               {% endif %}
             </tr>
             {% empty %}
-            <tr><td colspan="4" class="muted" style="text-align:center; padding:20px;">Aucune anomalie detectee.</td></tr>
+            <tr><td colspan="4" class="muted" style="text-align:center; padding:20px;">Aucune anomalie détectée.</td></tr>
             {% endfor %}
           </tbody>
         </table>
@@ -365,7 +365,7 @@
       <div class="table-scroll" style="margin-top:12px;">
         <table>
           <thead>
-            <tr><th>Incident</th><th>Module</th><th>Etat</th></tr>
+            <tr><th>Incident</th><th>Module</th><th>État</th></tr>
           </thead>
           <tbody>
             {% for alarm in report.bugs.recent_alarms %}
@@ -384,7 +384,7 @@
     <article class="panel">
       <h3>Appels par heure</h3>
       {% if report.best_hour %}
-      <div class="pill" style="margin-bottom:12px;">Pic journalier: {{ report.best_hour.label }} avec {{ report.best_hour.completed }} appels terminés</div>
+      <div class="pill" style="margin-bottom:12px;">Pic journalier : {{ report.best_hour.label }} avec {{ report.best_hour.completed }} appels terminés</div>
       {% endif %}
       <div class="hour-list">
         {% for row in report.hourly_rows %}
@@ -454,7 +454,7 @@
         {% endfor %}
       </div>
       {% if report.mail_status.missing_configuration %}
-      <p class="muted" style="margin:12px 0 0;">Renseigne `REPORT_EMAIL_TO` dans le fichier `.env` pour activer les destinataires.</p>
+      <p class="muted" style="margin:12px 0 0;">Renseignez `REPORT_EMAIL_TO` dans le fichier `.env` pour activer les destinataires.</p>
       {% elif not report.mail_status.smtp_ready %}
       <p class="muted" style="margin:12px 0 0;">La liste des destinataires existe, mais la configuration SMTP n'est pas encore complète.</p>
       {% else %}

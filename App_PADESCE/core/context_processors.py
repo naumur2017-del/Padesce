@@ -11,14 +11,14 @@ PAGE_TITLE_BY_PREFIX: tuple[tuple[str, str], ...] = (
     ("/backup/", "Backup"),
     ("/reporting/documentation/", "Documentation Reporting"),
     ("/satisfaction-apprenants/analyse/", "Analyses de satisfaction"),
-    ("/satisfaction-apprenants/", "Enquête Apprenants"),
+    ("/satisfaction-apprenants/", "Enquête apprenants"),
     ("/satisfaction-formateurs/analyse/", "Analyses de satisfaction"),
-    ("/satisfaction-formateurs/", "Enquête Formateur"),
+    ("/satisfaction-formateurs/", "Enquête formateurs"),
     ("/reporting/", "Rapport"),
-    ("/suivi-utilisateurs/", "Suivi Utilisateurs"),
+    ("/suivi-utilisateurs/", "Suivi utilisateurs"),
     ("/cga/", "CGA"),
     ("/consultant/", "Espace PADESCE"),
-    ("/guide-operateur/", "Guide Opérateur"),
+    ("/guide-operateur/", "Guide opérateur"),
     ("/messages/support/", "Support"),
     ("/admin/", "Admin"),
     ("/dashboard/", "Dashboard"),
@@ -90,7 +90,8 @@ def _build_menu_items(user, path: str, consultant_only: bool) -> list[dict[str, 
             add_item(
                 "Rapport",
                 _safe_reverse("application_report_view"),
-                "/reporting/",
+                "/reporting/rapport/",
+                "/reporting/rapport/view/",
             )
         add_item(
             "Documentation Reporting",
@@ -104,7 +105,7 @@ def _build_menu_items(user, path: str, consultant_only: bool) -> list[dict[str, 
         )
 
     if superadmin_access:
-        add_item("Suivi Utilisateurs", _safe_reverse("user_tracking"), "/suivi-utilisateurs/")
+        add_item("Suivi utilisateurs", _safe_reverse("user_tracking"), "/suivi-utilisateurs/")
 
     add_item("CGA", _safe_reverse("cga_index"), "/cga/")
 

@@ -7,7 +7,7 @@
   <title>{% block title %}{{ nav_page_title|default:"PADESCE" }}{% endblock %} | PADESCE</title>
   <meta
     name="description"
-    content="PADESCE, plateforme de suivi des appels, des analyses et des operations de gestion."
+    content="PADESCE, plateforme de suivi des appels, des analyses et des opérations de gestion."
   >
   <meta name="application-name" content="PADESCE">
   <meta name="apple-mobile-web-app-title" content="PADESCE">
@@ -495,7 +495,7 @@
               <div class="nav-dropdown-footer">
                 <form class="nav-logout-form" method="post" action="{% url 'logout' %}">
                   {% csrf_token %}
-                  <button class="nav-logout-btn" type="submit">Logout</button>
+                  <button class="nav-logout-btn" type="submit">Déconnexion</button>
                 </form>
               </div>
             </div>
@@ -623,7 +623,7 @@
           latitude: null,
           longitude: null,
           accuracy: null,
-          message: "Ce navigateur ne supporte pas la geolocalisation.",
+          message: "Ce navigateur ne supporte pas la géolocalisation.",
           secure_context: window.isSecureContext ? "yes" : "no",
         });
         return;
@@ -634,8 +634,8 @@
         longitude: null,
         accuracy: null,
         message: window.isSecureContext
-          ? "Demande de position envoyee au navigateur."
-          : "Contexte non securise: la geolocalisation peut etre bloquee hors HTTPS.",
+          ? "Demande de position envoyée au navigateur."
+          : "Contexte non sécurisé : la géolocalisation peut être bloquée hors HTTPS.",
         secure_context: window.isSecureContext ? "yes" : "no",
       });
       navigator.geolocation.getCurrentPosition(
@@ -649,7 +649,7 @@
             latitude: browserGeo.browser_latitude,
             longitude: browserGeo.browser_longitude,
             accuracy: position.coords.accuracy || null,
-            message: "Position navigateur recue.",
+            message: "Position navigateur reçue.",
             secure_context: window.isSecureContext ? "yes" : "no",
           });
           sendActivity({
@@ -666,7 +666,7 @@
             latitude: null,
             longitude: null,
             accuracy: null,
-            message: error && error.message ? error.message : "Geolocalisation refusee ou indisponible.",
+            message: error && error.message ? error.message : "Géolocalisation refusée ou indisponible.",
             code: error && typeof error.code !== "undefined" ? error.code : null,
             secure_context: window.isSecureContext ? "yes" : "no",
           });
