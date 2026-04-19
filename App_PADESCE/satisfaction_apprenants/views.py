@@ -2689,16 +2689,31 @@ def _build_prestation_indicators_table():
             ),
         )
         formateur_metrics = formateur_metrics_by_combo.get(combo_key)
+        
+        # Vérifier si le code de prestation correspond à une combinaison valide
+        # Si aucune combinaison prestataire-bénéficiaire correspondante, afficher un tiret
+        if not formateur_metrics:
+            # Aucune combinaison trouvée - afficher des tirets
+            formateur_data = {
+                "q1_prerequis_apprenants": None,  # Tiret
+                "q2_interaction_apprenants": None,  # Tiret
+                "q3_competences_acquises": None,  # Tiret
+                "q4_gestion_administrative": [],
+                "q5_gestion_financiere": [],
+                "q6_communication": [],
+                "count": 0,
+            }
+        else:
 
-        formateur_data = {
-            "q1_prerequis_apprenants": None,
-            "q2_interaction_apprenants": None,
-            "q3_competences_acquises": None,
-            "q4_gestion_administrative": [],
-            "q5_gestion_financiere": [],
-            "q6_communication": [],
-            "count": int((formateur_metrics or {}).get("count") or 0),
-        }
+            formateur_data = {
+                "q1_prerequis_apprenants": None,
+                "q2_interaction_apprenants": None,
+                "q3_competences_acquises": None,
+                "q4_gestion_administrative": [],
+                "q5_gestion_financiere": [],
+                "q6_communication": [],
+                "count": int((formateur_metrics or {}).get("count") or 0),
+            }
 
         if formateur_metrics:
             for field in [
