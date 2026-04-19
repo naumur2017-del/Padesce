@@ -2689,33 +2689,39 @@ def _build_prestation_indicators_table():
             ),
         )
         formateur_metrics = formateur_metrics_by_combo.get(combo_key)
-        
+
         # Vérifier si le code de prestation correspond à une combinaison valide
         # Si aucune combinaison prestataire-bénéficiaire correspondante, afficher un tiret
+        # et afficher les données des appels formateurs avec leurs moyennes
         if not formateur_metrics:
-            # Aucune combinaison trouvée - afficher des tirets
-            formateur_data = {
-                "q1_prerequis_apprenants": None,  # Tiret
-                "q2_interaction_apprenants": None,  # Tiret
-                "q3_competences_acquises": None,  # Tiret
-                "q4_gestion_administrative": [],
-                "q5_gestion_financiere": [],
-                "q6_communication": [],
-                "count": 0,
-            }
+            # Aucune combinaison trouvée - afficher un tiret
+            # et les données prestataire-bénéficiaire de la prestation
+            table_data.append(
+                {
+                    "code": "-",  # Tiret dans la colonne code prestation
+                    "prestataire": (
+                        prestation.prestataire.raison_sociale if prestation.prestataire else ""
+                    ),
+                    "beneficiaire": (
+                        prestation.beneficiaire.nom_structure if prestation.beneficiaire else ""
+                    ),
+                    "formateur": {
+                        "q1_prerequis_apprenants": None,  # Tiret
+                        "q2_interaction_apprenants": None,  # Tiret
+                        "q3_competences_acquises": None,  # Tiret
+                        "count": 0,
+                    },
+                }
+            )
         else:
-
+            # Calculer les moyennes pour les données formateur
             formateur_data = {
                 "q1_prerequis_apprenants": None,
                 "q2_interaction_apprenants": None,
                 "q3_competences_acquises": None,
-                "q4_gestion_administrative": [],
-                "q5_gestion_financiere": [],
-                "q6_communication": [],
-                "count": int((formateur_metrics or {}).get("count") or 0),
+                "count": int(formateur_metrics.get("count") or 0),
             }
 
-        if formateur_metrics:
             for field in [
                 "q1_prerequis_apprenants",
                 "q2_interaction_apprenants",
@@ -2724,23 +2730,62 @@ def _build_prestation_indicators_table():
                 values = formateur_metrics["scores"].get(field, [])
                 if values:
                     formateur_data[field] = round(sum(values) / len(values), 2)
-            for field in ["q4_gestion_administrative", "q5_gestion_financiere", "q6_communication"]:
-                formateur_data[field] = sorted(formateur_metrics["texts"].get(field, set()))
 
-        # Récupérer les textes pour q4-q6
-        table_data.append(
-            {
-                "code": prestation.code,
-                "prestataire": (
-                    prestation.prestataire.raison_sociale if prestation.prestataire else ""
-                ),
-                "beneficiaire": (
-                    prestation.beneficiaire.nom_structure if prestation.beneficiaire else ""
-                ),
-                "apprenant": apprenant_data,
-                "formateur": formateur_data,
-            }
+            table_data.append(
+                {
+                    "code": prestation.code,
+                    "prestataire": (
+                        prestation.prestataire.raison_sociale if prestation.prestataire else ""
+                    ),
+                    "beneficiaire": (
+                        prestation.beneficiaire.nom_structure if prestation.beneficiaire else ""
+                    ),
+                    "formateur": formateur_data,
+                }
+            )
+
+    # Ajouter les combinaisons de appels formateurs sans correspondance avec les classes apprenants
+    processed_combinations = set()
+    for prestation in all_prestations:
+        combo_key = (
+            _normalize_indicator_match_text(
+                prestation.prestataire.raison_sociale if prestation.prestataire else ""
+            ),
+            _normalize_indicator_match_text(
+                prestation.beneficiaire.nom_structure if prestation.beneficiaire else ""
+            ),
         )
+        processed_combinations.add(combo_key)
+
+    for combo_key, formateur_metrics in formateur_metrics_by_combo.items():
+        if combo_key not in processed_combinations:
+            # Créer les données formateur avec les moyennes
+            formateur_data = {
+                "q1_prerequis_apprenants": None,
+                "q2_interaction_apprenants": None,
+                "q3_competences_acquises": None,
+                "count": int(formateur_metrics.get("count") or 0),
+            }
+
+            for field in [
+                "q1_prerequis_apprenants",
+                "q2_interaction_apprenants",
+                "q3_competences_acquises",
+            ]:
+                values = formateur_metrics["scores"].get(field, [])
+                if values:
+                    formateur_data[field] = round(sum(values) / len(values), 2)
+
+            # Ajouter cette combinaison avec les prestataires-bénéficiaires des appels formateurs
+            # et un tiret dans le code prestation
+            table_data.append(
+                {
+                    "code": "-",  # Tiret dans la colonne code prestation
+                    "prestataire": combo_key[0],  # Prestataire des appels formateurs
+                    "beneficiaire": combo_key[1],  # Bénéficiaire des appels formateurs
+                    "formateur": formateur_data,  # Moyennes des appels formateurs
+                }
+            )
 
     return table_data
 
