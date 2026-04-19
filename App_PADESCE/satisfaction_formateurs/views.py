@@ -2268,6 +2268,64 @@ def satisfaction_formateurs_dashboard_export_chapeau(request):
 
 
 @require_analysis_access
+def satisfaction_formateurs_export_full_table_xlsx(request):
+    """Export de la table Performance détaillée par prestation complète en Excel."""
+    # Import the prestation indicators builder from apprenants views
+    from App_PADESCE.satisfaction_apprenants.views import _build_prestation_indicators_table
+    
+    prestation_indicators_table = _build_prestation_indicators_table()
+    
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Performance détaillée par prestation"
+    
+    # En-têtes
+    headers = [
+        "Code Prestation",
+        "Prestataire", 
+        "Bénéficiaire",
+        "Prérequis app.",
+        "Interaction app.",
+        "Compétences acquises",
+        "N enquêtes form."
+    ]
+    ws.append(headers)
+    
+    # Données
+    for prestation in prestation_indicators_table:
+        row = [
+            prestation.get("code", ""),
+            prestation.get("prestataire", ""),
+            prestation.get("beneficiaire", ""),
+            prestation.get("formateur", {}).get("q1_prerequis_apprenants"),
+            prestation.get("formateur", {}).get("q2_interaction_apprenants"),
+            prestation.get("formateur", {}).get("q3_competences_acquises"),
+            prestation.get("formateur", {}).get("count", 0)
+        ]
+        ws.append(row)
+    
+    # Style
+    for col in range(1, len(headers) + 1):
+        cell = ws.cell(row=1, column=col)
+        cell.font = openpyxl.styles.Font(bold=True)
+        cell.fill = openpyxl.styles.PatternFill(
+            start_color="E6E6FA", end_color="E6E6FA", fill_type="solid"
+        )
+    
+    # Ajuster la largeur des colonnes
+    for col in range(1, len(headers) + 1):
+        ws.column_dimensions[openpyxl.utils.get_column_letter(col)].width = 20
+    
+    # Créer la réponse HTTP
+    response = HttpResponse(
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+    response["Content-Disposition"] = 'attachment; filename="performance-detaillee-prestation.xlsx"'
+    wb.save(response)
+    return response
+
+
+@require_analysis_access
 def satisfaction_formateurs_dashboard_export_prestation_zip(request):
     """Export one CSV per prestataire as a ZIP archive (Satisfaction_PRESTA_SF.csv)."""
     context = _build_satisfaction_formateurs_dashboard_context(request)

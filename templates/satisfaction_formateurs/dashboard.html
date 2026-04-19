@@ -175,6 +175,7 @@
         </button>
         <a class="btn btn-ghost btn-sm" href="{% url 'satisfaction_dashboard_export_indicators_xlsx' %}">Exporter XLSX</a>
         <a class="btn btn-ghost btn-sm" href="{% url 'satisfaction_dashboard_export_indicators_csv' %}?type=formateur" id="js-export-indicators-csv-form">Exporter CSV</a>
+        <a class="btn btn-primary btn-sm" href="{% url 'satisfaction_formateurs_export_full_table_xlsx' %}">Télécharger toute la table (Excel)</a>
       </div>
       {% endif %}
     </div>

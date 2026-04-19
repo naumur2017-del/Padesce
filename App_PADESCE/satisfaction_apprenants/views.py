@@ -2691,14 +2691,14 @@ def _build_prestation_indicators_table():
         formateur_metrics = formateur_metrics_by_combo.get(combo_key)
 
         # Vérifier si le code de prestation correspond à une combinaison valide
-        # Si aucune combinaison prestataire-bénéficiaire correspondante, afficher un tiret
+        # Si aucune combinaison prestataire-bénéficiaire correspondante, afficher le code de la prestation
         # et afficher les données des appels formateurs avec leurs moyennes
         if not formateur_metrics:
-            # Aucune combinaison trouvée - afficher un tiret
+            # Aucune combinaison trouvée - afficher le code de la prestation
             # et les données prestataire-bénéficiaire de la prestation
             table_data.append(
                 {
-                    "code": "-",  # Tiret dans la colonne code prestation
+                    "code": prestation.code,  # Code de la prestation
                     "prestataire": (
                         prestation.prestataire.raison_sociale if prestation.prestataire else ""
                     ),
