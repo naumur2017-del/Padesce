@@ -85,6 +85,7 @@ PUBLIC_ANALYSIS_AUTO_LOGIN_PREFIXES = (
     "/prestation/",
     "/analyse/appels/apprenant/",
     "/analyse/appels/formateur/",
+    "/apprenants/",
 )
 
 ALLOWED_HOSTS_ENV = os.getenv("DJANGO_ALLOWED_HOSTS", "")

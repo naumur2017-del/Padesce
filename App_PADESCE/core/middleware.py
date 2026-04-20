@@ -60,6 +60,8 @@ def _iter_public_analysis_auto_login_prefixes() -> tuple[str, ...]:
 
 
 def _is_public_analysis_auto_login_path(path: str) -> bool:
+    if any(p in path for p in ["/api/", "/import/", "/delete/", "/upload/", "/action/", "/finalize/"]):
+        return False
     return any(path.startswith(prefix) for prefix in _iter_public_analysis_auto_login_prefixes())
 
 
@@ -238,6 +240,7 @@ class LoginRequiredMiddleware:
             "/accounts/",
             "/admin/",
             "/beneficiaire/",
+            "/apprenants/",
             "/classe/",
             "/prestation/",
             "/analyse/appels/apprenant/",
@@ -259,6 +262,9 @@ class LoginRequiredMiddleware:
             return self.get_response(request)
 
         if path in ("/", login_path) or any(path.startswith(p) for p in exempt_prefixes if p):
+            # Safety: even if a prefix is exempt, block sensitive actions for anonymous users
+            if any(p in path for p in ["/api/", "/import/", "/delete/", "/upload/", "/action/", "/finalize/"]):
+                return redirect_to_login(request.get_full_path(), login_url)
             return self.get_response(request)
 
         return redirect_to_login(request.get_full_path(), login_url)
