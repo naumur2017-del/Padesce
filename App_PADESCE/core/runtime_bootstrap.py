@@ -91,18 +91,38 @@ def ensure_runtime_dependencies(
         ],
     )
 
+    install_failed = False
     for command in pip_commands:
-        runner(command, check=True, cwd=str(root))
+        try:
+            runner(command, check=True, cwd=str(root))
+        except Exception as exc:  # noqa: BLE001
+            install_failed = True
+            print(f"[runtime] Echec pip install (non bloquant): {exc!r}")
+            break
+
+    if install_failed:
+        # On ne stampe pas : on reessaiera au prochain boot.
+        # Mais on laisse le serveur web demarrer malgre tout pour
+        # eviter HTTP 500 global (le chatbot basculera en fallback).
+        print("[runtime] Poursuite du demarrage malgre l'echec d'installation.")
+        return False
 
     stamp_file = requirements_stamp_path(root)
-    stamp_file.parent.mkdir(parents=True, exist_ok=True)
-    stamp_file.write_text(requirements_hash(requirements_file), encoding="utf-8")
+    try:
+        stamp_file.parent.mkdir(parents=True, exist_ok=True)
+        stamp_file.write_text(requirements_hash(requirements_file), encoding="utf-8")
+    except Exception as exc:  # noqa: BLE001
+        print(f"[runtime] Impossible d'ecrire le stamp (non bloquant): {exc!r}")
     print("[runtime] Dependances runtime synchronisees.")
     return True
 
 
 def main() -> int:
-    ensure_runtime_dependencies()
+    try:
+        ensure_runtime_dependencies()
+    except Exception as exc:  # noqa: BLE001
+        # Ne jamais faire echouer le demarrage du serveur a cause du bootstrap.
+        print(f"[runtime] Bootstrap non bloquant - erreur ignoree: {exc!r}")
     return 0
 
 
