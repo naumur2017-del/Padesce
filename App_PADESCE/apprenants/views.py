@@ -14,14 +14,19 @@ from typing import List, Tuple
 from django.conf import settings
 from django.contrib import messages
 from django.db import IntegrityError, transaction
-from django.http import JsonResponse
-from django.shortcuts import get_object_or_404, render
+from django.db.models import Q
+from django.http import Http404, JsonResponse
+from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.views.decorators.http import require_POST
 from openpyxl import load_workbook
 
+from App_PADESCE.appels.models import Appel
 from App_PADESCE.apprenants.forms import ImportApprenantsForm
 from App_PADESCE.apprenants.models import Apprenant, SmsLog
+from App_PADESCE.core.apprenant_lookup import match_apprenants_to_appels
 from App_PADESCE.formations.models import Classe
+from App_PADESCE.satisfaction_apprenants.models import SatisfactionApprenant
 
 logger = logging.getLogger(__name__)
 
@@ -449,6 +454,102 @@ def _normalize_phone(value: str) -> str:
 
 def _build_sms_message(apprenant: Apprenant) -> str:
     return f"Bonjour Mr/Mlle, votre code PADESCE est: {apprenant.code}. "
+
+
+def _reverse_analysis_route(request, route_name: str, *args) -> str:
+    return reverse(route_name, args=args)
+
+
+def _build_apprenant_back_url(request, apprenant: Apprenant) -> str:
+    classe = getattr(apprenant, "classe", None)
+    prestation_code = str(getattr(getattr(classe, "prestation", None), "code", "") or "").strip()
+    if prestation_code:
+        return (
+            f"{_reverse_analysis_route(request, 'prestation_analysis_detail', prestation_code)}"
+            "?tab=apprenants"
+        )
+
+    classe_code = str(getattr(classe, "code", "") or "").strip()
+    if classe_code:
+        return (
+            f"{_reverse_analysis_route(request, 'class_analysis_detail', classe_code)}"
+            "?tab=apprenants"
+        )
+
+    return _reverse_analysis_route(request, "satisfaction_dashboard")
+
+
+def _resolve_analysis_call_for_apprenant(apprenant: Apprenant) -> Appel | None:
+    linked_satisfaction = (
+        SatisfactionApprenant.objects.filter(
+            apprenant=apprenant,
+            appel__isnull=False,
+            appel__is_active=True,
+        )
+        .select_related("appel")
+        .order_by("-date", "-created_at")
+        .first()
+    )
+    if linked_satisfaction and linked_satisfaction.appel:
+        return linked_satisfaction.appel
+
+    exact_call = (
+        Appel.objects.filter(is_active=True, code__iexact=apprenant.code)
+        .select_related("classe", "classe__prestation")
+        .first()
+    )
+    if exact_call is not None:
+        return exact_call
+
+    candidate_query = Q()
+    if apprenant.classe_id:
+        candidate_query |= Q(classe_id=apprenant.classe_id)
+
+    phones = {
+        str(phone or "").strip()
+        for phone in (apprenant.telephone1, apprenant.telephone2)
+        if str(phone or "").strip()
+    }
+    if phones:
+        candidate_query |= Q(telephone1__in=phones) | Q(telephone2__in=phones)
+
+    nom_complet = str(apprenant.nom_complet or "").strip()
+    if nom_complet:
+        candidate_query |= Q(nom__iexact=nom_complet)
+
+    if not candidate_query:
+        return None
+
+    candidates = list(
+        Appel.objects.filter(is_active=True)
+        .select_related("classe", "classe__prestation")
+        .filter(candidate_query)
+        .order_by("-updated_at", "-id")
+    )
+    if not candidates:
+        return None
+
+    matched_apprenants = match_apprenants_to_appels(candidates)
+    for appel in candidates:
+        if getattr(matched_apprenants.get(appel.pk), "pk", None) == apprenant.pk:
+            return appel
+
+    return None
+
+
+def redirect_to_analysis_detail(request, apprenant_code: str):
+    apprenant = get_object_or_404(
+        Apprenant.objects.select_related("classe", "classe__prestation"),
+        code__iexact=str(apprenant_code or "").strip(),
+    )
+    appel = _resolve_analysis_call_for_apprenant(apprenant)
+    if appel is None:
+        raise Http404("Aucun appel d'analyse actif n'est rattache a cet apprenant.")
+
+    detail_url = _reverse_analysis_route(request, "analysis_apprenant_call_detail", appel.pk)
+    back_url = _build_apprenant_back_url(request, apprenant)
+    encoded_back_url = urllib.parse.quote(back_url, safe="")
+    return redirect(f"{detail_url}?next={encoded_back_url}#formulaire")
 
 
 def _send_obit_sms(local_number: str, message: str) -> tuple[bool, str]:

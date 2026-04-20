@@ -4,7 +4,6 @@ from django.views.generic import TemplateView
 from App_PADESCE.core.lazy_urls import lazy_view
 
 urlpatterns = [
-    path("", TemplateView.as_view(template_name="apprenants/index.html"), name="apprenants_index"),
     path(
         "import/<int:classe_id>/",
         lazy_view("App_PADESCE.apprenants.views.import_csv"),
@@ -31,4 +30,14 @@ urlpatterns = [
         name="apprenants_delete",
     ),
     path("api/sms/", lazy_view("App_PADESCE.apprenants.views.send_sms"), name="apprenants_sms"),
+    path(
+        "<str:apprenant_code>/",
+        lazy_view("App_PADESCE.apprenants.views.redirect_to_analysis_detail"),
+        name="apprenant_analysis_shortcut",
+    ),
+    path(
+        "<str:apprenant_code>",
+        lazy_view("App_PADESCE.apprenants.views.redirect_to_analysis_detail"),
+    ),
+    path("", TemplateView.as_view(template_name="apprenants/index.html"), name="apprenants_index"),
 ]
