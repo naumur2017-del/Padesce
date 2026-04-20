@@ -1,10 +1,43 @@
 import json
+import logging
 import os
+import sys
+import traceback as _tb
 
 from django.conf import settings
 from django.http import FileResponse, Http404, JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
+
+logger = logging.getLogger(__name__)
+
+
+def _safe_log(message: str) -> None:
+    """Log sans jamais lever en cas de stdout non-UTF-8 (gunicorn/Gandi)."""
+    try:
+        logger.info(message)
+    except Exception:
+        pass
+    try:
+        sys.stdout.write(message + "\n")
+        sys.stdout.flush()
+    except Exception:
+        # Stdout peut être en ASCII strict sous certains WSGI : ignorer.
+        pass
+
+
+def _ensure_stdout_utf8() -> None:
+    """Force stdout/stderr en UTF-8 quand c'est possible (Python >= 3.7)."""
+    for stream_name in ("stdout", "stderr"):
+        stream = getattr(sys, stream_name, None)
+        if stream is None:
+            continue
+        reconfig = getattr(stream, "reconfigure", None)
+        if callable(reconfig):
+            try:
+                reconfig(encoding="utf-8", errors="replace")
+            except Exception:
+                pass
 
 # Pré-charger torch sur le thread principal pour éviter [WinError 1114]
 # sur Windows. En production (Linux), ce n'est pas nécessaire mais ne
@@ -21,7 +54,8 @@ _agent_initialized = False
 def init_agent_if_needed():
     global _agent_initialized
     if not _agent_initialized:
-        print("[Agent Padesce] Initialisation du chat...")
+        _ensure_stdout_utf8()
+        _safe_log("[Agent Padesce] Initialisation du chat...")
         try:
             # Charger les clés d'API depuis .env
             env_paths = [
@@ -31,7 +65,7 @@ def init_agent_if_needed():
             ]
             for env_path in env_paths:
                 if os.path.exists(env_path):
-                    print(f"[Agent Padesce] Chargement du .env depuis {env_path}")
+                    _safe_log(f"[Agent Padesce] Chargement du .env depuis {env_path}")
                     # Certains .env en prod contiennent des octets non-UTF-8
                     # (apostrophes typographiques Windows-1252, BOM, etc.).
                     # On tente plusieurs encodages avant d'ignorer les octets
@@ -68,18 +102,20 @@ def init_agent_if_needed():
                 file_path = os.path.join(settings.BASE_DIR, "Decompte et facturation.xlsm")
 
             if os.path.exists(file_path):
-                print(f"[Agent Padesce] Chargement des données depuis {file_path}...")
+                _safe_log(f"[Agent Padesce] Chargement des donnees depuis {file_path}...")
                 dfs = load_data(file_path)
                 register_dataframes(dfs)
-                print("[Agent Padesce] Initialisation terminée.")
+                _safe_log("[Agent Padesce] Initialisation terminee.")
             else:
-                print(f"[Agent Padesce] AVERTISSEMENT : Fichier {file_path} introuvable.")
+                _safe_log(
+                    f"[Agent Padesce] AVERTISSEMENT : Fichier {file_path} introuvable."
+                )
 
         except ImportError as e:
-            print(f"[Agent Padesce] ERREUR d'importation : {e}")
+            _safe_log(f"[Agent Padesce] ERREUR d'importation : {e}")
             raise e
         except Exception as e:
-            print(f"[Agent Padesce] ERREUR d'initialisation : {e}")
+            _safe_log(f"[Agent Padesce] ERREUR d'initialisation : {e}")
             raise e
 
         _agent_initialized = True
@@ -90,6 +126,7 @@ def init_agent_if_needed():
 def chat_query(request):
     """Point d'entrée de l'API REST pour le chat."""
     try:
+        _ensure_stdout_utf8()
         data = json.loads(request.body)
         message = data.get("message", "").strip()
 
@@ -99,10 +136,16 @@ def chat_query(request):
         # S'assurer que l'agent est chargé en mémoire
         init_agent_if_needed()
 
-        # Appel de l'agent
+        # Appel de l'agent. verbose=False pour éviter que les `print`
+        # avec emojis ne déclenchent une OSError (« [Errno 22] Invalid
+        # argument ») sur un stdout non-UTF-8 sous gunicorn/Gandi.
         from agent_padesceV2 import run_agent
 
-        result = run_agent(message)
+        try:
+            result = run_agent(message, verbose=False)
+        except TypeError:
+            # Signature héritée sans paramètre verbose.
+            result = run_agent(message)
 
         # Extraction des résultats
         reponse = result.get("reponse", "Désolé, je n'ai pas pu formuler de réponse.")
@@ -114,10 +157,17 @@ def chat_query(request):
         return JsonResponse({"response": reponse, "filename": filename})
 
     except Exception as e:
-        import traceback
-
-        traceback.print_exc()
-        return JsonResponse({"error": str(e)}, status=500)
+        # Log complet côté serveur (sans jamais casser la requête).
+        try:
+            logger.exception("[Agent Padesce] Erreur chat_query")
+        except Exception:
+            pass
+        try:
+            _tb.print_exc()
+        except Exception:
+            pass
+        detail = f"{type(e).__name__}: {e}"
+        return JsonResponse({"error": detail}, status=500)
 
 
 def download_export(request, filename):
