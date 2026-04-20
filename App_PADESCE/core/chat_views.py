@@ -32,7 +32,22 @@ def init_agent_if_needed():
             for env_path in env_paths:
                 if os.path.exists(env_path):
                     print(f"[Agent Padesce] Chargement du .env depuis {env_path}")
-                    for line in open(env_path, "r", encoding="utf-8"):
+                    # Certains .env en prod contiennent des octets non-UTF-8
+                    # (apostrophes typographiques Windows-1252, BOM, etc.).
+                    # On tente plusieurs encodages avant d'ignorer les octets
+                    # invalides pour éviter un UnicodeDecodeError bloquant.
+                    env_content = None
+                    for enc in ("utf-8-sig", "utf-8", "cp1252", "latin-1"):
+                        try:
+                            with open(env_path, "r", encoding=enc) as fh:
+                                env_content = fh.read()
+                            break
+                        except UnicodeDecodeError:
+                            continue
+                    if env_content is None:
+                        with open(env_path, "rb") as fh:
+                            env_content = fh.read().decode("utf-8", errors="replace")
+                    for line in env_content.splitlines():
                         line = line.strip()
                         if line and not line.startswith("#") and "=" in line:
                             k, v = line.split("=", 1)

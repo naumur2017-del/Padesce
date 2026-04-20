@@ -6,8 +6,18 @@ from types import SimpleNamespace
 from urllib.parse import urlencode
 
 from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
+from django.http import HttpResponse
 from django.shortcuts import render
+from django.template.loader import render_to_string
 from django.urls import reverse
+
+from App_PADESCE.core.public_space_html_cache import (
+    auth_variant_for,
+    is_enabled as _public_space_html_cache_is_enabled,
+    is_refresh_request as _public_space_html_is_refresh,
+    load_snapshot as _public_space_html_load,
+    save_snapshot as _public_space_html_save,
+)
 
 from App_PADESCE.appels.formateur_names import resolve_formateur_db_name_from_values
 from App_PADESCE.appels.formateurs_views import (
@@ -892,6 +902,15 @@ def _build_formateur_stats_enhanced(request) -> dict:
 def public_space(request):
     scope = _public_scope(request)
     section = _public_section(request)
+    auth = auth_variant_for(request)
+
+    # ---- Fast path : servir le HTML figé depuis disque si disponible ----
+    _html_cache_enabled = _public_space_html_cache_is_enabled()
+    _force_refresh = _public_space_html_is_refresh(request)
+    if _html_cache_enabled and not _force_refresh:
+        cached_html = _public_space_html_load(scope, section, auth)
+        if cached_html:
+            return HttpResponse(cached_html)
 
     context = {
         "scope": scope,
@@ -1037,7 +1056,14 @@ def public_space(request):
             else:
                 print("DEBUG: ERROR - stats not in context!")
 
-    return render(request, "core/public_space.html", context)
+    rendered_html = render_to_string("core/public_space.html", context, request=request)
+    if _html_cache_enabled:
+        try:
+            _public_space_html_save(scope, section, auth, rendered_html)
+        except Exception:
+            # Ne jamais casser la page pour un simple échec d'écriture disque.
+            pass
+    return HttpResponse(rendered_html)
 
 
 
