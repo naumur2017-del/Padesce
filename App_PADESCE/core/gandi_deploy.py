@@ -136,6 +136,11 @@ APP_ENV_SYNC_KEYS = (
     "MICROSOFT_GRAPH_PRIMARY_DOMAIN",
     "MICROSOFT_GRAPH_REDIRECT_URI",
     "MICROSOFT_TEAMS_DEFAULT_TEAM_ID",
+    # Chatbot Naumur (agent_padesceV2) — clés LLM synchronisées vers
+    # .env.local pour que le serveur Gandi puisse lire les secrets
+    # stockés dans GitHub Secrets.
+    "ANTHROPIC_API_KEY",
+    "OPENAI_API_KEY",
 )
 
 

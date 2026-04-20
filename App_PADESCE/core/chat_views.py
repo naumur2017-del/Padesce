@@ -58,12 +58,26 @@ def init_agent_if_needed():
         _ensure_stdout_utf8()
         _safe_log("[Agent Padesce] Initialisation du chat...")
         try:
-            # Charger les clés d'API depuis .env
-            env_paths = [
-                os.path.join(settings.BASE_DIR, ".env"),
-                os.path.join(settings.BASE_DIR.parent, ".env"),
-                os.path.join(settings.BASE_DIR.parent.parent, ".env"),
+            # Charger les clés d'API depuis .env / .env.local. Sur Gandi,
+            # les secrets arrivent via GitHub Actions → gandi_deploy
+            # écrit le fichier .env.local à la racine. On lit donc les
+            # deux, avec priorité à .env.local (qui surcharge .env).
+            candidate_names = (".env.local", ".env")
+            candidate_roots = [
+                settings.BASE_DIR,
+                settings.BASE_DIR.parent,
+                settings.BASE_DIR.parent.parent,
             ]
+            env_paths = [
+                os.path.join(root, name)
+                for root in candidate_roots
+                for name in candidate_names
+            ]
+            # Si la clé Anthropic est déjà disponible dans l'environnement
+            # (ex. variables injectées par Gandi ou par systemd), on se
+            # passe complètement de la lecture du fichier.
+            if os.environ.get("ANTHROPIC_API_KEY"):
+                env_paths = []
             for env_path in env_paths:
                 if os.path.exists(env_path):
                     _safe_log(f"[Agent Padesce] Chargement du .env depuis {env_path}")
@@ -119,7 +133,9 @@ def init_agent_if_needed():
                                 f"({type(env_exc).__name__}): {env_exc}"
                             )
                             continue
-                    break
+                    # On ne casse pas : .env.local (prioritaire) et .env
+                    # doivent pouvoir cohabiter, les clés déjà définies
+                    # sont ignorées par la garde `if k in os.environ`.
 
             # Import de l'agent
             from agent_padesceV2 import configure_memory, load_data, register_dataframes

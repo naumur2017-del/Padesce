@@ -93,6 +93,9 @@ jobs:
       MICROSOFT_GRAPH_PRIMARY_DOMAIN: naumur.com
       MICROSOFT_GRAPH_REDIRECT_URI: https://call.naumur.com/auth/microsoft/callback
       MICROSOFT_TEAMS_DEFAULT_TEAM_ID: adaabb1b-7e2d-4d41-ae0e-a98239ad0cd5
+      # Chatbot Naumur (agent_padesceV2)
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
     environment:
       name: production
       url: https://call.naumur.com/deploiement/
