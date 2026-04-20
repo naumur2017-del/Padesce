@@ -95,6 +95,7 @@ IGNORE_FILE_SUFFIXES = (
 )
 DEFAULT_INCLUDE_PATHS = (
     "App_PADESCE",
+    "agent_padesceV2",
     "templates",
     "static",
     "data",
@@ -105,6 +106,7 @@ DEFAULT_INCLUDE_PATHS = (
     "Dockerfile",
     "docker-compose.yml",
     "start-command",
+    "Decompte et facturation.xlsm",
 )
 APP_ENV_SYNC_KEYS = (
     # Django runtime — toujours synchronisés pour garantir la config de prod
