@@ -913,15 +913,25 @@ def _build_formateur_stats_enhanced(request) -> dict:
 def public_space(request):
     scope = _public_scope(request)
     section = _public_section(request)
-    auth = auth_variant_for(request)
 
     # ---- Fast path : servir le HTML figé depuis disque si disponible ----
-    _html_cache_enabled = _public_space_html_cache_is_enabled()
-    _force_refresh = _public_space_html_is_refresh(request)
-    if _html_cache_enabled and not _force_refresh:
-        cached_html = _public_space_html_load(scope, section, auth)
-        if cached_html:
-            return HttpResponse(cached_html)
+    # Toute la logique de cache est protégée : si elle échoue pour une
+    # raison quelconque (permissions FS, import cassé, etc.), on ignore
+    # et on passe au chemin normal `render(...)` d'origine pour ne
+    # jamais bloquer la page d'accueil en prod.
+    _html_cache_enabled = False
+    _force_refresh = False
+    auth = "anon"
+    try:
+        auth = auth_variant_for(request)
+        _html_cache_enabled = _public_space_html_cache_is_enabled()
+        _force_refresh = _public_space_html_is_refresh(request)
+        if _html_cache_enabled and not _force_refresh:
+            cached_html = _public_space_html_load(scope, section, auth)
+            if cached_html:
+                return HttpResponse(cached_html)
+    except Exception:
+        _html_cache_enabled = False
 
     context = {
         "scope": scope,
@@ -1219,14 +1229,16 @@ def public_space(request):
             else:
                 print("DEBUG: ERROR - stats not in context!")
 
-    rendered_html = render_to_string("core/public_space.html", context, request=request)
+    response = render(request, "core/public_space.html", context)
     if _html_cache_enabled:
         try:
-            _public_space_html_save(scope, section, auth, rendered_html)
+            _public_space_html_save(
+                scope, section, auth, response.content.decode("utf-8")
+            )
         except Exception:
-            # Ne jamais casser la page pour un simple échec d'écriture disque.
+            # Ne jamais casser la page pour un simple échec d'écriture.
             pass
-    return HttpResponse(rendered_html)
+    return response
 
 
 def _build_formateur_stats_production_safe(request) -> dict:
