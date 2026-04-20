@@ -5,7 +5,9 @@
 
 from django.db import migrations
 
-PRESENCE_DATA = {
+
+def _get_presence_data():
+    return {
     "APP001": ("", "", "", ""),
     "APP002": ("", "", "", ""),
     "APP003": ("", "", "", ""),
@@ -4002,37 +4004,45 @@ PRESENCE_DATA = {
 
 
 def apply_presence_data(apps, schema_editor):
+    import sys
     Apprenant = apps.get_model("apprenants", "Apprenant")
     
-    # Optimisation: fetch all objects to update in one query
-    apprenant_codes = list(PRESENCE_DATA.keys())
-    apprenants = Apprenant.objects.filter(code__in=apprenant_codes)
+    # 1. Recuperation et normalisation des donnees (evite module-level memory overhead)
+    raw_data = _get_presence_data()
+    clean_data = {str(k).upper().strip(): v for k, v in raw_data.items()}
+    
+    # 2. Correction du defaut 'AB' herite de la migration 0007 (AddField default='AB')
+    # Les apprenants absents de l'Excel doivent etre vides, pas 'AB'.
+    Apprenant.objects.all().update(c1="", c2="", c3="", c4="")
+    
+    # 3. Mise a jour ciblee via bulk_update
+    codes = list(clean_data.keys())
+    apprenants = Apprenant.objects.filter(code__in=codes)
     
     to_update = []
-    updated_count = 0
-    
     for obj in apprenants:
-        c1, c2, c3, c4 = PRESENCE_DATA[obj.code]
-        # Only update if values changed
-        if obj.c1 != c1 or obj.c2 != c2 or obj.c3 != c3 or obj.c4 != c4:
-            obj.c1 = c1
-            obj.c2 = c2
-            obj.c3 = c3
-            obj.c4 = c4
-            to_update.append(obj)
-            updated_count += 1
+        code = str(obj.code).upper().strip()
+        if code in clean_data:
+            c1, c2, c3, c4 = clean_data[code]
+            # N'ajoute au bulk_update que si au moins une valeur est non vide
+            if c1 or c2 or c3 or c4:
+                obj.c1 = c1
+                obj.c2 = c2
+                obj.c3 = c3
+                obj.c4 = c4
+                to_update.append(obj)
             
     if to_update:
-        # Use bulk_update for performance
         Apprenant.objects.bulk_update(to_update, ["c1", "c2", "c3", "c4"], batch_size=500)
     
-    print(f"  Presence: {updated_count} apprenants mis a jour via bulk_update.")
+    sys.stdout.write(f"  Presence: {len(to_update)} apprenants mis a jour via bulk_update.\n")
 
 
 def reverse_presence_data(apps, schema_editor):
     """Retour arriere: vider c1-c4 pour tous les apprenants concernes."""
     Apprenant = apps.get_model("apprenants", "Apprenant")
-    codes = list(PRESENCE_DATA.keys())
+    data = _get_presence_data()
+    codes = [str(k).upper().strip() for k in data.keys()]
     Apprenant.objects.filter(code__in=codes).update(c1="", c2="", c3="", c4="")
 
 
