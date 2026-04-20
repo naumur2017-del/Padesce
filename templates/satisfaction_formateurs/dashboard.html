@@ -175,7 +175,6 @@
         </button>
         <a class="btn btn-ghost btn-sm" href="{% url 'satisfaction_dashboard_export_indicators_xlsx' %}">Exporter XLSX</a>
         <a class="btn btn-ghost btn-sm" href="{% url 'satisfaction_dashboard_export_indicators_csv' %}?type=formateur" id="js-export-indicators-csv-form">Exporter CSV</a>
-        <a class="btn btn-primary btn-sm" href="{% url 'satisfaction_formateurs_export_full_table_xlsx' %}">Télécharger toute la table (Excel)</a>
       </div>
       {% endif %}
     </div>
@@ -273,8 +272,13 @@
   {% endif %}
 
   <div style="margin-bottom:12px; margin-top:32px;">
-    <div style="font-size:1.1rem; font-weight:700; color:var(--accent-strong); margin-bottom:6px;">Performance détaillée par prestation</div>
-    <div style="font-size:0.85rem; color:var(--muted);">Tableau croisé des indicateurs Apprenants et Formateurs.</div>
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+      <div>
+        <div style="font-size:1.1rem; font-weight:700; color:var(--accent-strong); margin-bottom:6px;">Performance détaillée par prestation</div>
+        <div style="font-size:0.85rem; color:var(--muted);">Tableau croisé des indicateurs Apprenants et Formateurs.</div>
+      </div>
+      <a class="btn btn-primary btn-sm" href="{% url 'satisfaction_formateurs_export_full_table_xlsx' %}">Télécharger toute la table (Excel)</a>
+    </div>
   </div>
 
   <div class="table-scroll" style="max-height:600px; margin-top:12px;">

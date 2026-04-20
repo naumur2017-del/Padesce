@@ -103,6 +103,13 @@ def _build_menu_items(user, path: str, consultant_only: bool) -> list[dict[str, 
         add_item(
             "Excel Source", _safe_reverse("reporting_network_excel"), "/reporting/excel-reseau/"
         )
+        
+        # Ajout du lien vers les Analyses de satisfaction (Apprenants)
+        add_item(
+            "Analyses de satisfaction",
+            _safe_reverse("satisfaction_apprenants_dashboard"),
+            "/satisfaction-apprenants/analyse/",
+        )
 
     if superadmin_access:
         add_item("Suivi utilisateurs", _safe_reverse("user_tracking"), "/suivi-utilisateurs/")

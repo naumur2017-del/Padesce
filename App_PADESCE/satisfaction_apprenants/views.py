@@ -2691,28 +2691,10 @@ def _build_prestation_indicators_table():
         formateur_metrics = formateur_metrics_by_combo.get(combo_key)
 
         # Vérifier si le code de prestation correspond à une combinaison valide
-        # Si aucune combinaison prestataire-bénéficiaire correspondante, afficher le code de la prestation
-        # et afficher les données des appels formateurs avec leurs moyennes
+        # Si aucune combinaison prestataire-bénéficiaire correspondante, ne pas afficher cette prestation
         if not formateur_metrics:
-            # Aucune combinaison trouvée - afficher le code de la prestation
-            # et les données prestataire-bénéficiaire de la prestation
-            table_data.append(
-                {
-                    "code": prestation.code,  # Code de la prestation
-                    "prestataire": (
-                        prestation.prestataire.raison_sociale if prestation.prestataire else ""
-                    ),
-                    "beneficiaire": (
-                        prestation.beneficiaire.nom_structure if prestation.beneficiaire else ""
-                    ),
-                    "formateur": {
-                        "q1_prerequis_apprenants": None,  # Tiret
-                        "q2_interaction_apprenants": None,  # Tiret
-                        "q3_competences_acquises": None,  # Tiret
-                        "count": 0,
-                    },
-                }
-            )
+            # Aucune combinaison trouvée - ne pas ajouter cette prestation à la table
+            continue
         else:
             # Calculer les moyennes pour les données formateur
             formateur_data = {
