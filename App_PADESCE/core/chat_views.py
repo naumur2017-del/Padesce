@@ -166,7 +166,26 @@ def chat_query(request):
             _tb.print_exc()
         except Exception:
             pass
-        detail = f"{type(e).__name__}: {e}"
+        # On renvoie aussi la dernière ligne utile de la stack pour que
+        # le message affiché dans le widget indique le fichier/ligne
+        # source et permette de diagnostiquer en prod sans accès logs.
+        tb_tail = ""
+        try:
+            frames = _tb.extract_tb(e.__traceback__)
+            last = None
+            for fr in frames:
+                path = (fr.filename or "").replace("\\", "/")
+                if "/django/" in path or path.endswith("/chat_views.py"):
+                    continue
+                last = fr
+            if last is None and frames:
+                last = frames[-1]
+            if last is not None:
+                short = os.path.basename(last.filename or "")
+                tb_tail = f" [{short}:{last.lineno} in {last.name}]"
+        except Exception:
+            pass
+        detail = f"{type(e).__name__}: {e}{tb_tail}"
         return JsonResponse({"error": detail}, status=500)
 
 
