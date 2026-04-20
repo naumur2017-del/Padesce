@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import re
 import sys
 import traceback as _tb
 
@@ -81,12 +82,43 @@ def init_agent_if_needed():
                     if env_content is None:
                         with open(env_path, "rb") as fh:
                             env_content = fh.read().decode("utf-8", errors="replace")
-                    for line in env_content.splitlines():
-                        line = line.strip()
-                        if line and not line.startswith("#") and "=" in line:
-                            k, v = line.split("=", 1)
-                            if k not in os.environ:
-                                os.environ[k.strip()] = v.strip().strip("'\"")
+                    # POSIX : un nom de variable doit matcher
+                    # [A-Za-z_][A-Za-z0-9_]*. setenv(3) renvoie EINVAL
+                    # si ce n'est pas le cas, ou si la valeur contient
+                    # un caractère nul → on filtre pour éviter
+                    # « OSError: [Errno 22] Invalid argument ».
+                    valid_key_re = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+                    for raw_line in env_content.splitlines():
+                        line = raw_line.strip()
+                        if not line or line.startswith("#") or "=" not in line:
+                            continue
+                        # Certains éditeurs ajoutent "export " devant.
+                        if line.lower().startswith("export "):
+                            line = line[7:].lstrip()
+                        k, v = line.split("=", 1)
+                        k = k.strip()
+                        v = v.strip().strip("'\"")
+                        # Supprimer les caractères de contrôle / nuls
+                        # qui font exploser setenv sur Linux.
+                        v = v.replace("\x00", "").replace("\r", "")
+                        if not valid_key_re.match(k):
+                            _safe_log(
+                                f"[Agent Padesce] .env: cle ignoree (nom invalide): {k!r}"
+                            )
+                            continue
+                        if k in os.environ:
+                            continue
+                        try:
+                            os.environ[k] = v
+                        except (OSError, ValueError) as env_exc:
+                            # On tolère toute ligne qui casserait
+                            # l'init. Sans cela, l'agent n'aurait
+                            # jamais pu démarrer.
+                            _safe_log(
+                                f"[Agent Padesce] .env: {k} rejete par setenv "
+                                f"({type(env_exc).__name__}): {env_exc}"
+                            )
+                            continue
                     break
 
             # Import de l'agent
