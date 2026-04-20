@@ -206,7 +206,7 @@ def _database_settings_from_env() -> dict:
 
     return {
         "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
+        "NAME": BASE_DIR / os.getenv("DJANGO_DATABASE_NAME", "db.sqlite3"),
     }
 
 

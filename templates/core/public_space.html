@@ -463,9 +463,21 @@
 
   <section class="public-panel">
     <div class="title-with-help"><h2>Page principale apprenant</h2>{% include "includes/help_tooltip.html" with title="Page apprenant" text="Tableau détaillé des apprenants avec filtres par bénéficiaire, prestataire, classe et fenêtre. C1-C4 = nombre d'appels à chaque période." section="architecture-des-pages" %}</div>
+    
+    <div class="public-switches" style="margin-top: 16px;">
+      <div class="public-switch-group">
+        <div class="public-switch-label">Source des apprenants</div>
+        <div class="segment-control" role="tablist">
+          <a class="segment-link{% if request.GET.source_mode != 'fichier' %} active{% endif %}" href="?scope=apprenant&section=principal&source_mode=base">Apprenants appelés (Base de données)</a>
+          <a class="segment-link{% if request.GET.source_mode == 'fichier' %} active{% endif %}" href="?scope=apprenant&section=principal&source_mode=fichier">Tous les apprenants (Fichier consolidé)</a>
+        </div>
+      </div>
+    </div>
+
     <form method="get" class="public-toolbar">
       <input type="hidden" name="scope" value="apprenant">
       <input type="hidden" name="section" value="principal">
+      <input type="hidden" name="source_mode" value="{{ request.GET.source_mode|default:'base' }}">
       <input class="public-input" type="text" name="q" value="{{ principal.filters.q }}" placeholder="Recherche apprenant">
       <select class="public-select" name="beneficiaire">
         <option value="">Bénéficiaire</option>
@@ -534,14 +546,14 @@
               <td>{{ row.prestataire|default:"-" }}</td>
               <td>{{ row.beneficiaire|default:"-" }}</td>
               <td>{{ row.telephone1|default:row.telephone2|default:"-" }}</td>
-              <td>{{ row.c1 }}</td>
-              <td>{{ row.c2 }}</td>
-              <td>{{ row.c3 }}</td>
-              <td>{{ row.c4 }}</td>
-              <td>{{ row.taux_presence_control }}%</td>
+              <td>{{ row.c1|default:"-" }}</td>
+              <td>{{ row.c2|default:"-" }}</td>
+              <td>{{ row.c3|default:"-" }}</td>
+              <td>{{ row.c4|default:"-" }}</td>
+              <td>{% if row.taux_presence_control != "-" %}{{ row.taux_presence_control }}%{% else %}-{% endif %}</td>
             </tr>
           {% empty %}
-            <tr><td colspan="11" class="muted">Aucun appel à afficher.</td></tr>
+            <tr><td colspan="11" class="muted">Aucun apprenant à afficher.</td></tr>
           {% endfor %}
         </tbody>
       </table>

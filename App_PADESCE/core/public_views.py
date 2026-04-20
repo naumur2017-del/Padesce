@@ -32,7 +32,7 @@ from App_PADESCE.appels.models import (
 # Mapping des noms de champs pour l'affichage
 FIELD_LABELS = {
     "q1_prerequis_apprenants": "Prérequis apprenants",
-    "q2_interaction_apprenants": "Interaction apprenants", 
+    "q2_interaction_apprenants": "Interaction apprenants",
     "q3_competences_acquises": "Compétences acquises",
 }
 
@@ -607,7 +607,14 @@ def _build_formateur_stats_original(request) -> dict:
         prestations_info = cursor.fetchall()
 
         # Create mapping dictionary
-        for code, id, prestataire_nom, beneficiaire_nom, formation_nom, beneficiaire_region in prestations_info:
+        for (
+            code,
+            id,
+            prestataire_nom,
+            beneficiaire_nom,
+            formation_nom,
+            beneficiaire_region,
+        ) in prestations_info:
             prestation_mapping[code] = {
                 "id": id,
                 "prestataire_nom": str(prestataire_nom or "").strip().lower(),
@@ -768,21 +775,21 @@ def _build_formateur_stats_original(request) -> dict:
             values = item["scores"][field_name]
             avgs.append(round(sum(values) / len(values), 2) if values else 0)
         avg = round(sum(avgs) / len(avgs), 2) if avgs else 0
-        
+
         # Récupérer les vraies informations de prestataire et région depuis la base
         code = item["code"]
         real_prestataire = item["prestataire"]
         real_region = "Inconnu"
-        
+
         if code in prestation_mapping:
             mapping_info = prestation_mapping[code]
             # Utiliser le vrai nom du prestataire depuis la base
-            if mapping_info['prestataire_nom'] and mapping_info['prestataire_nom'] != '-':
-                real_prestataire = mapping_info['prestataire_nom'].title()
+            if mapping_info["prestataire_nom"] and mapping_info["prestataire_nom"] != "-":
+                real_prestataire = mapping_info["prestataire_nom"].title()
             # Utiliser la vraie région depuis la base
-            if mapping_info['beneficiaire_region'] and mapping_info['beneficiaire_region'] != '-':
-                real_region = mapping_info['beneficiaire_region'].upper()
-        
+            if mapping_info["beneficiaire_region"] and mapping_info["beneficiaire_region"] != "-":
+                real_region = mapping_info["beneficiaire_region"].upper()
+
         prestation_stats.append(
             {
                 "code": item["code"],
@@ -815,7 +822,6 @@ def _build_formateur_stats_original(request) -> dict:
     }
 
 
-
 def _build_formateur_stats_emergency(request) -> dict:
     """
     Version de secours simplifiée pour éviter l'erreur 500
@@ -825,7 +831,7 @@ def _build_formateur_stats_emergency(request) -> dict:
         return _build_formateur_stats_original(request)
     except Exception as e:
         print(f"ERREUR dans _build_formateur_stats, utilisation de la version de secours: {e}")
-        
+
         # Version de secours simplifiée
         return {
             "global_avgs": {},
@@ -858,40 +864,45 @@ def _build_formateur_stats_enhanced(request) -> dict:
     Version améliorée qui calcule les classements basés sur les moyennes Q1-Q3
     """
     ctx = _build_satisfaction_formateurs_dashboard_context(request)
-    
+
     # Calculer les moyennes par prestation
     prestation_stats = []
     for item in ctx.get("prestation_stats_all", []):
         code = item.get("code", "")
         if not code:
             continue
-            
+
         # Calculer la moyenne des Q1-Q3
         q1 = item.get("q1_avg", 0)
-        q2 = item.get("q2_avg", 0) 
+        q2 = item.get("q2_avg", 0)
         q3 = item.get("q3_avg", 0)
         avg_score = round((q1 + q2 + q3) / 3, 2) if (q1 + q2 + q3) > 0 else 0
-        
-        prestation_stats.append({
-            "code": code,
-            "prestataire": item.get("prestataire", ""),
-            "beneficiaire": item.get("beneficiaire", ""),
-            "region": item.get("region", "Inconnu"),
-            "score_global": avg_score,
-            "nb": item.get("nb", 0),
-        })
-    
+
+        prestation_stats.append(
+            {
+                "code": code,
+                "prestataire": item.get("prestataire", ""),
+                "beneficiaire": item.get("beneficiaire", ""),
+                "region": item.get("region", "Inconnu"),
+                "score_global": avg_score,
+                "nb": item.get("nb", 0),
+            }
+        )
+
     # Trier pour les meilleurs et les à améliorer
     best_rankings = sorted(prestation_stats, key=lambda x: x["score_global"], reverse=True)[:10]
     improve_rankings = sorted(prestation_stats, key=lambda x: x["score_global"])[:10]
-    
+
     return {
         "global_avgs": ctx.get("global_avgs", {}),
         "best_rankings": best_rankings,
         "improve_rankings": improve_rankings,
         "map_data": _region_map_from_rankings(best_rankings),
         "summary_cards": [
-            ("Moyenne Q1-Q3", _average_displayed_scores((ctx.get("global_avgs", {}) or {}).values())),
+            (
+                "Moyenne Q1-Q3",
+                _average_displayed_scores((ctx.get("global_avgs", {}) or {}).values()),
+            ),
             ("Appels", ctx.get("total", 0)),
             ("Appels ciblés", ctx.get("appels_cibles", 0)),
             ("Avec scores", ctx.get("with_scores", 0)),
@@ -956,30 +967,82 @@ def public_space(request):
         if section == "principal":
             ctx = _build_consultant_dashboard_context(request)
             # Calculate Average satisfaction for the current filtered set
-
-            # Build queryset from the same logic
-            # (simple enough here as we use Appel.objects.filter(is_active=True)).
-            # But we should ideally reuse the filtering logic.
-            # For simplicity, we can sometimes manually calculate from rows if small,
-            # but for 30000 learners, we need a query.
-            # Assuming _build_consultant_dashboard_context uses a specific filtering logic,
-            # we try to replicate the core filters.
-
-            # Since _build_consultant_dashboard_context is complex, we'll try to get the average
-            # from the rows if they were all fetched, but they are paginated.
-            # Wait, ctx["rows"] are the ALL rows (unpaginated list) in that function!
-            # (checked views.py:1358: "total_rows": len(rows))
             all_rows = ctx.get("rows", [])
             q9_sum = 0
             q9_count = 0
             for r in all_rows:
-                # AppelAnswers are reachable via answers__q9
                 val = getattr(getattr(r, "answers", None), "q9_satisfaction_globale", None)
                 if val is not None:
                     q9_sum += val
                     q9_count += 1
             avg_q9 = round(q9_sum / q9_count, 1) if q9_count else 0
             ctx["summary_moyenne_satisfaction"] = avg_q9
+
+            # Toggle source: Base de données vs Fichier Consolidé
+            if request.GET.get("source_mode") == "fichier":
+                try:
+                    from App_PADESCE.reporting.network_excel import build_padesce_source_index
+
+                    index = build_padesce_source_index("main")
+                    source_records = list(index.get("records", {}).values())
+
+                    search = (request.GET.get("q") or "").strip().lower()
+                    ben = ctx["filters"].get("beneficiaire")
+                    prest = ctx["filters"].get("prestation")
+                    cl = ctx["filters"].get("classe")
+                    fen = ctx["filters"].get("fenetre")
+
+                    filtered_records = []
+                    # Keep sorted by name as default
+                    source_records.sort(key=lambda r: str(r.get("nom_individu", "")).lower())
+
+                    for rec in source_records:
+                        if search:
+                            blob = f"{rec.get('nom_individu','')} {rec.get('telephone1','')} {rec.get('telephone2','')} {rec.get('code','')} {rec.get('apprenant_id','')} {rec.get('individu_id','')}".lower()
+                            if search not in blob:
+                                continue
+                        if ben and str(rec.get("beneficiaire", "")) != ben:
+                            continue
+                        if prest and str(rec.get("prestataire", "")) != prest:
+                            continue
+                        if cl and str(rec.get("classe_id", "")) != cl:
+                            continue
+                        if fen and str(rec.get("fenetre", "")) != fen:
+                            continue
+
+                        filtered_records.append(
+                            {
+                                "nom": rec.get("nom_individu", "") or "-",
+                                "apprenant_id": rec.get("code", "") or rec.get("individu_id", ""),
+                                "apprenant_db_label": "Source Excel (Complet)",
+                                "consultant_class_display": rec.get("classe_id", ""),
+                                "prestataire": rec.get("prestataire", ""),
+                                "beneficiaire": rec.get("beneficiaire", ""),
+                                "telephone1": rec.get("telephone1", ""),
+                                "telephone2": rec.get("telephone2", ""),
+                                "c1": "-",
+                                "c2": "-",
+                                "c3": "-",
+                                "c4": "-",
+                                "taux_presence_control": "-",
+                            }
+                        )
+
+                    paginator = Paginator(filtered_records, 25)
+                    page_number = request.GET.get("page", 1)
+                    try:
+                        page_obj = paginator.page(page_number)
+                    except (PageNotAnInteger, EmptyPage):
+                        page_obj = paginator.page(1)
+
+                    ctx["rows"] = page_obj.object_list
+                    ctx["page_obj"] = page_obj
+                    ctx["paginator"] = paginator
+                except Exception as e:
+                    import logging
+
+                    logging.getLogger(__name__).error(f"Error fetching source records: {e}")
+
             context["principal"] = ctx
         elif section == "apercu":
             context["overview"] = _build_apprenant_overview(request)
@@ -994,7 +1057,11 @@ def public_space(request):
             # Solution garantie: toujours passer des données au template
             try:
                 stats_data = _build_formateur_stats_enhanced(request)
-                if stats_data and stats_data.get('best_rankings') and stats_data.get('improve_rankings'):
+                if (
+                    stats_data
+                    and stats_data.get("best_rankings")
+                    and stats_data.get("improve_rankings")
+                ):
                     context["stats"] = stats_data
                 else:
                     context["stats"] = {
@@ -1004,18 +1071,78 @@ def public_space(request):
                             "Compétences acquises": 3.12,
                         },
                         "best_rankings": [
-                            {"code": "PRESTA066", "score_global": 97.0, "intitule": "Réparation des engins agricoles", "prestataire": "Centre de Formation et d'Education aux Métiers (CFEM)", "region": "EXTRÊME-NORD"},
-                            {"code": "PRESTA046", "score_global": 95.98, "intitule": "Fabrication des ruches style kenyan", "prestataire": "NAT TECHNOLOGIES", "region": "CENTRE"},
-                            {"code": "PRESTA051", "score_global": 95.02, "intitule": "Elevage", "prestataire": "CFP-EN", "region": "OUEST"},
-                            {"code": "PRESTA012", "score_global": 94.0, "intitule": "Techniques financières", "prestataire": "CFP WELL BEING EXPERTS", "region": "NORD"},
-                            {"code": "PRESTA019", "score_global": 94.0, "intitule": "PRATIQUE AGRICOLE DURABLE", "prestataire": "CRA D'EBOLOWA", "region": "SUD"},
+                            {
+                                "code": "PRESTA066",
+                                "score_global": 97.0,
+                                "intitule": "Réparation des engins agricoles",
+                                "prestataire": "Centre de Formation et d'Education aux Métiers (CFEM)",
+                                "region": "EXTRÊME-NORD",
+                            },
+                            {
+                                "code": "PRESTA046",
+                                "score_global": 95.98,
+                                "intitule": "Fabrication des ruches style kenyan",
+                                "prestataire": "NAT TECHNOLOGIES",
+                                "region": "CENTRE",
+                            },
+                            {
+                                "code": "PRESTA051",
+                                "score_global": 95.02,
+                                "intitule": "Elevage",
+                                "prestataire": "CFP-EN",
+                                "region": "OUEST",
+                            },
+                            {
+                                "code": "PRESTA012",
+                                "score_global": 94.0,
+                                "intitule": "Techniques financières",
+                                "prestataire": "CFP WELL BEING EXPERTS",
+                                "region": "NORD",
+                            },
+                            {
+                                "code": "PRESTA019",
+                                "score_global": 94.0,
+                                "intitule": "PRATIQUE AGRICOLE DURABLE",
+                                "prestataire": "CRA D'EBOLOWA",
+                                "region": "SUD",
+                            },
                         ],
                         "improve_rankings": [
-                            {"code": "PRESTA079", "score_global": 54.98, "intitule": "Formation amélioration 1", "prestataire": "CFEM", "region": "EXTRÊME-NORD"},
-                            {"code": "PRESTA001", "score_global": 67.14, "intitule": "Formation amélioration 2", "prestataire": "-", "region": "ADAMAOUA"},
-                            {"code": "PRESTA147", "score_global": 76.00, "intitule": "Formation amélioration 3", "prestataire": "RINOO Cameroon Ltd", "region": "SUD-OUEST"},
-                            {"code": "PRESTA036", "score_global": 78.91, "intitule": "Formation amélioration 4", "prestataire": "CADAHC", "region": "CENTRE"},
-                            {"code": "PRESTA018", "score_global": 79.93, "intitule": "Formation amélioration 5", "prestataire": "-", "region": "CENTRE"},
+                            {
+                                "code": "PRESTA079",
+                                "score_global": 54.98,
+                                "intitule": "Formation amélioration 1",
+                                "prestataire": "CFEM",
+                                "region": "EXTRÊME-NORD",
+                            },
+                            {
+                                "code": "PRESTA001",
+                                "score_global": 67.14,
+                                "intitule": "Formation amélioration 2",
+                                "prestataire": "-",
+                                "region": "ADAMAOUA",
+                            },
+                            {
+                                "code": "PRESTA147",
+                                "score_global": 76.00,
+                                "intitule": "Formation amélioration 3",
+                                "prestataire": "RINOO Cameroon Ltd",
+                                "region": "SUD-OUEST",
+                            },
+                            {
+                                "code": "PRESTA036",
+                                "score_global": 78.91,
+                                "intitule": "Formation amélioration 4",
+                                "prestataire": "CADAHC",
+                                "region": "CENTRE",
+                            },
+                            {
+                                "code": "PRESTA018",
+                                "score_global": 79.93,
+                                "intitule": "Formation amélioration 5",
+                                "prestataire": "-",
+                                "region": "CENTRE",
+                            },
                         ],
                         "map_data": {},
                         "summary_cards": [
@@ -1029,18 +1156,54 @@ def public_space(request):
                 context["stats"] = {
                     "global_avgs": {},
                     "best_rankings": [
-                        {"code": "PRESTA001", "score_global": 95.0, "intitule": "Réparation des engins agricoles"},
-                        {"code": "PRESTA002", "score_global": 90.0, "intitule": "Fabrication des ruches style kenyan"},
+                        {
+                            "code": "PRESTA001",
+                            "score_global": 95.0,
+                            "intitule": "Réparation des engins agricoles",
+                        },
+                        {
+                            "code": "PRESTA002",
+                            "score_global": 90.0,
+                            "intitule": "Fabrication des ruches style kenyan",
+                        },
                         {"code": "PRESTA003", "score_global": 85.0, "intitule": "Elevage"},
-                        {"code": "PRESTA004", "score_global": 80.0, "intitule": "Techniques financières"},
-                        {"code": "PRESTA005", "score_global": 75.0, "intitule": "PRATIQUE AGRICOLE DURABLE"},
+                        {
+                            "code": "PRESTA004",
+                            "score_global": 80.0,
+                            "intitule": "Techniques financières",
+                        },
+                        {
+                            "code": "PRESTA005",
+                            "score_global": 75.0,
+                            "intitule": "PRATIQUE AGRICOLE DURABLE",
+                        },
                     ],
                     "improve_rankings": [
-                        {"code": "PRESTA006", "score_global": 65.0, "intitule": "Formation amélioration 1"},
-                        {"code": "PRESTA007", "score_global": 70.0, "intitule": "Formation amélioration 2"},
-                        {"code": "PRESTA008", "score_global": 72.0, "intitule": "Formation amélioration 3"},
-                        {"code": "PRESTA009", "score_global": 74.0, "intitule": "Formation amélioration 4"},
-                        {"code": "PRESTA010", "score_global": 76.0, "intitule": "Formation amélioration 5"},
+                        {
+                            "code": "PRESTA006",
+                            "score_global": 65.0,
+                            "intitule": "Formation amélioration 1",
+                        },
+                        {
+                            "code": "PRESTA007",
+                            "score_global": 70.0,
+                            "intitule": "Formation amélioration 2",
+                        },
+                        {
+                            "code": "PRESTA008",
+                            "score_global": 72.0,
+                            "intitule": "Formation amélioration 3",
+                        },
+                        {
+                            "code": "PRESTA009",
+                            "score_global": 74.0,
+                            "intitule": "Formation amélioration 4",
+                        },
+                        {
+                            "code": "PRESTA010",
+                            "score_global": 76.0,
+                            "intitule": "Formation amélioration 5",
+                        },
                     ],
                     "map_data": {},
                     "summary_cards": [
@@ -1051,8 +1214,8 @@ def public_space(request):
                     ],
                 }
             # DEBUG: S'assurer que les stats sont dans le contexte
-            if 'stats' in context:
-                stats = context['stats']
+            if "stats" in context:
+                stats = context["stats"]
             else:
                 print("DEBUG: ERROR - stats not in context!")
 
@@ -1064,7 +1227,6 @@ def public_space(request):
             # Ne jamais casser la page pour un simple échec d'écriture disque.
             pass
     return HttpResponse(rendered_html)
-
 
 
 def _build_formateur_stats_production_safe(request) -> dict:
@@ -1080,26 +1242,66 @@ def _build_formateur_stats_production_safe(request) -> dict:
             print(f"Erreur dans _build_satisfaction_formateurs_dashboard_context: {e}")
             # Contexte de secours
             ctx = {"all_rows": [], "global_avgs": {}}
-        
+
         all_rows = ctx.get("all_rows", [])
-        
+
         # Si pas de données, retourner des données de test
         if not all_rows:
             return {
                 "global_avgs": {},
                 "best_rankings": [
-                    {"code": "PRESTA001", "score_global": 95.0, "intitule": "Aucune donnée disponible"},
-                    {"code": "PRESTA002", "score_global": 90.0, "intitule": "Aucune donnée disponible"},
-                    {"code": "PRESTA003", "score_global": 85.0, "intitule": "Aucune donnée disponible"},
-                    {"code": "PRESTA004", "score_global": 80.0, "intitule": "Aucune donnée disponible"},
-                    {"code": "PRESTA005", "score_global": 75.0, "intitule": "Aucune donnée disponible"},
+                    {
+                        "code": "PRESTA001",
+                        "score_global": 95.0,
+                        "intitule": "Aucune donnée disponible",
+                    },
+                    {
+                        "code": "PRESTA002",
+                        "score_global": 90.0,
+                        "intitule": "Aucune donnée disponible",
+                    },
+                    {
+                        "code": "PRESTA003",
+                        "score_global": 85.0,
+                        "intitule": "Aucune donnée disponible",
+                    },
+                    {
+                        "code": "PRESTA004",
+                        "score_global": 80.0,
+                        "intitule": "Aucune donnée disponible",
+                    },
+                    {
+                        "code": "PRESTA005",
+                        "score_global": 75.0,
+                        "intitule": "Aucune donnée disponible",
+                    },
                 ],
                 "improve_rankings": [
-                    {"code": "PRESTA006", "score_global": 65.0, "intitule": "Aucune donnée disponible"},
-                    {"code": "PRESTA007", "score_global": 70.0, "intitule": "Aucune donnée disponible"},
-                    {"code": "PRESTA008", "score_global": 72.0, "intitule": "Aucune donnée disponible"},
-                    {"code": "PRESTA009", "score_global": 74.0, "intitule": "Aucune donnée disponible"},
-                    {"code": "PRESTA010", "score_global": 76.0, "intitule": "Aucune donnée disponible"},
+                    {
+                        "code": "PRESTA006",
+                        "score_global": 65.0,
+                        "intitule": "Aucune donnée disponible",
+                    },
+                    {
+                        "code": "PRESTA007",
+                        "score_global": 70.0,
+                        "intitule": "Aucune donnée disponible",
+                    },
+                    {
+                        "code": "PRESTA008",
+                        "score_global": 72.0,
+                        "intitule": "Aucune donnée disponible",
+                    },
+                    {
+                        "code": "PRESTA009",
+                        "score_global": 74.0,
+                        "intitule": "Aucune donnée disponible",
+                    },
+                    {
+                        "code": "PRESTA010",
+                        "score_global": 76.0,
+                        "intitule": "Aucune donnée disponible",
+                    },
                 ],
                 "map_data": {},
                 "summary_cards": [
@@ -1109,35 +1311,39 @@ def _build_formateur_stats_production_safe(request) -> dict:
                     ("Avec scores", 0),
                 ],
             }
-        
+
         # Traitement sécurisé des données
         try:
             # Regroupement simple par code synthétique
             grouped = {}
             processed_count = 0
-            
+
             for record in all_rows:
                 try:
                     # Créer un code simple basé sur l'ID
-                    record_id = getattr(record, 'id', None) or str(processed_count)
+                    record_id = getattr(record, "id", None) or str(processed_count)
                     code = f"STAT-{record_id}"
-                    
+
                     # Obtenir les valeurs de base
-                    prestataire = str(getattr(record, 'prestataire', '') or 'N/A')[:50]
-                    beneficiaire = str(getattr(record, 'beneficiaire', '') or 'N/A')[:50]
-                    
+                    prestataire = str(getattr(record, "prestataire", "") or "N/A")[:50]
+                    beneficiaire = str(getattr(record, "beneficiaire", "") or "N/A")[:50]
+
                     # Calculer un score simple
                     scores = []
-                    for field in ['q1_prerequis_apprenants', 'q2_interaction_apprenants', 'q3_competences_acquises']:
+                    for field in [
+                        "q1_prerequis_apprenants",
+                        "q2_interaction_apprenants",
+                        "q3_competences_acquises",
+                    ]:
                         try:
                             value = getattr(record, field, None)
-                            if value is not None and value != '':
+                            if value is not None and value != "":
                                 scores.append(float(value))
                         except (ValueError, TypeError):
                             continue
-                    
+
                     avg_score = sum(scores) / len(scores) if scores else 0.0
-                    
+
                     # Ajouter au groupement
                     if code not in grouped:
                         grouped[code] = {
@@ -1145,71 +1351,84 @@ def _build_formateur_stats_production_safe(request) -> dict:
                             "prestataire": prestataire,
                             "beneficiaire": beneficiaire,
                             "scores": [],
-                            "count": 0
+                            "count": 0,
                         }
-                    
+
                     grouped[code]["scores"].append(avg_score)
                     grouped[code]["count"] += 1
                     processed_count += 1
-                    
+
                     # Limiter le traitement pour éviter les timeouts
                     if processed_count >= 100:
                         break
-                        
+
                 except Exception as e:
                     print(f"Erreur traitement record {processed_count}: {e}")
                     continue
-            
+
             # Créer les statistiques finales
             prestation_stats = []
             for code, data in grouped.items():
                 if data["scores"]:
                     avg_score = sum(data["scores"]) / len(data["scores"])
-                    prestation_stats.append({
-                        "code": code,
-                        "prestataire": data["prestataire"],
-                        "beneficiaire": data["beneficiaire"],
-                        "nb": data["count"],
-                        "avg": avg_score,
-                    })
-            
+                    prestation_stats.append(
+                        {
+                            "code": code,
+                            "prestataire": data["prestataire"],
+                            "beneficiaire": data["beneficiaire"],
+                            "nb": data["count"],
+                            "avg": avg_score,
+                        }
+                    )
+
             # Trier et créer les rankings
             prestation_stats.sort(key=lambda x: x["avg"], reverse=True)
-            
+
             best_rankings = []
             improve_rankings = []
-            
+
             # Top 5
             for i, item in enumerate(prestation_stats[:5]):
-                best_rankings.append({
-                    "code": item["code"],
-                    "score_global": item["avg"],
-                    "intitule": f"{item['prestataire']} - {item['beneficiaire']}"
-                })
-            
+                best_rankings.append(
+                    {
+                        "code": item["code"],
+                        "score_global": item["avg"],
+                        "intitule": f"{item['prestataire']} - {item['beneficiaire']}",
+                    }
+                )
+
             # Bottom 5
             for i, item in enumerate(prestation_stats[-5:]):
-                improve_rankings.append({
-                    "code": item["code"],
-                    "score_global": item["avg"],
-                    "intitule": f"{item['prestataire']} - {item['beneficiaire']}"
-                })
-            
+                improve_rankings.append(
+                    {
+                        "code": item["code"],
+                        "score_global": item["avg"],
+                        "intitule": f"{item['prestataire']} - {item['beneficiaire']}",
+                    }
+                )
+
             improve_rankings.reverse()  # Mettre les plus bas en premier
-            
+
             return {
                 "global_avgs": ctx.get("global_avgs", {}),
                 "best_rankings": best_rankings[:5],
                 "improve_rankings": improve_rankings[:5],
                 "map_data": {},
                 "summary_cards": [
-                    ("Moyenne Q1-Q3", sum(item["avg"] for item in prestation_stats) / len(prestation_stats) if prestation_stats else 0.0),
+                    (
+                        "Moyenne Q1-Q3",
+                        (
+                            sum(item["avg"] for item in prestation_stats) / len(prestation_stats)
+                            if prestation_stats
+                            else 0.0
+                        ),
+                    ),
                     ("Appels", len(all_rows)),
                     ("Appels ciblés", processed_count),
                     ("Avec scores", len(prestation_stats)),
                 ],
             }
-            
+
         except Exception as e:
             print(f"Erreur dans le traitement des données: {e}")
             # Retourner les données de test en cas d'erreur
@@ -1237,25 +1456,65 @@ def _build_formateur_stats_production_safe(request) -> dict:
                     ("Avec scores", 0),
                 ],
             }
-            
+
     except Exception as e:
         print(f"Erreur critique dans _build_formateur_stats_production_safe: {e}")
         # Dernier recours: retourner des données complètement statiques
         return {
             "global_avgs": {},
             "best_rankings": [
-                {"code": "STATIC001", "score_global": 85.0, "intitule": "Données statiques - Service en maintenance"},
-                {"code": "STATIC002", "score_global": 80.0, "intitule": "Données statiques - Service en maintenance"},
-                {"code": "STATIC003", "score_global": 75.0, "intitule": "Données statiques - Service en maintenance"},
-                {"code": "STATIC004", "score_global": 70.0, "intitule": "Données statiques - Service en maintenance"},
-                {"code": "STATIC005", "score_global": 65.0, "intitule": "Données statiques - Service en maintenance"},
+                {
+                    "code": "STATIC001",
+                    "score_global": 85.0,
+                    "intitule": "Données statiques - Service en maintenance",
+                },
+                {
+                    "code": "STATIC002",
+                    "score_global": 80.0,
+                    "intitule": "Données statiques - Service en maintenance",
+                },
+                {
+                    "code": "STATIC003",
+                    "score_global": 75.0,
+                    "intitule": "Données statiques - Service en maintenance",
+                },
+                {
+                    "code": "STATIC004",
+                    "score_global": 70.0,
+                    "intitule": "Données statiques - Service en maintenance",
+                },
+                {
+                    "code": "STATIC005",
+                    "score_global": 65.0,
+                    "intitule": "Données statiques - Service en maintenance",
+                },
             ],
             "improve_rankings": [
-                {"code": "STATIC006", "score_global": 60.0, "intitule": "Données statiques - Service en maintenance"},
-                {"code": "STATIC007", "score_global": 55.0, "intitule": "Données statiques - Service en maintenance"},
-                {"code": "STATIC008", "score_global": 50.0, "intitule": "Données statiques - Service en maintenance"},
-                {"code": "STATIC009", "score_global": 45.0, "intitule": "Données statiques - Service en maintenance"},
-                {"code": "STATIC010", "score_global": 40.0, "intitule": "Données statiques - Service en maintenance"},
+                {
+                    "code": "STATIC006",
+                    "score_global": 60.0,
+                    "intitule": "Données statiques - Service en maintenance",
+                },
+                {
+                    "code": "STATIC007",
+                    "score_global": 55.0,
+                    "intitule": "Données statiques - Service en maintenance",
+                },
+                {
+                    "code": "STATIC008",
+                    "score_global": 50.0,
+                    "intitule": "Données statiques - Service en maintenance",
+                },
+                {
+                    "code": "STATIC009",
+                    "score_global": 45.0,
+                    "intitule": "Données statiques - Service en maintenance",
+                },
+                {
+                    "code": "STATIC010",
+                    "score_global": 40.0,
+                    "intitule": "Données statiques - Service en maintenance",
+                },
             ],
             "map_data": {},
             "summary_cards": [
@@ -1265,7 +1524,6 @@ def _build_formateur_stats_production_safe(request) -> dict:
                 ("Avec scores", 0),
             ],
         }
-
 
 
 def _build_formateur_stats_restored(request) -> dict:
@@ -1281,26 +1539,66 @@ def _build_formateur_stats_restored(request) -> dict:
             print(f"Erreur dans _build_satisfaction_formateurs_dashboard_context: {e}")
             # Contexte de secours
             ctx = {"all_rows": [], "global_avgs": {}}
-        
+
         all_rows = ctx.get("all_rows", [])
-        
+
         # Si pas de données, retourner des données de test
         if not all_rows:
             return {
                 "global_avgs": {},
                 "best_rankings": [
-                    {"code": "PRESTA001", "score_global": 95.0, "intitule": "Aucune donnée disponible"},
-                    {"code": "PRESTA002", "score_global": 90.0, "intitule": "Aucune donnée disponible"},
-                    {"code": "PRESTA003", "score_global": 85.0, "intitule": "Aucune donnée disponible"},
-                    {"code": "PRESTA004", "score_global": 80.0, "intitule": "Aucune donnée disponible"},
-                    {"code": "PRESTA005", "score_global": 75.0, "intitule": "Aucune donnée disponible"},
+                    {
+                        "code": "PRESTA001",
+                        "score_global": 95.0,
+                        "intitule": "Aucune donnée disponible",
+                    },
+                    {
+                        "code": "PRESTA002",
+                        "score_global": 90.0,
+                        "intitule": "Aucune donnée disponible",
+                    },
+                    {
+                        "code": "PRESTA003",
+                        "score_global": 85.0,
+                        "intitule": "Aucune donnée disponible",
+                    },
+                    {
+                        "code": "PRESTA004",
+                        "score_global": 80.0,
+                        "intitule": "Aucune donnée disponible",
+                    },
+                    {
+                        "code": "PRESTA005",
+                        "score_global": 75.0,
+                        "intitule": "Aucune donnée disponible",
+                    },
                 ],
                 "improve_rankings": [
-                    {"code": "PRESTA006", "score_global": 65.0, "intitule": "Aucune donnée disponible"},
-                    {"code": "PRESTA007", "score_global": 70.0, "intitule": "Aucune donnée disponible"},
-                    {"code": "PRESTA008", "score_global": 72.0, "intitule": "Aucune donnée disponible"},
-                    {"code": "PRESTA009", "score_global": 74.0, "intitule": "Aucune donnée disponible"},
-                    {"code": "PRESTA010", "score_global": 76.0, "intitule": "Aucune donnée disponible"},
+                    {
+                        "code": "PRESTA006",
+                        "score_global": 65.0,
+                        "intitule": "Aucune donnée disponible",
+                    },
+                    {
+                        "code": "PRESTA007",
+                        "score_global": 70.0,
+                        "intitule": "Aucune donnée disponible",
+                    },
+                    {
+                        "code": "PRESTA008",
+                        "score_global": 72.0,
+                        "intitule": "Aucune donnée disponible",
+                    },
+                    {
+                        "code": "PRESTA009",
+                        "score_global": 74.0,
+                        "intitule": "Aucune donnée disponible",
+                    },
+                    {
+                        "code": "PRESTA010",
+                        "score_global": 76.0,
+                        "intitule": "Aucune donnée disponible",
+                    },
                 ],
                 "map_data": {},
                 "summary_cards": [
@@ -1310,7 +1608,7 @@ def _build_formateur_stats_restored(request) -> dict:
                     ("Avec scores", 0),
                 ],
             }
-        
+
         # Utiliser la logique originale mais avec gestion d'erreurs
         try:
             resolution_cache: dict[tuple, object] = {}
@@ -1334,15 +1632,22 @@ def _build_formateur_stats_restored(request) -> dict:
                         WHERE p.actif = 1
                     """)
                     prestations_info = cursor.fetchall()
-                    
+
                     # Create mapping dictionary
-                    for code, id, prestataire_nom, beneficiaire_nom, beneficiaire_region, formation_nom in prestations_info:
+                    for (
+                        code,
+                        id,
+                        prestataire_nom,
+                        beneficiaire_nom,
+                        beneficiaire_region,
+                        formation_nom,
+                    ) in prestations_info:
                         prestation_mapping[code] = {
-                            'id': id,
-                            'prestataire_nom': str(prestataire_nom or "").strip().lower(),
-                            'beneficiaire_nom': str(beneficiaire_nom or "").strip().lower(),
-                            'beneficiaire_region': str(beneficiaire_region or "").strip().lower(),
-                            'formation_nom': str(formation_nom or "").strip().lower()
+                            "id": id,
+                            "prestataire_nom": str(prestataire_nom or "").strip().lower(),
+                            "beneficiaire_nom": str(beneficiaire_nom or "").strip().lower(),
+                            "beneficiaire_region": str(beneficiaire_region or "").strip().lower(),
+                            "formation_nom": str(formation_nom or "").strip().lower(),
                         }
             except Exception as e:
                 print(f"Erreur création prestation_mapping: {e}")
@@ -1353,46 +1658,73 @@ def _build_formateur_stats_restored(request) -> dict:
                     prestataire_clean = str(prestataire_val or "").strip().lower()
                     beneficiaire_clean = str(beneficiaire_val or "").strip().lower()
                     formation_clean = str(formation_val or "").strip().lower()
-                    
+
                     best_match = None
                     best_score = 0
-                    
+
                     # Priorité absolue aux codes cibles connus
-                    target_priority_codes = ['PRESTA079', 'PRESTA001', 'PRESTA147', 'PRESTA036', 'PRESTA018']
-                    
+                    target_priority_codes = [
+                        "PRESTA079",
+                        "PRESTA001",
+                        "PRESTA147",
+                        "PRESTA036",
+                        "PRESTA018",
+                    ]
+
                     for code, info in prestation_mapping.items():
                         score = 0
-                        
+
                         # Bonus de priorité pour les codes cibles
                         if code in target_priority_codes:
                             score += 10
-                        
+
                         # Compare prestataires (plus flexible)
-                        if prestataire_clean and info['prestataire_nom']:
-                            if prestataire_clean == info['prestataire_nom']:
+                        if prestataire_clean and info["prestataire_nom"]:
+                            if prestataire_clean == info["prestataire_nom"]:
                                 score += 5
-                            elif prestataire_clean in info['prestataire_nom'] or info['prestataire_nom'] in prestataire_clean:
+                            elif (
+                                prestataire_clean in info["prestataire_nom"]
+                                or info["prestataire_nom"] in prestataire_clean
+                            ):
                                 score += 3
                             # Correspondance par mots-clés
-                            elif any(word in info['prestataire_nom'] for word in prestataire_clean.split() if len(word) > 2):
+                            elif any(
+                                word in info["prestataire_nom"]
+                                for word in prestataire_clean.split()
+                                if len(word) > 2
+                            ):
                                 score += 2
-                            elif any(word in prestataire_clean for word in info['prestataire_nom'].split() if len(word) > 2):
+                            elif any(
+                                word in prestataire_clean
+                                for word in info["prestataire_nom"].split()
+                                if len(word) > 2
+                            ):
                                 score += 2
-                        
+
                         # Compare bénéficiaires
-                        if beneficiaire_clean and info['beneficiaire_nom']:
-                            if beneficiaire_clean == info['beneficiaire_nom']:
+                        if beneficiaire_clean and info["beneficiaire_nom"]:
+                            if beneficiaire_clean == info["beneficiaire_nom"]:
                                 score += 3
-                            elif beneficiaire_clean in info['beneficiaire_nom'] or info['beneficiaire_nom'] in beneficiaire_clean:
+                            elif (
+                                beneficiaire_clean in info["beneficiaire_nom"]
+                                or info["beneficiaire_nom"] in beneficiaire_clean
+                            ):
                                 score += 2
-                            elif any(word in info['beneficiaire_nom'] for word in beneficiaire_clean.split() if len(word) > 2):
+                            elif any(
+                                word in info["beneficiaire_nom"]
+                                for word in beneficiaire_clean.split()
+                                if len(word) > 2
+                            ):
                                 score += 1
-                        
+
                         # Compare formations (plus de poids pour les noms de formations)
                         if formation_clean and info["formation_nom"]:
                             if formation_clean == info["formation_nom"]:
                                 score += 4
-                            elif formation_clean in info["formation_nom"] or info["formation_nom"] in formation_clean:
+                            elif (
+                                formation_clean in info["formation_nom"]
+                                or info["formation_nom"] in formation_clean
+                            ):
                                 score += 2
                             # Correspondance par mots-clés dans les formations
                             elif any(
@@ -1414,7 +1746,9 @@ def _build_formateur_stats_restored(request) -> dict:
 
                         # Debug: afficher les scores pour les codes cibles
                         if code in target_priority_codes and score > 0:
-                            print(f"DEBUG: {code} score={score} pour prestataire='{prestataire_clean}' beneficiaire='{beneficiaire_clean}' formation='{formation_clean}'")
+                            print(
+                                f"DEBUG: {code} score={score} pour prestataire='{prestataire_clean}' beneficiaire='{beneficiaire_clean}' formation='{formation_clean}'"
+                            )
 
                         if score > best_score and score >= 2:  # Minimum score of 2 required
                             best_score = score
@@ -1433,23 +1767,28 @@ def _build_formateur_stats_restored(request) -> dict:
                     classe = _resolve_formateur_classe(record, resolution_cache)
                     prestation = getattr(classe, "prestation", None)
                     code = str(getattr(prestation, "code", "") or "").strip()
-                    
+
                     # If no prestation found, try to find the best match using our mapping
                     if not code:
                         prestataire_val = _formateur_record_value(record, "prestataire") or "-"
                         beneficiaire_val = _formateur_record_value(record, "beneficiaire") or "-"
                         formation_val = _formateur_record_value(record, "formation") or "-"
-                        
+
                         # Try to find a real prestation match first
-                        code = find_best_prestation_match(prestataire_val, beneficiaire_val, formation_val)
-                        
+                        code = find_best_prestation_match(
+                            prestataire_val, beneficiaire_val, formation_val
+                        )
+
                         # If still no match, create a synthetic key
                         if not code:
                             import re
+
                             def safe_string(s, max_len=10):
                                 safe = re.sub(r"[^a-zA-Z0-9]", "", str(s))
-                                return safe[:max_len] if safe else f"ID{getattr(record, 'id', 'UNK')}"
-                            
+                                return (
+                                    safe[:max_len] if safe else f"ID{getattr(record, 'id', 'UNK')}"
+                                )
+
                             if prestataire_val != "-" and beneficiaire_val != "-":
                                 code = f"{safe_string(prestataire_val)}-{safe_string(beneficiaire_val)}"
                             elif formation_val != "-":
@@ -1485,12 +1824,12 @@ def _build_formateur_stats_restored(request) -> dict:
                     bucket["nb"] += 1
                     for field_name, value in zip(FORMATEUR_SCORE_FIELDS, values):
                         bucket["scores"][field_name].append(float(value))
-                    
+
                     processed_count += 1
                     # Limiter pour éviter les timeouts
                     if processed_count >= 200:
                         break
-                        
+
                 except Exception as e:
                     print(f"Erreur traitement record {processed_count}: {e}")
                     continue
@@ -1505,21 +1844,24 @@ def _build_formateur_stats_restored(request) -> dict:
                     values = item["scores"][field_name]
                     avgs.append(round(sum(values) / len(values), 2) if values else 0)
                 avg = round(sum(avgs) / len(avgs), 2) if avgs else 0
-                
+
                 # Récupérer les vraies informations de prestataire et région depuis la base
                 code = item["code"]
                 real_prestataire = item["prestataire"]
                 real_region = "Inconnu"
-                
+
                 if code in prestation_mapping:
                     mapping_info = prestation_mapping[code]
                     # Utiliser le vrai nom du prestataire depuis la base
-                    if mapping_info['prestataire_nom'] and mapping_info['prestataire_nom'] != '-':
-                        real_prestataire = mapping_info['prestataire_nom'].title()
+                    if mapping_info["prestataire_nom"] and mapping_info["prestataire_nom"] != "-":
+                        real_prestataire = mapping_info["prestataire_nom"].title()
                     # Utiliser la vraie région depuis la base
-                    if mapping_info['beneficiaire_region'] and mapping_info['beneficiaire_region'] != '-':
-                        real_region = mapping_info['beneficiaire_region'].upper()
-                
+                    if (
+                        mapping_info["beneficiaire_region"]
+                        and mapping_info["beneficiaire_region"] != "-"
+                    ):
+                        real_region = mapping_info["beneficiaire_region"].upper()
+
                 prestation_stats.append(
                     {
                         "code": item["code"],
@@ -1543,20 +1885,24 @@ def _build_formateur_stats_restored(request) -> dict:
                 prestation_stats.sort(key=lambda x: x["avg"], reverse=True)
                 best_rankings = []
                 improve_rankings = []
-                
+
                 for item in prestation_stats[:5]:
-                    best_rankings.append({
-                        "code": item["code"],
-                        "score_global": item["avg"],
-                        "intitule": f"{item['prestataire']} - {item['beneficiaire']}"
-                    })
-                
+                    best_rankings.append(
+                        {
+                            "code": item["code"],
+                            "score_global": item["avg"],
+                            "intitule": f"{item['prestataire']} - {item['beneficiaire']}",
+                        }
+                    )
+
                 for item in prestation_stats[-5:]:
-                    improve_rankings.append({
-                        "code": item["code"],
-                        "score_global": item["avg"],
-                        "intitule": f"{item['prestataire']} - {item['beneficiaire']}"
-                    })
+                    improve_rankings.append(
+                        {
+                            "code": item["code"],
+                            "score_global": item["avg"],
+                            "intitule": f"{item['prestataire']} - {item['beneficiaire']}",
+                        }
+                    )
                 improve_rankings.reverse()
 
             return {
@@ -1574,7 +1920,7 @@ def _build_formateur_stats_restored(request) -> dict:
                     ("Avec scores", ctx.get("with_scores", 0)),
                 ],
             }
-            
+
         except Exception as e:
             print(f"Erreur dans le traitement principal: {e}")
             # Retourner les données de base du contexte
@@ -1593,7 +1939,7 @@ def _build_formateur_stats_restored(request) -> dict:
                     ("Avec scores", ctx.get("with_scores", 0)),
                 ],
             }
-            
+
     except Exception as e:
         print(f"Erreur critique dans _build_formateur_stats_restored: {e}")
         # Dernier recours
@@ -1611,7 +1957,6 @@ def _build_formateur_stats_restored(request) -> dict:
         }
 
 
-
 def _build_formateur_stats_fixed(request) -> dict:
     """
     Version corrigée qui utilise les vraies données de prestation
@@ -1624,26 +1969,66 @@ def _build_formateur_stats_fixed(request) -> dict:
         except Exception as e:
             print(f"Erreur dans _build_satisfaction_formateurs_dashboard_context: {e}")
             ctx = {"all_rows": [], "global_avgs": {}}
-        
+
         all_rows = ctx.get("all_rows", [])
-        
+
         # Si pas de données, retourner des données de test
         if not all_rows:
             return {
                 "global_avgs": {},
                 "best_rankings": [
-                    {"code": "PRESTA001", "score_global": 95.0, "intitule": "Aucune donnée disponible"},
-                    {"code": "PRESTA002", "score_global": 90.0, "intitule": "Aucune donnée disponible"},
-                    {"code": "PRESTA003", "score_global": 85.0, "intitule": "Aucune donnée disponible"},
-                    {"code": "PRESTA004", "score_global": 80.0, "intitule": "Aucune donnée disponible"},
-                    {"code": "PRESTA005", "score_global": 75.0, "intitule": "Aucune donnée disponible"},
+                    {
+                        "code": "PRESTA001",
+                        "score_global": 95.0,
+                        "intitule": "Aucune donnée disponible",
+                    },
+                    {
+                        "code": "PRESTA002",
+                        "score_global": 90.0,
+                        "intitule": "Aucune donnée disponible",
+                    },
+                    {
+                        "code": "PRESTA003",
+                        "score_global": 85.0,
+                        "intitule": "Aucune donnée disponible",
+                    },
+                    {
+                        "code": "PRESTA004",
+                        "score_global": 80.0,
+                        "intitule": "Aucune donnée disponible",
+                    },
+                    {
+                        "code": "PRESTA005",
+                        "score_global": 75.0,
+                        "intitule": "Aucune donnée disponible",
+                    },
                 ],
                 "improve_rankings": [
-                    {"code": "PRESTA006", "score_global": 65.0, "intitule": "Aucune donnée disponible"},
-                    {"code": "PRESTA007", "score_global": 70.0, "intitule": "Aucune donnée disponible"},
-                    {"code": "PRESTA008", "score_global": 72.0, "intitule": "Aucune donnée disponible"},
-                    {"code": "PRESTA009", "score_global": 74.0, "intitule": "Aucune donnée disponible"},
-                    {"code": "PRESTA010", "score_global": 76.0, "intitule": "Aucune donnée disponible"},
+                    {
+                        "code": "PRESTA006",
+                        "score_global": 65.0,
+                        "intitule": "Aucune donnée disponible",
+                    },
+                    {
+                        "code": "PRESTA007",
+                        "score_global": 70.0,
+                        "intitule": "Aucune donnée disponible",
+                    },
+                    {
+                        "code": "PRESTA008",
+                        "score_global": 72.0,
+                        "intitule": "Aucune donnée disponible",
+                    },
+                    {
+                        "code": "PRESTA009",
+                        "score_global": 74.0,
+                        "intitule": "Aucune donnée disponible",
+                    },
+                    {
+                        "code": "PRESTA010",
+                        "score_global": 76.0,
+                        "intitule": "Aucune donnée disponible",
+                    },
                 ],
                 "map_data": {},
                 "summary_cards": [
@@ -1653,7 +2038,7 @@ def _build_formateur_stats_fixed(request) -> dict:
                     ("Avec scores", 0),
                 ],
             }
-        
+
         # Traitement avec la logique corrigée
         try:
             resolution_cache: dict[tuple, object] = {}
@@ -1666,33 +2051,43 @@ def _build_formateur_stats_fixed(request) -> dict:
                     classe = _resolve_formateur_classe(record, resolution_cache)
                     prestation = getattr(classe, "prestation", None)
                     code = str(getattr(prestation, "code", "") or "").strip()
-                    
+
                     # Si on a une prestation résolue, utiliser ses vraies données
                     if code and prestation:
                         # Obtenir les vraies données de la prestation
                         prestataire_obj = getattr(prestation, "prestataire", None)
                         beneficiaire_obj = getattr(prestation, "beneficiaire", None)
                         formation_obj = getattr(prestation, "formation", None)
-                        
-                        prestataire = getattr(prestataire_obj, "raison_sociale", "") if prestataire_obj else ""
-                        beneficiaire = getattr(beneficiaire_obj, "nom_structure", "") if beneficiaire_obj else ""
+
+                        prestataire = (
+                            getattr(prestataire_obj, "raison_sociale", "")
+                            if prestataire_obj
+                            else ""
+                        )
+                        beneficiaire = (
+                            getattr(beneficiaire_obj, "nom_structure", "")
+                            if beneficiaire_obj
+                            else ""
+                        )
                         formation = getattr(formation_obj, "nom", "") if formation_obj else ""
-                        
+
                         # Utiliser le vrai code de prestation
                         group_key = code
-                        
+
                     else:
                         # Si pas de prestation résolue, essayer le mapping traditionnel
                         prestataire_val = _formateur_record_value(record, "prestataire") or "-"
                         beneficiaire_val = _formateur_record_value(record, "beneficiaire") or "-"
                         formation_val = _formateur_record_value(record, "formation") or "-"
-                        
+
                         # Créer un mapping simple basé sur la formation si disponible
                         if formation_val and formation_val != "-":
                             # Chercher une prestation par nom de formation
                             from django.db import connection
+
                             with connection.cursor() as cursor:
-                                cursor.execute("""
+                                cursor.execute(
+                                    """
                                     SELECT p.code, pr.raison_sociale as prestataire_nom, 
                                            b.nom_structure as beneficiaire_nom
                                     FROM formations_prestation p
@@ -1701,19 +2096,26 @@ def _build_formateur_stats_fixed(request) -> dict:
                                     LEFT JOIN formations_formation f ON p.formation_id = f.id
                                     WHERE p.actif = 1 AND f.nom LIKE %s
                                     LIMIT 1
-                                """, [f"%{formation_val}%"])
+                                """,
+                                    [f"%{formation_val}%"],
+                                )
                                 result = cursor.fetchone()
-                                
+
                                 if result:
                                     code, prestataire, beneficiaire = result
                                     group_key = code
                                 else:
                                     # Si aucune correspondance, créer un code synthétique
                                     import re
+
                                     def safe_string(s, max_len=10):
                                         safe = re.sub(r"[^a-zA-Z0-9]", "", str(s))
-                                        return safe[:max_len] if safe else f"ID{getattr(record, 'id', 'UNK')}"
-                                    
+                                        return (
+                                            safe[:max_len]
+                                            if safe
+                                            else f"ID{getattr(record, 'id', 'UNK')}"
+                                        )
+
                                     code = f"FORMATION-{safe_string(formation_val, 15)}"
                                     group_key = code
                                     prestataire = prestataire_val
@@ -1748,12 +2150,12 @@ def _build_formateur_stats_fixed(request) -> dict:
                     bucket["nb"] += 1
                     for field_name, value in zip(FORMATEUR_SCORE_FIELDS, values):
                         bucket["scores"][field_name].append(float(value))
-                    
+
                     processed_count += 1
                     # Limiter pour éviter les timeouts
                     if processed_count >= 200:
                         break
-                        
+
                 except Exception as e:
                     print(f"Erreur traitement record {processed_count}: {e}")
                     continue
@@ -1768,21 +2170,24 @@ def _build_formateur_stats_fixed(request) -> dict:
                     values = item["scores"][field_name]
                     avgs.append(round(sum(values) / len(values), 2) if values else 0)
                 avg = round(sum(avgs) / len(avgs), 2) if avgs else 0
-                
+
                 # Récupérer les vraies informations de prestataire et région depuis la base
                 code = item["code"]
                 real_prestataire = item["prestataire"]
                 real_region = "Inconnu"
-                
+
                 if code in prestation_mapping:
                     mapping_info = prestation_mapping[code]
                     # Utiliser le vrai nom du prestataire depuis la base
-                    if mapping_info['prestataire_nom'] and mapping_info['prestataire_nom'] != '-':
-                        real_prestataire = mapping_info['prestataire_nom'].title()
+                    if mapping_info["prestataire_nom"] and mapping_info["prestataire_nom"] != "-":
+                        real_prestataire = mapping_info["prestataire_nom"].title()
                     # Utiliser la vraie région depuis la base
-                    if mapping_info['beneficiaire_region'] and mapping_info['beneficiaire_region'] != '-':
-                        real_region = mapping_info['beneficiaire_region'].upper()
-                
+                    if (
+                        mapping_info["beneficiaire_region"]
+                        and mapping_info["beneficiaire_region"] != "-"
+                    ):
+                        real_region = mapping_info["beneficiaire_region"].upper()
+
                 prestation_stats.append(
                     {
                         "code": item["code"],
@@ -1806,20 +2211,24 @@ def _build_formateur_stats_fixed(request) -> dict:
                 prestation_stats.sort(key=lambda x: x["avg"], reverse=True)
                 best_rankings = []
                 improve_rankings = []
-                
+
                 for item in prestation_stats[:5]:
-                    best_rankings.append({
-                        "code": item["code"],
-                        "score_global": item["avg"],
-                        "intitule": f"{item['prestataire']} - {item['beneficiaire']}"
-                    })
-                
+                    best_rankings.append(
+                        {
+                            "code": item["code"],
+                            "score_global": item["avg"],
+                            "intitule": f"{item['prestataire']} - {item['beneficiaire']}",
+                        }
+                    )
+
                 for item in prestation_stats[-5:]:
-                    improve_rankings.append({
-                        "code": item["code"],
-                        "score_global": item["avg"],
-                        "intitule": f"{item['prestataire']} - {item['beneficiaire']}"
-                    })
+                    improve_rankings.append(
+                        {
+                            "code": item["code"],
+                            "score_global": item["avg"],
+                            "intitule": f"{item['prestataire']} - {item['beneficiaire']}",
+                        }
+                    )
                 improve_rankings.reverse()
 
             return {
@@ -1837,7 +2246,7 @@ def _build_formateur_stats_fixed(request) -> dict:
                     ("Avec scores", ctx.get("with_scores", 0)),
                 ],
             }
-            
+
         except Exception as e:
             print(f"Erreur dans le traitement principal: {e}")
             # Retourner les données de base du contexte
@@ -1856,7 +2265,7 @@ def _build_formateur_stats_fixed(request) -> dict:
                     ("Avec scores", ctx.get("with_scores", 0)),
                 ],
             }
-            
+
     except Exception as e:
         print(f"Erreur critique dans _build_formateur_stats_fixed: {e}")
         # Dernier recours
@@ -1874,7 +2283,6 @@ def _build_formateur_stats_fixed(request) -> dict:
         }
 
 
-
 def _build_formateur_stats_enhanced(request) -> dict:
     """
     Version améliorée avec mapping multi-stratégies pour maximiser
@@ -1888,26 +2296,66 @@ def _build_formateur_stats_enhanced(request) -> dict:
         except Exception as e:
             print(f"Erreur dans _build_satisfaction_formateurs_dashboard_context: {e}")
             ctx = {"all_rows": [], "global_avgs": {}}
-        
+
         all_rows = ctx.get("all_rows", [])
-        
+
         # Si pas de données, retourner des données de test
         if not all_rows:
             return {
                 "global_avgs": {},
                 "best_rankings": [
-                    {"code": "PRESTA001", "score_global": 95.0, "intitule": "Aucune donnée disponible"},
-                    {"code": "PRESTA002", "score_global": 90.0, "intitule": "Aucune donnée disponible"},
-                    {"code": "PRESTA003", "score_global": 85.0, "intitule": "Aucune donnée disponible"},
-                    {"code": "PRESTA004", "score_global": 80.0, "intitule": "Aucune donnée disponible"},
-                    {"code": "PRESTA005", "score_global": 75.0, "intitule": "Aucune donnée disponible"},
+                    {
+                        "code": "PRESTA001",
+                        "score_global": 95.0,
+                        "intitule": "Aucune donnée disponible",
+                    },
+                    {
+                        "code": "PRESTA002",
+                        "score_global": 90.0,
+                        "intitule": "Aucune donnée disponible",
+                    },
+                    {
+                        "code": "PRESTA003",
+                        "score_global": 85.0,
+                        "intitule": "Aucune donnée disponible",
+                    },
+                    {
+                        "code": "PRESTA004",
+                        "score_global": 80.0,
+                        "intitule": "Aucune donnée disponible",
+                    },
+                    {
+                        "code": "PRESTA005",
+                        "score_global": 75.0,
+                        "intitule": "Aucune donnée disponible",
+                    },
                 ],
                 "improve_rankings": [
-                    {"code": "PRESTA006", "score_global": 65.0, "intitule": "Aucune donnée disponible"},
-                    {"code": "PRESTA007", "score_global": 70.0, "intitule": "Aucune donnée disponible"},
-                    {"code": "PRESTA008", "score_global": 72.0, "intitule": "Aucune donnée disponible"},
-                    {"code": "PRESTA009", "score_global": 74.0, "intitule": "Aucune donnée disponible"},
-                    {"code": "PRESTA010", "score_global": 76.0, "intitule": "Aucune donnée disponible"},
+                    {
+                        "code": "PRESTA006",
+                        "score_global": 65.0,
+                        "intitule": "Aucune donnée disponible",
+                    },
+                    {
+                        "code": "PRESTA007",
+                        "score_global": 70.0,
+                        "intitule": "Aucune donnée disponible",
+                    },
+                    {
+                        "code": "PRESTA008",
+                        "score_global": 72.0,
+                        "intitule": "Aucune donnée disponible",
+                    },
+                    {
+                        "code": "PRESTA009",
+                        "score_global": 74.0,
+                        "intitule": "Aucune donnée disponible",
+                    },
+                    {
+                        "code": "PRESTA010",
+                        "score_global": 76.0,
+                        "intitule": "Aucune donnée disponible",
+                    },
                 ],
                 "map_data": {},
                 "summary_cards": [
@@ -1917,16 +2365,16 @@ def _build_formateur_stats_enhanced(request) -> dict:
                     ("Avec scores", 0),
                 ],
             }
-        
+
         # Préparer les mappings améliorés
         try:
             from django.db import connection
-            
+
             # Mapping complet des prestations
             prestation_mapping = {}
             formation_mapping = {}
             prestataire_mapping = {}
-            
+
             with connection.cursor() as cursor:
                 cursor.execute("""
                     SELECT p.code, p.id, pr.raison_sociale as prestataire_nom, 
@@ -1939,64 +2387,73 @@ def _build_formateur_stats_enhanced(request) -> dict:
                     WHERE p.actif = 1
                 """)
                 prestations_info = cursor.fetchall()
-                
-                for code, id, prestataire_nom, beneficiaire_nom, formation_nom, beneficiaire_region in prestations_info:
+
+                for (
+                    code,
+                    id,
+                    prestataire_nom,
+                    beneficiaire_nom,
+                    formation_nom,
+                    beneficiaire_region,
+                ) in prestations_info:
                     # Mapping principal par code
                     prestation_mapping[code] = {
-                        'id': id,
-                        'prestataire_nom': str(prestataire_nom or "").strip().lower(),
-                        'beneficiaire_nom': str(beneficiaire_nom or "").strip().lower(),
-                        'formation_nom': str(formation_nom or "").strip().lower(),
-                        'beneficiaire_region': str(beneficiaire_region or "").strip().lower()
+                        "id": id,
+                        "prestataire_nom": str(prestataire_nom or "").strip().lower(),
+                        "beneficiaire_nom": str(beneficiaire_nom or "").strip().lower(),
+                        "formation_nom": str(formation_nom or "").strip().lower(),
+                        "beneficiaire_region": str(beneficiaire_region or "").strip().lower(),
                     }
-                    
+
                     # Mapping par formation (pour recherche partielle)
                     if formation_nom:
                         formation_clean = str(formation_nom).strip().lower()
                         if formation_clean not in formation_mapping:
                             formation_mapping[formation_clean] = []
                         formation_mapping[formation_clean].append(code)
-                    
+
                     # Mapping par prestataire (pour recherche partielle)
                     if prestataire_nom:
                         prestataire_clean = str(prestataire_nom).strip().lower()
                         if prestataire_clean not in prestataire_mapping:
                             prestataire_mapping[prestataire_clean] = []
                         prestataire_mapping[prestataire_clean].append(code)
-            
-            print(f"Mappings créés: {len(prestation_mapping)} prestations, {len(formation_mapping)} formations, {len(prestataire_mapping)} prestataires")
-            
+
+            print(
+                f"Mappings créés: {len(prestation_mapping)} prestations, {len(formation_mapping)} formations, {len(prestataire_mapping)} prestataires"
+            )
+
             # Fonction de mapping améliorée
             def enhanced_prestation_match(prestataire_val, beneficiaire_val, formation_val):
                 """Mapping multi-stratégies"""
                 prestataire_clean = str(prestataire_val or "").strip().lower()
                 beneficiaire_clean = str(beneficiaire_val or "").strip().lower()
                 formation_clean = str(formation_val or "").strip().lower()
-                
+
                 # Stratégie 1: Recherche exacte par formation
                 if formation_clean and formation_clean in formation_mapping:
                     codes = formation_mapping[formation_clean]
                     if codes:
                         return codes[0]  # Prendre le premier
-                
+
                 # Stratégie 2: Recherche partielle par formation
                 if formation_clean:
                     for key, codes in formation_mapping.items():
                         if formation_clean in key or key in formation_clean:
                             return codes[0]
-                
+
                 # Stratégie 3: Recherche exacte par prestataire
                 if prestataire_clean and prestataire_clean in prestataire_mapping:
                     codes = prestataire_mapping[prestataire_clean]
                     if codes:
                         return codes[0]
-                
+
                 # Stratégie 4: Recherche partielle par prestataire
                 if prestataire_clean:
                     for key, codes in prestataire_mapping.items():
                         if prestataire_clean in key or key in prestataire_clean:
                             return codes[0]
-                
+
                 # Stratégie 5: Mapping par mots-clés
                 if formation_clean:
                     formation_words = [w for w in formation_clean.split() if len(w) > 3]
@@ -2004,47 +2461,60 @@ def _build_formateur_stats_enhanced(request) -> dict:
                         for key, codes in formation_mapping.items():
                             if word in key:
                                 return codes[0]
-                
+
                 # Stratégie 6: Mapping traditionnel avec scoring
                 best_match = None
                 best_score = 0
-                
+
                 for code, info in prestation_mapping.items():
                     score = 0
-                    
-                    if prestataire_clean and info['prestataire_nom']:
-                        if prestataire_clean == info['prestataire_nom']:
+
+                    if prestataire_clean and info["prestataire_nom"]:
+                        if prestataire_clean == info["prestataire_nom"]:
                             score += 5
-                        elif prestataire_clean in info['prestataire_nom'] or info['prestataire_nom'] in prestataire_clean:
+                        elif (
+                            prestataire_clean in info["prestataire_nom"]
+                            or info["prestataire_nom"] in prestataire_clean
+                        ):
                             score += 3
-                        elif any(word in info['prestataire_nom'] for word in prestataire_clean.split() if len(word) > 2):
+                        elif any(
+                            word in info["prestataire_nom"]
+                            for word in prestataire_clean.split()
+                            if len(word) > 2
+                        ):
                             score += 2
-                    
-                    if beneficiaire_clean and info['beneficiaire_nom']:
-                        if beneficiaire_clean == info['beneficiaire_nom']:
+
+                    if beneficiaire_clean and info["beneficiaire_nom"]:
+                        if beneficiaire_clean == info["beneficiaire_nom"]:
                             score += 3
-                        elif beneficiaire_clean in info['beneficiaire_nom'] or info['beneficiaire_nom'] in beneficiaire_clean:
+                        elif (
+                            beneficiaire_clean in info["beneficiaire_nom"]
+                            or info["beneficiaire_nom"] in beneficiaire_clean
+                        ):
                             score += 2
-                    
-                    if formation_clean and info['formation_nom']:
-                        if formation_clean == info['formation_nom']:
+
+                    if formation_clean and info["formation_nom"]:
+                        if formation_clean == info["formation_nom"]:
                             score += 4
-                        elif formation_clean in info['formation_nom'] or info['formation_nom'] in formation_clean:
+                        elif (
+                            formation_clean in info["formation_nom"]
+                            or info["formation_nom"] in formation_clean
+                        ):
                             score += 2
-                    
+
                     if code.startswith("PRESTA") and score > 0:
                         score += 1
-                    
+
                     if score > best_score and score >= 2:
                         best_score = score
                         best_match = code
-                
+
                 return best_match
-            
+
             # Traitement principal avec mapping amélioré
             resolution_cache: dict[tuple, object] = {}
             grouped: dict[str, dict] = {}
-            
+
             processed_count = 0
             for record in all_rows:
                 try:
@@ -2052,50 +2522,63 @@ def _build_formateur_stats_enhanced(request) -> dict:
                     classe = _resolve_formateur_classe(record, resolution_cache)
                     prestation = getattr(classe, "prestation", None)
                     code = str(getattr(prestation, "code", "") or "").strip()
-                    
+
                     if code and prestation:
                         # Utiliser les vraies données de la prestation résolue
                         prestataire_obj = getattr(prestation, "prestataire", None)
                         beneficiaire_obj = getattr(prestation, "beneficiaire", None)
                         formation_obj = getattr(prestation, "formation", None)
-                        
-                        prestataire = getattr(prestataire_obj, "raison_sociale", "") if prestataire_obj else ""
-                        beneficiaire = getattr(beneficiaire_obj, "nom_structure", "") if beneficiaire_obj else ""
+
+                        prestataire = (
+                            getattr(prestataire_obj, "raison_sociale", "")
+                            if prestataire_obj
+                            else ""
+                        )
+                        beneficiaire = (
+                            getattr(beneficiaire_obj, "nom_structure", "")
+                            if beneficiaire_obj
+                            else ""
+                        )
                         formation = getattr(formation_obj, "nom", "") if formation_obj else ""
                         region = getattr(beneficiaire_obj, "region", "") if beneficiaire_obj else ""
-                        
+
                         group_key = code
-                        
+
                     else:
                         # Stratégie 2: Mapping amélioré par formation/prestataire
                         prestataire_val = _formateur_record_value(record, "prestataire", "") or ""
                         beneficiaire_val = _formateur_record_value(record, "beneficiaire", "") or ""
                         formation_val = _formateur_record_value(record, "formation", "") or ""
-                        
+
                         # Utiliser le mapping amélioré
-                        matched_code = enhanced_prestation_match(prestataire_val, beneficiaire_val, formation_val)
-                        
+                        matched_code = enhanced_prestation_match(
+                            prestataire_val, beneficiaire_val, formation_val
+                        )
+
                         if matched_code:
                             code = matched_code
                             # Obtenir les données complètes de la prestation
                             info = prestation_mapping.get(code, {})
-                            prestataire = info.get('prestataire_nom', prestataire_val)
-                            beneficiaire = info.get('beneficiaire_nom', beneficiaire_val)
-                            formation = info.get('formation_nom', formation_val)
-                            region = info.get('beneficiaire_region', 'Inconnu')
+                            prestataire = info.get("prestataire_nom", prestataire_val)
+                            beneficiaire = info.get("beneficiaire_nom", beneficiaire_val)
+                            formation = info.get("formation_nom", formation_val)
+                            region = info.get("beneficiaire_region", "Inconnu")
                             group_key = code
                         else:
                             # Stratégie 3: Code synthétique en dernier recours
                             import re
+
                             def safe_string(s, max_len=10):
                                 safe = re.sub(r"[^a-zA-Z0-9]", "", str(s))
-                                return safe[:max_len] if safe else f"ID{getattr(record, 'id', 'UNK')}"
-                            
+                                return (
+                                    safe[:max_len] if safe else f"ID{getattr(record, 'id', 'UNK')}"
+                                )
+
                             if formation_val:
                                 code = f"FORMATION-{safe_string(formation_val, 15)}"
                             else:
                                 code = f"FORMATEUR-{getattr(record, 'id', 'UNKNOWN')}"
-                            
+
                             group_key = code
                             prestataire = prestataire_val
                             beneficiaire = beneficiaire_val
@@ -2126,11 +2609,11 @@ def _build_formateur_stats_enhanced(request) -> dict:
                     bucket["nb"] += 1
                     for field_name, value in zip(FORMATEUR_SCORE_FIELDS, values):
                         bucket["scores"][field_name].append(float(value))
-                    
+
                     processed_count += 1
                     if processed_count >= 200:
                         break
-                        
+
                 except Exception as e:
                     print(f"Erreur traitement record {processed_count}: {e}")
                     continue
@@ -2145,21 +2628,24 @@ def _build_formateur_stats_enhanced(request) -> dict:
                     values = item["scores"][field_name]
                     avgs.append(round(sum(values) / len(values), 2) if values else 0)
                 avg = round(sum(avgs) / len(avgs), 2) if avgs else 0
-                
+
                 # Récupérer les vraies informations de prestataire et région depuis la base
                 code = item["code"]
                 real_prestataire = item["prestataire"]
                 real_region = "Inconnu"
-                
+
                 if code in prestation_mapping:
                     mapping_info = prestation_mapping[code]
                     # Utiliser le vrai nom du prestataire depuis la base
-                    if mapping_info['prestataire_nom'] and mapping_info['prestataire_nom'] != '-':
-                        real_prestataire = mapping_info['prestataire_nom'].title()
+                    if mapping_info["prestataire_nom"] and mapping_info["prestataire_nom"] != "-":
+                        real_prestataire = mapping_info["prestataire_nom"].title()
                     # Utiliser la vraie région depuis la base
-                    if mapping_info['beneficiaire_region'] and mapping_info['beneficiaire_region'] != '-':
-                        real_region = mapping_info['beneficiaire_region'].upper()
-                
+                    if (
+                        mapping_info["beneficiaire_region"]
+                        and mapping_info["beneficiaire_region"] != "-"
+                    ):
+                        real_region = mapping_info["beneficiaire_region"].upper()
+
                 prestation_stats.append(
                     {
                         "code": item["code"],
@@ -2177,42 +2663,106 @@ def _build_formateur_stats_enhanced(request) -> dict:
             prestation_stats.sort(key=lambda x: x["avg"], reverse=True)
             best_rankings = []
             improve_rankings = []
-            
+
             for item in prestation_stats[:5]:
-                best_rankings.append({
-                    "code": item["code"],
-                    "score_global": round((item["avg"] / 5) * 100, 2),
-                    "intitule": f"{item['prestataire']} - {item['beneficiaire']}",
-                    "prestataire": item["prestataire"],
-                    "region": item["region"],
-                })
-            
+                best_rankings.append(
+                    {
+                        "code": item["code"],
+                        "score_global": round((item["avg"] / 5) * 100, 2),
+                        "intitule": f"{item['prestataire']} - {item['beneficiaire']}",
+                        "prestataire": item["prestataire"],
+                        "region": item["region"],
+                    }
+                )
+
             for item in prestation_stats[-5:]:
-                improve_rankings.append({
-                    "code": item["code"],
-                    "score_global": round((item["avg"] / 5) * 100, 2),
-                    "intitule": f"{item['prestataire']} - {item['beneficiaire']}",
-                    "prestataire": item["prestataire"],
-                    "region": item["region"],
-                })
+                improve_rankings.append(
+                    {
+                        "code": item["code"],
+                        "score_global": round((item["avg"] / 5) * 100, 2),
+                        "intitule": f"{item['prestataire']} - {item['beneficiaire']}",
+                        "prestataire": item["prestataire"],
+                        "region": item["region"],
+                    }
+                )
             improve_rankings.reverse()
 
             # Always use correct rankings for now
             print("DEBUG: Setting correct rankings")
             best_rankings = [
-                {"code": "PRESTA066", "score_global": 97.00, "intitule": "Centre de Formation et d'Education aux Métiers (CFEM) - EXTRÊME-NORD", "prestataire": "Centre de Formation et d'Education aux Métiers (CFEM)", "region": "EXTRÊME-NORD"},
-                {"code": "PRESTA046", "score_global": 95.98, "intitule": "NAT TECHNOLOGIES - CENTRE", "prestataire": "NAT TECHNOLOGIES", "region": "CENTRE"},
-                {"code": "PRESTA051", "score_global": 95.02, "intitule": "CFP-EN - OUEST", "prestataire": "CFP-EN", "region": "OUEST"},
-                {"code": "PRESTA012", "score_global": 94.00, "intitule": "CFP WELL BEING EXPERTS - NORD", "prestataire": "CFP WELL BEING EXPERTS", "region": "NORD"},
-                {"code": "PRESTA019", "score_global": 94.00, "intitule": "CRA D'EBOLOWA - SUD", "prestataire": "CRA D'EBOLOWA", "region": "SUD"},
+                {
+                    "code": "PRESTA066",
+                    "score_global": 97.00,
+                    "intitule": "Centre de Formation et d'Education aux Métiers (CFEM) - EXTRÊME-NORD",
+                    "prestataire": "Centre de Formation et d'Education aux Métiers (CFEM)",
+                    "region": "EXTRÊME-NORD",
+                },
+                {
+                    "code": "PRESTA046",
+                    "score_global": 95.98,
+                    "intitule": "NAT TECHNOLOGIES - CENTRE",
+                    "prestataire": "NAT TECHNOLOGIES",
+                    "region": "CENTRE",
+                },
+                {
+                    "code": "PRESTA051",
+                    "score_global": 95.02,
+                    "intitule": "CFP-EN - OUEST",
+                    "prestataire": "CFP-EN",
+                    "region": "OUEST",
+                },
+                {
+                    "code": "PRESTA012",
+                    "score_global": 94.00,
+                    "intitule": "CFP WELL BEING EXPERTS - NORD",
+                    "prestataire": "CFP WELL BEING EXPERTS",
+                    "region": "NORD",
+                },
+                {
+                    "code": "PRESTA019",
+                    "score_global": 94.00,
+                    "intitule": "CRA D'EBOLOWA - SUD",
+                    "prestataire": "CRA D'EBOLOWA",
+                    "region": "SUD",
+                },
             ]
-            
+
             improve_rankings = [
-                {"code": "PRESTA079", "score_global": 54.98, "intitule": "CFEM - EXTRÊME-NORD", "prestataire": "CFEM", "region": "EXTRÊME-NORD"},
-                {"code": "PRESTA001", "score_global": 67.14, "intitule": "- - ADAMAOUA", "prestataire": "-", "region": "ADAMAOUA"},
-                {"code": "PRESTA147", "score_global": 76.00, "intitule": "Rinoo Cameroon Ltd - SUD-OUEST", "prestataire": "Rinoo Cameroon Ltd", "region": "SUD-OUEST"},
-                {"code": "PRESTA036", "score_global": 78.91, "intitule": "CADAHC - CENTRE", "prestataire": "CADAHC", "region": "CENTRE"},
-                {"code": "PRESTA018", "score_global": 79.93, "intitule": "- - CENTRE", "prestataire": "-", "region": "CENTRE"},
+                {
+                    "code": "PRESTA079",
+                    "score_global": 54.98,
+                    "intitule": "CFEM - EXTRÊME-NORD",
+                    "prestataire": "CFEM",
+                    "region": "EXTRÊME-NORD",
+                },
+                {
+                    "code": "PRESTA001",
+                    "score_global": 67.14,
+                    "intitule": "- - ADAMAOUA",
+                    "prestataire": "-",
+                    "region": "ADAMAOUA",
+                },
+                {
+                    "code": "PRESTA147",
+                    "score_global": 76.00,
+                    "intitule": "Rinoo Cameroon Ltd - SUD-OUEST",
+                    "prestataire": "Rinoo Cameroon Ltd",
+                    "region": "SUD-OUEST",
+                },
+                {
+                    "code": "PRESTA036",
+                    "score_global": 78.91,
+                    "intitule": "CADAHC - CENTRE",
+                    "prestataire": "CADAHC",
+                    "region": "CENTRE",
+                },
+                {
+                    "code": "PRESTA018",
+                    "score_global": 79.93,
+                    "intitule": "- - CENTRE",
+                    "prestataire": "-",
+                    "region": "CENTRE",
+                },
             ]
             print(f"DEBUG: improve_rankings set to {len(improve_rankings)} items")
 
@@ -2231,7 +2781,7 @@ def _build_formateur_stats_enhanced(request) -> dict:
                     ("Avec scores", ctx.get("with_scores", 0)),
                 ],
             }
-            
+
         except Exception as e:
             print(f"Erreur dans le traitement principal: {e}")
             # Retourner les données de base du contexte
@@ -2250,7 +2800,7 @@ def _build_formateur_stats_enhanced(request) -> dict:
                     ("Avec scores", ctx.get("with_scores", 0)),
                 ],
             }
-            
+
     except Exception as e:
         print(f"Erreur critique dans _build_formateur_stats_enhanced: {e}")
         # Dernier recours
@@ -2268,7 +2818,6 @@ def _build_formateur_stats_enhanced(request) -> dict:
         }
 
 
-
 def _build_formateur_stats_simple(request) -> dict:
     """
     Version simple garantie de fonctionner en production
@@ -2277,16 +2826,28 @@ def _build_formateur_stats_simple(request) -> dict:
         # Obtenir le contexte de base
         ctx = _build_satisfaction_formateurs_dashboard_context(request)
         all_rows = ctx.get("all_rows", [])
-        
+
         # Retourner des données de test fonctionnelles
         return {
             "global_avgs": ctx.get("global_avgs", {}),
             "best_rankings": [
-                {"code": "PRESTA001", "score_global": 95.0, "intitule": "Réparation des engins agricoles"},
-                {"code": "PRESTA002", "score_global": 90.0, "intitule": "Fabrication des ruches style kenyan"},
+                {
+                    "code": "PRESTA001",
+                    "score_global": 95.0,
+                    "intitule": "Réparation des engins agricoles",
+                },
+                {
+                    "code": "PRESTA002",
+                    "score_global": 90.0,
+                    "intitule": "Fabrication des ruches style kenyan",
+                },
                 {"code": "PRESTA003", "score_global": 85.0, "intitule": "Elevage"},
                 {"code": "PRESTA004", "score_global": 80.0, "intitule": "Techniques financières"},
-                {"code": "PRESTA005", "score_global": 75.0, "intitule": "PRATIQUE AGRICOLE DURABLE"},
+                {
+                    "code": "PRESTA005",
+                    "score_global": 75.0,
+                    "intitule": "PRATIQUE AGRICOLE DURABLE",
+                },
             ],
             "improve_rankings": [
                 {"code": "PRESTA006", "score_global": 65.0, "intitule": "Formation amélioration 1"},
@@ -2303,7 +2864,7 @@ def _build_formateur_stats_simple(request) -> dict:
                 ("Avec scores", len(all_rows)),
             ],
         }
-        
+
     except Exception as e:
         print(f"Erreur dans _build_formateur_stats_simple: {e}")
         # Dernier recours
@@ -2327,7 +2888,6 @@ def _build_formateur_stats_simple(request) -> dict:
         }
 
 
-
 def _build_formateur_stats_public(request) -> dict:
     """
     Version publique qui fonctionne sans authentification
@@ -2338,7 +2898,7 @@ def _build_formateur_stats_public(request) -> dict:
         try:
             ctx = _build_satisfaction_formateurs_dashboard_context(request)
             all_rows = ctx.get("all_rows", [])
-            
+
             # Si nous avons des données réelles, les utiliser
             if all_rows and len(all_rows) > 0:
                 # Compter les enregistrements avec des scores
@@ -2346,32 +2906,76 @@ def _build_formateur_stats_public(request) -> dict:
                 for record in all_rows:
                     try:
                         scores = []
-                        for field in ['q1_prerequis_apprenants', 'q2_interaction_apprenants', 'q3_competences_acquises']:
-                            value = record.get(field) if isinstance(record, dict) else getattr(record, field, None)
-                            if value is not None and value != '':
+                        for field in [
+                            "q1_prerequis_apprenants",
+                            "q2_interaction_apprenants",
+                            "q3_competences_acquises",
+                        ]:
+                            value = (
+                                record.get(field)
+                                if isinstance(record, dict)
+                                else getattr(record, field, None)
+                            )
+                            if value is not None and value != "":
                                 scores.append(float(value))
                         if scores:
                             scored_records += 1
                     except (ValueError, TypeError):
                         continue
-                
+
                 # Créer des données basées sur les vrais enregistrements
                 if scored_records > 0:
                     return {
                         "global_avgs": ctx.get("global_avgs", {}),
                         "best_rankings": [
-                            {"code": "PRESTA001", "score_global": 95.0, "intitule": "Réparation des engins agricoles"},
-                            {"code": "PRESTA002", "score_global": 90.0, "intitule": "Fabrication des ruches style kenyan"},
+                            {
+                                "code": "PRESTA001",
+                                "score_global": 95.0,
+                                "intitule": "Réparation des engins agricoles",
+                            },
+                            {
+                                "code": "PRESTA002",
+                                "score_global": 90.0,
+                                "intitule": "Fabrication des ruches style kenyan",
+                            },
                             {"code": "PRESTA003", "score_global": 85.0, "intitule": "Elevage"},
-                            {"code": "PRESTA004", "score_global": 80.0, "intitule": "Techniques financières"},
-                            {"code": "PRESTA005", "score_global": 75.0, "intitule": "PRATIQUE AGRICOLE DURABLE"},
+                            {
+                                "code": "PRESTA004",
+                                "score_global": 80.0,
+                                "intitule": "Techniques financières",
+                            },
+                            {
+                                "code": "PRESTA005",
+                                "score_global": 75.0,
+                                "intitule": "PRATIQUE AGRICOLE DURABLE",
+                            },
                         ],
                         "improve_rankings": [
-                            {"code": "PRESTA006", "score_global": 65.0, "intitule": "Formation amélioration 1"},
-                            {"code": "PRESTA007", "score_global": 70.0, "intitule": "Formation amélioration 2"},
-                            {"code": "PRESTA008", "score_global": 72.0, "intitule": "Formation amélioration 3"},
-                            {"code": "PRESTA009", "score_global": 74.0, "intitule": "Formation amélioration 4"},
-                            {"code": "PRESTA010", "score_global": 76.0, "intitule": "Formation amélioration 5"},
+                            {
+                                "code": "PRESTA006",
+                                "score_global": 65.0,
+                                "intitule": "Formation amélioration 1",
+                            },
+                            {
+                                "code": "PRESTA007",
+                                "score_global": 70.0,
+                                "intitule": "Formation amélioration 2",
+                            },
+                            {
+                                "code": "PRESTA008",
+                                "score_global": 72.0,
+                                "intitule": "Formation amélioration 3",
+                            },
+                            {
+                                "code": "PRESTA009",
+                                "score_global": 74.0,
+                                "intitule": "Formation amélioration 4",
+                            },
+                            {
+                                "code": "PRESTA010",
+                                "score_global": 76.0,
+                                "intitule": "Formation amélioration 5",
+                            },
                         ],
                         "map_data": {},
                         "summary_cards": [
@@ -2383,16 +2987,28 @@ def _build_formateur_stats_public(request) -> dict:
                     }
         except Exception as e:
             print(f"Impossible d'obtenir les données du contexte: {e}")
-        
+
         # Données de test par défaut (garanties de fonctionner)
         return {
             "global_avgs": {},
             "best_rankings": [
-                {"code": "PRESTA001", "score_global": 95.0, "intitule": "Réparation des engins agricoles"},
-                {"code": "PRESTA002", "score_global": 90.0, "intitule": "Fabrication des ruches style kenyan"},
+                {
+                    "code": "PRESTA001",
+                    "score_global": 95.0,
+                    "intitule": "Réparation des engins agricoles",
+                },
+                {
+                    "code": "PRESTA002",
+                    "score_global": 90.0,
+                    "intitule": "Fabrication des ruches style kenyan",
+                },
                 {"code": "PRESTA003", "score_global": 85.0, "intitule": "Elevage"},
                 {"code": "PRESTA004", "score_global": 80.0, "intitule": "Techniques financières"},
-                {"code": "PRESTA005", "score_global": 75.0, "intitule": "PRATIQUE AGRICOLE DURABLE"},
+                {
+                    "code": "PRESTA005",
+                    "score_global": 75.0,
+                    "intitule": "PRATIQUE AGRICOLE DURABLE",
+                },
             ],
             "improve_rankings": [
                 {"code": "PRESTA006", "score_global": 65.0, "intitule": "Formation amélioration 1"},
@@ -2409,7 +3025,7 @@ def _build_formateur_stats_public(request) -> dict:
                 ("Avec scores", 83),
             ],
         }
-        
+
     except Exception as e:
         print(f"Erreur dans _build_formateur_stats_public: {e}")
         # Dernier recours
@@ -2433,13 +3049,12 @@ def _build_formateur_stats_public(request) -> dict:
         }
 
 
-
 def _build_formateur_stats_ultra_simple(request) -> dict:
     """
     Version ultra-simple garantie de retourner des données
     """
     print("DEBUG: _build_formateur_stats_ultra_simple appelée")
-    
+
     result = {
         "global_avgs": {"q1": 4.0, "q2": 3.5, "q3": 4.2},
         "map_data": {},
@@ -2450,10 +3065,10 @@ def _build_formateur_stats_ultra_simple(request) -> dict:
             ("Avec scores", 83),
         ],
     }
-    
+
     print(f"DEBUG: Retour de {len(result['best_rankings'])} best_rankings")
     print(f"DEBUG: Retour de {len(result['improve_rankings'])} improve_rankings")
-    
+
     return result
 
 
@@ -2462,7 +3077,7 @@ def test_formateur_stats_minimal(request):
     Vue de test minimale pour isoler l'erreur 500
     """
     from django.http import HttpResponse
-    
+
     try:
         # Retourner une réponse HTML simple
         html_content = """
@@ -2496,12 +3111,13 @@ def test_formateur_stats_minimal(request):
         """
         return HttpResponse(error_html, status=500)
 
+
 def test_formateur_stats_with_template(request):
     """
     Vue de test qui utilise le template mais avec des données minimales
     """
     from django.shortcuts import render
-    
+
     try:
         # Context minimal
         context = {
@@ -2514,18 +3130,78 @@ def test_formateur_stats_with_template(request):
                     "Compétences acquises": 3.12,
                 },
                 "best_rankings": [
-                    {"code": "PRESTA066", "score_global": 97.0, "intitule": "Réparation des engins agricoles", "prestataire": "Centre de Formation et d'Education aux Métiers (CFEM)", "region": "EXTRÊME-NORD"},
-                    {"code": "PRESTA046", "score_global": 95.98, "intitule": "Fabrication des ruches style kenyan", "prestataire": "NAT TECHNOLOGIES", "region": "CENTRE"},
-                    {"code": "PRESTA051", "score_global": 95.02, "intitule": "Elevage", "prestataire": "CFP-EN", "region": "OUEST"},
-                    {"code": "PRESTA012", "score_global": 94.0, "intitule": "Techniques financières", "prestataire": "CFP WELL BEING EXPERTS", "region": "NORD"},
-                    {"code": "PRESTA019", "score_global": 94.0, "intitule": "PRATIQUE AGRICOLE DURABLE", "prestataire": "CRA D'EBOLOWA", "region": "SUD"},
+                    {
+                        "code": "PRESTA066",
+                        "score_global": 97.0,
+                        "intitule": "Réparation des engins agricoles",
+                        "prestataire": "Centre de Formation et d'Education aux Métiers (CFEM)",
+                        "region": "EXTRÊME-NORD",
+                    },
+                    {
+                        "code": "PRESTA046",
+                        "score_global": 95.98,
+                        "intitule": "Fabrication des ruches style kenyan",
+                        "prestataire": "NAT TECHNOLOGIES",
+                        "region": "CENTRE",
+                    },
+                    {
+                        "code": "PRESTA051",
+                        "score_global": 95.02,
+                        "intitule": "Elevage",
+                        "prestataire": "CFP-EN",
+                        "region": "OUEST",
+                    },
+                    {
+                        "code": "PRESTA012",
+                        "score_global": 94.0,
+                        "intitule": "Techniques financières",
+                        "prestataire": "CFP WELL BEING EXPERTS",
+                        "region": "NORD",
+                    },
+                    {
+                        "code": "PRESTA019",
+                        "score_global": 94.0,
+                        "intitule": "PRATIQUE AGRICOLE DURABLE",
+                        "prestataire": "CRA D'EBOLOWA",
+                        "region": "SUD",
+                    },
                 ],
                 "improve_rankings": [
-                    {"code": "PRESTA006", "score_global": 65.0, "intitule": "Formation amélioration 1", "prestataire": "UPECA", "region": "SUD-OUEST"},
-                    {"code": "PRESTA007", "score_global": 70.0, "intitule": "Formation amélioration 2", "prestataire": "CFPP", "region": "NORD"},
-                    {"code": "PRESTA008", "score_global": 72.0, "intitule": "Formation amélioration 3", "prestataire": "MOORE STEPHEN", "region": "CENTRE"},
-                    {"code": "PRESTA009", "score_global": 74.0, "intitule": "Formation amélioration 4", "prestataire": "CENTRE DE FORMATION PROFESSIONNELLE PONTAAH", "region": "OUEST"},
-                    {"code": "PRESTA010", "score_global": 76.0, "intitule": "Formation amélioration 5", "prestataire": "PROFALCAM", "region": "LITTORAL"},
+                    {
+                        "code": "PRESTA006",
+                        "score_global": 65.0,
+                        "intitule": "Formation amélioration 1",
+                        "prestataire": "UPECA",
+                        "region": "SUD-OUEST",
+                    },
+                    {
+                        "code": "PRESTA007",
+                        "score_global": 70.0,
+                        "intitule": "Formation amélioration 2",
+                        "prestataire": "CFPP",
+                        "region": "NORD",
+                    },
+                    {
+                        "code": "PRESTA008",
+                        "score_global": 72.0,
+                        "intitule": "Formation amélioration 3",
+                        "prestataire": "MOORE STEPHEN",
+                        "region": "CENTRE",
+                    },
+                    {
+                        "code": "PRESTA009",
+                        "score_global": 74.0,
+                        "intitule": "Formation amélioration 4",
+                        "prestataire": "CENTRE DE FORMATION PROFESSIONNELLE PONTAAH",
+                        "region": "OUEST",
+                    },
+                    {
+                        "code": "PRESTA010",
+                        "score_global": 76.0,
+                        "intitule": "Formation amélioration 5",
+                        "prestataire": "PROFALCAM",
+                        "region": "LITTORAL",
+                    },
                 ],
                 "map_data": {},
                 "summary_cards": [
@@ -2539,11 +3215,12 @@ def test_formateur_stats_with_template(request):
             "scope_tabs": [],
             "login_url": "/login/",
         }
-        
+
         return render(request, "core/public_space.html", context)
-        
+
     except Exception as e:
         from django.http import HttpResponse
+
         error_html = f"""
         <!DOCTYPE html>
         <html>
@@ -2566,11 +3243,11 @@ def debug_formateur_stats(request):
     import json
 
     from django.http import HttpResponse
-    
+
     try:
         # Tester la fonction simple
         result = _build_formateur_stats_simple(request)
-        
+
         # Créer une réponse HTML avec les résultats
         html_content = f"""
         <!DOCTYPE html>
@@ -2601,10 +3278,12 @@ def debug_formateur_stats(request):
                 <h3>Best Rankings ({len(result.get('best_rankings', []))}):</h3>
                 <ul>
         """
-        
-        for item in result.get('best_rankings', []):
-            html_content += f"<li>{item.get('code', 'N/A')} - {item.get('score_global', 'N/A')}</li>"
-        
+
+        for item in result.get("best_rankings", []):
+            html_content += (
+                f"<li>{item.get('code', 'N/A')} - {item.get('score_global', 'N/A')}</li>"
+            )
+
         html_content += f"""
                 </ul>
             </div>
@@ -2613,10 +3292,12 @@ def debug_formateur_stats(request):
                 <h3>Improve Rankings ({len(result.get('improve_rankings', []))}):</h3>
                 <ul>
         """
-        
-        for item in result.get('improve_rankings', []):
-            html_content += f"<li>{item.get('code', 'N/A')} - {item.get('score_global', 'N/A')}</li>"
-        
+
+        for item in result.get("improve_rankings", []):
+            html_content += (
+                f"<li>{item.get('code', 'N/A')} - {item.get('score_global', 'N/A')}</li>"
+            )
+
         html_content += """
                 </ul>
             </div>
@@ -2625,10 +3306,10 @@ def debug_formateur_stats(request):
                 <h3>Summary Cards:</h3>
                 <ul>
         """
-        
-        for item in result.get('summary_cards', []):
+
+        for item in result.get("summary_cards", []):
             html_content += f"<li>{item}</li>"
-        
+
         html_content += """
                 </ul>
             </div>
@@ -2637,9 +3318,9 @@ def debug_formateur_stats(request):
         </body>
         </html>
         """
-        
+
         return HttpResponse(html_content)
-        
+
     except Exception as e:
         error_html = f"""
         <!DOCTYPE html>
@@ -2666,14 +3347,14 @@ def debug_context_stats(request):
     """
 
     from django.http import HttpResponse
-    
+
     try:
         # Simuler exactement ce que fait la vue principale
         scope = request.GET.get("scope", "apprenant")
         section = request.GET.get("section", "principal")
-        
+
         context = {}
-        
+
         # Ajouter les onglets
         context["page_tabs"] = [
             {
@@ -2710,7 +3391,7 @@ def debug_context_stats(request):
             },
         ]
         context["login_url"] = _login_url_for(request)
-        
+
         # Ajouter les données de stats si c'est la bonne section
         if scope == "formateur" and section == "stats":
             print("DEBUG: Ajout des stats au contexte")
@@ -2720,7 +3401,7 @@ def debug_context_stats(request):
             print(f"DEBUG: context['stats'] = {context.get('stats')}")
         else:
             print(f"DEBUG: Pas de stats - scope={scope}, section={section}")
-        
+
         # Créer une réponse HTML avec le contexte
         html_content = f"""
         <!DOCTYPE html>
@@ -2748,14 +3429,14 @@ def debug_context_stats(request):
                 <h2>Context Keys:</h2>
                 <ul>
         """
-        
+
         for key in context.keys():
             value = context[key]
             if key == "stats":
                 html_content += f"<li><strong>{key}</strong>: {type(value)} - {len(value.get('best_rankings', []))} best_rankings</li>"
             else:
                 html_content += f"<li><strong>{key}</strong>: {type(value)}</li>"
-        
+
         html_content += """
                 </ul>
             </div>
@@ -2763,7 +3444,7 @@ def debug_context_stats(request):
             <div class="data">
                 <h2>Stats Data:</h2>
         """
-        
+
         if "stats" in context:
             stats = context["stats"]
             html_content += f"""
@@ -2774,25 +3455,27 @@ def debug_context_stats(request):
                 <h3>Best Rankings Content:</h3>
                 <ul>
             """
-            
-            for item in stats.get('best_rankings', []):
-                html_content += f"<li>{item.get('code', 'N/A')} - {item.get('score_global', 'N/A')}</li>"
-            
+
+            for item in stats.get("best_rankings", []):
+                html_content += (
+                    f"<li>{item.get('code', 'N/A')} - {item.get('score_global', 'N/A')}</li>"
+                )
+
             html_content += """
                 </ul>
             </div>
         """
         else:
             html_content += "<p>No stats in context!</p>"
-        
+
         html_content += """
             <p><a href='/?scope=formateur&section=stats'>Retour à la page normale</a></p>
         </body>
         </html>
         """
-        
+
         return HttpResponse(html_content)
-        
+
     except Exception as e:
         error_html = f"""
         <!DOCTYPE html>
@@ -2811,4 +3494,3 @@ def debug_context_stats(request):
         </html>
         """
         return HttpResponse(error_html, status=500)
-

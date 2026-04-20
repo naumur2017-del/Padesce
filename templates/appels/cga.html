@@ -131,6 +131,14 @@
   .bulk-progress-head { display:flex; align-items:center; justify-content:space-between; gap:10px; }
   .bulk-progress-track { height:10px; border-radius:999px; overflow:hidden; background: rgba(15,139,141,0.12); border:1px solid rgba(15,139,141,0.2); }
   .bulk-progress-bar { height:100%; width:0%; background: linear-gradient(90deg, #18b0ac, #f6c453); transition: width .2s ease; }
+  .result-box {
+    display: flex; flex-direction: column; gap: 4px; font-size: 0.82rem;
+    border: 1px solid var(--border); padding: 8px; border-radius: 10px; background: rgba(111,60,195,0.02);
+    min-width: 150px;
+  }
+  .result-box label { display: flex; align-items: center; gap: 6px; cursor: pointer; user-select: none; line-height: 1.2; }
+  .result-box label:hover { color: var(--accent-strong); }
+  .result-box input[type="checkbox"] { cursor: pointer; width: 16px; height: 16px; margin: 0; flex-shrink: 0; }
 </style>
 
 <h1 class="h4 mb-2">CGA</h1>
@@ -303,6 +311,7 @@
           <th>Statut</th>
           <th>Action</th>
           <th>Audio</th>
+          <th>Résultat</th>
         </tr>
       </thead>
       <tbody>
@@ -377,6 +386,17 @@
                 <span class="time-label">0:00</span>
               </div>
               <audio class="js-audio" style="display:none;" {% if a.has_audio_file %}src="{{ a.audio_file_url }}"{% endif %}></audio>
+            </div>
+          </td>
+          <td>
+            <div class="result-box js-result-container" {% if a.status != 'en_cours' and a.status != 'pause' %}style="display:none;"{% endif %}>
+              <label><input type="checkbox" class="js-res-interet" data-type="interet" value="OUI"> <span>Intéressé</span></label>
+              <label><input type="checkbox" class="js-res-pas-interet" data-type="interet" value="NON"> <span>Pas intéressé</span></label>
+              <label><input type="checkbox" class="js-res-mauvais"> <span>Mauvais numéro</span></label>
+              <label><input type="checkbox" class="js-res-indisponible"> <span>Indisponible</span></label>
+            </div>
+            <div class="js-result-summary" style="font-size:0.9em; font-weight:500; color:var(--text);" {% if a.status == 'en_cours' or a.status == 'pause' %}hidden{% endif %}>
+              {{ a.resultat_summary }}
             </div>
           </td>
         </tr>
@@ -659,6 +679,9 @@
       form.append("action", action);
       if (extra.rappel_at) form.append("rappel_at", extra.rappel_at);
       if (extra.déjà_forme !== undefined) form.append("déjà_forme", extra.déjà_forme ? "1" : "0");
+      if (extra.interet !== undefined) form.append("interet", extra.interet);
+      if (extra.mauvais_numero !== undefined) form.append("mauvais_numero", extra.mauvais_numero);
+      if (extra.indisponible !== undefined) form.append("indisponible", extra.indisponible);
       try {
         if (!navigator.onLine) throw new Error("offline");
         const res = await fetch(url, { method: "POST", headers: { "X-CSRFToken": csrfToken }, body: form });
@@ -816,6 +839,18 @@
           terminer.hidden = true;
         }
       }
+      const resContainer = row.querySelector(".js-result-container");
+      const resSummary = row.querySelector(".js-result-summary");
+      if (data.status === "en_cours" || data.status === "pause") {
+        if (resContainer) resContainer.style.display = "block";
+        if (resSummary) resSummary.hidden = true;
+      } else {
+        if (resContainer) resContainer.style.display = "none";
+        if (resSummary) {
+          resSummary.hidden = false;
+          if (data.resultat_summary !== undefined) resSummary.textContent = data.resultat_summary;
+        }
+      }
       syncAudioControls(row);
     }
 
@@ -864,6 +899,14 @@
         } catch (err) { alert("Action impossible."); }
       });
       terminer?.addEventListener("click", async () => {
+        const cbInteret = row.querySelector(".js-res-interet");
+        const cbPasInteret = row.querySelector(".js-res-pas-interet");
+        const cbMauvais = row.querySelector(".js-res-mauvais");
+        const cbIndisponible = row.querySelector(".js-res-indisponible");
+        if (!cbInteret.checked && !cbPasInteret.checked && !cbMauvais.checked && !cbIndisponible.checked) {
+          alert("Veuillez cocher au moins une option dans la colonne Résultat avant de terminer l'appel.");
+          return;
+        }
         const modalResult = await askTermination(row);
         if (!modalResult) return;
         try {
@@ -875,6 +918,9 @@
           const data = await sendAction(row, modalResult.action, {
             rappel_at: modalResult.rappel_at,
             déjà_forme: modalResult.déjà_forme,
+            interet: cbInteret.checked ? "OUI" : (cbPasInteret.checked ? "NON" : ""),
+            mauvais_numero: cbMauvais.checked ? "OUI" : "NON",
+            indisponible: cbIndisponible.checked ? "OUI" : "NON",
           });
           updateRow(row, data);
         } catch (err) { alert("Action impossible."); }
@@ -976,6 +1022,18 @@
         });
       }
     }
+
+    document.querySelectorAll(".js-res-interet, .js-res-pas-interet").forEach(cb => {
+      cb.addEventListener("change", (e) => {
+        const row = cb.closest("tr");
+        if (e.target.checked) {
+          const other = e.target.classList.contains("js-res-interet") 
+            ? row.querySelector(".js-res-pas-interet") 
+            : row.querySelector(".js-res-interet");
+          if (other) other.checked = false;
+        }
+      });
+    });
 
     document.querySelectorAll("tr[data-id]").forEach((row) => {
       const audio = row.querySelector(".js-audio");

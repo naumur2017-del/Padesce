@@ -452,6 +452,22 @@ class AppelCGA(TimeStampedModel):
         related_name="appels_cga_lock",
     )
     locked_at = models.DateTimeField(null=True, blank=True)
+    interet = models.CharField(max_length=10, blank=True, verbose_name="Intérêt")
+    mauvais_numero = models.CharField(max_length=10, blank=True, verbose_name="Mauvais numéro")
+    indisponible = models.CharField(max_length=10, blank=True, verbose_name="Indisponible")
+
+    @property
+    def resultat_summary(self) -> str:
+        parts = []
+        if self.interet == "OUI":
+            parts.append("Intéressé")
+        elif self.interet == "NON":
+            parts.append("Pas intéressé")
+        if self.mauvais_numero == "OUI":
+            parts.append("Mauvais numéro")
+        if self.indisponible == "OUI":
+            parts.append("Indisponible")
+        return ", ".join(parts)
 
     class Meta:
         ordering = ["raison_sociale"]

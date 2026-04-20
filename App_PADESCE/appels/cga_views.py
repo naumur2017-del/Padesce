@@ -219,6 +219,9 @@ def cga_export_xlsx(request):
             "LOCKED_BY",
             "LOCKED_AT",
             "AUDIO_FILE",
+            "INTERET",
+            "MAUVAIS_NUMERO",
+            "INDISPONIBLE",
             "CREATED_AT",
             "UPDATED_AT",
         ]
@@ -245,6 +248,9 @@ def cga_export_xlsx(request):
                 row.locked_by.username if row.locked_by else "",
                 row.locked_at.isoformat() if row.locked_at else "",
                 _safe_audio_url(row),
+                row.interet,
+                row.mauvais_numero,
+                row.indisponible,
                 row.created_at.isoformat() if getattr(row, "created_at", None) else "",
                 row.updated_at.isoformat() if getattr(row, "updated_at", None) else "",
             ]
@@ -281,6 +287,9 @@ def cga_export_filtered_csv(request):
             "Agent",
             "Rappel at",
             "Audio URL",
+            "Interet",
+            "Mauvais numero",
+            "Indisponible",
             "Created at",
             "Updated at",
         ]
@@ -302,6 +311,9 @@ def cga_export_filtered_csv(request):
                 row.locked_by.username if row.locked_by else "",
                 row.rappel_at.isoformat() if row.rappel_at else "",
                 _safe_audio_url(row),
+                row.interet,
+                row.mauvais_numero,
+                row.indisponible,
                 row.created_at.isoformat() if getattr(row, "created_at", None) else "",
                 row.updated_at.isoformat() if getattr(row, "updated_at", None) else "",
             ]
@@ -428,6 +440,11 @@ def cga_action(request, pk: int):
 
     now = timezone.now()
 
+    # Nouveaux champs resultats
+    interet_val = request.POST.get("interet", "")
+    mauvais_val = request.POST.get("mauvais_numero", "NON")
+    indisponible_val = request.POST.get("indisponible", "NON")
+
     if action == "start":
         row.status = "en_cours"
         row.locked_by = request.user
@@ -448,11 +465,28 @@ def cga_action(request, pk: int):
             except ValueError:
                 row.rappel_at = None
     elif action == "terminer":
-        row.status = "termine"
+        row.interet = interet_val
+        row.mauvais_numero = mauvais_val
+        row.indisponible = indisponible_val
+        if row.indisponible == "OUI":
+            row.status = "a_rappeler"
+        else:
+            row.status = "termine"
     else:
         return JsonResponse({"ok": False, "error": "Action inconnue."}, status=400)
 
-    row.save(update_fields=["status", "locked_by", "locked_at", "rappel_at", "updated_at"])
+    row.save(
+        update_fields=[
+            "status",
+            "locked_by",
+            "locked_at",
+            "rappel_at",
+            "updated_at",
+            "interet",
+            "mauvais_numero",
+            "indisponible",
+        ]
+    )
     return JsonResponse(
         {
             "ok": True,
@@ -460,6 +494,7 @@ def cga_action(request, pk: int):
             "status_label": row.get_status_display(),
             "locked_by": row.locked_by.username if row.locked_by else "",
             "rappel_at": row.rappel_at.isoformat() if row.rappel_at else "",
+            "resultat_summary": row.resultat_summary,
         }
     )
 
