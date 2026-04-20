@@ -5,9 +5,6 @@
 
 from django.db import migrations
 
-# Dictionnaire des donnees de presence.
-# Cle: Apprenant.code (ApprenantID depuis l'Excel)
-# Valeur: tuple (c1, c2, c3, c4) avec "PR", "AB" ou "" (vide = non renseigne)
 PRESENCE_DATA = {
     "APP001": ("", "", "", ""),
     "APP002": ("", "", "", ""),
@@ -4006,25 +4003,30 @@ PRESENCE_DATA = {
 
 def apply_presence_data(apps, schema_editor):
     Apprenant = apps.get_model("apprenants", "Apprenant")
-    updated = 0
-    not_found = 0
-
-    for apprenant_id, (c1, c2, c3, c4) in PRESENCE_DATA.items():
-        try:
-            obj = Apprenant.objects.get(code=apprenant_id)
+    
+    # Optimisation: fetch all objects to update in one query
+    apprenant_codes = list(PRESENCE_DATA.keys())
+    apprenants = Apprenant.objects.filter(code__in=apprenant_codes)
+    
+    to_update = []
+    updated_count = 0
+    
+    for obj in apprenants:
+        c1, c2, c3, c4 = PRESENCE_DATA[obj.code]
+        # Only update if values changed
+        if obj.c1 != c1 or obj.c2 != c2 or obj.c3 != c3 or obj.c4 != c4:
             obj.c1 = c1
             obj.c2 = c2
             obj.c3 = c3
             obj.c4 = c4
-            obj.save(update_fields=["c1", "c2", "c3", "c4"])
-            updated += 1
-        except Apprenant.DoesNotExist:
-            not_found += 1
-
-    print(
-        f"  Presence: {updated} apprenants mis a jour, "
-        f"{not_found} IDs non trouves en base."
-    )
+            to_update.append(obj)
+            updated_count += 1
+            
+    if to_update:
+        # Use bulk_update for performance
+        Apprenant.objects.bulk_update(to_update, ["c1", "c2", "c3", "c4"], batch_size=500)
+    
+    print(f"  Presence: {updated_count} apprenants mis a jour via bulk_update.")
 
 
 def reverse_presence_data(apps, schema_editor):
