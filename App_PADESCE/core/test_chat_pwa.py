@@ -8,6 +8,7 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
 
+from App_PADESCE.core import chat_views
 from App_PADESCE.core.chat_views import CHAT_HISTORY_SESSION_KEY
 
 
@@ -54,6 +55,25 @@ class ChatFallbackTests(TestCase):
         self.assertEqual(len(history), 2)
         self.assertEqual(history[0]["role"], "user")
         self.assertEqual(history[1]["role"], "assistant")
+
+    @patch("App_PADESCE.core.chat_views._initialize_agent_runtime", return_value=False)
+    def test_chat_unavailable_still_returns_helpful_message(self, _mock_init_runtime):
+        with patch.dict(
+            chat_views._AGENT_RUNTIME,
+            {"initialized": True, "available": False, "error": "ModuleNotFoundError: langchain_core"},
+            clear=True,
+        ):
+            response = self.client.post(
+                reverse("chat_query"),
+                data=json.dumps({"message": "Bonjour assistant"}),
+                content_type="application/json",
+            )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["mode"], "fallback-unavailable")
+        self.assertIn("moteur avancé du chat est momentanément indisponible", payload["response"])
+        self.assertIn("langchain_core", payload["response"])
 
 
 class PublicPwaRoutesTests(TestCase):
