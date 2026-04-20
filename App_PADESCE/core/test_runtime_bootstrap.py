@@ -1,89 +1,84 @@
 from __future__ import annotations
 
+import json
+import tempfile
 from pathlib import Path
-from tempfile import TemporaryDirectory
-from unittest.mock import Mock
+from unittest.mock import patch
 
 from django.test import SimpleTestCase
 
-from App_PADESCE.core.runtime_bootstrap import (
-    RUNTIME_REQUIRED_MODULES,
-    ensure_runtime_dependencies,
-    requirements_hash,
-    requirements_path,
-    requirements_stamp_path,
-    runtime_dependencies_ready,
-)
+from App_PADESCE.core import runtime_bootstrap
 
 
 class RuntimeBootstrapTests(SimpleTestCase):
-    def test_runtime_dependencies_ready_is_false_without_stamp(self) -> None:
-        with TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir)
-            requirements_path(root).write_text("django==6.0\n", encoding="utf-8")
+    def _marker_dir(self, base_dir: Path) -> Path:
+        return runtime_bootstrap._runtime_marker_dir(base_dir)
 
-            ready = runtime_dependencies_ready(
-                base_dir=root,
-                module_checker=lambda module_names: True,
+    @patch("App_PADESCE.core.runtime_bootstrap.maybe_run_django_migrations")
+    @patch("App_PADESCE.core.runtime_bootstrap.maybe_run_postgres_migration")
+    @patch("App_PADESCE.core.runtime_bootstrap.load_runtime_env")
+    def test_bootstrap_runtime_runs_all_steps(self, mock_load_env, mock_postgres, mock_migrate):
+        base_dir = Path(tempfile.mkdtemp())
+
+        runtime_bootstrap.bootstrap_runtime(base_dir)
+
+        mock_load_env.assert_called_once_with(base_dir)
+        mock_postgres.assert_called_once_with(base_dir)
+        mock_migrate.assert_called_once_with(base_dir)
+
+    @patch.dict("os.environ", {"NAUMUR_AUTO_MIGRATE_ON_BOOT": "1"}, clear=False)
+    @patch("App_PADESCE.core.runtime_bootstrap._has_pending_django_migrations", return_value=False)
+    @patch("django.core.management.call_command")
+    def test_maybe_run_django_migrations_skips_when_up_to_date(
+        self, mock_call_command, _mock_pending
+    ):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            base_dir = Path(tmpdir)
+
+            migrated = runtime_bootstrap.maybe_run_django_migrations(base_dir)
+
+            self.assertFalse(migrated)
+            mock_call_command.assert_not_called()
+            done_payload = json.loads(
+                (
+                    self._marker_dir(base_dir) / runtime_bootstrap.AUTO_MIGRATE_DONE_FILENAME
+                ).read_text(encoding="utf-8")
             )
+            self.assertEqual(done_payload["status"], "up_to_date")
 
-        self.assertFalse(ready)
+    @patch.dict("os.environ", {"NAUMUR_AUTO_MIGRATE_ON_BOOT": "1"}, clear=False)
+    @patch("App_PADESCE.core.runtime_bootstrap._has_pending_django_migrations", return_value=True)
+    @patch("django.core.management.call_command")
+    def test_maybe_run_django_migrations_applies_pending_migrations(
+        self, mock_call_command, _mock_pending
+    ):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            base_dir = Path(tmpdir)
 
-    def test_runtime_dependencies_ready_is_true_with_matching_stamp(self) -> None:
-        with TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir)
-            requirements_file = requirements_path(root)
-            requirements_file.write_text("langchain-core>=0.3.0\n", encoding="utf-8")
-            requirements_stamp_path(root).parent.mkdir(parents=True, exist_ok=True)
-            requirements_stamp_path(root).write_text(
-                requirements_hash(requirements_file),
-                encoding="utf-8",
+            migrated = runtime_bootstrap.maybe_run_django_migrations(base_dir)
+
+            self.assertTrue(migrated)
+            mock_call_command.assert_called_once_with("migrate", interactive=False, verbosity=0)
+            done_payload = json.loads(
+                (
+                    self._marker_dir(base_dir) / runtime_bootstrap.AUTO_MIGRATE_DONE_FILENAME
+                ).read_text(encoding="utf-8")
             )
+            self.assertEqual(done_payload["status"], "migrated")
 
-            ready = runtime_dependencies_ready(
-                base_dir=root,
-                module_checker=lambda module_names: tuple(module_names) == RUNTIME_REQUIRED_MODULES,
-            )
+    @patch.dict("os.environ", {"NAUMUR_AUTO_MIGRATE_ON_BOOT": "1"}, clear=False)
+    @patch("App_PADESCE.core.runtime_bootstrap._has_pending_django_migrations", return_value=True)
+    @patch("django.core.management.call_command", side_effect=RuntimeError("boom"))
+    def test_maybe_run_django_migrations_records_errors_without_raising(
+        self, _mock_call_command, _mock_pending
+    ):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            base_dir = Path(tmpdir)
 
-        self.assertTrue(ready)
+            migrated = runtime_bootstrap.maybe_run_django_migrations(base_dir)
 
-    def test_ensure_runtime_dependencies_runs_pip_and_writes_stamp(self) -> None:
-        with TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir)
-            requirements_file = requirements_path(root)
-            requirements_file.write_text("langchain-core>=0.3.0\n", encoding="utf-8")
-            runner = Mock()
-            expected_hash = requirements_hash(requirements_file)
-
-            changed = ensure_runtime_dependencies(
-                base_dir=root,
-                runner=runner,
-                module_checker=lambda module_names: False,
-            )
-
-            stamp_value = requirements_stamp_path(root).read_text(encoding="utf-8").strip()
-
-        self.assertTrue(changed)
-        self.assertEqual(runner.call_count, 2)
-        self.assertEqual(stamp_value, expected_hash)
-
-    def test_ensure_runtime_dependencies_skips_install_when_runtime_is_ready(self) -> None:
-        with TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir)
-            requirements_file = requirements_path(root)
-            requirements_file.write_text("langchain-core>=0.3.0\n", encoding="utf-8")
-            requirements_stamp_path(root).parent.mkdir(parents=True, exist_ok=True)
-            requirements_stamp_path(root).write_text(
-                requirements_hash(requirements_file),
-                encoding="utf-8",
-            )
-            runner = Mock()
-
-            changed = ensure_runtime_dependencies(
-                base_dir=root,
-                runner=runner,
-                module_checker=lambda module_names: True,
-            )
-
-        self.assertFalse(changed)
-        runner.assert_not_called()
+            self.assertFalse(migrated)
+            error_text = (
+                self._marker_dir(base_dir) / runtime_bootstrap.AUTO_MIGRATE_ERROR_FILENAME
+            ).read_text(encoding="utf-8")
+            self.assertIn("RuntimeError: boom", error_text)
