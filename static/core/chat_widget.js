@@ -174,6 +174,7 @@
       text: String(entry.text || ""),
       markdown: Boolean(entry.markdown),
       filename: entry.filename || null,
+      downloadUrl: entry.downloadUrl || entry.download_url || null,
       at: entry.at || new Date().toISOString(),
     };
 
@@ -189,12 +190,20 @@
       bubble.textContent = message.text;
     }
 
-    if (message.filename) {
+    if (message.filename || message.downloadUrl) {
       const downloadLink = document.createElement("a");
       downloadLink.className = "chat-download-btn";
-      downloadLink.href = `/api/chat/download/${encodeURIComponent(message.filename)}`;
-      downloadLink.download = message.filename;
-      downloadLink.textContent = `Télécharger ${message.filename}`;
+      downloadLink.href =
+        message.downloadUrl || `/api/chat/download/${encodeURIComponent(message.filename)}`;
+      downloadLink.textContent = message.filename
+        ? `Télécharger ${message.filename}`
+        : "Télécharger le fichier";
+      if (message.downloadUrl) {
+        downloadLink.target = "_blank";
+        downloadLink.rel = "noopener noreferrer";
+      } else {
+        downloadLink.download = message.filename;
+      }
       bubble.appendChild(downloadLink);
     }
 
@@ -333,6 +342,7 @@
         text: data.response,
         markdown: true,
         filename: data.filename || null,
+        downloadUrl: data.download_url || null,
       });
     } catch (error) {
       hideTyping();
