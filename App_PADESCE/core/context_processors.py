@@ -101,17 +101,15 @@ def _build_menu_items(user, path: str, consultant_only: bool) -> list[dict[str, 
         )
         add_item("Espace Padesce", _safe_reverse("public_space"), "/")
 
+        add_item(
+            "Analyses de satisfaction",
+            _safe_reverse("satisfaction_dashboard"),
+            "/satisfaction-apprenants/analyse/",
+        )
         add_item("Analyses CGA", _safe_reverse("cga_analysis_dashboard"), "/analyses-cga/")
 
         add_item(
             "Excel Source", _safe_reverse("reporting_network_excel"), "/reporting/excel-reseau/"
-        )
-        
-        # Ajout du lien vers les Analyses de satisfaction (Apprenants)
-        add_item(
-            "Analyses de satisfaction",
-            _safe_reverse("satisfaction_apprenants_dashboard"),
-            "/satisfaction-apprenants/analyse/",
         )
 
     if superadmin_access:

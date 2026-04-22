@@ -155,6 +155,23 @@
     font-weight: 700;
     font-size: .84rem;
   }
+  .pagination {
+    margin-top: 12px;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+  }
+  .pagination a,
+  .pagination span {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 8px 10px;
+    background: #fff;
+    color: var(--accent-strong);
+    font-weight: 700;
+  }
   table { width: 100%; border-collapse: collapse; }
   th, td { padding: 9px 10px; border-bottom: 1px solid var(--border); text-align: left; }
   th { color: var(--muted); font-size: .84rem; text-transform: uppercase; letter-spacing: .04em; }
@@ -259,16 +276,29 @@
       <div class="value">{{ report.calls.completed }}</div>
       <div class="meta">{{ report.calls.processed }} appels effectués</div>
     </article>
-    <article class="card">
-      <div class="label">Classes analysées</div>
-      <div class="value">{{ report.analysis.classes_count }}</div>
-      <div class="meta">{{ report.analysis.prestations_count }} prestations analysées</div>
-    </article>
-    <article class="card">
-      <div class="label">Prestataires analysés</div>
-      <div class="value">{{ report.analysis.prestataires_count }}</div>
-      <div class="meta">{{ report.analysis.beneficiaires_count }} bénéficiaires analysés</div>
-    </article>
+    {% if report.call_scope == "cga" %}
+      <article class="card">
+        <div class="label">Régimes / Centres</div>
+        <div class="value">{{ report.cga_dimensions.regimes_count }}</div>
+        <div class="meta">{{ report.cga_dimensions.centres_count }} centres de rattachement</div>
+      </article>
+      <article class="card">
+        <div class="label">CRI / Villes</div>
+        <div class="value">{{ report.cga_dimensions.cris_count }}</div>
+        <div class="meta">{{ report.cga_dimensions.villes_count }} villes</div>
+      </article>
+    {% else %}
+      <article class="card">
+        <div class="label">Classes analysées</div>
+        <div class="value">{{ report.analysis.classes_count }}</div>
+        <div class="meta">{{ report.analysis.prestations_count }} prestations analysées</div>
+      </article>
+      <article class="card">
+        <div class="label">Prestataires analysés</div>
+        <div class="value">{{ report.analysis.prestataires_count }}</div>
+        <div class="meta">{{ report.analysis.beneficiaires_count }} bénéficiaires analysés</div>
+      </article>
+    {% endif %}
     <article class="card">
       <div class="label">Heure la plus performante</div>
       <div class="value">{% if report.best_hour %}{{ report.best_hour.label|slice:":5" }}{% else %}-{% endif %}</div>
@@ -327,82 +357,158 @@
       </div>
     </article>
 
-    <article class="panel">
-      <h3>Analyse satisfaction</h3>
-      <div class="metric-list">
-        <div class="metric-row"><span>Classes analysées</span><strong>{{ report.analysis.classes_count }}</strong></div>
-        <div class="metric-row"><span>Prestations analysées</span><strong>{{ report.analysis.prestations_count }}</strong></div>
-        <div class="metric-row"><span>Prestataires analysés</span><strong>{{ report.analysis.prestataires_count }}</strong></div>
-        <div class="metric-row"><span>Bénéficiaires analysés</span><strong>{{ report.analysis.beneficiaires_count }}</strong></div>
-      </div>
-    </article>
-
-    <article class="panel" style="grid-column: 1 / -1;">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
-        <h3 style="margin:0;">Anomalies de classe</h3>
-        <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; justify-content:flex-end;">
-          <a class="btn btn-soft" href="{% url 'application_report_export_anomalies_excel' %}?{{ download_query }}">Exporter les anomalies</a>
-          <form method="get" id="anomaly-filter-form" style="display:flex; gap:10px; align-items:center;">
-            <input type="hidden" name="start" value="{{ start_value }}">
-            <input type="hidden" name="end" value="{{ end_value }}">
-            <input type="hidden" name="call_scope" value="{{ call_scope }}">
-            <label for="id_classe_selector" style="font-size:0.9rem; font-weight:700; color:var(--muted);">Filtrer par classe :</label>
-            <select name="classe" id="id_classe_selector" onchange="this.form.submit()" style="padding:8px 12px; border-radius:10px; border:1px solid var(--border); background:#fff; font-weight:600; color:var(--accent-strong);">
-              <option value="">— Toutes les classes anormales —</option>
-              {% for cl in class_options %}
-              <option value="{{ cl.code }}" {% if selected_class_code == cl.code %}selected{% endif %}>
-                {{ cl.label }}{% if cl.has_not_formed %} &#x1F7E0;{% endif %}{% if cl.has_duplicate %} &#x1F534;{% endif %}{% if cl.has_false_name %} &#x1F7E3;{% endif %}
-              </option>
-              {% endfor %}
-            </select>
-          </form>
+    {% if report.call_scope == "cga" %}
+      <article class="panel">
+        <h3>Analyse CGA</h3>
+        <div class="metric-list">
+          <div class="metric-row"><span>Régimes</span><strong>{{ report.cga_dimensions.regimes_count }}</strong></div>
+          <div class="metric-row"><span>Centres</span><strong>{{ report.cga_dimensions.centres_count }}</strong></div>
+          <div class="metric-row"><span>CRI</span><strong>{{ report.cga_dimensions.cris_count }}</strong></div>
+          <div class="metric-row"><span>Villes</span><strong>{{ report.cga_dimensions.villes_count }}</strong></div>
+          <div class="metric-row"><span>Intéressés</span><strong>{{ report.cga_dimensions.interesses }}</strong></div>
+          <div class="metric-row"><span>Pas intéressés</span><strong>{{ report.cga_dimensions.pas_interesses }}</strong></div>
+          <div class="metric-row"><span>Indisponibles</span><strong>{{ report.cga_dimensions.indisponibles }}</strong></div>
+          <div class="metric-row"><span>Faux numéros</span><strong>{{ report.cga_dimensions.faux_numeros }}</strong></div>
         </div>
-      </div>
+      </article>
+    {% else %}
+      <article class="panel">
+        <h3>Analyse satisfaction</h3>
+        <div class="metric-list">
+          <div class="metric-row"><span>Classes analysées</span><strong>{{ report.analysis.classes_count }}</strong></div>
+          <div class="metric-row"><span>Prestations analysées</span><strong>{{ report.analysis.prestations_count }}</strong></div>
+          <div class="metric-row"><span>Prestataires analysés</span><strong>{{ report.analysis.prestataires_count }}</strong></div>
+          <div class="metric-row"><span>Bénéficiaires analysés</span><strong>{{ report.analysis.beneficiaires_count }}</strong></div>
+        </div>
+      </article>
+    {% endif %}
 
-      <div class="legend" style="margin-bottom:16px; padding:12px; border-radius:12px; background:#f8fafc; border:1px solid #e2e8f0;">
-        {% if report.anomalies.selected_class.not_formed_count %}
-        <span class="legend-item"><span class="legend-dot dot-not-formed"></span>Pas formé : {{ report.anomalies.selected_class.not_formed_count }}</span>
+    {% if report.call_scope == "cga" %}
+      <article class="panel" style="grid-column: 1 / -1;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; gap:12px; flex-wrap:wrap;">
+          <div>
+            <h3 style="margin:0;">Anomalies CGA: faux numéros</h3>
+            <div class="muted">Pagination de 5 lignes par page.</div>
+          </div>
+          <a class="btn btn-soft" href="{% url 'application_report_export_anomalies_excel' %}?{{ download_query }}">Exporter les faux numéros</a>
+        </div>
+        <div class="legend" style="margin-bottom:16px; padding:12px; border-radius:12px; background:#f8fafc; border:1px solid #e2e8f0;">
+          <span class="legend-item"><span class="legend-dot dot-fake-number"></span>Faux numéros : {{ report.anomalies.false_number_count }}</span>
+        </div>
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>NIU</th>
+                <th>Raison sociale</th>
+                <th>Téléphone</th>
+                <th>Régime</th>
+                <th>Centre</th>
+                <th>CRI</th>
+                <th>Ville</th>
+                <th>Utilisateur</th>
+                <th>Date</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in cga_anomaly_page_obj %}
+                <tr class="anomaly-duplicate">
+                  <td>{{ row.niu|default:"-" }}</td>
+                  <td>{{ row.raison_sociale|default:"-" }}</td>
+                  <td>{{ row.telephone|default:"-" }}</td>
+                  <td>{{ row.regime|default:"-" }}</td>
+                  <td>{{ row.centre|default:"-" }}</td>
+                  <td>{{ row.cri|default:"-" }}</td>
+                  <td>{{ row.ville|default:"-" }}</td>
+                  <td>{{ row.username|default:"-" }}</td>
+                  <td>{{ row.updated_at_label|default:"-" }}</td>
+                </tr>
+              {% empty %}
+                <tr><td colspan="9" class="muted" style="text-align:center; padding:20px;">Aucun faux numéro détecté.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% if cga_anomaly_page_obj and cga_anomaly_page_obj.paginator.num_pages > 1 %}
+          <div class="pagination">
+            {% if cga_anomaly_page_obj.has_previous %}
+              <a href="?{{ cga_anomaly_query }}&cga_anomaly_page={{ cga_anomaly_page_obj.previous_page_number }}">Précédent</a>
+            {% endif %}
+            <span>Page {{ cga_anomaly_page_obj.number }} / {{ cga_anomaly_page_obj.paginator.num_pages }}</span>
+            {% if cga_anomaly_page_obj.has_next %}
+              <a href="?{{ cga_anomaly_query }}&cga_anomaly_page={{ cga_anomaly_page_obj.next_page_number }}">Suivant</a>
+            {% endif %}
+          </div>
         {% endif %}
-        {% if report.anomalies.selected_class.duplicate_numbers_count %}
-        <span class="legend-item"><span class="legend-dot dot-fake-number"></span>Numéro double : {{ report.anomalies.selected_class.duplicate_numbers_count }}</span>
-        {% endif %}
-        {% if report.anomalies.selected_class.false_name_count %}
-        <span class="legend-item"><span class="legend-dot dot-false-name"></span>Faux nom : {{ report.anomalies.selected_class.false_name_count }}</span>
-        {% endif %}
-        <span class="legend-item"><strong>Total anomalies : {{ report.anomalies.selected_class.total_anomalies_count }}</strong></span>
-      </div>
+      </article>
+    {% else %}
+      <article class="panel" style="grid-column: 1 / -1;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+          <h3 style="margin:0;">Anomalies de classe</h3>
+          <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; justify-content:flex-end;">
+            <a class="btn btn-soft" href="{% url 'application_report_export_anomalies_excel' %}?{{ download_query }}">Exporter les anomalies</a>
+            <form method="get" id="anomaly-filter-form" style="display:flex; gap:10px; align-items:center;">
+              <input type="hidden" name="start" value="{{ start_value }}">
+              <input type="hidden" name="end" value="{{ end_value }}">
+              <input type="hidden" name="call_scope" value="{{ call_scope }}">
+              <label for="id_classe_selector" style="font-size:0.9rem; font-weight:700; color:var(--muted);">Filtrer par classe :</label>
+              <select name="classe" id="id_classe_selector" onchange="this.form.submit()" style="padding:8px 12px; border-radius:10px; border:1px solid var(--border); background:#fff; font-weight:600; color:var(--accent-strong);">
+                <option value="">— Toutes les classes anormales —</option>
+                {% for cl in class_options %}
+                <option value="{{ cl.code }}" {% if selected_class_code == cl.code %}selected{% endif %}>
+                  {{ cl.label }}{% if cl.has_not_formed %} &#x1F7E0;{% endif %}{% if cl.has_duplicate %} &#x1F534;{% endif %}{% if cl.has_false_name %} &#x1F7E3;{% endif %}
+                </option>
+                {% endfor %}
+              </select>
+            </form>
+          </div>
+        </div>
 
-      <div class="table-scroll">
-        <table>
-          <thead>
-            <tr>
-              <th class="th-code">ApprenantID</th>
-              {% if report.anomalies.selected_class.not_formed_count %}<th class="th-not-formed">Pas formé</th>{% endif %}
-              {% if report.anomalies.selected_class.duplicate_numbers_count %}<th class="th-fake-number">Numéro double</th>{% endif %}
-              {% if report.anomalies.selected_class.false_name_count %}<th class="th-false-name">Faux nom</th>{% endif %}
-            </tr>
-          </thead>
-          <tbody>
-            {% for row in report.anomalies.anomaly_rows %}
-            <tr class="{% if row.anomaly_label == 'Pas forme' %}anomaly-not-formed{% elif row.anomaly_label == 'Doublon' %}anomaly-duplicate{% else %}anomaly-false-name{% endif %}">
-              <td>{{ row.apprenant_id|default:"-" }}</td>
-              {% if report.anomalies.selected_class.not_formed_count %}
-              <td>{% if row.anomaly_label == "Pas forme" %}Pas formé{% endif %}</td>
-              {% endif %}
-              {% if report.anomalies.selected_class.duplicate_numbers_count %}
-              <td>{% if row.anomaly_label == "Doublon" %}{{ row.phone_display }}{% endif %}</td>
-              {% endif %}
-              {% if report.anomalies.selected_class.false_name_count %}
-              <td>{% if row.anomaly_label == "Faux nom" %}{{ row.name }}{% endif %}</td>
-              {% endif %}
-            </tr>
-            {% empty %}
-            <tr><td colspan="4" class="muted" style="text-align:center; padding:20px;">Aucune anomalie détectée.</td></tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    </article>
+        <div class="legend" style="margin-bottom:16px; padding:12px; border-radius:12px; background:#f8fafc; border:1px solid #e2e8f0;">
+          {% if report.anomalies.selected_class.not_formed_count %}
+          <span class="legend-item"><span class="legend-dot dot-not-formed"></span>Pas formé : {{ report.anomalies.selected_class.not_formed_count }}</span>
+          {% endif %}
+          {% if report.anomalies.selected_class.duplicate_numbers_count %}
+          <span class="legend-item"><span class="legend-dot dot-fake-number"></span>Numéro double : {{ report.anomalies.selected_class.duplicate_numbers_count }}</span>
+          {% endif %}
+          {% if report.anomalies.selected_class.false_name_count %}
+          <span class="legend-item"><span class="legend-dot dot-false-name"></span>Faux nom : {{ report.anomalies.selected_class.false_name_count }}</span>
+          {% endif %}
+          <span class="legend-item"><strong>Total anomalies : {{ report.anomalies.selected_class.total_anomalies_count }}</strong></span>
+        </div>
+
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th class="th-code">ApprenantID</th>
+                {% if report.anomalies.selected_class.not_formed_count %}<th class="th-not-formed">Pas formé</th>{% endif %}
+                {% if report.anomalies.selected_class.duplicate_numbers_count %}<th class="th-fake-number">Numéro double</th>{% endif %}
+                {% if report.anomalies.selected_class.false_name_count %}<th class="th-false-name">Faux nom</th>{% endif %}
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in report.anomalies.anomaly_rows %}
+              <tr class="{% if row.anomaly_label == 'Pas forme' %}anomaly-not-formed{% elif row.anomaly_label == 'Doublon' %}anomaly-duplicate{% else %}anomaly-false-name{% endif %}">
+                <td>{{ row.apprenant_id|default:"-" }}</td>
+                {% if report.anomalies.selected_class.not_formed_count %}
+                <td>{% if row.anomaly_label == "Pas forme" %}Pas formé{% endif %}</td>
+                {% endif %}
+                {% if report.anomalies.selected_class.duplicate_numbers_count %}
+                <td>{% if row.anomaly_label == "Doublon" %}{{ row.phone_display }}{% endif %}</td>
+                {% endif %}
+                {% if report.anomalies.selected_class.false_name_count %}
+                <td>{% if row.anomaly_label == "Faux nom" %}{{ row.name }}{% endif %}</td>
+                {% endif %}
+              </tr>
+              {% empty %}
+              <tr><td colspan="4" class="muted" style="text-align:center; padding:20px;">Aucune anomalie détectée.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </article>
+    {% endif %}
 
     <article class="panel">
       <h3>Bugs et incidents</h3>

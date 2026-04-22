@@ -129,7 +129,7 @@
 <div class="cga-shell">
   <section class="cga-hero">
     <h1>Analyses CGA</h1>
-    <p>KPI, repartitions et resultats des appels CGA par ville, regime, CRI et utilisateur.</p>
+    <p>KPI et resultats des appels CGA par regime, centre, CRI, ville et resultat d'appel.</p>
   </section>
 
   <section class="cga-kpis">
@@ -209,6 +209,22 @@
       </div>
     </article>
 
+    <article class="cga-panel">
+      <h2>Centres de rattachement</h2>
+      <div class="metric-list">
+        {% for row in cga_centre_rows %}
+          <a class="metric-row" href="{{ row.url }}">
+            <span><strong>{{ row.label }}</strong><br><span class="muted">{{ row.interesses }} interesses · {{ row.pas_interesses }} pas interesses · {{ row.indisponibles }} indisponibles · {{ row.faux_numeros }} faux numeros</span></span>
+            <strong>{{ row.total }}</strong>
+          </a>
+        {% empty %}
+          <div class="muted">Aucun centre disponible.</div>
+        {% endfor %}
+      </div>
+    </article>
+  </section>
+
+  <section class="cga-grid">
     <article class="cga-panel">
       <h2>Faux numeros</h2>
       <div class="metric-list">

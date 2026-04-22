@@ -8,6 +8,7 @@ from urllib.parse import urlencode
 from django.contrib import messages
 from django.contrib.auth import get_user_model as _get_user_model
 from django.contrib.auth.models import Group
+from django.core.paginator import Paginator
 from django.db import OperationalError, connection, transaction
 from django.db.models import Avg, Count, Q, Sum
 from django.http import Http404, HttpResponse
@@ -1851,6 +1852,11 @@ def application_report_view(request):
     }
     if selected_class_code:
         download_params["classe"] = selected_class_code
+    cga_anomaly_page_obj = None
+    cga_anomaly_query = urlencode(download_params)
+    if call_scope == "cga":
+        cga_anomaly_paginator = Paginator(report.get("anomalies", {}).get("anomaly_rows", []), 5)
+        cga_anomaly_page_obj = cga_anomaly_paginator.get_page(request.GET.get("cga_anomaly_page"))
     context = {
         "report": report,
         "start_value": start_date.isoformat(),
@@ -1862,6 +1868,8 @@ def application_report_view(request):
             {"key": "cga", "label": "CGA", "active": call_scope == "cga"},
         ],
         "class_options": report["anomalies"]["class_options"],
+        "cga_anomaly_page_obj": cga_anomaly_page_obj,
+        "cga_anomaly_query": cga_anomaly_query,
         "download_query": urlencode(download_params),
         "manual_send_enabled": request.user.is_superuser,
         "user_groups_total": Group.objects.count(),
@@ -1940,15 +1948,16 @@ def application_report_export_word_view(request):
 def application_report_export_anomalies_excel_view(request):
     start_date, end_date = parse_report_dates(request.GET.get("start"), request.GET.get("end"))
     selected_class_code = (request.GET.get("classe") or "").strip()
+    call_scope = _report_call_scope_from_request(request)
     report = build_application_report(
         start_date,
         end_date,
         selected_class_code=selected_class_code,
-        call_scope=_report_call_scope_from_request(request),
+        call_scope=call_scope,
     )
     payload = export_application_report_anomalies_excel(report)
     class_suffix = f"_{slugify(selected_class_code)}" if selected_class_code else ""
-    filename = f"rapport_anomalies_{start_date}_{end_date}{class_suffix}.xlsx"
+    filename = f"rapport_anomalies_{call_scope}_{start_date}_{end_date}{class_suffix}.xlsx"
     response = HttpResponse(
         payload,
         content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

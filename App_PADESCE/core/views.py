@@ -1142,6 +1142,7 @@ def cga_analysis_dashboard(request):
             "meta": f"{interest_rate}% des appels effectues",
         },
         {"label": "Pas interesses", "value": int(summary["pas_interesses"] or 0), "meta": "CGA"},
+        {"label": "Indisponibles", "value": int(summary["indisponibles"] or 0), "meta": "CGA"},
         {"label": "Faux numeros", "value": int(summary["faux_numeros"] or 0), "meta": "A nettoyer"},
         {"label": "Dernieres 24h", "value": int(summary["recent_24h"] or 0), "meta": "Appels traites"},
     ]
@@ -1191,6 +1192,35 @@ def cga_analysis_dashboard(request):
             }
         )
     cga_regime_pie_style = _build_cga_regime_pie(cga_regime_rows)
+
+    cga_centre_rows = []
+    for row in (
+        called_qs.values("centre_de_rattachement")
+        .annotate(
+            total=Count("id"),
+            interesses=Count("id", filter=Q(interet="OUI")),
+            pas_interesses=Count("id", filter=Q(interet="NON")),
+            indisponibles=Count("id", filter=Q(indisponible="OUI")),
+            faux_numeros=Count("id", filter=Q(mauvais_numero="OUI")),
+        )
+        .order_by("-total", "centre_de_rattachement")[:10]
+    ):
+        label = _clean_cga_dimension(
+            row["centre_de_rattachement"], default="Centre non renseigne"
+        )
+        cga_centre_rows.append(
+            {
+                "label": label,
+                "total": int(row["total"] or 0),
+                "interesses": int(row["interesses"] or 0),
+                "pas_interesses": int(row["pas_interesses"] or 0),
+                "indisponibles": int(row["indisponibles"] or 0),
+                "faux_numeros": int(row["faux_numeros"] or 0),
+                "url": _cga_index_url(
+                    centre=label if row["centre_de_rattachement"] else ""
+                ),
+            }
+        )
 
     raw_cri_rows = list(
         called_qs.values("cri")
@@ -1282,6 +1312,7 @@ def cga_analysis_dashboard(request):
         "cga_city_rows": cga_city_rows,
         "cga_regime_rows": cga_regime_rows,
         "cga_regime_pie_style": cga_regime_pie_style,
+        "cga_centre_rows": cga_centre_rows,
         "cga_cri_rows": cga_cri_rows,
         "cga_false_number_rows": cga_false_number_rows,
         "cga_user_rows": cga_user_rows,

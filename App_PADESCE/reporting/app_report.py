@@ -194,10 +194,13 @@ def build_application_report(
     )
 
     bug_summary = _build_bug_summary(start_dt, end_dt)
-    anomaly_summary = _build_anomaly_summary(
-        selected_class, selected_class_code=selected_class_code
+    anomaly_summary = (
+        _build_cga_anomaly_summary(cga_qs)
+        if call_scope == "cga"
+        else _build_anomaly_summary(selected_class, selected_class_code=selected_class_code)
     )
     analysis_summary = _build_analysis_summary(padesce_qs)
+    cga_dimensions = _build_cga_dimension_summary(cga_qs)
     formateurs_summary = _build_formateurs_satisfaction_summary(start_dt, end_dt)
     user_call_rows = (
         _build_user_call_rows(cga_qs)
@@ -244,6 +247,7 @@ def build_application_report(
         "bugs": bug_summary,
         "anomalies": anomaly_summary,
         "analysis": analysis_summary,
+        "cga_dimensions": cga_dimensions,
         "formateurs_summary": formateurs_summary,
         "cga_outcomes": cga_outcomes,
         "user_call_rows": user_call_rows,
@@ -301,17 +305,37 @@ def export_application_report_word(report: dict) -> bytes:
 
     document.add_paragraph("")
     _add_heading(document, "1. Resume")
+    summary_rows = [
+        ("Utilisateurs ayant appele", report["users"]["called_today"]),
+        ("Appels termines", report["calls"]["completed"]),
+        ("Heure la plus performante", f"{best_hour_label} ({best_hour_value} appels termines)"),
+    ]
+    if report.get("call_scope") == "cga":
+        cga_dimensions = report["cga_dimensions"]
+        summary_rows.extend(
+            [
+                ("Regimes", cga_dimensions["regimes_count"]),
+                ("Centres", cga_dimensions["centres_count"]),
+                ("CRI", cga_dimensions["cris_count"]),
+                ("Villes", cga_dimensions["villes_count"]),
+                ("Interesses", cga_dimensions["interesses"]),
+                ("Pas interesses", cga_dimensions["pas_interesses"]),
+                ("Indisponibles", cga_dimensions["indisponibles"]),
+                ("Faux numeros", cga_dimensions["faux_numeros"]),
+            ]
+        )
+    else:
+        summary_rows.extend(
+            [
+                ("Classes analysees", report["analysis"]["classes_count"]),
+                ("Prestations analysees", report["analysis"]["prestations_count"]),
+                ("Prestataires analyses", report["analysis"]["prestataires_count"]),
+                ("Beneficiaires analyses", report["analysis"]["beneficiaires_count"]),
+            ]
+        )
     _add_metric_table(
         document,
-        [
-            ("Utilisateurs ayant appele", report["users"]["called_today"]),
-            ("Appels termines", report["calls"]["completed"]),
-            ("Heure la plus performante", f"{best_hour_label} ({best_hour_value} appels termines)"),
-            ("Classes analysees", report["analysis"]["classes_count"]),
-            ("Prestations analysees", report["analysis"]["prestations_count"]),
-            ("Prestataires analyses", report["analysis"]["prestataires_count"]),
-            ("Beneficiaires analyses", report["analysis"]["beneficiaires_count"]),
-        ],
+        summary_rows,
     )
 
     _add_heading(document, "2. Situation des appels")
@@ -368,19 +392,36 @@ def export_application_report_word(report: dict) -> bytes:
         row[1].text = str(row_data["total"])
         row[2].text = str(row_data["completed"])
 
-    _add_heading(document, "5. Analyse satisfaction – Apprenants")
-    _add_metric_table(
-        document,
-        [
-            ("Classes analysees", report["analysis"]["classes_count"]),
-            ("Prestations analysees", report["analysis"]["prestations_count"]),
-            ("Prestataires analyses", report["analysis"]["prestataires_count"]),
-            ("Beneficiaires analyses", report["analysis"]["beneficiaires_count"]),
-        ],
-    )
+    if report.get("call_scope") == "cga":
+        cga_dimensions = report["cga_dimensions"]
+        _add_heading(document, "5. Analyse CGA")
+        _add_metric_table(
+            document,
+            [
+                ("Regimes", cga_dimensions["regimes_count"]),
+                ("Centres", cga_dimensions["centres_count"]),
+                ("CRI", cga_dimensions["cris_count"]),
+                ("Villes", cga_dimensions["villes_count"]),
+                ("Interesses", cga_dimensions["interesses"]),
+                ("Pas interesses", cga_dimensions["pas_interesses"]),
+                ("Indisponibles", cga_dimensions["indisponibles"]),
+                ("Faux numeros", cga_dimensions["faux_numeros"]),
+            ],
+        )
+    else:
+        _add_heading(document, "5. Analyse satisfaction – Apprenants")
+        _add_metric_table(
+            document,
+            [
+                ("Classes analysees", report["analysis"]["classes_count"]),
+                ("Prestations analysees", report["analysis"]["prestations_count"]),
+                ("Prestataires analyses", report["analysis"]["prestataires_count"]),
+                ("Beneficiaires analyses", report["analysis"]["beneficiaires_count"]),
+            ],
+        )
 
     fs = report.get("formateurs_summary", {})
-    if fs:
+    if report.get("call_scope") != "cga" and fs:
         _add_heading(document, "6. Analyse satisfaction – Formateurs")
         _add_metric_table(
             document,
@@ -505,18 +546,43 @@ def build_report_text(report: dict) -> str:
         f"- Termines: {report['calls']['completed']}",
         best_hour_text,
         "",
-        "Analyse satisfaction",
-        f"- Classes analysees: {report['analysis']['classes_count']}",
-        f"- Prestations analysees: {report['analysis']['prestations_count']}",
-        f"- Prestataires analyses: {report['analysis']['prestataires_count']}",
-        f"- Beneficiaires analyses: {report['analysis']['beneficiaires_count']}",
-        "",
-        "Incidents",
-        f"- Bugs signales: {report['bugs']['alarms_total']}",
-        f"- Bugs non resolus: {report['bugs']['alarms_open']}",
-        f"- Erreurs logs: {report['bugs']['log_errors']}",
-        f"- Critiques logs: {report['bugs']['log_critical']}",
     ]
+    if report.get("call_scope") == "cga":
+        cga_dimensions = report["cga_dimensions"]
+        lines.extend(
+            [
+                "Analyse CGA",
+                f"- Regimes: {cga_dimensions['regimes_count']}",
+                f"- Centres: {cga_dimensions['centres_count']}",
+                f"- CRI: {cga_dimensions['cris_count']}",
+                f"- Villes: {cga_dimensions['villes_count']}",
+                f"- Interesses: {cga_dimensions['interesses']}",
+                f"- Pas interesses: {cga_dimensions['pas_interesses']}",
+                f"- Indisponibles: {cga_dimensions['indisponibles']}",
+                f"- Faux numeros: {cga_dimensions['faux_numeros']}",
+                "",
+            ]
+        )
+    else:
+        lines.extend(
+            [
+                "Analyse satisfaction",
+                f"- Classes analysees: {report['analysis']['classes_count']}",
+                f"- Prestations analysees: {report['analysis']['prestations_count']}",
+                f"- Prestataires analyses: {report['analysis']['prestataires_count']}",
+                f"- Beneficiaires analyses: {report['analysis']['beneficiaires_count']}",
+                "",
+            ]
+        )
+    lines.extend(
+        [
+            "Incidents",
+            f"- Bugs signales: {report['bugs']['alarms_total']}",
+            f"- Bugs non resolus: {report['bugs']['alarms_open']}",
+            f"- Erreurs logs: {report['bugs']['log_errors']}",
+            f"- Critiques logs: {report['bugs']['log_critical']}",
+        ]
+    )
     if report["user_call_rows"]:
         lines.extend(["", "Temps estime par utilisateur"])
         for row in report["user_call_rows"]:
@@ -546,6 +612,47 @@ def build_report_email_html(report: dict) -> str:
         "<tr><td colspan='4' style='padding:12px;text-align:center;color:#6b7280;'>"
         "Aucune activite utilisateur sur la periode.</td></tr>"
     )
+
+    if report.get("call_scope") == "cga":
+        cga_dimensions = report["cga_dimensions"]
+        analysis_html = f"""
+      <div style="border:1px solid #dfe1ea;padding:16px 18px;margin-bottom:18px;">
+        <div style="font-size:16px;font-weight:700;color:#4c1d95;margin-bottom:10px;">2. Analyse CGA</div>
+        <table role="presentation" style="width:100%;border-collapse:collapse;">
+          <tr><td style="padding:8px 0;border-bottom:1px solid #ececf2;">Regimes</td><td style="padding:8px 0;border-bottom:1px solid #ececf2;text-align:right;font-weight:700;">{cga_dimensions["regimes_count"]}</td></tr>
+          <tr><td style="padding:8px 0;border-bottom:1px solid #ececf2;">Centres</td><td style="padding:8px 0;border-bottom:1px solid #ececf2;text-align:right;font-weight:700;">{cga_dimensions["centres_count"]}</td></tr>
+          <tr><td style="padding:8px 0;border-bottom:1px solid #ececf2;">CRI</td><td style="padding:8px 0;border-bottom:1px solid #ececf2;text-align:right;font-weight:700;">{cga_dimensions["cris_count"]}</td></tr>
+          <tr><td style="padding:8px 0;border-bottom:1px solid #ececf2;">Villes</td><td style="padding:8px 0;border-bottom:1px solid #ececf2;text-align:right;font-weight:700;">{cga_dimensions["villes_count"]}</td></tr>
+          <tr><td style="padding:8px 0;border-bottom:1px solid #ececf2;">Interesses</td><td style="padding:8px 0;border-bottom:1px solid #ececf2;text-align:right;font-weight:700;">{cga_dimensions["interesses"]}</td></tr>
+          <tr><td style="padding:8px 0;border-bottom:1px solid #ececf2;">Pas interesses</td><td style="padding:8px 0;border-bottom:1px solid #ececf2;text-align:right;font-weight:700;">{cga_dimensions["pas_interesses"]}</td></tr>
+          <tr><td style="padding:8px 0;border-bottom:1px solid #ececf2;">Indisponibles</td><td style="padding:8px 0;border-bottom:1px solid #ececf2;text-align:right;font-weight:700;">{cga_dimensions["indisponibles"]}</td></tr>
+          <tr><td style="padding:8px 0;">Faux numeros</td><td style="padding:8px 0;text-align:right;font-weight:700;">{cga_dimensions["faux_numeros"]}</td></tr>
+        </table>
+      </div>
+"""
+    else:
+        analysis_html = f"""
+      <div style="border:1px solid #dfe1ea;padding:16px 18px;margin-bottom:18px;">
+        <div style="font-size:16px;font-weight:700;color:#4c1d95;margin-bottom:10px;">2. Analyse satisfaction – Apprenants</div>
+        <table role="presentation" style="width:100%;border-collapse:collapse;">
+          <tr><td style="padding:8px 0;border-bottom:1px solid #ececf2;">Classes analysees</td><td style="padding:8px 0;border-bottom:1px solid #ececf2;text-align:right;font-weight:700;">{report["analysis"]["classes_count"]}</td></tr>
+          <tr><td style="padding:8px 0;border-bottom:1px solid #ececf2;">Prestations analysees</td><td style="padding:8px 0;border-bottom:1px solid #ececf2;text-align:right;font-weight:700;">{report["analysis"]["prestations_count"]}</td></tr>
+          <tr><td style="padding:8px 0;border-bottom:1px solid #ececf2;">Prestataires analyses</td><td style="padding:8px 0;border-bottom:1px solid #ececf2;text-align:right;font-weight:700;">{report["analysis"]["prestataires_count"]}</td></tr>
+          <tr><td style="padding:8px 0;">Beneficiaires analyses</td><td style="padding:8px 0;text-align:right;font-weight:700;">{report["analysis"]["beneficiaires_count"]}</td></tr>
+        </table>
+      </div>
+
+      <div style="border:1px solid #dfe1ea;padding:16px 18px;margin-bottom:18px;">
+        <div style="font-size:16px;font-weight:700;color:#4c1d95;margin-bottom:10px;">3. Analyse satisfaction – Formateurs</div>
+        <table role="presentation" style="width:100%;border-collapse:collapse;">
+          <tr><td style="padding:8px 0;border-bottom:1px solid #ececf2;">Appels formateurs termines (periode)</td><td style="padding:8px 0;border-bottom:1px solid #ececf2;text-align:right;font-weight:700;">{report["formateurs_summary"]["total_termines"]}</td></tr>
+          <tr><td style="padding:8px 0;border-bottom:1px solid #ececf2;">Avec scores Q1-Q3</td><td style="padding:8px 0;border-bottom:1px solid #ececf2;text-align:right;font-weight:700;">{report["formateurs_summary"]["with_scores"]}</td></tr>
+          <tr><td style="padding:8px 0;border-bottom:1px solid #ececf2;">Moy. Q1 – Prerequis apprenants</td><td style="padding:8px 0;border-bottom:1px solid #ececf2;text-align:right;font-weight:700;">{report["formateurs_summary"]["avg_q1"]}/5</td></tr>
+          <tr><td style="padding:8px 0;border-bottom:1px solid #ececf2;">Moy. Q2 – Interaction apprenants</td><td style="padding:8px 0;border-bottom:1px solid #ececf2;text-align:right;font-weight:700;">{report["formateurs_summary"]["avg_q2"]}/5</td></tr>
+          <tr><td style="padding:8px 0;">Moy. Q3 – Competences acquises</td><td style="padding:8px 0;text-align:right;font-weight:700;">{report["formateurs_summary"]["avg_q3"]}/5</td></tr>
+        </table>
+      </div>
+"""
 
     return f"""
 <div style="margin:0;padding:24px;background:#f4f4f6;font-family:Calibri,Arial,sans-serif;color:#222222;">
@@ -589,26 +696,7 @@ def build_report_email_html(report: dict) -> str:
         </table>
       </div>
 
-      <div style="border:1px solid #dfe1ea;padding:16px 18px;margin-bottom:18px;">
-        <div style="font-size:16px;font-weight:700;color:#4c1d95;margin-bottom:10px;">2. Analyse satisfaction – Apprenants</div>
-        <table role="presentation" style="width:100%;border-collapse:collapse;">
-          <tr><td style="padding:8px 0;border-bottom:1px solid #ececf2;">Classes analysees</td><td style="padding:8px 0;border-bottom:1px solid #ececf2;text-align:right;font-weight:700;">{report["analysis"]["classes_count"]}</td></tr>
-          <tr><td style="padding:8px 0;border-bottom:1px solid #ececf2;">Prestations analysees</td><td style="padding:8px 0;border-bottom:1px solid #ececf2;text-align:right;font-weight:700;">{report["analysis"]["prestations_count"]}</td></tr>
-          <tr><td style="padding:8px 0;border-bottom:1px solid #ececf2;">Prestataires analyses</td><td style="padding:8px 0;border-bottom:1px solid #ececf2;text-align:right;font-weight:700;">{report["analysis"]["prestataires_count"]}</td></tr>
-          <tr><td style="padding:8px 0;">Beneficiaires analyses</td><td style="padding:8px 0;text-align:right;font-weight:700;">{report["analysis"]["beneficiaires_count"]}</td></tr>
-        </table>
-      </div>
-
-      <div style="border:1px solid #dfe1ea;padding:16px 18px;margin-bottom:18px;">
-        <div style="font-size:16px;font-weight:700;color:#4c1d95;margin-bottom:10px;">3. Analyse satisfaction – Formateurs</div>
-        <table role="presentation" style="width:100%;border-collapse:collapse;">
-          <tr><td style="padding:8px 0;border-bottom:1px solid #ececf2;">Appels formateurs termines (periode)</td><td style="padding:8px 0;border-bottom:1px solid #ececf2;text-align:right;font-weight:700;">{report["formateurs_summary"]["total_termines"]}</td></tr>
-          <tr><td style="padding:8px 0;border-bottom:1px solid #ececf2;">Avec scores Q1-Q3</td><td style="padding:8px 0;border-bottom:1px solid #ececf2;text-align:right;font-weight:700;">{report["formateurs_summary"]["with_scores"]}</td></tr>
-          <tr><td style="padding:8px 0;border-bottom:1px solid #ececf2;">Moy. Q1 – Prerequis apprenants</td><td style="padding:8px 0;border-bottom:1px solid #ececf2;text-align:right;font-weight:700;">{report["formateurs_summary"]["avg_q1"]}/5</td></tr>
-          <tr><td style="padding:8px 0;border-bottom:1px solid #ececf2;">Moy. Q2 – Interaction apprenants</td><td style="padding:8px 0;border-bottom:1px solid #ececf2;text-align:right;font-weight:700;">{report["formateurs_summary"]["avg_q2"]}/5</td></tr>
-          <tr><td style="padding:8px 0;">Moy. Q3 – Competences acquises</td><td style="padding:8px 0;text-align:right;font-weight:700;">{report["formateurs_summary"]["avg_q3"]}/5</td></tr>
-        </table>
-      </div>
+{analysis_html}
 
       <div style="border:1px solid #dfe1ea;padding:16px 18px;margin-bottom:18px;">
         <div style="font-size:16px;font-weight:700;color:#4c1d95;margin-bottom:10px;">3. Activite par utilisateur</div>
@@ -1229,6 +1317,65 @@ def _build_call_source_summary(label: str, queryset) -> dict:
     }
 
 
+def _count_distinct_non_empty(queryset, field_name: str) -> int:
+    return queryset.exclude(**{field_name: ""}).values(field_name).distinct().count()
+
+
+def _build_cga_dimension_summary(cga_qs) -> dict:
+    return {
+        "regimes_count": _count_distinct_non_empty(cga_qs, "regime"),
+        "centres_count": _count_distinct_non_empty(cga_qs, "centre_de_rattachement"),
+        "cris_count": _count_distinct_non_empty(cga_qs, "cri"),
+        "villes_count": _count_distinct_non_empty(cga_qs, "ville"),
+        "interesses": cga_qs.filter(interet="OUI").count(),
+        "pas_interesses": cga_qs.filter(interet="NON").count(),
+        "indisponibles": cga_qs.filter(indisponible="OUI").count(),
+        "faux_numeros": cga_qs.filter(mauvais_numero="OUI").count(),
+    }
+
+
+def _build_cga_anomaly_summary(cga_qs) -> dict:
+    rows = []
+    for appel in (
+        cga_qs.filter(mauvais_numero="OUI")
+        .select_related("locked_by")
+        .order_by("-updated_at", "raison_sociale")
+    ):
+        rows.append(
+            {
+                "anomaly_label": "Faux numero",
+                "anomaly_detail": "Faux numero CGA",
+                "niu": appel.niu,
+                "raison_sociale": appel.raison_sociale,
+                "telephone": appel.telephone,
+                "regime": appel.regime,
+                "centre": appel.centre_de_rattachement,
+                "cri": appel.cri,
+                "ville": appel.ville,
+                "username": appel.locked_by.get_username() if appel.locked_by else "",
+                "updated_at": appel.updated_at,
+                "updated_at_label": (
+                    timezone.localtime(appel.updated_at).strftime("%d/%m/%Y %H:%M")
+                    if appel.updated_at
+                    else "-"
+                ),
+            }
+        )
+    total = len(rows)
+    return {
+        "type": "cga",
+        "false_number_count": total,
+        "anomaly_rows": rows,
+        "class_options": [],
+        "selected_class": {
+            "not_formed_count": 0,
+            "duplicate_numbers_count": 0,
+            "false_name_count": 0,
+            "total_anomalies_count": total,
+        },
+    }
+
+
 def _hourly_completed_counts(queryset) -> dict[int, int]:
     """Compte les appels termines par heure (compatible SQLite et PostgreSQL)."""
     counts: dict[int, int] = {}
@@ -1400,6 +1547,19 @@ ANOMALY_EXPORT_COLUMNS = [
     ("statut_prestation", "Statut prestation"),
 ]
 
+CGA_ANOMALY_EXPORT_COLUMNS = [
+    ("anomaly_label", "Anomalie"),
+    ("niu", "NIU"),
+    ("raison_sociale", "Raison sociale"),
+    ("telephone", "Telephone"),
+    ("regime", "Regime"),
+    ("centre", "Centre"),
+    ("cri", "CRI"),
+    ("ville", "Ville"),
+    ("username", "Utilisateur"),
+    ("updated_at_label", "Date"),
+]
+
 
 def export_application_report_anomalies_excel(report: dict) -> bytes:
     from openpyxl import Workbook
@@ -1409,12 +1569,17 @@ def export_application_report_anomalies_excel(report: dict) -> bytes:
     worksheet = workbook.active
     worksheet.title = "Anomalies"
 
-    worksheet.append([label for _key, label in ANOMALY_EXPORT_COLUMNS])
+    columns = (
+        CGA_ANOMALY_EXPORT_COLUMNS
+        if report.get("call_scope") == "cga"
+        else ANOMALY_EXPORT_COLUMNS
+    )
+    worksheet.append([label for _key, label in columns])
     for cell in worksheet[1]:
         cell.font = Font(bold=True, color="4C1D95")
 
     for row in report.get("anomalies", {}).get("anomaly_rows", []):
-        worksheet.append([row.get(key, "") for key, _label in ANOMALY_EXPORT_COLUMNS])
+        worksheet.append([row.get(key, "") for key, _label in columns])
 
     output = io.BytesIO()
     workbook.save(output)
@@ -1435,10 +1600,21 @@ def export_application_report_csv(report: dict) -> bytes:
     writer.writerow(["Appels", "A rappeler", report["calls"]["callbacks"]])
     writer.writerow(["Appels", "Avec audio", report["calls"]["with_audio"]])
     writer.writerow(["Utilisateurs", "Ayant appele", report["users"]["called_today"]])
-    writer.writerow(["Analyse", "Classes", report["analysis"]["classes_count"]])
-    writer.writerow(["Analyse", "Prestations", report["analysis"]["prestations_count"]])
-    writer.writerow(["Analyse", "Prestataires", report["analysis"]["prestataires_count"]])
-    writer.writerow(["Analyse", "Beneficiaires", report["analysis"]["beneficiaires_count"]])
+    if report.get("call_scope") == "cga":
+        cga_dimensions = report["cga_dimensions"]
+        writer.writerow(["Analyse CGA", "Regimes", cga_dimensions["regimes_count"]])
+        writer.writerow(["Analyse CGA", "Centres", cga_dimensions["centres_count"]])
+        writer.writerow(["Analyse CGA", "CRI", cga_dimensions["cris_count"]])
+        writer.writerow(["Analyse CGA", "Villes", cga_dimensions["villes_count"]])
+        writer.writerow(["Analyse CGA", "Interesses", cga_dimensions["interesses"]])
+        writer.writerow(["Analyse CGA", "Pas interesses", cga_dimensions["pas_interesses"]])
+        writer.writerow(["Analyse CGA", "Indisponibles", cga_dimensions["indisponibles"]])
+        writer.writerow(["Analyse CGA", "Faux numeros", cga_dimensions["faux_numeros"]])
+    else:
+        writer.writerow(["Analyse", "Classes", report["analysis"]["classes_count"]])
+        writer.writerow(["Analyse", "Prestations", report["analysis"]["prestations_count"]])
+        writer.writerow(["Analyse", "Prestataires", report["analysis"]["prestataires_count"]])
+        writer.writerow(["Analyse", "Beneficiaires", report["analysis"]["beneficiaires_count"]])
     for row in report["user_call_rows"]:
         writer.writerow(
             [
@@ -1477,15 +1653,31 @@ def export_application_report_excel(report: dict) -> bytes:
             ],
         )
         ws.append([])
-        add_section(
-            "Analyse satisfaction",
-            [
-                ("Classes", report["analysis"]["classes_count"]),
-                ("Prestations", report["analysis"]["prestations_count"]),
-                ("Prestataires", report["analysis"]["prestataires_count"]),
-                ("Beneficiaires", report["analysis"]["beneficiaires_count"]),
-            ],
-        )
+        if report.get("call_scope") == "cga":
+            cga_dimensions = report["cga_dimensions"]
+            add_section(
+                "Analyse CGA",
+                [
+                    ("Regimes", cga_dimensions["regimes_count"]),
+                    ("Centres", cga_dimensions["centres_count"]),
+                    ("CRI", cga_dimensions["cris_count"]),
+                    ("Villes", cga_dimensions["villes_count"]),
+                    ("Interesses", cga_dimensions["interesses"]),
+                    ("Pas interesses", cga_dimensions["pas_interesses"]),
+                    ("Indisponibles", cga_dimensions["indisponibles"]),
+                    ("Faux numeros", cga_dimensions["faux_numeros"]),
+                ],
+            )
+        else:
+            add_section(
+                "Analyse satisfaction",
+                [
+                    ("Classes", report["analysis"]["classes_count"]),
+                    ("Prestations", report["analysis"]["prestations_count"]),
+                    ("Prestataires", report["analysis"]["prestataires_count"]),
+                    ("Beneficiaires", report["analysis"]["beneficiaires_count"]),
+                ],
+            )
         ws.append([])
         add_section(
             "Activite utilisateurs",
