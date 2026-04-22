@@ -5,10 +5,12 @@ from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.core.paginator import Paginator
 from django.test import RequestFactory, SimpleTestCase, TestCase
 from django.test.utils import override_settings
 from django.urls import reverse
 
+from App_PADESCE.appels.cga_views import _build_pagination_tokens
 from App_PADESCE.appels.consolidation_views import (
     _build_filter_options,
     _create_appels_from_candidates,
@@ -74,6 +76,18 @@ class ConsolidationFilterTests(SimpleTestCase):
         self.assertEqual([item["value"] for item in options["prestataire"]], ["Prestataire A"])
         self.assertEqual([item["value"] for item in options["beneficiaire"]], ["Beneficiaire A"])
         self.assertEqual([item["value"] for item in options["cohorte"]], ["1"])
+
+
+class CgaPaginationTests(SimpleTestCase):
+    def test_build_pagination_tokens_shows_first_pages_gap_and_last_page(self):
+        page_obj = Paginator(range(100), 10).get_page(1)
+
+        self.assertEqual(_build_pagination_tokens(page_obj), [1, 2, 3, None, 10])
+
+    def test_build_pagination_tokens_keeps_neighbors_for_middle_page(self):
+        page_obj = Paginator(range(100), 10).get_page(5)
+
+        self.assertEqual(_build_pagination_tokens(page_obj), [1, 2, 3, 4, 5, 6, None, 10])
 
 
 class ConsolidationImportTests(TestCase):

@@ -395,16 +395,28 @@
 
   {% if page_obj and page_obj.paginator.num_pages > 1 %}
     <div class="selection-bar" style="margin-top:10px;">
-      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+      <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
         {% if page_obj.has_previous %}
           <a class="btn btn-ghost btn-sm" href="?{% if querystring_no_page %}{{ querystring_no_page }}&{% endif %}page=1">Premiere</a>
           <a class="btn btn-ghost btn-sm" href="?{% if querystring_no_page %}{{ querystring_no_page }}&{% endif %}page={{ page_obj.previous_page_number }}">Precedente</a>
         {% endif %}
+        {% for token in pagination_tokens %}
+          {% if token %}
+            {% if token == page_obj.number %}
+              <span class="btn btn-primary btn-sm">{{ token }}</span>
+            {% else %}
+              <a class="btn btn-ghost btn-sm" href="?{% if querystring_no_page %}{{ querystring_no_page }}&{% endif %}page={{ token }}">{{ token }}</a>
+            {% endif %}
+          {% else %}
+            <span class="subtitle" style="padding:0 4px;">...</span>
+          {% endif %}
+        {% endfor %}
         {% if page_obj.has_next %}
           <a class="btn btn-ghost btn-sm" href="?{% if querystring_no_page %}{{ querystring_no_page }}&{% endif %}page={{ page_obj.next_page_number }}">Suivante</a>
           <a class="btn btn-ghost btn-sm" href="?{% if querystring_no_page %}{{ querystring_no_page }}&{% endif %}page={{ page_obj.paginator.num_pages }}">Derniere</a>
         {% endif %}
       </div>
+      <div class="subtitle">Page {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</div>
     </div>
   {% endif %}
 </div>

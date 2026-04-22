@@ -32,6 +32,39 @@ PAGE_SIZE_DEFAULT = 100
 PAGE_SIZE_MAX = 500
 
 
+def _build_pagination_tokens(
+    page_obj,
+    *,
+    leading_count: int = 3,
+    trailing_count: int = 1,
+    around_count: int = 1,
+):
+    if not page_obj or page_obj.paginator.num_pages <= 1:
+        return []
+
+    total_pages = page_obj.paginator.num_pages
+    current_page = page_obj.number
+    pages = set()
+
+    pages.update(range(1, min(total_pages, leading_count) + 1))
+    pages.update(
+        range(
+            max(1, current_page - around_count),
+            min(total_pages, current_page + around_count) + 1,
+        )
+    )
+    pages.update(range(max(1, total_pages - trailing_count + 1), total_pages + 1))
+
+    tokens = []
+    previous_page = None
+    for page_number in sorted(pages):
+        if previous_page is not None and page_number - previous_page > 1:
+            tokens.append(None)
+        tokens.append(page_number)
+        previous_page = page_number
+    return tokens
+
+
 def _normalize_header(value):
     if value is None:
         return ""
@@ -418,6 +451,7 @@ def cga_index(request):
     page_obj = paginator.get_page(request.GET.get("page"))
     rows = _bind_audio_state(list(page_obj.object_list))
     page_obj.object_list = rows
+    pagination_tokens = _build_pagination_tokens(page_obj)
     params = request.GET.copy()
     params.pop("page", None)
     querystring_no_page = params.urlencode()
@@ -431,6 +465,7 @@ def cga_index(request):
             "filters": filters,
             "page_obj": page_obj,
             "page_size": page_size,
+            "pagination_tokens": pagination_tokens,
             "querystring_no_page": querystring_no_page,
             "stats": stats,
         },
