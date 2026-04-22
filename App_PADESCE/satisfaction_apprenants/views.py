@@ -164,6 +164,7 @@ SUPPORTED_AUDIO_FORMATS = {"wav", "mp3", "m4a", "ogg", "webm", "flac"}
 
 logger = logging.getLogger(__name__)
 ANALYSIS_CACHE_TIMEOUT = int(str(os.getenv("PADESCE_ANALYSIS_CACHE_TIMEOUT", "300") or "300"))
+ANALYSIS_DASHBOARD_CACHE_VERSION = "dashboard-v20260420-classes"
 
 
 def _analysis_cache_key(prefix: str, *parts) -> str:
@@ -2801,6 +2802,8 @@ def _build_satisfaction_dashboard_data(request):
         source_bundle = None
     cache_key = _analysis_cache_key(
         "dashboard-data",
+        ANALYSIS_DASHBOARD_CACHE_VERSION,
+        settings.DATABASES["default"]["NAME"],
         selected_source,
         request.GET.urlencode(),
         ((source_bundle or {}).get("source") or {}).get("modified_at", "no-source"),
@@ -3062,8 +3065,8 @@ def _build_satisfaction_dashboard_data(request):
     prestation_stats = sorted(
         [
             _make_prestation_stat(item, normalize_network_lookup(item["code"]))
-            for item in prestation_groups.values()
-            if normalize_network_lookup(item["code"]) in combined_prestation_keys
+            for key, item in prestation_groups.items()
+            if key in combined_prestation_keys
         ],
         key=lambda item: (
             0 if item["is_qualified"] else 1,
@@ -3076,58 +3079,6 @@ def _build_satisfaction_dashboard_data(request):
     # Afficher / exporter uniquement les prestations réellement analysées.
     prestation_stats = [item for item in prestation_stats if item.get("is_qualified")]
 
-    # Inclure aussi les prestations terminées dans la source mais sans lignes d'analyse.
-    represented_codes = {
-        (normalize_network_lookup(item["code"]), item["prestataire"], item["beneficiaire"])
-        for item in prestation_stats
-    }
-    if source_bundle:
-        _src_prestation_classes = _source_prestation_classes_from_source(
-            analysis_scope_filters, source_bundle
-        )
-        for p_key in sorted(terminated_prestation_codes):
-            p_info = source_prestations_index.get(p_key, {})
-            prestataire = str(p_info.get("prestataire", "") or "").strip()
-            beneficiaire = str(p_info.get("beneficiaire", "") or "").strip()
-            if not prestataire and not beneficiaire:
-                # Chercher dans les classes source
-                for src_cls in (_src_prestation_classes.get(p_key) or {}).values():
-                    prestataire = prestataire or str(src_cls.get("prestataire", "") or "").strip()
-                    beneficiaire = (
-                        beneficiaire or str(src_cls.get("beneficiaire", "") or "").strip()
-                    )
-            key_tuple = (p_key, prestataire, beneficiaire)
-            if key_tuple in represented_codes:
-                continue
-            src_fenetre = str(p_info.get("fenetre", "") or "").strip()
-            src_statut = str(p_info.get("statut_prestation", "") or "").strip()
-            source_class_count = len(_src_prestation_classes.get(p_key, {}))
-
-            # Calculate number of filled forms by summing responses from all associated classes
-            formulaires_remplis = 0
-            for classe_info in classe_groups.values():
-                if normalize_network_lookup(classe_info.get("prestation", "")) == p_key:
-                    formulaires_remplis += classe_info["metrics"]["nb"]
-
-            prestation_stats.append(
-                {
-                    "code": p_key,
-                    "prestataire": prestataire,
-                    "beneficiaire": beneficiaire,
-                    "fenetre": src_fenetre,
-                    "source_statut": src_statut,
-                    "source_formation": str(p_info.get("formation", "") or "").strip(),
-                    "nb": formulaires_remplis,
-                    "avg": None,
-                    "avgs": {},
-                    "effectif": 0,
-                    "is_qualified": p_key in qualified_prestation_codes,
-                    "is_terminated": True,
-                    "source_only": True,
-                    "source_class_count": source_class_count,
-                }
-            )
-
     qualified_class_codes = {
         normalize_network_lookup(class_code)
         for key in qualified_prestation_keys
@@ -3136,12 +3087,12 @@ def _build_satisfaction_dashboard_data(request):
     }
     qualified_prestataire_labels = {
         prestation_groups.get(key, {}).get("prestataire", "")
-        for key in combined_prestation_keys
+        for key in qualified_prestation_keys
         if str(prestation_groups.get(key, {}).get("prestataire", "") or "").strip()
     }
     qualified_beneficiaire_labels = {
         prestation_groups.get(key, {}).get("beneficiaire", "")
-        for key in combined_prestation_keys
+        for key in qualified_prestation_keys
         if str(prestation_groups.get(key, {}).get("beneficiaire", "") or "").strip()
     }
 
@@ -3237,7 +3188,7 @@ def _build_satisfaction_dashboard_data(request):
     analyzed_fenetres = [
         {"label": lbl, "nb": nb} for lbl, nb in sorted(fenetre_nb_map.items()) if lbl
     ]
-    # Prestataires et bénéficiaires : inclure les terminés (pas seulement qualifiés).
+    # Prestataires et bénéficiaires : n'inclure que les prestations réellement analysées.
     analyzed_prestataires = [
         {"label": label, "nb": item["metrics"]["nb"]}
         for label, item in sorted(prestataire_groups.items(), key=lambda pair: pair[0])
@@ -3311,7 +3262,11 @@ def _build_satisfaction_dashboard_data(request):
     filter_query_string = request.GET.copy().urlencode()
     # Prestations analysées = terminées ET ayant atteint le seuil (intersection)
     analyzed_prestations_count = (
-        int(missing_analysis.get("total_analyzed") or 0)
+        int(
+            missing_analysis.get("total_analyzed")
+            or missing_analysis.get("total_qualified")
+            or 0
+        )
         if missing_analysis.get("available")
         else len(analyzed_prestations)
     )

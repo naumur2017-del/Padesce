@@ -2,12 +2,13 @@ from datetime import date
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.test import SimpleTestCase, TestCase
 from django.urls import reverse
 
 from App_PADESCE.appels.models import Appel, AppelAnswers, AppelFormateur
 from App_PADESCE.apprenants.models import Apprenant
 from App_PADESCE.core.fast_stats import (
+    _load_satisfaction_dashboard_analyzed_class_codes,
     build_fast_stats_api_payload,
     build_fast_stats_bundle,
     build_fast_stats_workbook,
@@ -36,6 +37,14 @@ class FastStatsTests(TestCase):
         self.source_index_patcher = patch("App_PADESCE.core.fast_stats.build_padesce_source_index")
         self.mock_build_padesce_source_index = self.source_index_patcher.start()
         self.addCleanup(self.source_index_patcher.stop)
+        self.analyzed_class_codes_patcher = patch(
+            "App_PADESCE.core.fast_stats._load_satisfaction_dashboard_analyzed_class_codes"
+        )
+        self.mock_load_satisfaction_dashboard_analyzed_class_codes = (
+            self.analyzed_class_codes_patcher.start()
+        )
+        self.addCleanup(self.analyzed_class_codes_patcher.stop)
+        self.mock_load_satisfaction_dashboard_analyzed_class_codes.return_value = None
         self.mock_build_padesce_source_index.return_value = {
             "records": {},
             "classes": {
@@ -242,8 +251,9 @@ class FastStatsTests(TestCase):
         payload = build_fast_stats_api_payload(request_like_with_query("prestation=PRESTA001"))
 
         self.assertEqual(payload["filters"]["prestation"], "PRESTA001")
-        self.assertEqual(len(payload["modes"]), 2)
+        self.assertEqual(len(payload["modes"]), 5)
         self.assertEqual(self._mode(payload, "apprenant")["row_count"], 1)
+        self.assertEqual(self._mode(payload, "descentes")["class_count"], 1)
 
     def test_fast_stats_filters_match_fuzzy_prestataire_and_beneficiaire_labels(self):
         payload = build_fast_stats_api_payload(
@@ -288,3 +298,51 @@ class FastStatsTests(TestCase):
         row = self._mode(payload, "formateur")["rows"][0]
         self.assertEqual(row["class_link_url"], "https://testserver/classe/CLA011/")
         self.assertEqual(row["class_link_label"], "Ouvrir analyse CLA011")
+
+    def test_fast_stats_descentes_mode_uses_dashboard_analyzed_classes_scope(self):
+        Classe.objects.create(
+            code="CLA022",
+            prestation=self.prestation,
+            lieu=self.lieu,
+            formation=self.formation,
+            intitule_formation="Transformation digitale",
+            formateur=self.formateur,
+            fenetre="2",
+            cohorte=1,
+            statut="termine",
+        )
+        self.mock_load_satisfaction_dashboard_analyzed_class_codes.return_value = {"cla011"}
+
+        payload = build_fast_stats_api_payload(
+            request_like_with_query("prestataire=Prestataire+Alpha")
+        )
+
+        self.assertEqual(self._mode(payload, "apprenant")["row_count"], 2)
+        descentes_mode = self._mode(payload, "descentes")
+        sa_rows = next(group for group in descentes_mode["row_groups"] if group["id"] == "sa")["rows"]
+
+        self.assertEqual(descentes_mode["class_count"], 1)
+        self.assertEqual(descentes_mode["metadata"]["scope_label"], "Classes analysées")
+        self.assertEqual([row["code"] for row in sa_rows], ["CLA011"])
+
+
+class FastStatsHelperTests(SimpleTestCase):
+    @patch("App_PADESCE.satisfaction_apprenants.views._build_satisfaction_dashboard_data")
+    def test_load_satisfaction_dashboard_analyzed_class_codes_reads_context_payload(
+        self,
+        mock_build_satisfaction_dashboard_data,
+    ):
+        mock_build_satisfaction_dashboard_data.return_value = {
+            "context": {
+                "analyzed_classes": [
+                    {"code": "CLA011"},
+                    {"code": " cla022 "},
+                ]
+            }
+        }
+
+        analyzed_class_codes = _load_satisfaction_dashboard_analyzed_class_codes(
+            request_like_with_query("source=cutoff")
+        )
+
+        self.assertEqual(analyzed_class_codes, {"cla011", "cla022"})

@@ -305,10 +305,20 @@ def _build_virtual_classes(
 def _resolve_fast_stats_classes(
     filters: dict[str, str], source_bundle: dict | None = None
 ) -> tuple[list, dict]:
+    filtered = _collect_fast_stats_candidate_classes(filters, source_bundle=source_bundle)
+    return _select_fast_stats_scope(filtered)
+
+
+def _collect_fast_stats_candidate_classes(
+    filters: dict[str, str],
+    source_bundle: dict | None = None,
+    *,
+    restrict_to_template: bool = True,
+) -> list:
     all_classes = list(_filtered_classes_queryset(filters))
     db_keys = {normalize_network_lookup(c.code) for c in all_classes}
 
-    template_class_codes = _get_template_class_codes()
+    template_class_codes = _get_template_class_codes() if restrict_to_template else set()
     virtual_classes = _build_virtual_classes(source_bundle, db_keys, template_class_codes)
 
     if template_class_codes:
@@ -322,8 +332,10 @@ def _resolve_fast_stats_classes(
         )
     )
 
-    filtered = [classe for classe in all_combined if _class_matches_filters(classe, filters)]
+    return [classe for classe in all_combined if _class_matches_filters(classe, filters)]
 
+
+def _select_fast_stats_scope(filtered: list) -> tuple[list, dict]:
     scopes = [
         (
             "terminees_actives",
@@ -360,6 +372,48 @@ def _resolve_fast_stats_classes(
         "scope_label": "Aucune classe",
         "terminated_only": False,
     }
+
+
+def _load_satisfaction_dashboard_analyzed_class_codes(request) -> set[str] | None:
+    try:
+        from App_PADESCE.satisfaction_apprenants.views import _build_satisfaction_dashboard_data
+
+        dashboard = _build_satisfaction_dashboard_data(request)
+    except Exception:
+        return None
+
+    return {
+        normalize_network_lookup(item.get("code", ""))
+        for item in (
+            (dashboard.get("context") or {}).get("analyzed_classes")
+            or dashboard.get("analyzed_classes")
+            or []
+        )
+        if _safe_text(item.get("code", ""))
+    }
+
+
+def _resolve_descentes_sa_classes(
+    request,
+    candidate_classes: list,
+    fallback_classes: list,
+    fallback_scope: dict,
+) -> tuple[list, dict]:
+    analyzed_class_codes = _load_satisfaction_dashboard_analyzed_class_codes(request)
+    if analyzed_class_codes is None:
+        return fallback_classes, fallback_scope
+
+    descentes_scope = {
+        "scope_key": "classes_analysees",
+        "scope_label": "Classes analysées",
+        "terminated_only": True,
+    }
+    descentes_classes = [
+        classe
+        for classe in candidate_classes
+        if normalize_network_lookup(getattr(classe, "code", "")) in analyzed_class_codes
+    ]
+    return descentes_classes, descentes_scope
 
 
 def _has_appel_answers(appel: Appel) -> bool:
@@ -661,6 +715,17 @@ def _formateur_directory_by_phone() -> dict[str, str]:
     return directory
 
 
+def _preferred_formateur_name(formateur: Formateur | None) -> str:
+    if not formateur:
+        return ""
+    short_name = _safe_text(getattr(formateur, "nom", ""))
+    if _normalize_text(short_name) == "nonrenseigne":
+        short_name = ""
+    return short_name or _safe_text(getattr(formateur, "nom_complet", "")) or _safe_text(
+        getattr(formateur, "code", "")
+    )
+
+
 def _build_contact(name: str, phone: str) -> dict:
     return {
         "name": _safe_text(name),
@@ -686,10 +751,11 @@ def _build_calendar_contacts(
 
     if getattr(classe, "formateur", None):
         phone = _phone_digits(classe.formateur.telephone)
-        if phone or _safe_text(classe.formateur.nom) or _safe_text(classe.formateur.nom_complet):
+        formateur_name = _preferred_formateur_name(classe.formateur)
+        if phone or formateur_name:
             contacts.append(
                 _build_contact(
-                    classe.formateur.nom or classe.formateur.nom_complet or classe.formateur.code,
+                    formateur_name,
                     phone,
                 )
             )
@@ -836,9 +902,7 @@ def _build_descente_contacts(
             seen_phones.add(phone)
             slot_number = len(contacts) + 1
             if class_phone and phone == class_phone and getattr(classe, "formateur", None):
-                resolved_name = _safe_text(
-                    classe.formateur.nom or classe.formateur.nom_complet or classe.formateur.code
-                )
+                resolved_name = _preferred_formateur_name(classe.formateur)
             else:
                 resolved_name = (
                     calendar_names_by_phone.get(phone)
@@ -1763,7 +1827,19 @@ def _find_sheet_name(workbook: Workbook, mode_id: str) -> str:
 def build_fast_stats_bundle(request) -> dict:
     filters = _extract_fast_stats_filters(request)
     source_bundle = _load_source_bundle(filters)
-    classes, scope = _resolve_fast_stats_classes(filters, source_bundle=source_bundle)
+    candidate_classes = _collect_fast_stats_candidate_classes(filters, source_bundle=source_bundle)
+    descentes_candidate_classes = _collect_fast_stats_candidate_classes(
+        filters,
+        source_bundle=source_bundle,
+        restrict_to_template=False,
+    )
+    classes, scope = _select_fast_stats_scope(candidate_classes)
+    descentes_classes, descentes_scope = _resolve_descentes_sa_classes(
+        request,
+        descentes_candidate_classes,
+        classes,
+        scope,
+    )
     source_class_counts = _source_class_apprenant_totals(source_bundle)
     formateur_directory = _formateur_directory_by_phone()
     prestation_calls_cache: dict[int, list[AppelFormateur]] = {}
@@ -1799,7 +1875,7 @@ def build_fast_stats_bundle(request) -> dict:
         for index, classe in enumerate(classes, start=1)
     ]
 
-    descentes_sa_rows = _build_descentes_sa_rows(classes)
+    descentes_sa_rows = _build_descentes_sa_rows(descentes_classes)
     descentes_sf_rows = _build_descentes_sf_rows()
 
     return {
@@ -1836,7 +1912,7 @@ def build_fast_stats_bundle(request) -> dict:
                 sheet_name="Enquête de formateur",
                 scope=scope,
             ),
-            _descentes_mode_payload(descentes_sa_rows, descentes_sf_rows, scope),
+            _descentes_mode_payload(descentes_sa_rows, descentes_sf_rows, descentes_scope),
         ],
     }
 

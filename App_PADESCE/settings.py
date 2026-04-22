@@ -205,9 +205,14 @@ def _database_settings_from_env() -> dict:
             "PORT": str(os.getenv("POSTGRES_PORT", "") or "5432"),
         }
 
+    sqlite_path = str(os.getenv("SQLITE_PATH", "") or os.getenv("SQLITE_NAME", "") or "").strip()
+    sqlite_name = Path(sqlite_path) if sqlite_path else BASE_DIR / "db.sqlite3"
+    if not sqlite_name.is_absolute():
+        sqlite_name = BASE_DIR / sqlite_name
+
     return {
         "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / os.getenv("DJANGO_DATABASE_NAME", "db.sqlite3"),
+        "NAME": sqlite_name,
     }
 
 
