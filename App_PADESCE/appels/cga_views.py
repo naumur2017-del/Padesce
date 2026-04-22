@@ -105,6 +105,7 @@ def _parse_bool_flag(value):
 def _build_filtered_cga_queryset(request):
     qs = AppelCGA.objects.filter(is_active=True).select_related("locked_by")
     status_filter = (request.GET.get("status") or "").strip()
+    resultat_filter = (request.GET.get("resultat") or "").strip()
     regime_filter = (request.GET.get("regime") or "").strip()
     cri_filter = (request.GET.get("cri") or "").strip()
     centre_filter = (request.GET.get("centre") or "").strip()
@@ -119,6 +120,14 @@ def _build_filtered_cga_queryset(request):
             qs = qs.filter(status__in=CALL_COMPLETED_STATUSES)
         else:
             qs = qs.filter(status=status_filter)
+    if resultat_filter == "interesse":
+        qs = qs.filter(interet="OUI")
+    elif resultat_filter == "pas_interesse":
+        qs = qs.filter(interet="NON")
+    elif resultat_filter == "faux_numero":
+        qs = qs.filter(mauvais_numero="OUI")
+    elif resultat_filter == "indisponible":
+        qs = qs.filter(indisponible="OUI")
     if regime_filter:
         qs = qs.filter(regime__iexact=regime_filter)
     if cri_filter:
@@ -149,6 +158,7 @@ def _build_filtered_cga_queryset(request):
 
     filters = {
         "status": status_filter,
+        "resultat": resultat_filter,
         "regime": regime_filter,
         "cri": cri_filter,
         "centre": centre_filter,

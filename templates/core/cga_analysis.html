@@ -1,0 +1,276 @@
+{% extends "base.html" %}
+{% block title %}Analyses CGA{% endblock %}
+{% block content %}
+<style>
+  .cga-shell { display: grid; gap: 18px; }
+  .cga-hero,
+  .cga-panel,
+  .cga-kpi {
+    border: 1px solid var(--border);
+    background: #fff;
+    box-shadow: var(--shadow);
+  }
+  .cga-hero { border-radius: 18px; padding: 22px; }
+  .cga-hero h1 { margin: 0 0 8px; color: var(--accent-strong); }
+  .cga-hero p { margin: 0; color: var(--muted); }
+  .cga-kpis {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 14px;
+  }
+  .cga-kpi { border-radius: 14px; padding: 16px; }
+  .kpi-label { color: var(--muted); font-size: .88rem; }
+  .kpi-value { margin-top: 8px; color: var(--accent-strong); font-size: 1.75rem; font-weight: 900; }
+  .kpi-meta { margin-top: 6px; color: var(--muted); font-size: .84rem; }
+  .cga-grid {
+    display: grid;
+    grid-template-columns: minmax(320px, 1.2fr) minmax(320px, .8fr);
+    gap: 14px;
+  }
+  .cga-panel { border-radius: 16px; padding: 16px; }
+  .cga-panel h2 { margin: 0 0 12px; color: var(--accent-strong); font-size: 1.08rem; }
+  .muted { color: var(--muted); }
+  .map-box {
+    position: relative;
+    min-height: 390px;
+    border: 1px solid #dbe7f3;
+    border-radius: 16px;
+    overflow: hidden;
+    background:
+      linear-gradient(180deg, rgba(239, 246, 255, .95), rgba(248, 250, 252, .95));
+  }
+  .map-outline {
+    position: absolute;
+    inset: 34px 18%;
+    border-radius: 48% 42% 52% 38%;
+    border: 2px solid rgba(37, 99, 235, .18);
+    background: rgba(37, 99, 235, .05);
+  }
+  .city-bubble {
+    position: absolute;
+    transform: translate(-50%, -50%);
+    border-radius: 999px;
+    border: 2px solid #fff;
+    background: rgba(16, 185, 129, .78);
+    box-shadow: 0 8px 18px rgba(15, 23, 42, .18);
+    color: #064e3b;
+  }
+  .city-label {
+    position: absolute;
+    left: 50%;
+    top: calc(100% + 4px);
+    transform: translateX(-50%);
+    white-space: nowrap;
+    font-size: .76rem;
+    font-weight: 800;
+    color: #0f172a;
+  }
+  .city-list,
+  .legend-list,
+  .metric-list { display: grid; gap: 10px; }
+  .city-row,
+  .legend-row,
+  .metric-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 12px;
+    border: 1px solid rgba(148, 163, 184, .18);
+    border-radius: 12px;
+    background: #f8fafc;
+  }
+  .city-row strong,
+  .legend-row strong,
+  .metric-row strong { color: var(--accent-strong); }
+  .pie-layout {
+    display: grid;
+    grid-template-columns: 180px 1fr;
+    gap: 16px;
+    align-items: center;
+  }
+  .pie-chart {
+    width: 180px;
+    aspect-ratio: 1 / 1;
+    border-radius: 999px;
+    border: 10px solid #fff;
+    box-shadow: inset 0 0 0 1px rgba(15, 23, 42, .08), var(--shadow);
+  }
+  .legend-color {
+    width: 12px;
+    height: 12px;
+    border-radius: 999px;
+    display: inline-block;
+    flex: 0 0 auto;
+  }
+  .cri-list { display: grid; gap: 12px; }
+  .cri-row { display: grid; gap: 6px; }
+  .cri-head { display: flex; justify-content: space-between; gap: 10px; }
+  .cri-bar {
+    display: flex;
+    height: 14px;
+    border-radius: 999px;
+    overflow: hidden;
+    background: #e2e8f0;
+  }
+  .cri-interesse { background: #10b981; }
+  .cri-pas-interesse { background: #ef4444; }
+  .table-scroll { overflow-x: auto; border-radius: 14px; }
+  table { width: 100%; border-collapse: collapse; min-width: 980px; }
+  th, td { padding: 10px 12px; border-bottom: 1px solid var(--border); text-align: left; }
+  th { color: var(--muted); font-size: .82rem; text-transform: uppercase; }
+  .drill-link { color: var(--accent-strong); font-weight: 800; text-decoration: underline; text-underline-offset: 2px; }
+  @media (max-width: 980px) {
+    .cga-grid,
+    .pie-layout { grid-template-columns: 1fr; }
+    .pie-chart { width: 160px; }
+  }
+</style>
+
+<div class="cga-shell">
+  <section class="cga-hero">
+    <h1>Analyses CGA</h1>
+    <p>KPI, repartitions et resultats des appels CGA par ville, regime, CRI et utilisateur.</p>
+  </section>
+
+  <section class="cga-kpis">
+    {% for item in cga_kpis %}
+      <article class="cga-kpi">
+        <div class="kpi-label">{{ item.label }}</div>
+        <div class="kpi-value">{{ item.value }}</div>
+        <div class="kpi-meta">{{ item.meta }}</div>
+      </article>
+    {% endfor %}
+  </section>
+
+  <section class="cga-grid">
+    <article class="cga-panel">
+      <h2>Carte des villes</h2>
+      <div class="map-box">
+        <div class="map-outline"></div>
+        {% for city in cga_city_rows %}
+          <a
+            class="city-bubble"
+            href="{{ city.url }}"
+            title="{{ city.ville }}: {{ city.total }} appels"
+            style="left: {{ city.x }}%; top: {{ city.y }}%; width: {{ city.size }}px; height: {{ city.size }}px;"
+          >
+            <span class="city-label">{{ city.ville }}</span>
+          </a>
+        {% empty %}
+          <div class="muted" style="position:absolute; inset:0; display:grid; place-items:center;">Aucune ville disponible.</div>
+        {% endfor %}
+      </div>
+      <div class="city-list" style="margin-top:12px;">
+        {% for city in cga_city_rows|slice:":6" %}
+          <a class="city-row" href="{{ city.url }}">
+            <span><strong>{{ city.ville }}</strong><br><span class="muted">{{ city.interesses }} interesses, {{ city.pas_interesses }} pas interesses</span></span>
+            <strong>{{ city.total }}</strong>
+          </a>
+        {% endfor %}
+      </div>
+    </article>
+
+    <article class="cga-panel">
+      <h2>REGIME</h2>
+      <div class="pie-layout">
+        <div class="pie-chart" style="{{ cga_regime_pie_style }}"></div>
+        <div class="legend-list">
+          {% for row in cga_regime_rows %}
+            <a class="legend-row" href="{{ row.url }}">
+              <span><span class="legend-color" style="background: {{ row.color }};"></span> {{ row.label }}</span>
+              <strong>{{ row.total }}{% if row.percent %} · {{ row.percent }}%{% endif %}</strong>
+            </a>
+          {% empty %}
+            <div class="muted">Aucun regime disponible.</div>
+          {% endfor %}
+        </div>
+      </div>
+    </article>
+  </section>
+
+  <section class="cga-grid">
+    <article class="cga-panel">
+      <h2>CRI: interesses / pas interesses</h2>
+      <div class="cri-list">
+        {% for row in cga_cri_rows %}
+          <a class="cri-row" href="{{ row.url }}">
+            <div class="cri-head">
+              <strong>{{ row.label }}</strong>
+              <span class="muted">{{ row.interesses }} interesses · {{ row.pas_interesses }} pas interesses · {{ row.total }} total</span>
+            </div>
+            <div class="cri-bar">
+              <span class="cri-interesse" style="width: {{ row.interesses_width }}%;"></span>
+              <span class="cri-pas-interesse" style="width: {{ row.pas_interesses_width }}%;"></span>
+            </div>
+          </a>
+        {% empty %}
+          <div class="muted">Aucun CRI disponible.</div>
+        {% endfor %}
+      </div>
+    </article>
+
+    <article class="cga-panel">
+      <h2>Faux numeros</h2>
+      <div class="metric-list">
+        <div class="metric-row"><span>Total faux numeros</span><strong>{{ cga_summary.faux_numeros }}</strong></div>
+        <div class="metric-row"><span>Dernieres 24h</span><strong>{{ cga_summary.recent_faux_numeros }}</strong></div>
+        <div class="metric-row"><span>Indisponibles</span><strong>{{ cga_summary.indisponibles }}</strong></div>
+      </div>
+      <div class="table-scroll" style="margin-top:12px;">
+        <table style="min-width:520px;">
+          <thead>
+            <tr><th>Utilisateur</th><th>Faux numeros</th><th>24h</th></tr>
+          </thead>
+          <tbody>
+            {% for row in cga_false_number_rows %}
+              <tr>
+                <td><a class="drill-link" href="{{ row.url }}">{{ row.username }}</a></td>
+                <td>{{ row.total }}</td>
+                <td>{{ row.recent_24h }}</td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="3" class="muted">Aucun faux numero remonte.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </article>
+  </section>
+
+  <section class="cga-panel">
+    <h2>Utilisateurs CGA</h2>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>Utilisateur</th>
+            <th>Appels</th>
+            <th>Termines</th>
+            <th>Interesses</th>
+            <th>Pas interesses</th>
+            <th>Indisponible</th>
+            <th>Faux numero</th>
+            <th>Dernieres 24h</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in cga_user_rows %}
+            <tr>
+              <td><a class="drill-link" href="{{ row.total_url }}">{{ row.username }}</a></td>
+              <td>{{ row.total }}</td>
+              <td>{{ row.termines }}</td>
+              <td><a class="drill-link" href="{{ row.interesses_url }}">{{ row.interesses }}</a></td>
+              <td><a class="drill-link" href="{{ row.pas_interesses_url }}">{{ row.pas_interesses }}</a></td>
+              <td><a class="drill-link" href="{{ row.indisponibles_url }}">{{ row.indisponibles }}</a></td>
+              <td><a class="drill-link" href="{{ row.faux_numeros_url }}">{{ row.faux_numeros }}</a></td>
+              <td>{{ row.recent_24h }}</td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="8" class="muted">Aucune activite utilisateur CGA sur les appels traites.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>
+{% endblock %}

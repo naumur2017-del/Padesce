@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import re
+import unicodedata
 from collections import defaultdict
 from datetime import date, timedelta
 from functools import lru_cache
@@ -26,6 +27,7 @@ from django.views.decorators.http import require_GET, require_POST
 from App_PADESCE.appels.models import (
     APPEL_ANSWER_QUESTION_FIELDS,
     CALL_ANALYSIS_THRESHOLD_STATUSES,
+    CALL_COMPLETED_STATUSES,
     CALL_TENTATIVE_STATUSES,
     Appel,
     AppelAnswers,
@@ -1033,6 +1035,261 @@ def fast_stats_api(request):
     return build_fast_stats_api_response(request)
 
 
+_CGA_CHART_COLORS = (
+    "#2563eb",
+    "#10b981",
+    "#f59e0b",
+    "#ef4444",
+    "#7c3aed",
+    "#14b8a6",
+    "#f97316",
+    "#64748b",
+)
+
+_CGA_CITY_POSITIONS = {
+    "douala": (39, 68),
+    "yaounde": (55, 58),
+    "yaounde 1": (55, 58),
+    "yaounde 2": (55, 58),
+    "bafoussam": (35, 48),
+    "bamenda": (30, 39),
+    "garoua": (56, 24),
+    "maroua": (68, 15),
+    "ngaoundere": (52, 35),
+    "bertoua": (69, 53),
+    "ebolowa": (54, 76),
+    "limbe": (34, 73),
+    "buea": (35, 70),
+    "kribi": (44, 78),
+    "edea": (43, 67),
+    "kumba": (31, 67),
+}
+
+
+def _normalize_cga_dimension_key(value: str) -> str:
+    text = " ".join(str(value or "").strip().lower().split())
+    normalized = unicodedata.normalize("NFKD", text)
+    return "".join(ch for ch in normalized if not unicodedata.combining(ch))
+
+
+def _clean_cga_dimension(value: str, default: str = "Non renseigne") -> str:
+    text = " ".join(str(value or "").strip().split())
+    return text if text else default
+
+
+def _cga_index_url(**params) -> str:
+    query = {key: value for key, value in params.items() if value not in (None, "", [])}
+    base_url = reverse("cga_index")
+    return f"{base_url}?{urlencode(query, doseq=True)}" if query else base_url
+
+
+def _cga_city_position(city: str, index: int) -> tuple[int, int]:
+    key = _normalize_cga_dimension_key(city)
+    if key in _CGA_CITY_POSITIONS:
+        return _CGA_CITY_POSITIONS[key]
+    return 18 + ((index * 17) % 66), 24 + ((index * 23) % 54)
+
+
+def _build_cga_regime_pie(rows: list[dict[str, object]]) -> str:
+    total = sum(int(row["total"] or 0) for row in rows)
+    if not total:
+        return "background: #eef2f7;"
+    cursor = 0
+    segments = []
+    for index, row in enumerate(rows):
+        value = int(row["total"] or 0)
+        color = _CGA_CHART_COLORS[index % len(_CGA_CHART_COLORS)]
+        start = round((cursor / total) * 100, 2)
+        cursor += value
+        end = round((cursor / total) * 100, 2)
+        row["color"] = color
+        row["percent"] = round((value / total) * 100, 1)
+        segments.append(f"{color} {start}% {end}%")
+    return f"background: conic-gradient({', '.join(segments)});"
+
+
+@require_analysis_access
+def cga_analysis_dashboard(request):
+    since_24h = timezone.now() - timedelta(hours=24)
+    base_qs = AppelCGA.objects.filter(is_active=True)
+    called_qs = base_qs.exclude(status="en_attente")
+
+    summary = base_qs.aggregate(
+        total=Count("id"),
+        appeles=Count("id", filter=~Q(status="en_attente")),
+        termines=Count("id", filter=Q(status__in=CALL_COMPLETED_STATUSES)),
+        en_cours=Count("id", filter=Q(status__in=CALL_TENTATIVE_STATUSES)),
+        a_rappeler=Count("id", filter=Q(status="a_rappeler")),
+        interesses=Count("id", filter=Q(interet="OUI")),
+        pas_interesses=Count("id", filter=Q(interet="NON")),
+        indisponibles=Count("id", filter=Q(indisponible="OUI")),
+        faux_numeros=Count("id", filter=Q(mauvais_numero="OUI")),
+        recent_24h=Count("id", filter=Q(updated_at__gte=since_24h) & ~Q(status="en_attente")),
+        recent_interesses=Count("id", filter=Q(updated_at__gte=since_24h, interet="OUI")),
+        recent_pas_interesses=Count("id", filter=Q(updated_at__gte=since_24h, interet="NON")),
+        recent_faux_numeros=Count("id", filter=Q(updated_at__gte=since_24h, mauvais_numero="OUI")),
+    )
+    processed = int(summary["appeles"] or 0)
+    completion_rate = round((int(summary["termines"] or 0) / processed) * 100, 1) if processed else 0
+    interest_rate = round((int(summary["interesses"] or 0) / processed) * 100, 1) if processed else 0
+
+    cga_kpis = [
+        {"label": "Appels CGA charges", "value": int(summary["total"] or 0), "meta": "Lignes actives"},
+        {"label": "Appels effectues", "value": processed, "meta": f"{completion_rate}% termines"},
+        {
+            "label": "Interesses",
+            "value": int(summary["interesses"] or 0),
+            "meta": f"{interest_rate}% des appels effectues",
+        },
+        {"label": "Pas interesses", "value": int(summary["pas_interesses"] or 0), "meta": "CGA"},
+        {"label": "Faux numeros", "value": int(summary["faux_numeros"] or 0), "meta": "A nettoyer"},
+        {"label": "Dernieres 24h", "value": int(summary["recent_24h"] or 0), "meta": "Appels traites"},
+    ]
+
+    raw_city_rows = list(
+        called_qs.values("ville")
+        .annotate(
+            total=Count("id"),
+            interesses=Count("id", filter=Q(interet="OUI")),
+            pas_interesses=Count("id", filter=Q(interet="NON")),
+            faux_numeros=Count("id", filter=Q(mauvais_numero="OUI")),
+        )
+        .order_by("-total", "ville")[:14]
+    )
+    max_city_total = max([int(row["total"] or 0) for row in raw_city_rows] or [1])
+    cga_city_rows = []
+    for index, row in enumerate(raw_city_rows):
+        city = _clean_cga_dimension(row["ville"], default="Ville non renseignee")
+        x, y = _cga_city_position(city, index)
+        total = int(row["total"] or 0)
+        cga_city_rows.append(
+            {
+                "ville": city,
+                "total": total,
+                "interesses": int(row["interesses"] or 0),
+                "pas_interesses": int(row["pas_interesses"] or 0),
+                "faux_numeros": int(row["faux_numeros"] or 0),
+                "x": x,
+                "y": y,
+                "size": 18 + round((total / max_city_total) * 38),
+                "url": _cga_index_url(ville=city if row["ville"] else ""),
+            }
+        )
+
+    cga_regime_rows = []
+    for row in (
+        called_qs.values("regime")
+        .annotate(total=Count("id"))
+        .order_by("-total", "regime")[:8]
+    ):
+        label = _clean_cga_dimension(row["regime"], default="Regime non renseigne")
+        cga_regime_rows.append(
+            {
+                "label": label,
+                "total": int(row["total"] or 0),
+                "url": _cga_index_url(regime=label if row["regime"] else ""),
+            }
+        )
+    cga_regime_pie_style = _build_cga_regime_pie(cga_regime_rows)
+
+    raw_cri_rows = list(
+        called_qs.values("cri")
+        .annotate(
+            total=Count("id"),
+            interesses=Count("id", filter=Q(interet="OUI")),
+            pas_interesses=Count("id", filter=Q(interet="NON")),
+        )
+        .order_by("-total", "cri")[:12]
+    )
+    max_cri_interest = max(
+        [int(row["interesses"] or 0) + int(row["pas_interesses"] or 0) for row in raw_cri_rows] or [1]
+    )
+    cga_cri_rows = []
+    for row in raw_cri_rows:
+        label = _clean_cga_dimension(row["cri"], default="CRI non renseigne")
+        interesses = int(row["interesses"] or 0)
+        pas_interesses = int(row["pas_interesses"] or 0)
+        cga_cri_rows.append(
+            {
+                "label": label,
+                "total": int(row["total"] or 0),
+                "interesses": interesses,
+                "pas_interesses": pas_interesses,
+                "interesses_width": round((interesses / max_cri_interest) * 100, 2),
+                "pas_interesses_width": round((pas_interesses / max_cri_interest) * 100, 2),
+                "url": _cga_index_url(cri=label if row["cri"] else ""),
+            }
+        )
+
+    cga_false_number_rows = []
+    for row in (
+        base_qs.filter(mauvais_numero="OUI")
+        .values("locked_by__username")
+        .annotate(total=Count("id"), recent_24h=Count("id", filter=Q(updated_at__gte=since_24h)))
+        .order_by("-total", "locked_by__username")[:10]
+    ):
+        username = row["locked_by__username"] or "Non attribue"
+        cga_false_number_rows.append(
+            {
+                "username": username,
+                "total": int(row["total"] or 0),
+                "recent_24h": int(row["recent_24h"] or 0),
+                "url": _cga_index_url(
+                    agent=username if row["locked_by__username"] else "", resultat="faux_numero"
+                ),
+            }
+        )
+
+    cga_user_rows = []
+    for row in (
+        called_qs.filter(locked_by__isnull=False)
+        .values("locked_by__username")
+        .annotate(
+            total=Count("id"),
+            termines=Count("id", filter=Q(status__in=CALL_COMPLETED_STATUSES)),
+            interesses=Count("id", filter=Q(interet="OUI")),
+            pas_interesses=Count("id", filter=Q(interet="NON")),
+            indisponibles=Count("id", filter=Q(indisponible="OUI")),
+            faux_numeros=Count("id", filter=Q(mauvais_numero="OUI")),
+            recent_24h=Count("id", filter=Q(updated_at__gte=since_24h)),
+        )
+        .order_by("-total", "locked_by__username")
+    ):
+        username = row["locked_by__username"] or "Non attribue"
+        cga_user_rows.append(
+            {
+                "username": username,
+                "total": int(row["total"] or 0),
+                "termines": int(row["termines"] or 0),
+                "interesses": int(row["interesses"] or 0),
+                "pas_interesses": int(row["pas_interesses"] or 0),
+                "indisponibles": int(row["indisponibles"] or 0),
+                "faux_numeros": int(row["faux_numeros"] or 0),
+                "recent_24h": int(row["recent_24h"] or 0),
+                "total_url": _cga_index_url(agent=username),
+                "interesses_url": _cga_index_url(agent=username, resultat="interesse"),
+                "pas_interesses_url": _cga_index_url(agent=username, resultat="pas_interesse"),
+                "indisponibles_url": _cga_index_url(agent=username, resultat="indisponible"),
+                "faux_numeros_url": _cga_index_url(agent=username, resultat="faux_numero"),
+            }
+        )
+
+    context = {
+        "cga_kpis": cga_kpis,
+        "cga_summary": summary,
+        "cga_completion_rate": completion_rate,
+        "cga_interest_rate": interest_rate,
+        "cga_city_rows": cga_city_rows,
+        "cga_regime_rows": cga_regime_rows,
+        "cga_regime_pie_style": cga_regime_pie_style,
+        "cga_cri_rows": cga_cri_rows,
+        "cga_false_number_rows": cga_false_number_rows,
+        "cga_user_rows": cga_user_rows,
+        "cga_index_url": reverse("cga_index"),
+    }
+    return render(request, "core/cga_analysis.html", context)
+
+
 def _consultant_dashboard_target(request):
     target = request.GET.get("target") or "apprenants"
     if target not in ["apprenants", "formateurs"]:
@@ -1954,44 +2211,40 @@ def _count_audit_events_by_user(
 
 _TRACKING_CACHE_KEY = "tracking_payload_full"
 _TRACKING_CACHE_TTL = 60  # secondes
+_TRACKING_SCOPE_LABELS = {
+    "padesce": "PADESCE",
+    "cga": "CGA",
+}
 
 
-def _build_tracking_payload(*, user_search: str = "") -> dict[str, object]:
+def _normalize_tracking_call_scope(value: str) -> str:
+    return "cga" if str(value or "").strip().lower() == "cga" else "padesce"
+
+
+def _tracking_cache_key(call_scope: str) -> str:
+    return f"{_TRACKING_CACHE_KEY}:{_normalize_tracking_call_scope(call_scope)}"
+
+
+def _build_tracking_payload(*, user_search: str = "", call_scope: str = "padesce") -> dict[str, object]:
+    call_scope = _normalize_tracking_call_scope(call_scope)
     # Cache le payload complet (sans filtre) pour eviter de recalculer les agregats a chaque visite.
     if not user_search:
-        cached = cache.get(_TRACKING_CACHE_KEY)
+        cache_key = _tracking_cache_key(call_scope)
+        cached = cache.get(cache_key)
         if cached is not None:
             return cached
-        payload = _compute_tracking_payload(user_search="")
-        cache.set(_TRACKING_CACHE_KEY, payload, timeout=_TRACKING_CACHE_TTL)
+        payload = _compute_tracking_payload(user_search="", call_scope=call_scope)
+        cache.set(cache_key, payload, timeout=_TRACKING_CACHE_TTL)
         return payload
-    return _compute_tracking_payload(user_search=user_search)
+    return _compute_tracking_payload(user_search=user_search, call_scope=call_scope)
 
 
-def _compute_tracking_payload(*, user_search: str = "") -> dict[str, object]:
+def _compute_tracking_payload(*, user_search: str = "", call_scope: str = "padesce") -> dict[str, object]:
+    call_scope = _normalize_tracking_call_scope(call_scope)
     User = get_user_model()
+    since_24h = timezone.now() - timedelta(hours=24)
     cutoff = timezone.now() - timedelta(minutes=10)
     activities, activities_ready = _safe_user_activities_index()
-    appels_index_url = reverse("appels_index")
-    completed_answers_filter = appel_answers_completed_q("answers__")
-    modified_answers_filter = appel_answers_modified_completion_q("answers__")
-    form_tracking_cutoff = padesce_form_tracking_cutoff()
-    tracked_audio_filter = Q(audio_file__isnull=False) & ~Q(audio_file="")
-
-    call_stats = {
-        row["locked_by_id"]: row
-        for row in Appel.objects.filter(is_active=True, locked_by__isnull=False)
-        .values("locked_by_id")
-        .annotate(
-            total_appels=Count("id"),
-            a_rappeler=Count("id", filter=Q(status="a_rappeler")),
-            appels_tentes=Count("id", filter=Q(status="appel_tente")),
-            appels_reussis=Count("id", filter=Q(status="appel_reussi")),
-            formulaires_remplis_status=Count("id", filter=Q(status="formulaire_rempli")),
-            formulaires_avec_audio=Count("id", filter=Q(status="formulaire_avec_audio")),
-            en_cours=Count("id", filter=Q(status="en_cours")),
-        )
-    }
     push_counts_by_user = _count_audit_events_by_user(
         model_name="core.git_push_main",
         event_name="push_main",
@@ -2001,50 +2254,133 @@ def _compute_tracking_payload(*, user_search: str = "") -> dict[str, object]:
         event_name="deployment_start",
         expected_extra={"mode": "deploy"},
     )
-    formulaires_remplis_by_user = _group_appel_ids_by_user(
-        Appel.objects.filter(is_active=True, locked_by__isnull=False)
-        .filter(completed_answers_filter)
-        .distinct(),
-        "locked_by_id",
-    )
-    formulaires_modifies_by_user = _group_appel_ids_by_user(
-        Appel.objects.filter(is_active=True).filter(modified_answers_filter).distinct(),
-        "answers__modified_by_id",
-    )
-    legacy_termines_by_user = _group_appel_ids_by_user(
-        Appel.objects.filter(
-            is_active=True,
-            status="termine",
-            updated_at__lt=form_tracking_cutoff,
-            locked_by__isnull=False,
-        ),
-        "locked_by_id",
-    )
-    audio_termines_by_user = _group_appel_ids_by_user(
-        Appel.objects.filter(
-            is_active=True,
-            status="termine",
-            updated_at__gte=form_tracking_cutoff,
-            locked_by__isnull=False,
+
+    if call_scope == "cga":
+        calls_index_url = reverse("cga_index")
+        call_stats = {
+            row["locked_by_id"]: row
+            for row in AppelCGA.objects.filter(is_active=True, locked_by__isnull=False)
+            .values("locked_by_id")
+            .annotate(
+                total_appels=Count("id", filter=~Q(status="en_attente")),
+                a_rappeler=Count("id", filter=Q(status="a_rappeler")),
+                appels_tentes=Count("id", filter=Q(status__in=CALL_TENTATIVE_STATUSES)),
+                appels_reussis=Count("id", filter=Q(status__in=CALL_COMPLETED_STATUSES)),
+                termines=Count("id", filter=Q(status__in=CALL_COMPLETED_STATUSES)),
+                en_cours=Count("id", filter=Q(status="en_cours")),
+                cga_interesses=Count("id", filter=Q(interet="OUI")),
+                cga_pas_interesses=Count("id", filter=Q(interet="NON")),
+                cga_indisponibles=Count("id", filter=Q(indisponible="OUI")),
+                cga_faux_numeros=Count("id", filter=Q(mauvais_numero="OUI")),
+                recent_24h=Count("id", filter=Q(updated_at__gte=since_24h) & ~Q(status="en_attente")),
+            )
+        }
+        formulaires_remplis_by_user: dict[int, set[int]] = {}
+        formulaires_modifies_by_user: dict[int, set[int]] = {}
+        legacy_termines_by_user: dict[int, set[int]] = {}
+        audio_termines_by_user: dict[int, set[int]] = {}
+        current_calls_by_user = {}
+        for appel in AppelCGA.objects.filter(
+            is_active=True, status__in=CALL_TENTATIVE_STATUSES, locked_by__isnull=False
+        ).order_by("locked_by__username", "raison_sociale"):
+            query_params = urlencode(
+                {"agent": appel.locked_by.username, "status": appel.status, "q": appel.niu}
+            )
+            current_calls_by_user.setdefault(appel.locked_by_id, []).append(
+                {
+                    "code": appel.niu,
+                    "nom": appel.raison_sociale,
+                    "url": f"{calls_index_url}?{query_params}",
+                }
+            )
+    else:
+        calls_index_url = reverse("appels_index")
+        completed_answers_filter = appel_answers_completed_q("answers__")
+        modified_answers_filter = appel_answers_modified_completion_q("answers__")
+        form_tracking_cutoff = padesce_form_tracking_cutoff()
+        tracked_audio_filter = Q(audio_file__isnull=False) & ~Q(audio_file="")
+
+        call_stats = {
+            row["locked_by_id"]: row
+            for row in Appel.objects.filter(is_active=True, locked_by__isnull=False)
+            .values("locked_by_id")
+            .annotate(
+                total_appels=Count("id"),
+                a_rappeler=Count("id", filter=Q(status="a_rappeler")),
+                appels_tentes=Count("id", filter=Q(status="appel_tente")),
+                appels_reussis=Count("id", filter=Q(status="appel_reussi")),
+                formulaires_remplis_status=Count("id", filter=Q(status="formulaire_rempli")),
+                formulaires_avec_audio=Count("id", filter=Q(status="formulaire_avec_audio")),
+                en_cours=Count("id", filter=Q(status="en_cours")),
+                recent_24h=Count("id", filter=Q(updated_at__gte=since_24h) & ~Q(status="en_attente")),
+            )
+        }
+        formulaires_remplis_by_user = _group_appel_ids_by_user(
+            Appel.objects.filter(is_active=True, locked_by__isnull=False)
+            .filter(completed_answers_filter)
+            .distinct(),
+            "locked_by_id",
         )
-        .filter(tracked_audio_filter)
-        .distinct(),
-        "locked_by_id",
-    )
-    current_calls_by_user = {}
-    for appel in Appel.objects.filter(
-        is_active=True, status__in=CALL_TENTATIVE_STATUSES, locked_by__isnull=False
-    ).order_by("locked_by__username", "nom"):
-        query_params = urlencode(
-            {"agent": appel.locked_by.username, "status": appel.status, "q": appel.code}
+        formulaires_modifies_by_user = _group_appel_ids_by_user(
+            Appel.objects.filter(is_active=True).filter(modified_answers_filter).distinct(),
+            "answers__modified_by_id",
         )
-        current_calls_by_user.setdefault(appel.locked_by_id, []).append(
-            {
-                "code": appel.code,
-                "nom": appel.nom,
-                "url": f"{appels_index_url}?{query_params}",
-            }
+        legacy_termines_by_user = _group_appel_ids_by_user(
+            Appel.objects.filter(
+                is_active=True,
+                status="termine",
+                updated_at__lt=form_tracking_cutoff,
+                locked_by__isnull=False,
+            ),
+            "locked_by_id",
         )
+        audio_termines_by_user = _group_appel_ids_by_user(
+            Appel.objects.filter(
+                is_active=True,
+                status="termine",
+                updated_at__gte=form_tracking_cutoff,
+                locked_by__isnull=False,
+            )
+            .filter(tracked_audio_filter)
+            .distinct(),
+            "locked_by_id",
+        )
+        current_calls_by_user = {}
+        for appel in Appel.objects.filter(
+            is_active=True, status__in=CALL_TENTATIVE_STATUSES, locked_by__isnull=False
+        ).order_by("locked_by__username", "nom"):
+            query_params = urlencode(
+                {"agent": appel.locked_by.username, "status": appel.status, "q": appel.code}
+            )
+            current_calls_by_user.setdefault(appel.locked_by_id, []).append(
+                {
+                    "code": appel.code,
+                    "nom": appel.nom,
+                    "url": f"{calls_index_url}?{query_params}",
+                }
+            )
+
+    def build_appels_url(**params):
+        query = {key: value for key, value in params.items() if value not in (None, "", [])}
+        if not query:
+            return calls_index_url
+        return f"{calls_index_url}?{urlencode(query, doseq=True)}"
+
+    def build_tracking_scope_url(scope: str) -> str:
+        query = {"scope": scope}
+        if user_search:
+            query["user_search"] = user_search
+        return f"{reverse('user_tracking')}?{urlencode(query)}"
+
+    tracking_scope_tabs = [
+        {
+            "key": scope,
+            "label": label,
+            "url": build_tracking_scope_url(scope),
+            "active": scope == call_scope,
+        }
+        for scope, label in _TRACKING_SCOPE_LABELS.items()
+    ]
 
     recent_events, events_ready = _safe_recent_activity_events()
     events_by_user: dict[int, list[dict[str, str]]] = defaultdict(list)
@@ -2052,12 +2388,6 @@ def _compute_tracking_payload(*, user_search: str = "") -> dict[str, object]:
         if len(events_by_user[event.user_id]) >= 50:
             continue
         events_by_user[event.user_id].append(_serialize_activity_event(event))
-
-    def build_appels_url(**params):
-        query = {key: value for key, value in params.items() if value not in (None, "", [])}
-        if not query:
-            return appels_index_url
-        return f"{appels_index_url}?{urlencode(query, doseq=True)}"
 
     user_rows = []
     for user in User.objects.all().order_by("username"):
@@ -2068,16 +2398,37 @@ def _compute_tracking_payload(*, user_search: str = "") -> dict[str, object]:
         last_seen = activity.last_seen if activity else user.last_login
         is_online = bool(last_seen and last_seen >= cutoff)
         stats_row = call_stats.get(user.id, {})
-        formulaires_remplis_ids = formulaires_remplis_by_user.get(user.id, set())
-        formulaires_modifies_ids = formulaires_modifies_by_user.get(user.id, set())
-        formulaires_remplis_total = max(
-            len(formulaires_remplis_ids),
-            int(stats_row.get("formulaires_remplis_status") or 0),
-        )
-        termines_ids = set(legacy_termines_by_user.get(user.id, set()))
-        termines_ids.update(formulaires_remplis_ids)
-        termines_ids.update(formulaires_modifies_ids)
-        termines_ids.update(audio_termines_by_user.get(user.id, set()))
+        if call_scope == "cga":
+            formulaires_remplis_total = 0
+            formulaires_modifies_total = 0
+            termines_total = int(stats_row.get("termines") or 0)
+            cga_interesses = int(stats_row.get("cga_interesses") or 0)
+            cga_pas_interesses = int(stats_row.get("cga_pas_interesses") or 0)
+            cga_indisponibles = int(stats_row.get("cga_indisponibles") or 0)
+            cga_faux_numeros = int(stats_row.get("cga_faux_numeros") or 0)
+            formulaires_url = build_appels_url(agent=username)
+            modifies_url = build_appels_url(agent=username)
+            termines_url = build_appels_url(agent=username, status="completed")
+        else:
+            formulaires_remplis_ids = formulaires_remplis_by_user.get(user.id, set())
+            formulaires_modifies_ids = formulaires_modifies_by_user.get(user.id, set())
+            formulaires_remplis_total = max(
+                len(formulaires_remplis_ids),
+                int(stats_row.get("formulaires_remplis_status") or 0),
+            )
+            formulaires_modifies_total = len(formulaires_modifies_ids)
+            termines_ids = set(legacy_termines_by_user.get(user.id, set()))
+            termines_ids.update(formulaires_remplis_ids)
+            termines_ids.update(formulaires_modifies_ids)
+            termines_ids.update(audio_termines_by_user.get(user.id, set()))
+            termines_total = len(termines_ids)
+            cga_interesses = 0
+            cga_pas_interesses = 0
+            cga_indisponibles = 0
+            cga_faux_numeros = 0
+            formulaires_url = build_appels_url(agent=username, formulaire="rempli")
+            modifies_url = build_appels_url(modified_by=username, formulaire="modifie")
+            termines_url = build_appels_url(tracking_termine=1, tracking_user=username)
         last_ip = getattr(activity, "last_ip", None) if activity else None
         last_lat = getattr(activity, "last_latitude", None) if activity else None
         last_lon = getattr(activity, "last_longitude", None) if activity else None
@@ -2096,19 +2447,29 @@ def _compute_tracking_payload(*, user_search: str = "") -> dict[str, object]:
                 "appels_tentes": int(stats_row.get("appels_tentes") or 0),
                 "appels_reussis": int(stats_row.get("appels_reussis") or 0),
                 "formulaires_remplis": formulaires_remplis_total,
-                "formulaires_modifies": len(formulaires_modifies_ids),
+                "formulaires_modifies": formulaires_modifies_total,
                 "formulaires_avec_audio": int(stats_row.get("formulaires_avec_audio") or 0),
-                "termines": len(termines_ids),
+                "termines": termines_total,
                 "en_cours": int(stats_row.get("en_cours") or 0),
+                "recent_24h": int(stats_row.get("recent_24h") or 0),
+                "call_scope": call_scope,
+                "cga_interesses": cga_interesses,
+                "cga_pas_interesses": cga_pas_interesses,
+                "cga_indisponibles": cga_indisponibles,
+                "cga_faux_numeros": cga_faux_numeros,
                 "push_sur_main": int(push_counts_by_user.get(user.id, 0) or 0),
                 "deploiements": int(deploy_counts_by_user.get(user.id, 0) or 0),
                 "current_calls": current_calls_by_user.get(user.id, []),
                 "total_url": build_appels_url(agent=username),
                 "rappel_url": build_appels_url(agent=username, status="a_rappeler"),
-                "formulaires_url": build_appels_url(agent=username, formulaire="rempli"),
-                "modifies_url": build_appels_url(modified_by=username, formulaire="modifie"),
-                "termines_url": build_appels_url(tracking_termine=1, tracking_user=username),
+                "formulaires_url": formulaires_url,
+                "modifies_url": modifies_url,
+                "termines_url": termines_url,
                 "en_cours_url": build_appels_url(agent=username, status="en_cours"),
+                "interesses_url": build_appels_url(agent=username, resultat="interesse"),
+                "pas_interesses_url": build_appels_url(agent=username, resultat="pas_interesse"),
+                "indisponibles_url": build_appels_url(agent=username, resultat="indisponible"),
+                "faux_numeros_url": build_appels_url(agent=username, resultat="faux_numero"),
                 "last_ip": last_ip,
                 "last_latitude": round(last_lat, 4) if last_lat is not None else None,
                 "last_longitude": round(last_lon, 4) if last_lon is not None else None,
@@ -2128,17 +2489,37 @@ def _compute_tracking_payload(*, user_search: str = "") -> dict[str, object]:
             }
         )
 
-    user_rows.sort(
-        key=lambda row: (
-            0 if row["is_online"] else 1,
-            -(row["appels_reussis"] + row["formulaires_remplis"] + row["formulaires_avec_audio"]),
-            -row["termines"],
-            -row["formulaires_remplis"],
-            -row["formulaires_modifies"],
-            -row["appels_tentes"],
-            row["username"].lower(),
+    if call_scope == "cga":
+        user_rows.sort(
+            key=lambda row: (
+                0 if row["is_online"] else 1,
+                -(
+                    row["cga_interesses"]
+                    + row["cga_pas_interesses"]
+                    + row["cga_indisponibles"]
+                    + row["cga_faux_numeros"]
+                ),
+                -row["recent_24h"],
+                -row["total_appels"],
+                row["username"].lower(),
+            )
         )
-    )
+    else:
+        user_rows.sort(
+            key=lambda row: (
+                0 if row["is_online"] else 1,
+                -(
+                    row["appels_reussis"]
+                    + row["formulaires_remplis"]
+                    + row["formulaires_avec_audio"]
+                ),
+                -row["termines"],
+                -row["formulaires_remplis"],
+                -row["formulaires_modifies"],
+                -row["appels_tentes"],
+                row["username"].lower(),
+            )
+        )
 
     recent_login_logs, login_logs_ready = _safe_recent_login_logs()
     online_rows = [row for row in user_rows if row["is_online"]]
@@ -2163,6 +2544,9 @@ def _compute_tracking_payload(*, user_search: str = "") -> dict[str, object]:
         "user_activity_rows": user_rows,
         "activity_histories": {str(user_id): events for user_id, events in events_by_user.items()},
         "user_search": user_search,
+        "call_scope": call_scope,
+        "call_scope_label": _TRACKING_SCOPE_LABELS[call_scope],
+        "tracking_scope_tabs": tracking_scope_tabs,
         "total_users": User.objects.count(),
         "online_count": len(online_rows),
         "recent_login_logs": recent_login_logs,
@@ -2282,7 +2666,10 @@ def user_tracking_live_api(request):
     if not (request.user.is_authenticated and request.user.is_superuser):
         return JsonResponse({"ok": False, "error": "forbidden"}, status=403)
 
-    payload = _build_tracking_payload(user_search=(request.GET.get("user_search") or "").strip())
+    payload = _build_tracking_payload(
+        user_search=(request.GET.get("user_search") or "").strip(),
+        call_scope=(request.GET.get("scope") or "").strip(),
+    )
     return JsonResponse(
         {
             "ok": True,
@@ -2319,7 +2706,10 @@ def user_tracking_view(request):
     if not (request.user.is_authenticated and request.user.is_superuser):
         return HttpResponseForbidden("Acces reserve aux administrateurs.")
 
-    payload = _build_tracking_payload(user_search=(request.GET.get("user_search") or "").strip())
+    payload = _build_tracking_payload(
+        user_search=(request.GET.get("user_search") or "").strip(),
+        call_scope=(request.GET.get("scope") or "").strip(),
+    )
     return render(request, "core/user_tracking.html", payload)
 
 

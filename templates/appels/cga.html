@@ -217,6 +217,13 @@
       <option value="completed" {% if filters.status == "completed" %}selected{% endif %}>Finalisés</option>
       <option value="termine" {% if filters.status == "termine" %}selected{% endif %}>Termine</option>
     </select>
+    <select name="resultat" class="input">
+      <option value="">Resultat</option>
+      <option value="interesse" {% if filters.resultat == "interesse" %}selected{% endif %}>Interesse</option>
+      <option value="pas_interesse" {% if filters.resultat == "pas_interesse" %}selected{% endif %}>Pas interesse</option>
+      <option value="faux_numero" {% if filters.resultat == "faux_numero" %}selected{% endif %}>Faux numero</option>
+      <option value="indisponible" {% if filters.resultat == "indisponible" %}selected{% endif %}>Indisponible</option>
+    </select>
     <select name="regime" class="input">
       <option value="">Regime</option>
       {% for p in filters.regimes %}

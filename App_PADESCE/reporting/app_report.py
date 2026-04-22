@@ -25,6 +25,7 @@ from App_PADESCE.appels.models import (
     CALL_COMPLETED_STATUSES,
     CALL_TENTATIVE_STATUSES,
     Appel,
+    AppelCGA,
     AppelFormateur,
 )
 from App_PADESCE.core.analysis_rules import analysis_threshold_target
@@ -70,6 +71,10 @@ def parse_report_dates(start_str: str | None, end_str: str | None) -> tuple[date
     if end < start:
         end = start
     return start, end
+
+
+def normalize_report_call_scope(value: str | None) -> str:
+    return "cga" if str(value or "").strip().lower() == "cga" else "padesce"
 
 
 def get_report_email_recipients() -> list[str]:
@@ -123,7 +128,10 @@ def _build_report_email_connection() -> tuple[object | None, str | None]:
 
 
 def build_application_report(
-    start_date: date, end_date: date, selected_class_code: str | None = None
+    start_date: date,
+    end_date: date,
+    selected_class_code: str | None = None,
+    call_scope: str = "padesce",
 ) -> dict:
     tz = timezone.get_current_timezone()
     start_dt = timezone.make_aware(datetime.combine(start_date, time.min), tz)
@@ -131,6 +139,8 @@ def build_application_report(
     now = timezone.localtime()
     selected_class_code = (selected_class_code or "").strip()
     selected_class = _get_selected_class(selected_class_code)
+    call_scope = normalize_report_call_scope(call_scope)
+    call_scope_label = "CGA" if call_scope == "cga" else "PADESCE / Formateurs"
 
     user_model = get_user_model()
     active_period_users = UserActivity.objects.filter(
@@ -144,11 +154,17 @@ def build_application_report(
     formateur_qs = AppelFormateur.objects.filter(
         is_active=True, updated_at__gte=start_dt, updated_at__lte=end_dt
     )
+    cga_qs = AppelCGA.objects.filter(
+        is_active=True, updated_at__gte=start_dt, updated_at__lte=end_dt
+    )
 
-    call_sources = [
-        _build_call_source_summary("PADESCE", padesce_qs),
-        _build_call_source_summary("Formateurs", formateur_qs),
-    ]
+    if call_scope == "cga":
+        call_sources = [_build_call_source_summary("CGA", cga_qs)]
+    else:
+        call_sources = [
+            _build_call_source_summary("PADESCE", padesce_qs),
+            _build_call_source_summary("Formateurs", formateur_qs),
+        ]
     call_totals = {
         "total": sum(source["total"] for source in call_sources),
         "completed": sum(source["completed"] for source in call_sources),
@@ -163,9 +179,13 @@ def build_application_report(
         round((call_totals["completed"] / processed_total) * 100, 2) if processed_total else 0.0
     )
 
-    hourly_rows = _build_hourly_rows(
-        _hourly_completed_counts(padesce_qs),
-        _hourly_completed_counts(formateur_qs),
+    hourly_rows = (
+        _build_hourly_rows(_hourly_completed_counts(cga_qs))
+        if call_scope == "cga"
+        else _build_hourly_rows(
+            _hourly_completed_counts(padesce_qs),
+            _hourly_completed_counts(formateur_qs),
+        )
     )
     best_hour = (
         max(hourly_rows, key=lambda row: (row["completed"], row["total"], -row["hour"]))
@@ -179,7 +199,17 @@ def build_application_report(
     )
     analysis_summary = _build_analysis_summary(padesce_qs)
     formateurs_summary = _build_formateurs_satisfaction_summary(start_dt, end_dt)
-    user_call_rows = _build_user_call_rows(padesce_qs, formateur_qs)
+    user_call_rows = (
+        _build_user_call_rows(cga_qs)
+        if call_scope == "cga"
+        else _build_user_call_rows(padesce_qs, formateur_qs)
+    )
+    cga_outcomes = {
+        "interesses": cga_qs.filter(interet="OUI").count(),
+        "pas_interesses": cga_qs.filter(interet="NON").count(),
+        "indisponibles": cga_qs.filter(indisponible="OUI").count(),
+        "faux_numeros": cga_qs.filter(mauvais_numero="OUI").count(),
+    }
 
     recipients = get_report_email_recipients()
     mail_status = {
@@ -196,6 +226,8 @@ def build_application_report(
         "start_dt": start_dt,
         "end_dt": end_dt,
         "period_days": (end_date - start_date).days + 1,
+        "call_scope": call_scope,
+        "call_scope_label": call_scope_label,
         "users": {
             "total": user_model.objects.count(),
             "active": user_model.objects.filter(is_active=True).count(),
@@ -213,6 +245,7 @@ def build_application_report(
         "anomalies": anomaly_summary,
         "analysis": analysis_summary,
         "formateurs_summary": formateurs_summary,
+        "cga_outcomes": cga_outcomes,
         "user_call_rows": user_call_rows,
         "mail_status": mail_status,
         "selected_class_code": selected_class.code if selected_class else selected_class_code,

@@ -26,12 +26,34 @@
   .filters { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; }
   .field { display: grid; gap: 6px; min-width: 180px; }
   .field label { font-size: .86rem; color: var(--muted); font-weight: 700; }
-  .field input {
+  .field input,
+  .field select {
     border: 1px solid var(--border);
     border-radius: 12px;
     padding: 10px 12px;
     font: inherit;
   }
+  .scope-field { min-width: 260px; }
+  .scope-toggle {
+    display: inline-flex;
+    gap: 6px;
+    padding: 4px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: #f8fafc;
+  }
+  .scope-option {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    padding: 8px 12px;
+    color: var(--accent-strong);
+    font-weight: 800;
+    cursor: pointer;
+  }
+  .scope-option input { position: absolute; opacity: 0; pointer-events: none; }
+  .scope-option.active { background: var(--accent); color: #fff; }
   .actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
   .btn {
     display: inline-flex;
@@ -195,6 +217,17 @@
           <label for="id_end">Fin</label>
           <input id="id_end" type="date" name="end" value="{{ end_value }}">
         </div>
+        <div class="field scope-field">
+          <label>Source appels</label>
+          <div class="scope-toggle">
+            {% for tab in report_scope_tabs %}
+              <label class="scope-option {% if tab.active %}active{% endif %}">
+                <input type="radio" name="call_scope" value="{{ tab.key }}" {% if tab.active %}checked{% endif %} onchange="this.form.submit()">
+                {{ tab.label }}
+              </label>
+            {% endfor %}
+          </div>
+        </div>
         <button class="btn btn-primary" type="submit">Actualiser</button>
       </form>
     </div>
@@ -208,6 +241,7 @@
         {% csrf_token %}
         <input type="hidden" name="start" value="{{ start_value }}">
         <input type="hidden" name="end" value="{{ end_value }}">
+        <input type="hidden" name="call_scope" value="{{ call_scope }}">
         <button class="btn btn-primary" type="submit">Envoyer par mail</button>
       </form>
       {% endif %}
@@ -240,11 +274,16 @@
       <div class="value">{% if report.best_hour %}{{ report.best_hour.label|slice:":5" }}{% else %}-{% endif %}</div>
       <div class="meta">{% if report.best_hour %}{{ report.best_hour.completed }} appels terminés{% else %}Aucune donnée{% endif %}</div>
     </article>
+    <article class="card">
+      <div class="label">Source appels</div>
+      <div class="value" style="font-size:1.2rem;">{{ report.call_scope_label }}</div>
+      <div class="meta">Le toggle pilote les appels, horaires, utilisateurs et exports</div>
+    </article>
   </section>
 
   <section class="panels">
     <article class="panel">
-      <h3>Appels</h3>
+      <h3>Appels <span class="pill">{{ report.call_scope_label }}</span></h3>
       <div class="metric-list">
         {% for source in report.call_sources %}
         <div class="metric-row">
@@ -262,6 +301,18 @@
         <div class="metric-row"><span>À rappeler</span><strong>{{ report.calls.callbacks }}</strong></div>
       </div>
     </article>
+
+    {% if report.call_scope == "cga" %}
+    <article class="panel">
+      <h3>Résultats CGA</h3>
+      <div class="metric-list">
+        <div class="metric-row"><span>Intéressés</span><strong>{{ report.cga_outcomes.interesses }}</strong></div>
+        <div class="metric-row"><span>Pas intéressés</span><strong>{{ report.cga_outcomes.pas_interesses }}</strong></div>
+        <div class="metric-row"><span>Indisponibles</span><strong>{{ report.cga_outcomes.indisponibles }}</strong></div>
+        <div class="metric-row"><span>Faux numéros</span><strong>{{ report.cga_outcomes.faux_numeros }}</strong></div>
+      </div>
+    </article>
+    {% endif %}
 
     <article class="panel">
       <h3>Utilisateurs</h3>
@@ -294,6 +345,7 @@
           <form method="get" id="anomaly-filter-form" style="display:flex; gap:10px; align-items:center;">
             <input type="hidden" name="start" value="{{ start_value }}">
             <input type="hidden" name="end" value="{{ end_value }}">
+            <input type="hidden" name="call_scope" value="{{ call_scope }}">
             <label for="id_classe_selector" style="font-size:0.9rem; font-weight:700; color:var(--muted);">Filtrer par classe :</label>
             <select name="classe" id="id_classe_selector" onchange="this.form.submit()" style="padding:8px 12px; border-radius:10px; border:1px solid var(--border); background:#fff; font-weight:600; color:var(--accent-strong);">
               <option value="">— Toutes les classes anormales —</option>

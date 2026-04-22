@@ -116,6 +116,11 @@ app_urlpatterns = [
         lazy_view("App_PADESCE.core.views.fast_stats_api"),
         name="fast_stats_api",
     ),
+    path(
+        "analyses-cga/",
+        lazy_view("App_PADESCE.core.views.cga_analysis_dashboard"),
+        name="cga_analysis_dashboard",
+    ),
     path("accounts/", include("django.contrib.auth.urls")),
     path(
         "login/",

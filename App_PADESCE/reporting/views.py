@@ -37,6 +37,7 @@ from App_PADESCE.reporting.app_report import (
     export_application_report_excel,
     export_application_report_word,
     get_report_email_recipients,
+    normalize_report_call_scope,
     parse_report_dates,
     send_report_by_email,
 )
@@ -1825,14 +1826,29 @@ def reporting_embed_table(request, code: str):
 # ---------------------------------------------------------------------------
 
 
+def _report_call_scope_from_request(request, source: str = "GET") -> str:
+    data = request.POST if source == "POST" else request.GET
+    return normalize_report_call_scope(data.get("call_scope"))
+
+
 @require_analysis_access
 def application_report_view(request):
     start_date, end_date = parse_report_dates(request.GET.get("start"), request.GET.get("end"))
     selected_class_code = (request.GET.get("classe") or "").strip()
-    report = build_application_report(start_date, end_date, selected_class_code=selected_class_code)
+    call_scope = _report_call_scope_from_request(request)
+    report = build_application_report(
+        start_date,
+        end_date,
+        selected_class_code=selected_class_code,
+        call_scope=call_scope,
+    )
 
     user_model = _get_user_model()
-    download_params = {"start": start_date.isoformat(), "end": end_date.isoformat()}
+    download_params = {
+        "start": start_date.isoformat(),
+        "end": end_date.isoformat(),
+        "call_scope": call_scope,
+    }
     if selected_class_code:
         download_params["classe"] = selected_class_code
     context = {
@@ -1840,6 +1856,11 @@ def application_report_view(request):
         "start_value": start_date.isoformat(),
         "end_value": end_date.isoformat(),
         "selected_class_code": selected_class_code,
+        "call_scope": call_scope,
+        "report_scope_tabs": [
+            {"key": "padesce", "label": "PADESCE / Formateurs", "active": call_scope == "padesce"},
+            {"key": "cga", "label": "CGA", "active": call_scope == "cga"},
+        ],
         "class_options": report["anomalies"]["class_options"],
         "download_query": urlencode(download_params),
         "manual_send_enabled": request.user.is_superuser,
@@ -1857,9 +1878,16 @@ def application_report_view(request):
 @require_analysis_access
 def application_report_export_excel(request):
     start_date, end_date = parse_report_dates(request.GET.get("start"), request.GET.get("end"))
-    report = build_application_report(start_date, end_date)
+    selected_class_code = (request.GET.get("classe") or "").strip()
+    call_scope = _report_call_scope_from_request(request)
+    report = build_application_report(
+        start_date,
+        end_date,
+        selected_class_code=selected_class_code,
+        call_scope=call_scope,
+    )
     payload = export_application_report_excel(report)
-    filename = f"rapport_application_{start_date}_{end_date}.xlsx"
+    filename = f"rapport_application_{call_scope}_{start_date}_{end_date}.xlsx"
     response = HttpResponse(
         payload,
         content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -1871,8 +1899,15 @@ def application_report_export_excel(request):
 @require_analysis_access
 def application_report_export_csv_view(request):
     start_date, end_date = parse_report_dates(request.GET.get("start"), request.GET.get("end"))
-    report = build_application_report(start_date, end_date)
-    filename = f"rapport_application_{start_date}_{end_date}.csv"
+    selected_class_code = (request.GET.get("classe") or "").strip()
+    call_scope = _report_call_scope_from_request(request)
+    report = build_application_report(
+        start_date,
+        end_date,
+        selected_class_code=selected_class_code,
+        call_scope=call_scope,
+    )
+    filename = f"rapport_application_{call_scope}_{start_date}_{end_date}.csv"
     response = HttpResponse(
         export_application_report_csv(report), content_type="text/csv; charset=utf-8"
     )
@@ -1883,9 +1918,16 @@ def application_report_export_csv_view(request):
 @require_analysis_access
 def application_report_export_word_view(request):
     start_date, end_date = parse_report_dates(request.GET.get("start"), request.GET.get("end"))
-    report = build_application_report(start_date, end_date)
+    selected_class_code = (request.GET.get("classe") or "").strip()
+    call_scope = _report_call_scope_from_request(request)
+    report = build_application_report(
+        start_date,
+        end_date,
+        selected_class_code=selected_class_code,
+        call_scope=call_scope,
+    )
     payload = export_application_report_word(report)
-    filename = f"rapport_application_{start_date}_{end_date}.docx"
+    filename = f"rapport_application_{call_scope}_{start_date}_{end_date}.docx"
     response = HttpResponse(
         payload,
         content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -1902,6 +1944,7 @@ def application_report_export_anomalies_excel_view(request):
         start_date,
         end_date,
         selected_class_code=selected_class_code,
+        call_scope=_report_call_scope_from_request(request),
     )
     payload = export_application_report_anomalies_excel(report)
     class_suffix = f"_{slugify(selected_class_code)}" if selected_class_code else ""
@@ -1919,13 +1962,16 @@ def application_report_send_mail_view(request):
     if request.method != "POST":
         return redirect("application_report")
     start_date, end_date = parse_report_dates(request.POST.get("start"), request.POST.get("end"))
-    report = build_application_report(start_date, end_date)
+    call_scope = _report_call_scope_from_request(request, source="POST")
+    report = build_application_report(start_date, end_date, call_scope=call_scope)
     result = send_report_by_email(report)
     if result["ok"]:
         messages.success(request, result["detail"])
     else:
         messages.warning(request, result["detail"])
-    query = urlencode({"start": start_date.isoformat(), "end": end_date.isoformat()})
+    query = urlencode(
+        {"start": start_date.isoformat(), "end": end_date.isoformat(), "call_scope": call_scope}
+    )
     return redirect(f"{reverse('application_report')}?{query}")
 
 

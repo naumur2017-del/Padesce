@@ -42,6 +42,29 @@
   .panel h2 { margin: 0; color: var(--accent-strong); font-size: 1.1rem; }
   .muted { color: var(--muted); }
   .search-form { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .scope-tabs {
+    display: inline-flex;
+    gap: 6px;
+    padding: 4px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: #f8fafc;
+  }
+  .scope-tab {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px 12px;
+    border-radius: 999px;
+    color: var(--accent-strong);
+    font-weight: 800;
+    text-decoration: none;
+  }
+  .scope-tab.active {
+    background: var(--accent);
+    color: #fff;
+    box-shadow: 0 8px 18px rgba(109, 77, 168, 0.18);
+  }
   .search-input {
     min-width: 260px;
     padding: 10px 12px;
@@ -220,7 +243,7 @@
   .online-card h3 { margin: 0 0 6px; color: #166534; font-size: 1rem; }
   .online-card p { margin: 4px 0; color: var(--text); }
   .table-wrap { overflow: auto; }
-  table { width: 100%; border-collapse: collapse; min-width: 1500px; }
+  table { width: 100%; border-collapse: collapse; min-width: 1580px; }
   th, td {
     border: 1px solid var(--border);
     padding: 9px 10px;
@@ -246,6 +269,14 @@
     font-weight: 600;
   }
   .location-block, .activity-block { line-height: 1.45; }
+  .current-calls-cell { max-width: 360px; }
+  .current-calls-inline {
+    max-width: 340px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .current-calls-inline a { white-space: nowrap; }
   .history-trigger {
     background: #f8fafc;
     color: var(--accent-strong);
@@ -347,7 +378,7 @@
 </style>
 
 <section class="page-header">
-  <h1>Suivi des utilisateurs PADESCE</h1>
+  <h1>Suivi des utilisateurs {{ call_scope_label }}</h1>
 </section>
 
 {% if not tracking_schema_ready %}
@@ -383,8 +414,16 @@
     <div>
       <h2>Tableau principal</h2>
       <div class="muted">Les agents en ligne remontent en premier, puis le classement se fait par volume de traitements termines.</div>
+      <div class="scope-tabs" role="tablist" aria-label="Source des appels" style="margin-top:12px;">
+        {% for tab in tracking_scope_tabs %}
+          <a class="scope-tab {% if tab.active %}active{% endif %}" href="{{ tab.url }}" role="tab" aria-selected="{% if tab.active %}true{% else %}false{% endif %}">
+            {{ tab.label }}
+          </a>
+        {% endfor %}
+      </div>
     </div>
     <form method="get" class="search-form">
+      <input type="hidden" name="scope" value="{{ call_scope }}">
       <input
         id="user-search"
         class="search-input"
@@ -396,7 +435,7 @@
       >
       <button type="submit" class="btn">Rechercher</button>
       {% if user_search %}
-        <a class="btn btn-ghost" href="{% url 'user_tracking' %}">Effacer</a>
+        <a class="btn btn-ghost" href="{% url 'user_tracking' %}?scope={{ call_scope|urlencode }}">Effacer</a>
       {% endif %}
     </form>
   </div>
@@ -410,9 +449,17 @@
             <th>Statut</th>
             <th>Nombre d'appels</th>
             <th>A rappeler</th>
-            <th>Formulaires remplis</th>
-            <th>Formulaires modifies</th>
-            <th>Termines</th>
+            {% if call_scope == "cga" %}
+              <th>Intéressés</th>
+              <th>Pas intéressés</th>
+              <th>Indisponible</th>
+              <th>Faux numéro</th>
+            {% else %}
+              <th>Formulaires remplis</th>
+              <th>Formulaires modifies</th>
+              <th>Termines</th>
+            {% endif %}
+            <th>Dernières 24h</th>
             <th>En cours</th>
             <th>Appels en cours</th>
             <th>Adresse IP</th>
@@ -435,16 +482,26 @@
             </td>
             <td><a class="drill-link" href="{{ row.total_url }}">{{ row.total_appels }}</a></td>
             <td><a class="drill-link" href="{{ row.rappel_url }}">{{ row.a_rappeler }}</a></td>
-            <td><a class="drill-link" href="{{ row.formulaires_url }}">{{ row.formulaires_remplis }}</a></td>
-            <td><a class="drill-link" href="{{ row.modifies_url }}">{{ row.formulaires_modifies }}</a></td>
-            <td><a class="drill-link" href="{{ row.termines_url }}">{{ row.termines }}</a></td>
+            {% if call_scope == "cga" %}
+              <td><a class="drill-link" href="{{ row.interesses_url }}">{{ row.cga_interesses }}</a></td>
+              <td><a class="drill-link" href="{{ row.pas_interesses_url }}">{{ row.cga_pas_interesses }}</a></td>
+              <td><a class="drill-link" href="{{ row.indisponibles_url }}">{{ row.cga_indisponibles }}</a></td>
+              <td><a class="drill-link" href="{{ row.faux_numeros_url }}">{{ row.cga_faux_numeros }}</a></td>
+            {% else %}
+              <td><a class="drill-link" href="{{ row.formulaires_url }}">{{ row.formulaires_remplis }}</a></td>
+              <td><a class="drill-link" href="{{ row.modifies_url }}">{{ row.formulaires_modifies }}</a></td>
+              <td><a class="drill-link" href="{{ row.termines_url }}">{{ row.termines }}</a></td>
+            {% endif %}
+            <td>{{ row.recent_24h }}</td>
             <td><a class="drill-link" href="{{ row.en_cours_url }}">{{ row.en_cours }}</a></td>
-            <td>
+            <td class="current-calls-cell">
+              <div class="current-calls-inline">
               {% for current_call in row.current_calls %}
-                <div><a class="drill-link" href="{{ current_call.url }}">{{ current_call.code }} - {{ current_call.nom }}</a></div>
+                <a class="drill-link" href="{{ current_call.url }}">{{ current_call.code }} - {{ current_call.nom }}</a>{% if not forloop.last %}<span class="muted">; </span>{% endif %}
               {% empty %}
                 -
               {% endfor %}
+              </div>
             </td>
             <td>{{ row.last_ip|default:"-" }}</td>
             <td class="location-block">
@@ -476,7 +533,7 @@
             <td>{% if row.last_login %}{{ row.last_login|date:"d/m/Y H:i:s" }}{% else %}-{% endif %}</td>
           </tr>
         {% empty %}
-          <tr><td colspan="16">Aucun utilisateur trouve.</td></tr>
+          <tr><td colspan="{% if call_scope == 'cga' %}18{% else %}17{% endif %}">Aucun utilisateur trouve.</td></tr>
         {% endfor %}
       </tbody>
     </table>
@@ -618,7 +675,7 @@
     const statsTotal = document.getElementById("total-users-value");
     const statsPoints = document.getElementById("globe-points-value");
     const onlineFeedList = document.getElementById("online-feed-list");
-    const liveApiUrl = "{% url 'user_tracking_live_api' %}";
+    const liveApiUrl = "{% url 'user_tracking_live_api' %}?scope={{ call_scope|urlencode }}{% if user_search %}&user_search={{ user_search|urlencode }}{% endif %}";
     const worldGeoJsonUrl = "{% static 'geojson/world-countries.geojson' %}";
     const zoomInButton = document.getElementById("globe-zoom-in");
     const zoomOutButton = document.getElementById("globe-zoom-out");
