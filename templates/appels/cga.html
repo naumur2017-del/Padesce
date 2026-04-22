@@ -266,26 +266,6 @@
 
   <div class="selection-bar">
     <p class="subtitle" style="color:var(--muted); margin:0;">
-      Transcription rapide: lignes filtrees, déjà appelees, avec audio, sans repasser sur les transcriptions déjà en base.
-    </p>
-    <div style="display:flex; gap:8px; flex-wrap:wrap;">
-      <button type="button" id="js-start-filtered-transcription" class="btn btn-ghost btn-sm">Transcrire le tableau filtre</button>
-      <button type="button" id="js-stop-filtered-transcription" class="btn btn-ghost btn-sm" style="display:none;">Stopper</button>
-    </div>
-  </div>
-  <div id="filtered-transcription-progress-wrap" class="bulk-progress-wrap" aria-live="polite">
-    <div class="bulk-progress-head">
-      <strong>Transcription locale</strong>
-      <span id="filtered-transcription-progress-label">0%</span>
-    </div>
-    <div class="bulk-progress-track">
-      <div id="filtered-transcription-progress-bar" class="bulk-progress-bar"></div>
-    </div>
-    <div id="filtered-transcription-progress-sub" class="subtitle">En attente.</div>
-  </div>
-
-  <div class="selection-bar">
-    <p class="subtitle" style="color:var(--muted); margin:0;">
       Lignes CGA affichees : <strong>{{ rows_count }}</strong>
       {% if page_obj %} | Page {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}{% endif %}
     </p>
@@ -385,7 +365,6 @@
               <div class="audio-meta js-audio-controls" {% if not a.has_audio_file %}hidden{% endif %}>
                 <button type="button" class="btn-small js-play" {% if not a.has_audio_file %}disabled{% endif %}><i class="fa-solid fa-play"></i><span>Play</span></button>
                 <button type="button" class="btn-icon js-stop" {% if not a.has_audio_file %}disabled{% endif %} title="Stopper l'audio" aria-label="Stopper l'audio"><i class="fa-solid fa-stop"></i></button>
-                <button type="button" class="btn-small js-transcription" {% if not a.has_audio_file %}disabled{% endif %}><i class="fa-solid fa-file-lines"></i><span>Transcription</span></button>
                 {% if a.has_audio_file %}
                   <a class="btn-icon js-audio-download" href="{{ a.audio_file_url }}" download="cga-{{ a.niu }}.mp3" title="Telecharger l'audio" aria-label="Telecharger l'audio"><i class="fa-solid fa-download"></i></a>
                 {% endif %}
@@ -461,19 +440,6 @@
   </div>
 </div>
 
-<div id="js-transcription-modal" class="modal-backdrop" hidden>
-  <div class="modal-panel">
-    <h2>Transcription</h2>
-    <div class="modal-detail"><span class="modal-label">Appel :</span><span id="js-transcription-name">-</span></div>
-    <div id="js-transcription-status" class="modal-hint">Chargement...</div>
-    <div id="js-transcription-text" class="transcript-box" style="margin-top:10px;">Aucune transcription.</div>
-    <div class="modal-actions">
-      <a id="js-transcription-download" class="btn btn-ghost btn-sm" href="#" download>Telecharger</a>
-      <button type="button" class="btn btn-primary btn-sm" data-transcription-close>Fermer</button>
-    </div>
-  </div>
-</div>
-
 <script>
   (function() {
     function getCookie(name) {
@@ -520,7 +486,26 @@
       const db = await openOfflineDb();
       return new Promise((resolve, reject) => {
         const tx = db.transaction(offlineStoreName, "readwrite");
-        tx.objectStore(offlineStoreName).add({ ...job, scope: offlineScope, userKey: offlineUserKey, createdAt: Date.now() });
+        const store = tx.objectStore(offlineStoreName);
+        if (job.kind === "audio") {
+          const getAllRequest = store.getAll();
+          getAllRequest.onsuccess = () => {
+            for (const existingJob of getAllRequest.result || []) {
+              if (
+                existingJob.scope === offlineScope &&
+                existingJob.userKey === offlineUserKey &&
+                existingJob.kind === "audio" &&
+                existingJob.rowId === job.rowId
+              ) {
+                store.delete(existingJob.id);
+              }
+            }
+            store.add({ ...job, scope: offlineScope, userKey: offlineUserKey, createdAt: Date.now() });
+          };
+          getAllRequest.onerror = () => reject(getAllRequest.error);
+        } else {
+          store.add({ ...job, scope: offlineScope, userKey: offlineUserKey, createdAt: Date.now() });
+        }
         tx.oncomplete = () => resolve();
         tx.onerror = () => reject(tx.error);
       });
@@ -609,13 +594,9 @@
     const modalCancelBtn = document.querySelector("[data-modal-action=\"cancel\"]");
     const modalName = document.getElementById("js-modal-nom");
     const modalPhone = document.getElementById("js-modal-phone");
-    const transcriptionModal = document.getElementById("js-transcription-modal");
-    const transcriptionName = document.getElementById("js-transcription-name");
-    const transcriptionStatus = document.getElementById("js-transcription-status");
-    const transcriptionText = document.getElementById("js-transcription-text");
-    const transcriptionDownload = document.getElementById("js-transcription-download");
     let modalResolve = null;
     let currentRow = null;
+    const SNAPSHOT_INTERVAL_MS = 5000;
 
     function toggleRappelInput() {
       if (!modalRappelCheckbox || !modalRappelAt) return;
@@ -673,10 +654,6 @@
     modalCancelBtn?.addEventListener("click", () => closeTerminationModal(null));
     terminationModal?.addEventListener("click", (event) => {
       if (event.target === terminationModal) closeTerminationModal(null);
-    });
-    document.querySelector("[data-transcription-close]")?.addEventListener("click", () => { if (transcriptionModal) transcriptionModal.hidden = true; });
-    transcriptionModal?.addEventListener("click", (event) => {
-      if (event.target === transcriptionModal) transcriptionModal.hidden = true;
     });
 
     async function sendAction(row, action, extra = {}) {
@@ -776,11 +753,9 @@
       const controls = row.querySelector(".js-audio-controls");
       const audio = row.querySelector(".js-audio");
       const stopBtn = row.querySelector(".js-stop");
-      const transcriptionBtn = row.querySelector(".js-transcription");
       const hasAudio = hasAudioSource(audio);
       if (controls) controls.hidden = !hasAudio;
       if (stopBtn) stopBtn.disabled = !hasAudio || (audio.paused && audio.currentTime === 0);
-      if (transcriptionBtn) transcriptionBtn.disabled = !hasAudio;
       updatePlaybackProgress(row);
       setPlayButtonState(row);
       if (hasAudio) ensureDownloadLink(row);
@@ -863,6 +838,69 @@
 
     const recordState = new Map();
 
+    function buildRecordingBlob(state) {
+      if (!state?.chunks?.length) return null;
+      return new Blob(state.chunks, { type: state.mimeType || "audio/webm" });
+    }
+
+    function cleanupRecordingState(state) {
+      if (!state) return;
+      if (state.snapshotTimer) window.clearInterval(state.snapshotTimer);
+      if (state.raf) cancelAnimationFrame(state.raf);
+      if (state.ctx && state.canvas) {
+        state.ctx.clearRect(0, 0, state.canvas.width, state.canvas.height);
+      }
+      if (state.audioCtx && state.audioCtx.state !== "closed") {
+        state.audioCtx.close().catch(() => {});
+      }
+    }
+
+    function persistRecordingSnapshot(row, state, { force = false } = {}) {
+      if (!state) return Promise.resolve(null);
+      const blob = buildRecordingBlob(state);
+      if (!blob || !blob.size) return Promise.resolve(null);
+      state.blob = blob;
+      const snapshotSize = blob.size;
+      if (!force && snapshotSize === state.lastUploadedSize) {
+        return state.uploadPromise || Promise.resolve(blob);
+      }
+      if (state.uploadPromise) {
+        state.pendingSnapshot = true;
+        return state.uploadPromise;
+      }
+      state.uploadPromise = uploadAudio(row, blob)
+        .catch(() => null)
+        .finally(() => {
+          state.lastUploadedSize = snapshotSize;
+          state.uploadPromise = null;
+          if (state.pendingSnapshot) {
+            state.pendingSnapshot = false;
+            void persistRecordingSnapshot(row, state, { force: true });
+          }
+        });
+      return state.uploadPromise;
+    }
+
+    function stopAllActiveRecordings() {
+      recordState.forEach((state) => {
+        if (!state?.recorder || state.recorder.state === "inactive") return;
+        try {
+          state.recorder.requestData();
+        } catch (err) {
+          // ignore snapshot errors during teardown
+        }
+        try {
+          state.recorder.stop();
+        } catch (err) {
+          // ignore stop races during teardown
+        }
+        state.stream?.getTracks().forEach((track) => track.stop());
+      });
+    }
+
+    window.addEventListener("pagehide", stopAllActiveRecordings);
+    window.addEventListener("beforeunload", stopAllActiveRecordings);
+
     function getRecordState(row) {
       return recordState.get(row.dataset.id);
     }
@@ -889,6 +927,11 @@
           updateRow(row, data);
           const state = getRecordState(row);
           if (state?.recorder && state.recorder.state === "recording") {
+            try {
+              state.recorder.requestData();
+            } catch (err) {
+              // ignore flush failures before pause
+            }
             state.recorder.pause();
           }
         } catch (err) { alert("Action impossible."); }
@@ -919,6 +962,11 @@
         try {
           const state = getRecordState(row);
           if (state?.recorder && state.recorder.state !== "inactive") {
+            try {
+              state.recorder.requestData();
+            } catch (err) {
+              // ignore flush failures before stop
+            }
             state.recorder.stop();
             state.stream?.getTracks().forEach(t => t.stop());
           }
@@ -977,27 +1025,58 @@
       draw();
       const mimeType = MediaRecorder.isTypeSupported("audio/mpeg") ? "audio/mpeg" : "audio/webm";
       const recorder = new MediaRecorder(stream, { mimeType });
-      const chunks = [];
-      recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
+      const state = {
+        recorder,
+        chunks: [],
+        stream,
+        raf,
+        ctx,
+        canvas,
+        audioCtx,
+        mimeType,
+        lastUploadedSize: 0,
+        uploadPromise: null,
+        pendingSnapshot: false,
+        snapshotTimer: null,
+        blob: null,
+      };
+      recorder.ondataavailable = (event) => {
+        const activeState = getRecordState(row) || state;
+        if (event.data.size > 0) activeState.chunks.push(event.data);
+        if (activeState.chunks.length) {
+          void persistRecordingSnapshot(row, activeState);
+        }
+      };
       recorder.onstop = async () => {
-        const blob = new Blob(chunks, { type: mimeType });
+        const activeState = getRecordState(row) || state;
+        cleanupRecordingState(activeState);
+        const blob = buildRecordingBlob(activeState) || new Blob(activeState.chunks || [], { type: mimeType });
         const audio = row.querySelector(".js-audio");
-        audio.src = URL.createObjectURL(blob);
-        recordState.set(id, { recorder: null, chunks: [], blob });
-        await uploadAudio(row, blob);
-        cancelAnimationFrame(raf);
-        ctx.clearRect(0,0,canvas.width, canvas.height);
-        audioCtx.close();
+        if (audio && blob.size) audio.src = URL.createObjectURL(blob);
+        activeState.blob = blob;
+        await persistRecordingSnapshot(row, activeState, { force: true });
+        recordState.delete(id);
         syncAudioControls(row);
       };
-      recorder.start();
-      recordState.set(id, { recorder, chunks, stream, raf, ctx, canvas, audioCtx });
+      recorder.start(SNAPSHOT_INTERVAL_MS);
+      state.snapshotTimer = window.setInterval(() => {
+        const activeState = getRecordState(row);
+        if (!activeState?.recorder || activeState.recorder.state !== "recording") return;
+        try {
+          activeState.recorder.requestData();
+        } catch (err) {
+          // ignore timer races when recorder is shutting down
+        }
+      }, SNAPSHOT_INTERVAL_MS);
+      recordState.set(id, state);
     }
 
     async function uploadAudio(row, blob) {
       const id = row.dataset.id;
+      const blobType = (blob && blob.type) ? blob.type.toLowerCase() : "";
+      const ext = blobType.includes("webm") ? "webm" : "mp3";
       const form = new FormData();
-      form.append("audio", blob, `cga-${id}.mp3`);
+      form.append("audio", blob, `cga-${id}.${ext}`);
       try {
         if (!navigator.onLine) throw new Error("offline");
         const res = await fetch(`/cga/${id}/upload/`, {
@@ -1019,14 +1098,16 @@
           syncAudioControls(row);
           updateDownloadButtonState();
         }
+        return payload;
       } catch (err) {
         await queueOfflineJob({
           kind: "audio",
           rowId: id,
           url: `/cga/${id}/upload/`,
-          filename: `cga-${id}.mp3`,
+          filename: `cga-${id}.${ext}`,
           blob,
         });
+        return null;
       }
     }
 
@@ -1070,36 +1151,6 @@
       });
       stopBtn?.addEventListener("click", () => stopPlayback(row));
       syncAudioControls(row);
-    });
-    document.querySelectorAll(".js-transcription").forEach((btn) => {
-      const row = btn.closest("tr[data-id]");
-      btn.addEventListener("click", async () => {
-        const id = row.dataset.id;
-        const name = row.dataset.name || "-";
-        if (transcriptionModal) transcriptionModal.hidden = false;
-        if (transcriptionName) transcriptionName.textContent = name;
-        if (transcriptionStatus) transcriptionStatus.textContent = "Chargement ou transcription en cours...";
-        if (transcriptionText) transcriptionText.textContent = "Veuillez patienter...";
-        if (transcriptionDownload) transcriptionDownload.href = `/cga/${id}/transcription/download/`;
-        try {
-          const res = await fetch(`/cga/${id}/transcription/`, {
-            method: "POST",
-            headers: { "X-CSRFToken": csrfToken },
-          });
-          const payload = await res.json();
-          if (!res.ok || !payload.ok) throw new Error(payload.error || "Transcription impossible.");
-          const data = payload.transcription || {};
-          if (transcriptionStatus) {
-            transcriptionStatus.textContent = payload.generated
-              ? `Transcription generee (${data.engine || "local"}).`
-              : `Transcription disponible (${data.engine || "local"}).`;
-          }
-          if (transcriptionText) transcriptionText.textContent = data.text || "Aucune transcription disponible.";
-        } catch (err) {
-          if (transcriptionStatus) transcriptionStatus.textContent = "Erreur";
-          if (transcriptionText) transcriptionText.textContent = err.message || "Transcription impossible.";
-        }
-      });
     });
     const downloadBtn = document.getElementById("js-download-audios");
     const audioCheckboxes = Array.from(document.querySelectorAll(".js-audio-select"));
@@ -1183,83 +1234,6 @@
     downloadBtn?.addEventListener("click", downloadSelectedAudios);
     updateDownloadButtonState();
 
-    const filteredStartBtn = document.getElementById("js-start-filtered-transcription");
-    const filteredStopBtn = document.getElementById("js-stop-filtered-transcription");
-    const filteredWrap = document.getElementById("filtered-transcription-progress-wrap");
-    const filteredBar = document.getElementById("filtered-transcription-progress-bar");
-    const filteredLabel = document.getElementById("filtered-transcription-progress-label");
-    const filteredSub = document.getElementById("filtered-transcription-progress-sub");
-    let filteredPoller = null;
-
-    function renderFilteredStatus(status) {
-      if (!status) return;
-      const total = Number(status.total || 0);
-      const processed = Number(status.processed || 0);
-      const percent = total > 0 ? Math.round((processed / total) * 100) : 0;
-      if (filteredWrap) filteredWrap.style.display = (status.state === "idle" && !status.message) ? "none" : "flex";
-      if (filteredBar) filteredBar.style.width = `${Math.max(0, Math.min(percent, 100))}%`;
-      if (filteredLabel) filteredLabel.textContent = `${percent}%`;
-      if (filteredSub) {
-        const detail = status.current_label ? ` | ${status.current_label}` : "";
-        filteredSub.textContent = `${status.message || "En attente."}${detail}`;
-      }
-      const isBusy = ["running", "stopping"].includes(status.state);
-      if (filteredStartBtn) filteredStartBtn.disabled = isBusy;
-      if (filteredStopBtn) filteredStopBtn.style.display = isBusy ? "inline-flex" : "none";
-      if (filteredStopBtn) filteredStopBtn.disabled = status.state === "stopping";
-      if (!isBusy && filteredPoller) {
-        clearInterval(filteredPoller);
-        filteredPoller = null;
-      }
-    }
-
-    async function fetchFilteredStatus() {
-      try {
-        const res = await fetch("{% url 'filtered_cga_transcription_status' %}");
-        const payload = await res.json();
-        renderFilteredStatus(payload.status);
-      } catch (err) {
-        if (filteredSub) filteredSub.textContent = "Impossible de recuperer l'etat de transcription.";
-      }
-    }
-
-    filteredStartBtn?.addEventListener("click", async function () {
-      try {
-        const query = window.location.search || "";
-        const res = await fetch(`{% url 'start_filtered_cga_transcription' %}${query}`, {
-          method: "POST",
-          headers: { "X-CSRFToken": csrfToken },
-        });
-        const payload = await res.json();
-        if (!res.ok || !payload.ok) {
-          alert(payload.error || "Lancement impossible.");
-          return;
-        }
-        renderFilteredStatus(payload.status);
-        if (!filteredPoller) filteredPoller = setInterval(fetchFilteredStatus, 2000);
-      } catch (err) {
-        alert("Lancement impossible.");
-      }
-    });
-
-    filteredStopBtn?.addEventListener("click", async function () {
-      try {
-        const res = await fetch("{% url 'stop_filtered_cga_transcription' %}", {
-          method: "POST",
-          headers: { "X-CSRFToken": csrfToken },
-        });
-        const payload = await res.json();
-        if (!res.ok || !payload.ok) {
-          alert(payload.error || "Arret impossible.");
-          return;
-        }
-        renderFilteredStatus(payload.status);
-        if (!filteredPoller) filteredPoller = setInterval(fetchFilteredStatus, 2000);
-      } catch (err) {
-        alert("Arret impossible.");
-      }
-    });
-
     // Gestion des noms de fichiers pour les inputs d'importation CGA
     document.querySelectorAll(".js-fr-file-input").forEach((input) => {
       input.addEventListener("change", () => {
@@ -1274,8 +1248,6 @@
         }
       });
     });
-
-    fetchFilteredStatus();
   })();
 </script>
 {% endblock %}

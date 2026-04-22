@@ -516,9 +516,16 @@ def cga_upload_audio(request, pk: int):
     file_obj = request.FILES.get("audio")
     if not file_obj:
         return JsonResponse({"ok": False, "error": "Aucun fichier audio."}, status=400)
+    previous_name = getattr(getattr(row, "audio_file", None), "name", "") or ""
     row.audio_file = file_obj
     row.save(update_fields=["audio_file", "updated_at"])
-    return JsonResponse({"ok": True, "audio_url": _safe_audio_url(row)})
+    current_name = getattr(getattr(row, "audio_file", None), "name", "") or ""
+    if previous_name and previous_name != current_name:
+        try:
+            row.audio_file.storage.delete(previous_name)
+        except Exception:
+            pass
+    return JsonResponse({"ok": True, "audio_saved": True, "audio_url": _safe_audio_url(row)})
 
 
 @login_required

@@ -1,7 +1,12 @@
+import os
+import shutil
+import tempfile
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import RequestFactory, SimpleTestCase, TestCase
+from django.test.utils import override_settings
 from django.urls import reverse
 
 from App_PADESCE.appels.consolidation_views import (
@@ -10,7 +15,7 @@ from App_PADESCE.appels.consolidation_views import (
     _filtered_candidates,
     consolidation_pending_appels,
 )
-from App_PADESCE.appels.models import Appel, AppelAnswers, AppelImportArchive
+from App_PADESCE.appels.models import Appel, AppelAnswers, AppelCGA, AppelImportArchive
 from App_PADESCE.satisfaction_apprenants.models import SatisfactionApprenant
 
 
@@ -378,7 +383,6 @@ class AppelsIndexFilterTests(TestCase):
         classe_progress = {item["classe"]: item for item in response.context["classe_progress"]}
         self.assertEqual(classe_progress["CLA001"]["total"], 2)
         self.assertTrue(classe_progress["CLA001"]["reached"])
-
     @patch("App_PADESCE.appels.views.build_padesce_source_index")
     def test_appels_index_uses_saved_forms_for_25_percent_threshold(self, mock_build_source_index):
         mock_build_source_index.return_value = {
@@ -908,3 +912,69 @@ class AppelFinalizeSaveTests(TestCase):
         self.assertEqual(payload["status"], "appel_reussi")
         self.assertFalse(payload["satisfaction_saved"])
         self.assertFalse(SatisfactionApprenant.objects.filter(appel=appel).exists())
+
+
+class CgaAudioAndTemplateTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(
+            username="cga-agent",
+            password="test123",
+        )
+        self.client.force_login(self.user)
+
+    def test_cga_index_hides_transcription_controls(self):
+        with open("templates/appels/cga.html", "r", encoding="utf-8") as template_file:
+            template_source = template_file.read()
+
+        self.assertNotIn("Transcrire le tableau filtre", template_source)
+        self.assertNotIn('class="btn-small js-transcription"', template_source)
+        self.assertNotIn("Transcription locale", template_source)
+
+    def test_cga_upload_audio_replaces_previous_file(self):
+        temp_media_root = tempfile.mkdtemp(prefix="cga-audio-test-")
+        try:
+            with override_settings(MEDIA_ROOT=temp_media_root):
+                row = AppelCGA.objects.create(
+                    raison_sociale="Entreprise Beta",
+                    niu="NIU-CGA-002",
+                    telephone="690000222",
+                    status="en_cours",
+                    is_active=True,
+                )
+
+                first_audio = SimpleUploadedFile(
+                    "premier.mp3",
+                    b"first-audio",
+                    content_type="audio/mpeg",
+                )
+                first_response = self.client.post(
+                    reverse("cga_upload_audio", args=[row.pk]),
+                    {"audio": first_audio},
+                )
+                self.assertEqual(first_response.status_code, 200)
+                self.assertTrue(first_response.json()["audio_saved"])
+
+                row.refresh_from_db()
+                first_name = row.audio_file.name
+                self.assertTrue(os.path.exists(os.path.join(temp_media_root, first_name)))
+
+                second_audio = SimpleUploadedFile(
+                    "second.webm",
+                    b"second-audio",
+                    content_type="audio/webm",
+                )
+                second_response = self.client.post(
+                    reverse("cga_upload_audio", args=[row.pk]),
+                    {"audio": second_audio},
+                )
+
+                self.assertEqual(second_response.status_code, 200)
+                row.refresh_from_db()
+                second_name = row.audio_file.name
+
+                self.assertNotEqual(second_name, first_name)
+                self.assertFalse(os.path.exists(os.path.join(temp_media_root, first_name)))
+                self.assertTrue(os.path.exists(os.path.join(temp_media_root, second_name)))
+                self.assertTrue(second_response.json()["audio_url"])
+        finally:
+            shutil.rmtree(temp_media_root, ignore_errors=True)
