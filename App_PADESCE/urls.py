@@ -9,15 +9,6 @@ from django.urls import include, path
 
 from App_PADESCE.core.lazy_urls import lazy_view
 
-# Vue de debug pour les stats formateurs
-# Vues de test pour diagnostiquer l'erreur 500
-from App_PADESCE.core.public_views import (
-    debug_context_stats,
-    debug_formateur_stats,
-    test_formateur_stats_minimal,
-    test_formateur_stats_with_template,
-)
-
 app_urlpatterns = [
     path(
         "",
@@ -202,24 +193,52 @@ app_urlpatterns = [
         name="deployment_config_save",
     ),
 
-    # URLs de test pour diagnostiquer l'erreur 500
-    path('test-stats-minimal/', test_formateur_stats_minimal, name='test_stats_minimal'),
-    path('test-stats-template/', test_formateur_stats_with_template, name='test_stats_template'),
-
-    # URL de debug pour les stats formateurs
-    path('debug-formateur-stats/', debug_formateur_stats, name='debug_formateur_stats'),
-
-    path('debug-context-stats/', debug_context_stats, name='debug_context_stats'),
 ]
 
 root_only_urlpatterns = [
     path("admin/", admin.site.urls),
 ]
 
+debug_urlpatterns = []
+
+if settings.DEBUG:
+    from App_PADESCE.core.public_views import (
+        debug_context_stats,
+        debug_formateur_stats,
+        test_formateur_stats_minimal,
+        test_formateur_stats_with_template,
+    )
+
+    debug_urlpatterns = [
+        path(
+            "test-stats-minimal/",
+            test_formateur_stats_minimal,
+            name="test_stats_minimal",
+        ),
+        path(
+            "test-stats-template/",
+            test_formateur_stats_with_template,
+            name="test_stats_template",
+        ),
+        path(
+            "debug-formateur-stats/",
+            debug_formateur_stats,
+            name="debug_formateur_stats",
+        ),
+        path(
+            "debug-context-stats/",
+            debug_context_stats,
+            name="debug_context_stats",
+        ),
+    ]
+
 urlpatterns = [
-    path("", include(app_urlpatterns)),
+    path("", include(app_urlpatterns + debug_urlpatterns)),
     path("", include(root_only_urlpatterns)),
-    path("padesce/", include((app_urlpatterns, "padesce"), namespace="padesce")),
+    path(
+        "padesce/",
+        include((app_urlpatterns + debug_urlpatterns, "padesce"), namespace="padesce"),
+    ),
 ]
 
 if settings.DEBUG:
