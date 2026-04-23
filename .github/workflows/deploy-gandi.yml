@@ -76,8 +76,12 @@ jobs:
       EMAIL_HOST_USER: ${{ secrets.EMAIL_HOST_USER }}
       EMAIL_HOST_PASSWORD: ${{ secrets.EMAIL_HOST_PASSWORD }}
       DEFAULT_FROM_EMAIL: ${{ secrets.DEFAULT_FROM_EMAIL }}
+      REPORT_EMAIL_TO: keunicetchoup@gmail.com,tanayves96@gmail.com,crepinkoulo@gmail.com,djonmarcel84@gmail.com,brayaneyoum@naumur.com
       DEPLOYMENT_REPORT_EMAIL_TO: ${{ secrets.DEPLOYMENT_REPORT_EMAIL_TO }}
       DEPLOYMENT_EMAIL_BACKEND: django.core.mail.backends.smtp.EmailBackend
+      BACKUP_TRIGGER_TOKEN: ${{ secrets.BACKUP_TRIGGER_TOKEN }}
+      REPORT_TRIGGER_TOKEN: ${{ secrets.BACKUP_TRIGGER_TOKEN }}
+      BACKUP_RETENTION_DAYS: "30"
       GANDI_SFTP_HOST: ${{ secrets.GANDI_SFTP_HOST }}
       GANDI_SFTP_PORT: ${{ secrets.GANDI_SFTP_PORT }}
       GANDI_SFTP_DOMAIN: call.naumur.com

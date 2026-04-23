@@ -11,7 +11,9 @@ import re
 from datetime import date, datetime, time, timedelta
 from email.mime.image import MIMEImage
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from types import SimpleNamespace
+from typing import Any, Iterable
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -28,10 +30,15 @@ from App_PADESCE.appels.models import (
     AppelCGA,
     AppelFormateur,
 )
+from App_PADESCE.appels.cga_report import (
+    build_cga_calls_report_workbook,
+    get_cga_calls_report_filename,
+)
 from App_PADESCE.core.analysis_rules import analysis_threshold_target
 from App_PADESCE.core.models import UserActivity
 from App_PADESCE.formations.models import Classe
 from App_PADESCE.reporting.network_excel import build_padesce_source_index, normalize_network_lookup
+from App_PADESCE.reporting.padesce_calls_excel import build_padesce_calls_report
 
 logger = logging.getLogger(__name__)
 CONSOLE_EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
@@ -77,11 +84,37 @@ def normalize_report_call_scope(value: str | None) -> str:
     return "cga" if str(value or "").strip().lower() == "cga" else "padesce"
 
 
-def get_report_email_recipients() -> list[str]:
-    raw = (getattr(settings, "REPORT_EMAIL_TO", "") or "").strip()
-    if not raw:
-        raw = settings.__dict__.get("REPORT_EMAIL_TO") or ""
-    return [addr.strip() for addr in raw.split(",") if addr.strip()]
+def parse_email_recipients(raw: str | Iterable[str] | None) -> list[str]:
+    if raw is None:
+        return []
+    if isinstance(raw, str):
+        values = re.split(r"[,;\n]+", raw)
+    else:
+        values = []
+        for item in raw:
+            values.extend(re.split(r"[,;\n]+", str(item)))
+
+    recipients: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        email = str(value or "").strip()
+        if not email:
+            continue
+        key = email.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        recipients.append(email)
+    return recipients
+
+
+def get_report_email_recipients(raw_override: str | Iterable[str] | None = None) -> list[str]:
+    raw = raw_override
+    if raw is None:
+        raw = (getattr(settings, "REPORT_EMAIL_TO", "") or "").strip()
+        if not raw:
+            raw = settings.__dict__.get("REPORT_EMAIL_TO") or ""
+    return parse_email_recipients(raw)
 
 
 def _build_report_email_connection() -> tuple[object | None, str | None]:
@@ -542,6 +575,281 @@ def send_report_by_email(report: dict) -> dict:
         logger.exception("Echec d'envoi du rapport journalier par email.")
         return {"ok": False, "detail": f"Echec de l'envoi SMTP: {exc}"}
     return {"ok": True, "detail": f"Mail envoye a {len(recipients)} destinataire(s)"}
+
+
+def _format_file_size(size: Any) -> str:
+    try:
+        value = float(size)
+    except (TypeError, ValueError):
+        return ""
+    if value < 1024:
+        return f"{int(value)} o"
+    if value < 1024 * 1024:
+        return f"{value / 1024:.1f} Ko"
+    if value < 1024 * 1024 * 1024:
+        return f"{value / (1024 * 1024):.1f} Mo"
+    return f"{value / (1024 * 1024 * 1024):.1f} Go"
+
+
+def _format_iso_datetime_label(value: Any) -> str:
+    raw = str(value or "").strip()
+    if not raw:
+        return ""
+    try:
+        parsed = datetime.fromisoformat(raw)
+    except ValueError:
+        return raw
+    if timezone.is_aware(parsed):
+        parsed = timezone.localtime(parsed)
+    return parsed.strftime("%d/%m/%Y %H:%M")
+
+
+def build_backup_status_summary(backup_job_id: str | None = None, *, backup_error: str = "") -> dict:
+    from App_PADESCE.core import backup_manager
+
+    error_text = str(backup_error or "").strip()
+    if error_text:
+        return {
+            "status": "error",
+            "label": "Erreur",
+            "job_id": backup_job_id or "",
+            "detail": error_text,
+            "backup_file": "",
+            "file_size_label": "",
+            "finished_at_label": "",
+            "retention_days": None,
+            "purged_backups": [],
+        }
+
+    entry = None
+    if backup_job_id:
+        entry = backup_manager.get_job(backup_job_id) or backup_manager.get_history_entry(backup_job_id)
+    if entry is None:
+        entry = backup_manager.get_latest_history_entry()
+    if entry is None:
+        return {
+            "status": "unknown",
+            "label": "Indisponible",
+            "job_id": backup_job_id or "",
+            "detail": "Aucun historique de backup disponible.",
+            "backup_file": "",
+            "file_size_label": "",
+            "finished_at_label": "",
+            "retention_days": None,
+            "purged_backups": [],
+        }
+
+    status = str(entry.get("status", "unknown") or "unknown")
+    label_map = {
+        "success": "Succes",
+        "partial": "Partiel",
+        "error": "Erreur",
+        "running": "En cours",
+        "pending": "En attente",
+    }
+    file_size_label = _format_file_size(entry.get("file_size"))
+    finished_at_label = _format_iso_datetime_label(entry.get("finished_at") or entry.get("started_at"))
+    backup_file = str(entry.get("backup_file", "") or "").strip()
+    purged_backups = list(entry.get("purged_backups") or [])
+    detail_parts = []
+    if backup_file:
+        detail_parts.append(f"Fichier: {backup_file}")
+    if file_size_label:
+        detail_parts.append(f"Taille: {file_size_label}")
+    if finished_at_label:
+        detail_parts.append(f"Heure: {finished_at_label}")
+    if purged_backups:
+        detail_parts.append(f"Purge: {len(purged_backups)} fichier(s)")
+    if entry.get("error"):
+        detail_parts.append(str(entry["error"]))
+    if not detail_parts:
+        detail_parts.append(str(entry.get("message", "") or "Statut de backup disponible."))
+
+    return {
+        "status": status,
+        "label": label_map.get(status, status.capitalize() or "Inconnu"),
+        "job_id": str(entry.get("id", "") or backup_job_id or ""),
+        "detail": " | ".join(detail_parts),
+        "backup_file": backup_file,
+        "file_size_label": file_size_label,
+        "finished_at_label": finished_at_label,
+        "retention_days": entry.get("retention_days"),
+        "purged_backups": purged_backups,
+    }
+
+
+def build_daily_digest_email_html(report: dict, backup_summary: dict) -> str:
+    best_hour_label = report["best_hour"]["label"] if report.get("best_hour") else "Aucune donnee"
+    best_hour_value = report["best_hour"]["completed"] if report.get("best_hour") else 0
+    status_color = {
+        "success": "#166534",
+        "partial": "#92400e",
+        "error": "#991b1b",
+        "running": "#1d4ed8",
+        "pending": "#6b7280",
+        "unknown": "#6b7280",
+    }.get(backup_summary.get("status"), "#6b7280")
+    purge_line = ""
+    if backup_summary.get("purged_backups"):
+        purge_line = (
+            f"<p style='margin:8px 0 0;color:#5b6472;'>Purge automatique: "
+            f"{len(backup_summary['purged_backups'])} ancien(s) backup(s) supprime(s).</p>"
+        )
+
+    return f"""
+<div style="margin:0;padding:24px;background:#f4f4f6;font-family:Calibri,Arial,sans-serif;color:#222222;">
+  <div style="max-width:900px;margin:0 auto;background:#ffffff;border:1px solid #d9d9e3;">
+    <div style="padding:24px 28px;border-bottom:3px solid #4c1d95;background:#ffffff;">
+      <table role="presentation" style="width:100%;border-collapse:collapse;">
+        <tr>
+          <td style="width:120px;vertical-align:top;text-align:left;padding-right:16px;">
+            <img src="cid:logo_cga_naumur" alt="Logo CGA Naumur" style="max-width:88px;height:auto;display:block;">
+          </td>
+          <td style="vertical-align:top;">
+            <div style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#4c1d95;font-weight:700;">Digest quotidien</div>
+            <h1 style="margin:8px 0 6px;font-size:24px;line-height:1.25;color:#1f1630;">Backup + rapports PADESCE / CGA</h1>
+            <p style="margin:0;font-size:14px;color:#555555;">Periode du {report["start_date"].strftime("%d/%m/%Y")} au {report["end_date"].strftime("%d/%m/%Y")}</p>
+            <p style="margin:4px 0 0;font-size:13px;color:#666666;">Genere le {timezone.localtime(report["generated_at"]).strftime("%d/%m/%Y a %H:%M")}</p>
+          </td>
+        </tr>
+      </table>
+    </div>
+
+    <div style="padding:24px 28px;">
+      <div style="border:1px solid #dfe1ea;padding:18px 20px;margin-bottom:18px;border-left:6px solid {status_color};">
+        <div style="font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:#6b7280;font-weight:700;">Statut backup</div>
+        <div style="font-size:24px;font-weight:800;color:{status_color};margin:8px 0 6px;">{backup_summary["label"]}</div>
+        <p style="margin:0;color:#4b5563;">{backup_summary["detail"]}</p>
+        {purge_line}
+      </div>
+
+      <div style="display:flex;flex-wrap:wrap;gap:14px;margin-bottom:22px;">
+        {_email_card("Appels termines", report["calls"]["completed"])}
+        {_email_card("Utilisateurs actifs", report["users"]["called_today"])}
+        {_email_card("Heure forte", f"{best_hour_label} ({best_hour_value})")}
+      </div>
+
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:20px;">
+        {_email_stat("Classes analysees", report["analysis"]["classes_count"])}
+        {_email_stat("Prestations analysees", report["analysis"]["prestations_count"])}
+        {_email_stat("Prestataires analyses", report["analysis"]["prestataires_count"])}
+        {_email_stat("Beneficiaires analyses", report["analysis"]["beneficiaires_count"])}
+      </div>
+
+      <div style="border:1px solid #ece5fb;padding:16px 18px;margin-bottom:18px;background:#faf7ff;">
+        <div style="font-size:16px;font-weight:700;color:#2f2550;margin-bottom:8px;">Pieces jointes incluses</div>
+        <p style="margin:0;color:#5b6472;">Le mail contient le rapport Word d'activite, le rapport Excel PADESCE et le rapport Excel CGA.</p>
+      </div>
+
+      <div style="border:1px solid #ece5fb;padding:16px 18px;background:#ffffff;">
+        <div style="font-size:16px;font-weight:700;color:#2f2550;margin-bottom:8px;">Incidents</div>
+        <p style="margin:0;color:#5b6472;">Bugs signales: {report["bugs"]["alarms_total"]} | Bugs ouverts: {report["bugs"]["alarms_open"]} | Erreurs logs: {report["bugs"]["log_errors"]}</p>
+      </div>
+    </div>
+  </div>
+</div>
+"""
+
+
+def send_daily_digest_email(
+    start_date: date,
+    end_date: date,
+    *,
+    backup_job_id: str | None = None,
+    backup_error: str = "",
+    recipients: str | Iterable[str] | None = None,
+) -> dict:
+    resolved_recipients = get_report_email_recipients(recipients)
+    if not resolved_recipients:
+        return {"ok": False, "detail": "Aucun destinataire email configure"}
+    if not getattr(settings, "EMAIL_HOST", ""):
+        return {"ok": False, "detail": "EMAIL_HOST non configure"}
+    if not getattr(settings, "DEFAULT_FROM_EMAIL", ""):
+        return {"ok": False, "detail": "DEFAULT_FROM_EMAIL non configure"}
+
+    connection, connection_error = _build_report_email_connection()
+    if connection_error:
+        return {"ok": False, "detail": connection_error}
+
+    report = build_application_report(start_date, end_date)
+    backup_summary = build_backup_status_summary(backup_job_id, backup_error=backup_error)
+    subject = f"Digest quotidien NAUMUR CALL APP - {start_date} au {end_date}"
+    body = build_daily_digest_email_html(report, backup_summary)
+    message = EmailMessage(
+        subject=subject,
+        body=body,
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        to=resolved_recipients,
+        connection=connection,
+    )
+    message.content_subtype = "html"
+
+    logo_path = _get_report_logo_path()
+    if logo_path and logo_path.exists():
+        with logo_path.open("rb") as handle:
+            logo_image = MIMEImage(handle.read())
+            logo_image.add_header("Content-ID", "<logo_cga_naumur>")
+            logo_image.add_header("Content-Disposition", "inline", filename=logo_path.name)
+            message.attach(logo_image)
+
+    attachments: list[str] = []
+    if HAS_DOCX:
+        try:
+            filename = f"rapport_application_{start_date}_{end_date}.docx"
+            message.attach(
+                filename,
+                export_application_report_word(report),
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            )
+            attachments.append(filename)
+        except Exception:
+            logger.exception("Impossible de joindre le rapport Word du digest quotidien.")
+
+    try:
+        with TemporaryDirectory() as temp_dir:
+            padesce_path = Path(temp_dir) / f"rapport_appels_padesce_{start_date}_{end_date}.xlsx"
+            build_padesce_calls_report(padesce_path)
+            if padesce_path.exists():
+                filename = padesce_path.name
+                message.attach(
+                    filename,
+                    padesce_path.read_bytes(),
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                )
+                attachments.append(filename)
+    except Exception:
+        logger.exception("Impossible de joindre le rapport PADESCE du digest quotidien.")
+
+    try:
+        cga_filename = get_cga_calls_report_filename()
+        message.attach(
+            cga_filename,
+            build_cga_calls_report_workbook(),
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        attachments.append(cga_filename)
+    except Exception:
+        logger.exception("Impossible de joindre le rapport CGA du digest quotidien.")
+
+    try:
+        message.send(fail_silently=False)
+    except Exception as exc:
+        logger.exception("Echec d'envoi du digest quotidien par email.")
+        return {
+            "ok": False,
+            "detail": f"Echec de l'envoi SMTP: {exc}",
+            "recipients": resolved_recipients,
+            "backup_status": backup_summary.get("status"),
+            "attachments": attachments,
+        }
+
+    return {
+        "ok": True,
+        "detail": f"Digest envoye a {len(resolved_recipients)} destinataire(s)",
+        "recipients": resolved_recipients,
+        "backup_status": backup_summary.get("status"),
+        "attachments": attachments,
+    }
 
 
 def build_report_text(report: dict) -> str:

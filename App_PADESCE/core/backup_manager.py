@@ -8,11 +8,12 @@ en mémoire. L'historique est persisté dans backups/history.json.
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import sqlite3
 import threading
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -24,6 +25,10 @@ from django.conf import settings
 
 _jobs: dict[str, dict[str, Any]] = {}
 _lock = threading.Lock()
+MIN_BACKUP_RETENTION_DAYS = 14
+MAX_BACKUP_RETENTION_DAYS = 30
+DEFAULT_BACKUP_RETENTION_DAYS = 30
+_BACKUP_FILENAME_RE = re.compile(r"^backup_(\d{8}_\d{6})\.sqlite3$")
 
 
 # ---------------------------------------------------------------------------
@@ -78,8 +83,83 @@ def get_job(job_id: str) -> dict | None:
         return dict(_jobs[job_id]) if job_id in _jobs else None
 
 
-def start_backup(triggered_by: str = "manual") -> str:
+def get_history_entry(job_id: str) -> dict | None:
+    for entry in load_history():
+        if entry.get("id") == job_id:
+            return entry
+    return None
+
+
+def get_latest_history_entry() -> dict | None:
+    history = load_history()
+    return history[0] if history else None
+
+
+def resolve_backup_retention_days(retention_days: Any = None) -> int:
+    raw_value = retention_days
+    if raw_value in (None, ""):
+        raw_value = getattr(settings, "BACKUP_RETENTION_DAYS", DEFAULT_BACKUP_RETENTION_DAYS)
+    try:
+        days = int(str(raw_value).strip())
+    except (TypeError, ValueError):
+        days = DEFAULT_BACKUP_RETENTION_DAYS
+    return max(MIN_BACKUP_RETENTION_DAYS, min(MAX_BACKUP_RETENTION_DAYS, days))
+
+
+def _backup_created_at(backup_path: Path) -> datetime | None:
+    match = _BACKUP_FILENAME_RE.match(backup_path.name)
+    if not match:
+        return None
+    try:
+        return datetime.strptime(match.group(1), "%Y%m%d_%H%M%S")
+    except ValueError:
+        return None
+
+
+def purge_old_backups(retention_days: Any = None) -> dict[str, Any]:
+    resolved_retention_days = resolve_backup_retention_days(retention_days)
+    cutoff = datetime.now() - timedelta(days=resolved_retention_days)
+    deleted_files: list[str] = []
+
+    for backup_path in _backup_dir().glob("backup_*.sqlite3"):
+        created_at = _backup_created_at(backup_path)
+        if created_at is None or created_at >= cutoff:
+            continue
+        try:
+            backup_path.unlink()
+            deleted_files.append(backup_path.name)
+        except OSError:
+            continue
+
+    deleted_set = set(deleted_files)
+    cleaned_history = []
+    removed_history_entries = 0
+    for entry in load_history():
+        backup_file = str(entry.get("backup_file", "") or "").strip()
+        if backup_file in deleted_set:
+            removed_history_entries += 1
+            continue
+
+        backup_created_at = _backup_created_at(Path(backup_file)) if backup_file else None
+        if backup_created_at and backup_created_at < cutoff:
+            removed_history_entries += 1
+            continue
+
+        cleaned_history.append(entry)
+
+    _save_history(cleaned_history)
+
+    return {
+        "retention_days": resolved_retention_days,
+        "deleted_files": deleted_files,
+        "deleted_count": len(deleted_files),
+        "history_deleted_count": removed_history_entries,
+    }
+
+
+def start_backup(triggered_by: str = "manual", retention_days: int | None = None) -> str:
     job_id = uuid.uuid4().hex
+    resolved_retention_days = resolve_backup_retention_days(retention_days)
     with _lock:
         _jobs[job_id] = {
             "id": job_id,
@@ -91,6 +171,8 @@ def start_backup(triggered_by: str = "manual") -> str:
             "backup_file": None,
             "file_size": None,
             "tables_count": None,
+            "retention_days": resolved_retention_days,
+            "purged_backups": [],
             "finished_at": None,
             "error": None,
         }
@@ -142,6 +224,7 @@ def _coerce(value: Any) -> Any:
 def _run_backup(job_id: str) -> None:
     backup_path: Path | None = None
     started_at = _jobs[job_id]["started_at"]
+    retention_days = _jobs[job_id]["retention_days"]
 
     try:
         _update(job_id, status="running", progress=5, message="Connexion à la base de données...")
@@ -265,11 +348,15 @@ def _run_backup(job_id: str) -> None:
         file_size = backup_path.stat().st_size
         finished_at = datetime.now().isoformat()
         status = "success" if not errors else "partial"
+        purge_summary = purge_old_backups(retention_days)
+        purged_backups = purge_summary["deleted_files"]
         msg = (
             "Backup terminé avec succès."
             if not errors
             else f"Backup partiel ({len(errors)} erreur(s))."
         )
+        if purged_backups:
+            msg += f" {len(purged_backups)} ancien(s) backup(s) supprimé(s)."
 
         _update(
             job_id,
@@ -280,6 +367,8 @@ def _run_backup(job_id: str) -> None:
             backup_file=backup_path.name,
             file_size=file_size,
             tables_count=len(tables),
+            retention_days=purge_summary["retention_days"],
+            purged_backups=purged_backups,
             error="; ".join(errors) if errors else None,
         )
         _append_history(
@@ -292,6 +381,8 @@ def _run_backup(job_id: str) -> None:
                 "backup_file": backup_path.name,
                 "file_size": file_size,
                 "tables_count": len(tables),
+                "retention_days": purge_summary["retention_days"],
+                "purged_backups": purged_backups,
                 "error": "; ".join(errors) if errors else None,
             }
         )
@@ -336,14 +427,21 @@ def _run_sqlite_copy(job_id: str, started_at: str) -> None:
 
     file_size = backup_path.stat().st_size
     finished_at = datetime.now().isoformat()
+    purge_summary = purge_old_backups(_jobs[job_id]["retention_days"])
+    purged_backups = purge_summary["deleted_files"]
+    message = "Copie SQLite terminée."
+    if purged_backups:
+        message += f" {len(purged_backups)} ancien(s) backup(s) supprimé(s)."
     _update(
         job_id,
         status="success",
         progress=100,
-        message="Copie SQLite terminée.",
+        message=message,
         finished_at=finished_at,
         backup_file=backup_path.name,
         file_size=file_size,
+        retention_days=purge_summary["retention_days"],
+        purged_backups=purged_backups,
     )
     _append_history(
         {
@@ -354,5 +452,7 @@ def _run_sqlite_copy(job_id: str, started_at: str) -> None:
             "triggered_by": _jobs[job_id]["triggered_by"],
             "backup_file": backup_path.name,
             "file_size": file_size,
+            "retention_days": purge_summary["retention_days"],
+            "purged_backups": purged_backups,
         }
     )

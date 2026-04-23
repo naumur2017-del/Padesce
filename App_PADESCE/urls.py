@@ -153,6 +153,11 @@ app_urlpatterns = [
         name="backup_trigger",
     ),
     path(
+        "backup/api/trigger-status/<str:job_id>/",
+        lazy_view("App_PADESCE.core.backup_views.backup_trigger_status"),
+        name="backup_trigger_status",
+    ),
+    path(
         "backup/download/<str:filename>/",
         lazy_view("App_PADESCE.core.backup_views.backup_download"),
         name="backup_download",

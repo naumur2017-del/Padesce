@@ -52,6 +52,11 @@ urlpatterns = [
         name="application_report_send_mail",
     ),
     path(
+        "api/daily-digest/trigger/",
+        lazy_view("App_PADESCE.reporting.views.reporting_daily_digest_trigger_view"),
+        name="reporting_daily_digest_trigger",
+    ),
+    path(
         "excel-reseau/",
         lazy_view("App_PADESCE.reporting.network_excel.network_excel_view"),
         name="reporting_network_excel",

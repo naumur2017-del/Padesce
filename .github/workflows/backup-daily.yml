@@ -1,76 +1,242 @@
-name: Daily Database Backup
+name: Daily Backup And Digest
 
-# Déclenche le backup chaque jour à 17h00 UTC
-# Pour un fuseau horaire différent, ajustez le cron :
-#   17h UTC = 18h Paris (hiver) / 19h Paris (été)
+# GitHub Actions utilise UTC.
+# Le 23 avril 2026, 15:00 UTC = 17:00 Paris et 15:30 UTC = 17:30 Paris.
 on:
   schedule:
-    - cron: '0 17 * * *'
-  workflow_dispatch:          # Permet le déclenchement manuel depuis l'UI GitHub
+    - cron: "0 15 * * *"
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: daily-backup
-  cancel-in-progress: false   # Ne jamais annuler un backup en cours
+  group: daily-backup-digest
+  cancel-in-progress: false
 
 jobs:
-  trigger-backup:
-    name: Trigger Backup on Production
+  backup-and-digest:
+    name: Backup + Daily Digest
     runs-on: ubuntu-latest
     environment:
       name: production
+    env:
+      BACKUP_TRIGGER_URL: https://call.naumur.com/backup/api/trigger/
+      BACKUP_STATUS_URL_BASE: https://call.naumur.com/backup/api/trigger-status
+      REPORT_DIGEST_TRIGGER_URL: https://call.naumur.com/reporting/api/daily-digest/trigger/
+      BACKUP_RETENTION_DAYS: "30"
+      DAILY_DIGEST_RECIPIENTS: keunicetchoup@gmail.com,tanayves96@gmail.com,crepinkoulo@gmail.com,djonmarcel84@gmail.com,brayaneyoum@naumur.com
+      DIGEST_TRIGGER_UTC: "15:30"
 
     steps:
       - name: Check required secrets
+        shell: bash
         run: |
           if [ -z "${{ secrets.BACKUP_TRIGGER_TOKEN }}" ]; then
-            echo "::error::Le secret BACKUP_TRIGGER_TOKEN n'est pas configuré dans l'environnement 'production'."
-            echo "::notice::Accédez à GitHub → Settings → Environments → production → Secrets et ajoutez BACKUP_TRIGGER_TOKEN."
+            echo "::error::Le secret BACKUP_TRIGGER_TOKEN n'est pas configure dans l'environnement 'production'."
+            echo "::notice::Ajoutez BACKUP_TRIGGER_TOKEN dans GitHub -> Settings -> Environments -> production -> Secrets."
             exit 1
           fi
-          echo "Secret BACKUP_TRIGGER_TOKEN présent."
 
       - name: Trigger backup via API
+        id: trigger_backup
+        shell: bash
         run: |
-          echo "Envoi de la requete de backup a https://call.naumur.com/backup/api/trigger/"
-
-          HTTP_STATUS=$(curl -s \
+          set +e
+          echo "Envoi de la requete de backup a $BACKUP_TRIGGER_URL"
+          http_status=$(curl -sS \
+            -D /tmp/backup_headers.txt \
             -o /tmp/backup_response.json \
             -w "%{http_code}" \
-            -X POST "https://call.naumur.com/backup/api/trigger/" \
+            -X POST "$BACKUP_TRIGGER_URL" \
             -H "X-Backup-Token: ${{ secrets.BACKUP_TRIGGER_TOKEN }}" \
-            -H "Content-Type: application/json" \
+            -H "X-Backup-Retention-Days: $BACKUP_RETENTION_DAYS" \
             -H "Accept: application/json" \
             --max-time 30 \
             --retry 2 \
             --retry-delay 5)
 
-          echo "HTTP Status: $HTTP_STATUS"
-          echo "Response:"
-          cat /tmp/backup_response.json
+          echo "HTTP Status: $http_status"
+          echo "Response headers:"
+          cat /tmp/backup_headers.txt || true
+          echo "Response body:"
+          cat /tmp/backup_response.json || true
 
-          if [ "$HTTP_STATUS" = "503" ]; then
-            echo "::error::BACKUP_TRIGGER_TOKEN non configuré sur le serveur. Vérifiez le .env.local de production."
-            exit 1
+          trigger_ok=false
+          job_id=""
+          backup_error=""
+
+          if [ "$http_status" = "200" ]; then
+            job_id=$(python3 -c "import json, pathlib; path = pathlib.Path('/tmp/backup_response.json'); raw = path.read_text() if path.exists() else ''; data = json.loads(raw) if raw.strip() else {}; print(data.get('job_id', ''))")
+            if [ -n "$job_id" ]; then
+              trigger_ok=true
+            else
+              backup_error="Reponse 200 recue sans job_id."
+            fi
+          elif [ "$http_status" = "302" ]; then
+            backup_error="Le serveur a repondu 302. La route de backup semble encore rediriger vers la page de connexion."
+          elif [ "$http_status" = "403" ]; then
+            backup_error="Token invalide. Verifiez le secret BACKUP_TRIGGER_TOKEN cote GitHub et cote serveur."
+          elif [ "$http_status" = "503" ]; then
+            backup_error="BACKUP_TRIGGER_TOKEN non configure sur le serveur."
+          else
+            backup_error="Le serveur a retourne le statut $http_status."
           fi
 
-          if [ "$HTTP_STATUS" = "403" ]; then
-            echo "::error::Token invalide. Vérifiez que BACKUP_TRIGGER_TOKEN dans GitHub Secrets correspond à celui du .env.local de production."
-            exit 1
-          fi
+          echo "trigger_ok=$trigger_ok" >> "$GITHUB_OUTPUT"
+          echo "job_id=$job_id" >> "$GITHUB_OUTPUT"
+          echo "backup_error=$backup_error" >> "$GITHUB_OUTPUT"
 
-          if [ "$HTTP_STATUS" != "200" ]; then
-            echo "ERREUR : Le serveur a retourne le statut $HTTP_STATUS"
-            exit 1
-          fi
-
-          JOB_ID=$(python3 -c "import json,sys; d=json.load(open('/tmp/backup_response.json')); print(d.get('job_id',''))")
-          echo "Backup demarre avec le job_id: $JOB_ID"
-
-      - name: Notify on failure
-        if: failure()
+      - name: Poll backup status
+        id: poll_backup
+        if: always()
+        shell: bash
         run: |
-          echo "::error::Le backup quotidien a echoue. Verifiez les logs ci-dessus."
-          echo "::notice::Assurez-vous que le secret BACKUP_TRIGGER_TOKEN est configure dans les secrets GitHub (environnement 'production')."
+          backup_status="not_started"
+          backup_failed=false
+          backup_error="${{ steps.trigger_backup.outputs.backup_error }}"
+          job_id="${{ steps.trigger_backup.outputs.job_id }}"
+
+          if [ "${{ steps.trigger_backup.outputs.trigger_ok }}" != "true" ] || [ -z "$job_id" ]; then
+            echo "Le backup n'a pas pu etre demarre, le polling est saute."
+          else
+            for attempt in $(seq 1 30); do
+              http_status=$(curl -sS \
+                -o /tmp/backup_status.json \
+                -w "%{http_code}" \
+                "$BACKUP_STATUS_URL_BASE/$job_id/" \
+                -H "X-Backup-Token: ${{ secrets.BACKUP_TRIGGER_TOKEN }}" \
+                -H "Accept: application/json" \
+                --max-time 30 \
+                --retry 2 \
+                --retry-delay 5)
+
+              echo "Polling tentative $attempt - HTTP $http_status"
+              cat /tmp/backup_status.json || true
+
+              if [ "$http_status" != "200" ]; then
+                backup_status="error"
+                backup_failed=true
+                backup_error="Impossible de lire le statut du backup (HTTP $http_status)."
+                break
+              fi
+
+              backup_status=$(python3 -c "import json, pathlib; path = pathlib.Path('/tmp/backup_status.json'); raw = path.read_text() if path.exists() else ''; data = json.loads(raw) if raw.strip() else {}; print(data.get('status', 'unknown'))")
+              message_value=$(python3 -c "import json, pathlib; path = pathlib.Path('/tmp/backup_status.json'); raw = path.read_text() if path.exists() else ''; data = json.loads(raw) if raw.strip() else {}; print(data.get('message', '') or data.get('error', ''))")
+              echo "Backup status: $backup_status"
+
+              if [ "$backup_status" = "success" ]; then
+                backup_failed=false
+                backup_error=""
+                break
+              fi
+
+              if [ "$backup_status" = "partial" ]; then
+                backup_failed=true
+                backup_error="${message_value:-Le backup s'est termine avec des erreurs partielles.}"
+                break
+              fi
+
+              if [ "$backup_status" = "error" ]; then
+                backup_failed=true
+                backup_error="${message_value:-Le backup a echoue.}"
+                break
+              fi
+
+              sleep 30
+            done
+
+            if [ "$backup_status" != "success" ] && [ "$backup_status" != "partial" ] && [ "$backup_status" != "error" ]; then
+              backup_failed=true
+              backup_error="${backup_error:-Le backup n'a pas termine dans la fenetre de surveillance.}"
+            fi
+          fi
+
+          echo "backup_status=$backup_status" >> "$GITHUB_OUTPUT"
+          echo "backup_failed=$backup_failed" >> "$GITHUB_OUTPUT"
+          echo "backup_error=$backup_error" >> "$GITHUB_OUTPUT"
+
+      - name: Wait until digest time
+        if: github.event_name == 'schedule'
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import os
+          import time
+          from datetime import datetime, timezone
+
+          target = os.getenv("DIGEST_TRIGGER_UTC", "15:30")
+          hour, minute = [int(part) for part in target.split(":", 1)]
+          now = datetime.now(timezone.utc)
+          target_dt = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+
+          if now >= target_dt:
+              print("Le job est deja au-dela de l'horaire du digest, aucun delai supplementaire.")
+          else:
+              wait_seconds = int((target_dt - now).total_seconds())
+              print(f"Attente de {wait_seconds} seconde(s) avant l'envoi du digest.")
+              time.sleep(wait_seconds)
+          PY
+
+      - name: Send daily digest email
+        id: send_digest
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          echo "Envoi du digest quotidien a $REPORT_DIGEST_TRIGGER_URL"
+          http_status=$(curl -sS \
+            -o /tmp/digest_response.json \
+            -w "%{http_code}" \
+            -X POST "$REPORT_DIGEST_TRIGGER_URL" \
+            -H "X-Report-Token: ${{ secrets.BACKUP_TRIGGER_TOKEN }}" \
+            -H "Accept: application/json" \
+            --data-urlencode "job_id=${{ steps.trigger_backup.outputs.job_id }}" \
+            --data-urlencode "backup_error=${{ steps.poll_backup.outputs.backup_error }}" \
+            --data-urlencode "recipients=$DAILY_DIGEST_RECIPIENTS" \
+            --max-time 120 \
+            --retry 2 \
+            --retry-delay 5)
+
+          echo "HTTP Status: $http_status"
+          echo "Response:"
+          cat /tmp/digest_response.json || true
+
+          digest_ok=false
+          digest_error=""
+          if [ "$http_status" = "200" ]; then
+            digest_ok=true
+          else
+            detail=$(python3 -c "import json, pathlib; path = pathlib.Path('/tmp/digest_response.json'); raw = path.read_text() if path.exists() else ''; data = json.loads(raw) if raw.strip() else {}; print(data.get('detail', '') or data.get('error', ''))")
+            digest_error="${detail:-Le digest quotidien a echoue avec le statut HTTP $http_status.}"
+          fi
+
+          echo "digest_ok=$digest_ok" >> "$GITHUB_OUTPUT"
+          echo "digest_error=$digest_error" >> "$GITHUB_OUTPUT"
+
+      - name: Fail on backup or digest issues
+        if: always()
+        shell: bash
+        run: |
+          failed=false
+
+          if [ "${{ steps.trigger_backup.outputs.trigger_ok }}" != "true" ]; then
+            echo "::error::Le declenchement du backup a echoue. ${{ steps.trigger_backup.outputs.backup_error }}"
+            failed=true
+          fi
+
+          if [ "${{ steps.poll_backup.outputs.backup_failed }}" = "true" ]; then
+            echo "::error::Le backup quotidien s'est termine en erreur. ${{ steps.poll_backup.outputs.backup_error }}"
+            failed=true
+          fi
+
+          if [ "${{ steps.send_digest.outputs.digest_ok }}" != "true" ]; then
+            echo "::error::L'envoi du digest quotidien a echoue. ${{ steps.send_digest.outputs.digest_error }}"
+            failed=true
+          fi
+
+          if [ "$failed" = true ]; then
+            exit 1
+          fi
+
+          echo "Backup et digest termines avec succes."

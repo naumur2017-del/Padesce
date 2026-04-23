@@ -253,6 +253,12 @@ class LoginRequiredMiddleware:
             static_prefix,
             media_prefix,
         ]
+        public_token_api_prefixes = [
+            "/backup/api/trigger/",
+            "/backup/api/trigger-status/",
+            "/reporting/api/daily-digest/trigger/",
+        ]
+        exempt_prefixes.extend(public_token_api_prefixes)
         if getattr(settings, "PUBLIC_CONSULTANT_ACCESS", False):
             exempt_prefixes.append("/consultant/")
 
@@ -263,7 +269,7 @@ class LoginRequiredMiddleware:
 
         if path in ("/", login_path) or any(path.startswith(p) for p in exempt_prefixes if p):
             # Safety: even if a prefix is exempt, block sensitive actions for anonymous users
-            if any(p in path for p in ["/api/", "/import/", "/delete/", "/upload/", "/action/", "/finalize/"]):
+            if any(p in path for p in ["/api/", "/import/", "/delete/", "/upload/", "/action/", "/finalize/"]) and not any(path.startswith(p) for p in public_token_api_prefixes):
                 return redirect_to_login(request.get_full_path(), login_url)
             return self.get_response(request)
 

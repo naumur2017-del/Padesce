@@ -5,17 +5,20 @@ import unicodedata
 from decimal import Decimal, InvalidOperation
 from urllib.parse import urlencode
 
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import get_user_model as _get_user_model
 from django.contrib.auth.models import Group
 from django.core.paginator import Paginator
 from django.db import OperationalError, connection, transaction
 from django.db.models import Avg, Count, Q, Sum
-from django.http import Http404, HttpResponse
+from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.utils.safestring import mark_safe
 from django.utils.text import slugify
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_POST
 from openpyxl import Workbook, load_workbook
 
 from App_PADESCE.appels.models import Appel
@@ -40,6 +43,7 @@ from App_PADESCE.reporting.app_report import (
     get_report_email_recipients,
     normalize_report_call_scope,
     parse_report_dates,
+    send_daily_digest_email,
     send_report_by_email,
 )
 from App_PADESCE.reporting.forms import ConsolidationUploadForm
@@ -1982,6 +1986,38 @@ def application_report_send_mail_view(request):
         {"start": start_date.isoformat(), "end": end_date.isoformat(), "call_scope": call_scope}
     )
     return redirect(f"{reverse('application_report')}?{query}")
+
+
+@csrf_exempt
+@require_POST
+def reporting_daily_digest_trigger_view(request):
+    expected_token = str(
+        getattr(settings, "REPORT_TRIGGER_TOKEN", "")
+        or getattr(settings, "BACKUP_TRIGGER_TOKEN", "")
+        or ""
+    ).strip()
+    if not expected_token:
+        return JsonResponse({"error": "REPORT_TRIGGER_TOKEN non configuré."}, status=503)
+
+    provided_token = (
+        request.headers.get("X-Report-Token", "")
+        or request.headers.get("X-Backup-Token", "")
+        or request.POST.get("token", "")
+    )
+    provided_token = str(provided_token or "").strip()
+    if not provided_token or provided_token != expected_token:
+        return JsonResponse({"error": "Token invalide ou manquant."}, status=403)
+
+    start_date, end_date = parse_report_dates(request.POST.get("start"), request.POST.get("end"))
+    result = send_daily_digest_email(
+        start_date,
+        end_date,
+        backup_job_id=request.POST.get("job_id", ""),
+        backup_error=request.POST.get("backup_error", ""),
+        recipients=request.POST.get("recipients") or None,
+    )
+    status_code = 200 if result.get("ok") else 500
+    return JsonResponse(result, status=status_code)
 
 
 @require_analysis_access

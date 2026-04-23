@@ -16,6 +16,10 @@ from django.utils import timezone
 from django.utils.text import slugify
 from django.views.decorators.http import require_POST
 
+from App_PADESCE.appels.cga_report import (
+    build_cga_calls_report_workbook,
+    get_cga_calls_report_filename,
+)
 from App_PADESCE.appels.models import CALL_COMPLETED_STATUSES, AppelCGA
 from App_PADESCE.appels.views import (
     _bind_audio_state,
@@ -242,67 +246,14 @@ def _flush_cga_batch(batch, *, ignore_conflicts=False):
 
 @login_required
 def cga_export_xlsx(request):
-    wb = openpyxl.Workbook()
-    ws = wb.active
-    ws.title = "Sheet1"
-    ws.append(
-        [
-            "N°",
-            "RAISON_SOCIALE",
-            "SIGLE",
-            "NIU",
-            "ACTIVITE_PRINCIPALE",
-            "REGIME",
-            "CRI",
-            "CENTRE_DE_RATTACHEMENT",
-            "VILLE",
-            "TELEPHONE",
-            "STATUT",
-            "RAPPEL_AT",
-            "LOCKED_BY",
-            "LOCKED_AT",
-            "AUDIO_FILE",
-            "INTERET",
-            "MAUVAIS_NUMERO",
-            "INDISPONIBLE",
-            "CREATED_AT",
-            "UPDATED_AT",
-        ]
-    )
-    for row in (
-        AppelCGA.objects.select_related("locked_by")
-        .order_by("raison_sociale")
-        .iterator(chunk_size=2000)
-    ):
-        ws.append(
-            [
-                row.numero,
-                row.raison_sociale,
-                row.sigle,
-                row.niu,
-                row.activite_principale,
-                row.regime,
-                row.cri,
-                row.centre_de_rattachement,
-                row.ville,
-                row.telephone,
-                row.status,
-                row.rappel_at.isoformat() if row.rappel_at else "",
-                row.locked_by.username if row.locked_by else "",
-                row.locked_at.isoformat() if row.locked_at else "",
-                _safe_audio_url(row),
-                row.interet,
-                row.mauvais_numero,
-                row.indisponible,
-                row.created_at.isoformat() if getattr(row, "created_at", None) else "",
-                row.updated_at.isoformat() if getattr(row, "updated_at", None) else "",
-            ]
-        )
+    payload = build_cga_calls_report_workbook()
     response = HttpResponse(
+        payload,
         content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
-    response["Content-Disposition"] = 'attachment; filename="cga-export.xlsx"'
-    wb.save(response)
+    response["Content-Disposition"] = (
+        f'attachment; filename="{get_cga_calls_report_filename()}"'
+    )
     return response
 
 

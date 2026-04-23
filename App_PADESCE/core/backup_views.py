@@ -72,23 +72,57 @@ def backup_status(request, job_id: str):
 @csrf_exempt
 @require_POST
 def backup_trigger(request):
-    """
-    Endpoint protégé par un token secret.
-    Appelé chaque jour à 17h par le workflow GitHub Actions backup-daily.yml.
+    """Déclenche un backup via un token partagé avec GitHub Actions."""
+    is_valid, error_response = _validate_backup_trigger_token(request)
+    if not is_valid:
+        return error_response
 
-    Header attendu : X-Backup-Token: <BACKUP_TRIGGER_TOKEN>
-    """
+    raw_retention_days = request.headers.get("X-Backup-Retention-Days", "") or request.POST.get(
+        "retention_days", ""
+    )
+    retention_days = backup_manager.resolve_backup_retention_days(raw_retention_days)
+    job_id = backup_manager.start_backup(
+        triggered_by="scheduled/github-actions",
+        retention_days=retention_days,
+    )
+    return JsonResponse(
+        {
+            "job_id": job_id,
+            "message": "Backup démarré.",
+            "retention_days": retention_days,
+        }
+    )
+
+
+def _validate_backup_trigger_token(request):
     expected_token: str = getattr(settings, "BACKUP_TRIGGER_TOKEN", "")
     if not expected_token:
-        return JsonResponse({"error": "BACKUP_TRIGGER_TOKEN non configuré."}, status=503)
+        return False, JsonResponse({"error": "BACKUP_TRIGGER_TOKEN non configuré."}, status=503)
 
     provided_token = request.headers.get("X-Backup-Token", "") or request.POST.get("token", "")
+    provided_token = str(provided_token or "").strip()
 
     if not provided_token or provided_token != expected_token:
-        return JsonResponse({"error": "Token invalide ou manquant."}, status=403)
+        return False, JsonResponse({"error": "Token invalide ou manquant."}, status=403)
 
-    job_id = backup_manager.start_backup(triggered_by="scheduled/github-actions")
-    return JsonResponse({"job_id": job_id, "message": "Backup démarré."})
+    return True, None
+
+
+@require_GET
+def backup_trigger_status(request, job_id: str):
+    is_valid, error_response = _validate_backup_trigger_token(request)
+    if not is_valid:
+        return error_response
+
+    job = backup_manager.get_job(job_id)
+    if job is not None:
+        return JsonResponse(job)
+
+    history_entry = backup_manager.get_history_entry(job_id)
+    if history_entry is not None:
+        return JsonResponse(history_entry)
+
+    return JsonResponse({"error": "Job introuvable."}, status=404)
 
 
 # ---------------------------------------------------------------------------
