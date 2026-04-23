@@ -24,9 +24,9 @@ class ChatRemoteApiTests(TestCase):
     def test_chat_proxy_returns_remote_response_and_persists_history(self, mock_post):
         mock_response = Mock(status_code=200)
         mock_response.json.return_value = {
-            "reponse": "Réponse distante depuis Hugging Face.",
-            "fichier": "/app/exports/rapport.xlsx",
-            "download_url": "https://koulou-chatnaumur.hf.space/files/rapport.xlsx",
+            "commentaire": "Réponse distante depuis bddrequestor.",
+            "fichier": "rapport.xlsx",
+            "branche": "excel",
         }
         mock_post.return_value = mock_response
 
@@ -40,16 +40,12 @@ class ChatRemoteApiTests(TestCase):
         self.assertEqual(response.status_code, 200)
         payload = response.json()
         self.assertEqual(payload["mode"], "remote-api")
-        self.assertEqual(payload["response"], "Réponse distante depuis Hugging Face.")
+        self.assertEqual(payload["response"], "Réponse distante depuis bddrequestor.")
         self.assertEqual(payload["filename"], "rapport.xlsx")
-        self.assertEqual(
-            payload["download_url"],
-            "https://koulou-chatnaumur.hf.space/files/rapport.xlsx",
-        )
 
         mock_post.assert_called_once()
         call_kwargs = mock_post.call_args.kwargs
-        self.assertEqual(call_kwargs["json"], {"prompt": message, "verbose": False})
+        self.assertEqual(call_kwargs["json"], {"question": message})
         self.assertIn("timeout", call_kwargs)
 
         history = self.client.session[CHAT_HISTORY_SESSION_KEY]
@@ -57,7 +53,7 @@ class ChatRemoteApiTests(TestCase):
         self.assertEqual(history[0]["role"], "user")
         self.assertEqual(history[0]["content"], message)
         self.assertEqual(history[1]["role"], "assistant")
-        self.assertEqual(history[1]["content"], "Réponse distante depuis Hugging Face.")
+        self.assertEqual(history[1]["content"], "Réponse distante depuis bddrequestor.")
 
     @patch("App_PADESCE.core.chat_views.requests.post", side_effect=requests.Timeout)
     def test_chat_remote_timeout_returns_error(self, _mock_post):
@@ -70,7 +66,27 @@ class ChatRemoteApiTests(TestCase):
         self.assertEqual(response.status_code, 504)
         payload = response.json()
         self.assertEqual(payload["mode"], "remote-api-error")
-        self.assertIn("service RAG distant", payload["error"])
+        self.assertIn("service chat distant", payload["error"])
+
+    @patch("App_PADESCE.core.chat_views.requests.get")
+    def test_download_export_proxies_remote_generated_file(self, mock_get):
+        mock_response = Mock(status_code=200)
+        mock_response.content = b"fake-xlsx-content"
+        mock_response.headers = {
+            "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        }
+        mock_response.raise_for_status.return_value = None
+        mock_get.return_value = mock_response
+
+        response = self.client.get(reverse("download_export", args=["rapport.xlsx"]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response["Content-Type"],
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        self.assertIn("rapport.xlsx", response["Content-Disposition"])
+        self.assertEqual(response.content, b"fake-xlsx-content")
 
 
 @override_settings(
