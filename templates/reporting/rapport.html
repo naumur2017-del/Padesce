@@ -269,7 +269,7 @@
     <article class="card">
       <div class="label">Utilisateurs ayant appelé</div>
       <div class="value">{{ report.users.called_today }}</div>
-      <div class="meta">Au moins un appel effectué sur la journée</div>
+      <div class="meta">Au moins un appel effectué {{ report.daily_reference_label }}</div>
     </article>
     <article class="card">
       <div class="label">Appels terminés</div>
@@ -569,6 +569,10 @@
             <div class="user-card-item">
               <span>Appels effectués</span>
               <strong>{{ item.calls_made }}</strong>
+            </div>
+            <div class="user-card-item">
+              <span>{% if report.daily_reference_is_today %}Appels aujourd'hui{% else %}Appels le {{ report.daily_reference_date|date:"d/m" }}{% endif %}</span>
+              <strong>{{ item.calls_today }}</strong>
             </div>
             <div class="user-card-item">
               <span>Appels terminés</span>

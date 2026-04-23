@@ -2248,6 +2248,10 @@ _TRACKING_SCOPE_LABELS = {
 }
 
 
+def _start_of_current_local_day():
+    return timezone.localtime().replace(hour=0, minute=0, second=0, microsecond=0)
+
+
 def _normalize_tracking_call_scope(value: str) -> str:
     return "cga" if str(value or "").strip().lower() == "cga" else "padesce"
 
@@ -2274,6 +2278,7 @@ def _compute_tracking_payload(*, user_search: str = "", call_scope: str = "pades
     call_scope = _normalize_tracking_call_scope(call_scope)
     User = get_user_model()
     since_24h = timezone.now() - timedelta(hours=24)
+    today_start = _start_of_current_local_day()
     cutoff = timezone.now() - timedelta(minutes=10)
     activities, activities_ready = _safe_user_activities_index()
     push_counts_by_user = _count_audit_events_by_user(
@@ -2294,6 +2299,10 @@ def _compute_tracking_payload(*, user_search: str = "", call_scope: str = "pades
             .values("locked_by_id")
             .annotate(
                 total_appels=Count("id", filter=~Q(status="en_attente")),
+                appels_aujourdhui=Count(
+                    "id",
+                    filter=Q(updated_at__gte=today_start) & ~Q(status="en_attente"),
+                ),
                 a_rappeler=Count("id", filter=Q(status="a_rappeler")),
                 appels_tentes=Count("id", filter=Q(status__in=CALL_TENTATIVE_STATUSES)),
                 appels_reussis=Count("id", filter=Q(status__in=CALL_COMPLETED_STATUSES)),
@@ -2337,6 +2346,7 @@ def _compute_tracking_payload(*, user_search: str = "", call_scope: str = "pades
             .values("locked_by_id")
             .annotate(
                 total_appels=Count("id"),
+                appels_aujourdhui=Count("id", filter=Q(updated_at__gte=today_start)),
                 a_rappeler=Count("id", filter=Q(status="a_rappeler")),
                 appels_tentes=Count("id", filter=Q(status="appel_tente")),
                 appels_reussis=Count("id", filter=Q(status="appel_reussi")),
@@ -2474,6 +2484,7 @@ def _compute_tracking_payload(*, user_search: str = "", call_scope: str = "pades
                 "last_seen": last_seen,
                 "last_login": user.last_login,
                 "total_appels": int(stats_row.get("total_appels") or 0),
+                "appels_aujourdhui": int(stats_row.get("appels_aujourdhui") or 0),
                 "a_rappeler": int(stats_row.get("a_rappeler") or 0),
                 "appels_tentes": int(stats_row.get("appels_tentes") or 0),
                 "appels_reussis": int(stats_row.get("appels_reussis") or 0),
