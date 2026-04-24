@@ -5,7 +5,9 @@ from collections import defaultdict
 from types import SimpleNamespace
 from urllib.parse import urlencode
 
+from django.conf import settings
 from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
+from django.http import Http404
 from django.http import HttpResponse
 from django.shortcuts import render
 from django.template.loader import render_to_string
@@ -47,6 +49,13 @@ from App_PADESCE.satisfaction_formateurs.views import (
 
 PUBLIC_SCOPE_CHOICES = ("apprenant", "formateur")
 PUBLIC_SECTION_CHOICES = ("principal", "apercu", "stats")
+
+
+def _ensure_debug_route_access(request) -> None:
+    user = getattr(request, "user", None)
+    if settings.DEBUG or (user and user.is_authenticated and user.is_staff):
+        return
+    raise Http404()
 
 
 def _public_scope(request) -> str:
@@ -3090,6 +3099,8 @@ def test_formateur_stats_minimal(request):
     """
     from django.http import HttpResponse
 
+    _ensure_debug_route_access(request)
+
     try:
         # Retourner une réponse HTML simple
         html_content = """
@@ -3129,6 +3140,8 @@ def test_formateur_stats_with_template(request):
     Vue de test qui utilise le template mais avec des données minimales
     """
     from django.shortcuts import render
+
+    _ensure_debug_route_access(request)
 
     try:
         # Context minimal
@@ -3256,6 +3269,8 @@ def debug_formateur_stats(request):
 
     from django.http import HttpResponse
 
+    _ensure_debug_route_access(request)
+
     try:
         # Tester la fonction simple
         result = _build_formateur_stats_simple(request)
@@ -3359,6 +3374,8 @@ def debug_context_stats(request):
     """
 
     from django.http import HttpResponse
+
+    _ensure_debug_route_access(request)
 
     try:
         # Simuler exactement ce que fait la vue principale
