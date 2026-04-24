@@ -132,6 +132,8 @@ INSTALLED_APPS = [
 
 HAS_CHANNELS = importlib.util.find_spec("channels") is not None
 HAS_WHITENOISE = importlib.util.find_spec("whitenoise") is not None
+HAS_DJANGO_REDIS = importlib.util.find_spec("django_redis") is not None
+HAS_CHANNELS_REDIS = importlib.util.find_spec("channels_redis") is not None
 if HAS_CHANNELS:
     INSTALLED_APPS.insert(6, "channels")
 
@@ -177,11 +179,6 @@ TEMPLATES = [
 WSGI_APPLICATION = "App_PADESCE.wsgi.application"
 if HAS_CHANNELS:
     ASGI_APPLICATION = "App_PADESCE.asgi.application"
-    CHANNEL_LAYERS = {
-        "default": {
-            "BACKEND": "channels.layers.InMemoryChannelLayer",
-        }
-    }
 
 
 # Database
@@ -316,10 +313,50 @@ LOGOUT_REDIRECT_URL = "public_space"
 CSRF_FAILURE_VIEW = "App_PADESCE.core.error_views.csrf_failure"
 
 
+def _redis_url_from_env(*names: str) -> str:
+    for name in names:
+        value = str(os.getenv(name, "") or "").strip()
+        if value:
+            return value
+    return ""
+
+
+def _cache_backend_key_from_env() -> str:
+    explicit_backend = str(os.getenv("PADESCE_CACHE_BACKEND", "") or "").strip().lower()
+    if explicit_backend:
+        return explicit_backend
+    if _redis_url_from_env("PADESCE_REDIS_URL", "REDIS_URL"):
+        return "redis"
+    return "locmem"
+
+
 def _cache_settings_from_env() -> dict:
-    backend_key = str(os.getenv("PADESCE_CACHE_BACKEND", "locmem") or "").strip().lower()
+    backend_key = _cache_backend_key_from_env()
     timeout = int(str(os.getenv("PADESCE_CACHE_TIMEOUT", "28800") or "28800"))
     max_entries = int(str(os.getenv("PADESCE_CACHE_MAX_ENTRIES", "5000") or "5000"))
+    key_prefix = str(os.getenv("PADESCE_CACHE_KEY_PREFIX", "padesce") or "padesce").strip()
+
+    if backend_key in {"redis", "rediscache", "django-redis", "django_redis"}:
+        if not HAS_DJANGO_REDIS:
+            raise RuntimeError(
+                "Le backend de cache Redis requiert la dependance django-redis."
+            )
+        redis_url = _redis_url_from_env("PADESCE_REDIS_URL", "REDIS_URL")
+        if not redis_url:
+            raise RuntimeError(
+                "Aucune URL Redis configuree. Definissez PADESCE_REDIS_URL ou REDIS_URL."
+            )
+        return {
+            "default": {
+                "BACKEND": "django_redis.cache.RedisCache",
+                "LOCATION": redis_url,
+                "TIMEOUT": timeout,
+                "KEY_PREFIX": key_prefix,
+                "OPTIONS": {
+                    "CLIENT_CLASS": "django_redis.client.DefaultClient",
+                },
+            }
+        }
 
     if backend_key in {"file", "filebased", "file_based"}:
         requested_location = str(os.getenv("PADESCE_CACHE_LOCATION", "") or "").strip()
@@ -377,6 +414,55 @@ def _cache_settings_from_env() -> dict:
 
 
 CACHES = _cache_settings_from_env()
+
+
+def _channel_layer_backend_key_from_env() -> str:
+    explicit_backend = str(os.getenv("PADESCE_CHANNEL_LAYER_BACKEND", "") or "").strip().lower()
+    if explicit_backend:
+        return explicit_backend
+    if _redis_url_from_env("PADESCE_CHANNELS_REDIS_URL", "PADESCE_REDIS_URL", "REDIS_URL"):
+        return "redis"
+    return "memory"
+
+
+def _channel_layers_from_env() -> dict:
+    backend_key = _channel_layer_backend_key_from_env()
+    if backend_key in {"memory", "inmemory", "in-memory", "local"}:
+        return {
+            "default": {
+                "BACKEND": "channels.layers.InMemoryChannelLayer",
+            }
+        }
+    if backend_key in {"none", "disabled"}:
+        return {}
+    if backend_key == "redis":
+        if not HAS_CHANNELS_REDIS:
+            raise RuntimeError(
+                "Le channel layer Redis requiert la dependance channels-redis."
+            )
+        redis_url = _redis_url_from_env(
+            "PADESCE_CHANNELS_REDIS_URL",
+            "PADESCE_REDIS_URL",
+            "REDIS_URL",
+        )
+        if not redis_url:
+            raise RuntimeError(
+                "Aucune URL Redis configuree pour Channels. "
+                "Definissez PADESCE_CHANNELS_REDIS_URL, PADESCE_REDIS_URL ou REDIS_URL."
+            )
+        return {
+            "default": {
+                "BACKEND": "channels_redis.core.RedisChannelLayer",
+                "CONFIG": {
+                    "hosts": [redis_url],
+                },
+            }
+        }
+    raise RuntimeError(f"Backend de channel layer inconnu: {backend_key}")
+
+
+if HAS_CHANNELS:
+    CHANNEL_LAYERS = _channel_layers_from_env()
 
 # ---------------------------------------------------------------------------
 # Sessions — cached_db : lecture ultra-rapide depuis le cache,

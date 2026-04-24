@@ -1,11 +1,14 @@
 asgiref==3.11.0
 Django==6.0
 channels==4.2.0
+channels-redis
 sqlparse==0.5.4
 tzdata==2025.3
 pandas
 openpyxl
 numpy
+redis
+django-redis
 django-allauth
 djangorestframework
 whitenoise
