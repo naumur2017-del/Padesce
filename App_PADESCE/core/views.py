@@ -209,49 +209,6 @@ def _consultant_dashboard_fenetre(appel: Appel) -> str:
     return ""
 
 
-_conformity_ranking_cache: dict = {"mtime": None, "data": {}}
-
-
-def _load_conformity_ranking_priorities() -> dict:
-    """Load priorities from conformity_ranking.json with mtime-based cache invalidation.
-
-    The cache is refreshed whenever the file is modified on disk, so a new
-    deployment of conformity_ranking.json is picked up automatically without
-    restarting the server process.
-    """
-    path = os.path.join(settings.BASE_DIR, "conformity_ranking.json")
-    if not os.path.exists(path):
-        return {}
-    try:
-        mtime = os.path.getmtime(path)
-    except OSError:
-        return {}
-
-    if _conformity_ranking_cache["mtime"] == mtime:
-        return _conformity_ranking_cache["data"]
-
-    try:
-        with open(path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        priorities = {}
-        for item in data:
-            sugg = item.get("reponses_suggerees_audio")
-            if sugg and all(v is not None for v in sugg.values()):
-                # Calculate average satisfaction
-                vals = [float(v) for v in sugg.values() if v is not None]
-                avg = sum(vals) / len(vals) if vals else 0
-                priorities[item["code"]] = {
-                    "responses": sugg,
-                    "avg_satisfaction": avg,
-                    "name": item.get("name"),
-                }
-        _conformity_ranking_cache["mtime"] = mtime
-        _conformity_ranking_cache["data"] = priorities
-        return priorities
-    except Exception:
-        return {}
-
-
 def _consultant_answers_complete(answers: AppelAnswers | None) -> bool:
     if not answers:
         return False
@@ -319,17 +276,6 @@ def _consultant_simulated_answers_payload(appel: Appel) -> dict[str, object]:
 
 
 def _consultant_display_answers(appel: Appel, answers: AppelAnswers | None) -> tuple[object, bool]:
-    priorities = _load_conformity_ranking_priorities()
-    if appel.code in priorities:
-        p_data = priorities[appel.code]
-        # Map JSON keys ('q1', 'q2', etc.) to model fields
-        payload = {
-            field: p_data["responses"].get(field[:2]) for field in APPEL_ANSWER_QUESTION_FIELDS
-        }
-        payload["commentaire"] = "Réponses extraites de l'audio par analyse de conformité."
-        payload["recommandations"] = "N/A (Calculé via analyse audio)"
-        return SimpleNamespace(**payload), False
-
     if answers and _consultant_answers_complete(answers):
         commentaire = str(getattr(answers, "commentaire", "") or "").strip()
         recommandations = str(getattr(answers, "recommandations", "") or "").strip()
@@ -1605,7 +1551,6 @@ def _build_consultant_dashboard_context(request):
     if status_filter:
         rows_qs = rows_qs.filter(status=status_filter)
 
-    priorities = _load_conformity_ranking_priorities()
     rows_qs_list = list(rows_qs)
     matched_apprenants = match_apprenants_to_appels(rows_qs_list)
 
@@ -1691,9 +1636,6 @@ def _build_consultant_dashboard_context(request):
             else:
                 status_display = "Formulaire rempli"
         app.consultant_status_display = status_display
-
-        if app.code in priorities:
-            app.priority_avg = priorities[app.code]["avg_satisfaction"]
 
         # Normalize attributes for template compatibility
         app.consultant_display_name = app.nom
