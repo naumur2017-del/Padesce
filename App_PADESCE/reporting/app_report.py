@@ -137,6 +137,12 @@ def build_application_report(
     start_dt = timezone.make_aware(datetime.combine(start_date, time.min), tz)
     end_dt = timezone.make_aware(datetime.combine(end_date, time.max), tz)
     now = timezone.localtime()
+    report_day_start = timezone.make_aware(datetime.combine(end_date, time.min), tz)
+    report_day_end = timezone.make_aware(datetime.combine(end_date, time.max), tz)
+    daily_reference_is_today = end_date == timezone.localdate()
+    daily_reference_label = (
+        "aujourd'hui" if daily_reference_is_today else f"le {end_date.strftime('%d/%m/%Y')}"
+    )
     selected_class_code = (selected_class_code or "").strip()
     selected_class = _get_selected_class(selected_class_code)
     call_scope = normalize_report_call_scope(call_scope)
@@ -203,9 +209,14 @@ def build_application_report(
     cga_dimensions = _build_cga_dimension_summary(cga_qs)
     formateurs_summary = _build_formateurs_satisfaction_summary(start_dt, end_dt)
     user_call_rows = (
-        _build_user_call_rows(cga_qs)
+        _build_user_call_rows(cga_qs, day_start=report_day_start, day_end=report_day_end)
         if call_scope == "cga"
-        else _build_user_call_rows(padesce_qs, formateur_qs)
+        else _build_user_call_rows(
+            padesce_qs,
+            formateur_qs,
+            day_start=report_day_start,
+            day_end=report_day_end,
+        )
     )
     cga_outcomes = {
         "interesses": cga_qs.filter(interet="OUI").count(),
@@ -238,7 +249,7 @@ def build_application_report(
             "superusers": user_model.objects.filter(is_superuser=True).count(),
             "seen_24h": active_24h_users.count(),
             "seen_period": active_period_users.count(),
-            "called_today": len(user_call_rows),
+            "called_today": sum(1 for row in user_call_rows if row["calls_today"] > 0),
         },
         "calls": call_totals,
         "call_sources": call_sources,
@@ -252,6 +263,9 @@ def build_application_report(
         "cga_outcomes": cga_outcomes,
         "user_call_rows": user_call_rows,
         "mail_status": mail_status,
+        "daily_reference_date": end_date,
+        "daily_reference_is_today": daily_reference_is_today,
+        "daily_reference_label": daily_reference_label,
         "selected_class_code": selected_class.code if selected_class else selected_class_code,
     }
 
@@ -1173,7 +1187,14 @@ def _build_formateurs_satisfaction_summary(start_dt, end_dt) -> dict:
     }
 
 
-def _build_user_call_rows(*querysets) -> list[dict]:
+def _build_user_call_rows(*querysets, day_start=None, day_end=None) -> list[dict]:
+    day_filter = Q()
+    has_day_window = day_start is not None or day_end is not None
+    if day_start is not None:
+        day_filter &= Q(updated_at__gte=day_start)
+    if day_end is not None:
+        day_filter &= Q(updated_at__lte=day_end)
+
     merged: dict[int, dict] = {}
     for queryset in querysets:
         rows = (
@@ -1182,6 +1203,7 @@ def _build_user_call_rows(*querysets) -> list[dict]:
             .values("locked_by_id", "locked_by__username")
             .annotate(
                 calls_made=Count("id"),
+                calls_today=Count("id", filter=day_filter) if has_day_window else Count("id"),
                 completed_calls=Count("id", filter=Q(status__in=CALL_COMPLETED_STATUSES)),
                 first_activity=Min("updated_at"),
                 last_activity=Max("updated_at"),
@@ -1193,11 +1215,13 @@ def _build_user_call_rows(*querysets) -> list[dict]:
                 merged[user_id] = {
                     "username": row["locked_by__username"] or f"user-{user_id}",
                     "calls_made": 0,
+                    "calls_today": 0,
                     "completed_calls": 0,
                     "first_activity": row["first_activity"],
                     "last_activity": row["last_activity"],
                 }
             merged[user_id]["calls_made"] += int(row["calls_made"] or 0)
+            merged[user_id]["calls_today"] += int(row["calls_today"] or 0)
             merged[user_id]["completed_calls"] += int(row["completed_calls"] or 0)
             if row["first_activity"] and (
                 not merged[user_id]["first_activity"]
@@ -1221,6 +1245,7 @@ def _build_user_call_rows(*querysets) -> list[dict]:
             {
                 "username": item["username"],
                 "calls_made": item["calls_made"],
+                "calls_today": item["calls_today"],
                 "completed_calls": item["completed_calls"],
                 "time_spent_seconds": int(max(duration.total_seconds(), 0)),
                 "time_spent_label": _format_duration(duration),

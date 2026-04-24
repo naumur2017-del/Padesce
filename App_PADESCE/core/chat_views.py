@@ -8,7 +8,7 @@ from typing import Any
 
 import requests
 from django.conf import settings
-from django.http import FileResponse, Http404, JsonResponse
+from django.http import FileResponse, Http404, HttpResponse, JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
@@ -16,8 +16,8 @@ logger = logging.getLogger(__name__)
 
 CHAT_HISTORY_SESSION_KEY = "padesce_chat_history"
 CHAT_HISTORY_LIMIT = 24
-DEFAULT_RAG_API_URL = "https://koulou-chatnaumur.hf.space/agent/run"
-DEFAULT_RAG_TIMEOUT_SECONDS = 120.0
+DEFAULT_CHAT_API_URL = "https://koulou-bddrequestor.hf.space"
+DEFAULT_CHAT_TIMEOUT_SECONDS = 300.0
 
 
 class RemoteRagError(Exception):
@@ -26,23 +26,32 @@ class RemoteRagError(Exception):
         self.status_code = status_code
 
 
-def _rag_api_url() -> str:
-    configured_url = str(os.getenv("PADESCE_RAG_API_URL", DEFAULT_RAG_API_URL) or "").strip()
-    return configured_url.rstrip("/") or DEFAULT_RAG_API_URL
+def _chat_api_url() -> str:
+    configured_url = str(
+        os.getenv("PADESCE_CHAT_API_URL")
+        or os.getenv("PADESCE_RAG_API_URL")
+        or DEFAULT_CHAT_API_URL
+        or ""
+    ).strip()
+    return configured_url.rstrip("/") or DEFAULT_CHAT_API_URL
 
 
-def _rag_timeout_seconds() -> float:
-    raw_timeout = str(os.getenv("PADESCE_RAG_API_TIMEOUT", DEFAULT_RAG_TIMEOUT_SECONDS)).strip()
+def _chat_timeout_seconds() -> float:
+    raw_timeout = str(
+        os.getenv("PADESCE_CHAT_API_TIMEOUT")
+        or os.getenv("PADESCE_RAG_API_TIMEOUT")
+        or DEFAULT_CHAT_TIMEOUT_SECONDS
+    ).strip()
     try:
         timeout = float(raw_timeout)
     except ValueError:
-        return DEFAULT_RAG_TIMEOUT_SECONDS
+        return DEFAULT_CHAT_TIMEOUT_SECONDS
     return max(1.0, timeout)
 
 
 def _remote_headers() -> dict[str, str]:
     headers = {"Accept": "application/json"}
-    token = str(os.getenv("PADESCE_RAG_API_TOKEN", "") or "").strip()
+    token = str(os.getenv("PADESCE_CHAT_API_TOKEN") or os.getenv("PADESCE_RAG_API_TOKEN") or "").strip()
     if token:
         headers["Authorization"] = f"Bearer {token}"
     return headers
@@ -93,7 +102,7 @@ def _remote_filename(payload: dict[str, Any]) -> str | None:
 
 
 def _response_text(payload: dict[str, Any]) -> str:
-    for key in ("reponse", "response", "answer", "message"):
+    for key in ("commentaire", "reponse", "response", "answer", "message"):
         value = payload.get(key)
         if value:
             return str(value)
@@ -105,7 +114,6 @@ def _normalize_remote_payload(payload: dict[str, Any]) -> dict[str, Any]:
     return {
         "response": response_text,
         "filename": _remote_filename(payload),
-        "download_url": payload.get("download_url") or None,
         "mode": "remote-api",
     }
 
@@ -113,19 +121,19 @@ def _normalize_remote_payload(payload: dict[str, Any]) -> dict[str, Any]:
 def _call_remote_rag(message: str) -> dict[str, Any]:
     try:
         response = requests.post(
-            _rag_api_url(),
-            json={"prompt": message, "verbose": False},
+            f"{_chat_api_url()}/ask",
+            json={"question": message},
             headers=_remote_headers(),
-            timeout=_rag_timeout_seconds(),
+            timeout=_chat_timeout_seconds(),
         )
     except requests.Timeout as exc:
         raise RemoteRagError(
-            "Le service RAG distant ne répond pas dans le délai configuré.",
+            "Le service chat distant ne répond pas dans le délai configuré.",
             status_code=504,
         ) from exc
     except requests.RequestException as exc:
         raise RemoteRagError(
-            "Le service RAG distant est indisponible pour le moment.",
+            "Le service chat distant est indisponible pour le moment.",
             status_code=503,
         ) from exc
 
@@ -133,7 +141,7 @@ def _call_remote_rag(message: str) -> dict[str, Any]:
         detail = response.text.strip()
         if len(detail) > 300:
             detail = f"{detail[:300]}..."
-        message = f"Le service RAG distant a retourné une erreur HTTP {response.status_code}."
+        message = f"Le service chat distant a retourné une erreur HTTP {response.status_code}."
         if detail:
             message = f"{message} {detail}"
         raise RemoteRagError(message, status_code=502)
@@ -142,13 +150,13 @@ def _call_remote_rag(message: str) -> dict[str, Any]:
         payload = response.json()
     except ValueError as exc:
         raise RemoteRagError(
-            "Le service RAG distant a retourné une réponse non JSON.",
+            "Le service chat distant a retourné une réponse non JSON.",
             status_code=502,
         ) from exc
 
     if not isinstance(payload, dict):
         raise RemoteRagError(
-            "Le service RAG distant a retourné un format inattendu.",
+            "Le service chat distant a retourné un format inattendu.",
             status_code=502,
         )
 
@@ -182,14 +190,14 @@ def chat_query(request):
     try:
         payload = _build_chat_payload(request, message)
     except RemoteRagError as exc:
-        logger.warning("Appel RAG distant impossible: %s", exc)
+        logger.warning("Appel chat distant impossible: %s", exc)
         return JsonResponse({"error": str(exc), "mode": "remote-api-error"}, status=exc.status_code)
 
     return JsonResponse(payload)
 
 
 def download_export(request, filename):
-    """Point de téléchargement pour les fichiers générés par l'agent local historique."""
+    """Point de téléchargement pour les fichiers générés par le chatbot."""
     if ".." in filename or "/" in filename or "\\" in filename:
         raise Http404("Fichier invalide")
 
@@ -199,6 +207,29 @@ def download_export(request, filename):
 
     file_path = export_dir / filename
     if not file_path.exists():
-        raise Http404(f"Fichier {filename} introuvable")
+        try:
+            remote_response = requests.get(
+                f"{_chat_api_url()}/download",
+                params={"filepath": filename},
+                headers=_remote_headers(),
+                timeout=_chat_timeout_seconds(),
+            )
+            if remote_response.status_code == 404:
+                raise Http404(f"Fichier {filename} introuvable")
+            remote_response.raise_for_status()
+        except Http404:
+            raise
+        except requests.RequestException:
+            return JsonResponse(
+                {"error": "Téléchargement distant indisponible.", "mode": "remote-api-error"},
+                status=502,
+            )
+
+        response = HttpResponse(
+            remote_response.content,
+            content_type=remote_response.headers.get("Content-Type", "application/octet-stream"),
+        )
+        response["Content-Disposition"] = f'attachment; filename="{filename}"'
+        return response
 
     return FileResponse(file_path.open("rb"), as_attachment=True, filename=filename)

@@ -448,6 +448,7 @@
             <th>Utilisateur</th>
             <th>Statut</th>
             <th>Nombre d'appels</th>
+            <th>Appels aujourd'hui</th>
             <th>A rappeler</th>
             {% if call_scope == "cga" %}
               <th>Intéressés</th>
@@ -481,6 +482,7 @@
               </span>
             </td>
             <td><a class="drill-link" href="{{ row.total_url }}">{{ row.total_appels }}</a></td>
+            <td>{{ row.appels_aujourdhui }}</td>
             <td><a class="drill-link" href="{{ row.rappel_url }}">{{ row.a_rappeler }}</a></td>
             {% if call_scope == "cga" %}
               <td><a class="drill-link" href="{{ row.interesses_url }}">{{ row.cga_interesses }}</a></td>
@@ -533,7 +535,7 @@
             <td>{% if row.last_login %}{{ row.last_login|date:"d/m/Y H:i:s" }}{% else %}-{% endif %}</td>
           </tr>
         {% empty %}
-          <tr><td colspan="{% if call_scope == 'cga' %}18{% else %}17{% endif %}">Aucun utilisateur trouve.</td></tr>
+          <tr><td colspan="18">Aucun utilisateur trouve.</td></tr>
         {% endfor %}
       </tbody>
     </table>

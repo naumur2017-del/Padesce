@@ -1,6 +1,6 @@
 import os
 import tempfile
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 from unittest.mock import patch
 
@@ -9,6 +9,7 @@ from django.contrib.auth.models import Group
 from django.core.cache import cache
 from django.test import SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
+from django.utils import timezone
 from openpyxl import Workbook
 
 from App_PADESCE.appels.models import Appel
@@ -451,6 +452,75 @@ class NetworkExcelApiTests(TestCase):
             response.json()["error"],
             "Acces reserve aux superadmins et aux managers PADESCE/CGA.",
         )
+
+
+class ApplicationReportUserDayMetricsTests(TestCase):
+    def _set_appel_updated_at(self, appel, updated_at):
+        Appel.objects.filter(pk=appel.pk).update(updated_at=updated_at)
+        appel.refresh_from_db()
+        return appel
+
+    @patch("App_PADESCE.reporting.app_report.get_report_email_recipients", return_value=[])
+    @patch("App_PADESCE.reporting.app_report._build_formateurs_satisfaction_summary", return_value={})
+    @patch("App_PADESCE.reporting.app_report._build_analysis_summary", return_value={})
+    @patch("App_PADESCE.reporting.app_report._build_anomaly_summary", return_value={})
+    @patch("App_PADESCE.reporting.app_report._build_bug_summary", return_value={})
+    def test_build_application_report_tracks_calls_since_start_of_report_day(
+        self,
+        _mock_bug_summary,
+        _mock_anomaly_summary,
+        _mock_analysis_summary,
+        _mock_formateurs_summary,
+        _mock_recipients,
+    ):
+        user_model = get_user_model()
+        agent = user_model.objects.create_user(
+            username="report-agent",
+            password="test-pass-123",
+        )
+        other_agent = user_model.objects.create_user(
+            username="report-other",
+            password="test-pass-123",
+        )
+
+        today = timezone.localdate()
+        day_start = timezone.localtime().replace(hour=0, minute=0, second=0, microsecond=0)
+
+        yesterday_call = Appel.objects.create(
+            code="RPT001",
+            nom="Appel veille",
+            locked_by=agent,
+            status="appel_tente",
+            is_active=True,
+        )
+        today_call = Appel.objects.create(
+            code="RPT002",
+            nom="Appel jour",
+            locked_by=agent,
+            status="appel_reussi",
+            is_active=True,
+        )
+        other_today_call = Appel.objects.create(
+            code="RPT003",
+            nom="Appel autre agent",
+            locked_by=other_agent,
+            status="appel_tente",
+            is_active=True,
+        )
+
+        self._set_appel_updated_at(yesterday_call, day_start - timedelta(minutes=15))
+        self._set_appel_updated_at(today_call, day_start + timedelta(hours=1))
+        self._set_appel_updated_at(other_today_call, day_start + timedelta(hours=2))
+
+        report = app_report.build_application_report(today - timedelta(days=1), today)
+
+        rows = {row["username"]: row for row in report["user_call_rows"]}
+        self.assertEqual(rows["report-agent"]["calls_made"], 2)
+        self.assertEqual(rows["report-agent"]["calls_today"], 1)
+        self.assertEqual(rows["report-other"]["calls_today"], 1)
+        self.assertEqual(report["users"]["called_today"], 2)
+        self.assertTrue(report["daily_reference_is_today"])
+        self.assertEqual(report["daily_reference_label"], "aujourd'hui")
 
 
 class ReportEmailDeliveryTests(SimpleTestCase):
