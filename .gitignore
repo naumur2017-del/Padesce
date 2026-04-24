@@ -22,3 +22,10 @@ data/network_excel_cache/
 data/network_excel_bundle/*-fallback.xlsx
 ~$*
 backup_20260402_161523.sqlite3
+
+# SSL Certificates and Keys
+*.key
+*.crt
+*.pem
+certificates/
+ssl/
