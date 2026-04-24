@@ -34,6 +34,18 @@ from App_PADESCE.appels.views import (
 IMPORT_BATCH_SIZE = 2000
 PAGE_SIZE_DEFAULT = 100
 PAGE_SIZE_MAX = 500
+CGA_IMPORT_FIELDS = (
+    "numero",
+    "raison_sociale",
+    "sigle",
+    "activite_principale",
+    "regime",
+    "cri",
+    "centre_de_rattachement",
+    "ville",
+    "telephone",
+)
+CGA_APPEND_UPDATE_FIELDS = [*CGA_IMPORT_FIELDS, "is_active"]
 
 
 def _build_pagination_tokens(
@@ -244,6 +256,42 @@ def _flush_cga_batch(batch, *, ignore_conflicts=False):
     return n
 
 
+def _apply_cga_import_values(row, item):
+    for field in CGA_IMPORT_FIELDS:
+        setattr(row, field, item[field])
+
+
+def _sync_cga_append_batch(batch_items):
+    if not batch_items:
+        return 0, 0
+
+    existing_by_niu = AppelCGA.objects.in_bulk(
+        [item["niu"].strip() for item in batch_items], field_name="niu"
+    )
+    rows_to_create = []
+    rows_to_update = []
+
+    for item in batch_items:
+        niu = item["niu"].strip()
+        row = existing_by_niu.get(niu)
+        if row is None:
+            rows_to_create.append(AppelCGA(**item, is_active=True))
+            continue
+        _apply_cga_import_values(row, item)
+        row.is_active = True
+        rows_to_update.append(row)
+
+    if rows_to_create:
+        AppelCGA.objects.bulk_create(rows_to_create, batch_size=IMPORT_BATCH_SIZE)
+    if rows_to_update:
+        AppelCGA.objects.bulk_update(
+            rows_to_update,
+            CGA_APPEND_UPDATE_FIELDS,
+            batch_size=IMPORT_BATCH_SIZE,
+        )
+    return len(rows_to_create), len(rows_to_update)
+
+
 @login_required
 def cga_export_xlsx(request):
     payload = build_cga_calls_report_workbook()
@@ -355,22 +403,23 @@ def cga_index(request):
                 created = 0
                 skipped = 0
                 updated = 0
+                batch = []
                 for item in _iter_cga_excel_rows(file_obj):
                     niu = item["niu"].strip()
                     if niu in seen_file:
                         skipped += 1
                         continue
                     seen_file.add(niu)
-                    row = AppelCGA.objects.filter(niu=niu).first()
-                    if row:
-                        for key, value in item.items():
-                            setattr(row, key, value)
-                        row.is_active = True
-                        row.save()
-                        updated += 1
-                    else:
-                        AppelCGA.objects.create(**item, is_active=True)
-                        created += 1
+                    batch.append(item)
+                    if len(batch) >= IMPORT_BATCH_SIZE:
+                        batch_created, batch_updated = _sync_cga_append_batch(list(batch))
+                        created += batch_created
+                        updated += batch_updated
+                        batch.clear()
+                if batch:
+                    batch_created, batch_updated = _sync_cga_append_batch(list(batch))
+                    created += batch_created
+                    updated += batch_updated
                 deduped = _deactivate_duplicate_rows(
                     AppelCGA.objects.filter(is_active=True), _cga_duplicate_key
                 )

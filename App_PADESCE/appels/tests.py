@@ -1,14 +1,17 @@
 import os
 import shutil
 import tempfile
+import io
 from unittest.mock import patch
 
+import openpyxl
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.paginator import Paginator
 from django.test import RequestFactory, SimpleTestCase, TestCase
 from django.test.utils import override_settings
 from django.urls import reverse
+from django.utils import timezone
 
 from App_PADESCE.appels.cga_views import _build_pagination_tokens
 from App_PADESCE.appels.consolidation_views import (
@@ -200,6 +203,202 @@ class ConsolidationImportTests(TestCase):
         self.assertTrue(Appel.objects.filter(code="CLA001A").exists())
         self.assertFalse(Appel.objects.filter(code="CLA002A").exists())
         self.assertTrue(mock_messages_success.called)
+
+
+class CgaImportTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(
+            username="cga-admin",
+            password="test123",
+            is_staff=True,
+            is_superuser=True,
+        )
+        self.client.force_login(self.user)
+
+    def _build_cga_upload(self, rows):
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "Sheet1"
+        ws.append(
+            [
+                "N°",
+                "RAISON_SOCIALE",
+                "SIGLE",
+                "NIU",
+                "ACTIVITE_PRINCIPALE",
+                "REGIME",
+                "CRI",
+                "CENTRE_DE_RATTACHEMENT",
+                "VILLE",
+                "TELEPHONE",
+            ]
+        )
+        for row in rows:
+            ws.append(
+                [
+                    row.get("numero"),
+                    row.get("raison_sociale"),
+                    row.get("sigle", ""),
+                    row.get("niu", ""),
+                    row.get("activite_principale", ""),
+                    row.get("regime", ""),
+                    row.get("cri", ""),
+                    row.get("centre_de_rattachement", ""),
+                    row.get("ville", ""),
+                    row.get("telephone", ""),
+                ]
+            )
+        stream = io.BytesIO()
+        wb.save(stream)
+        return SimpleUploadedFile(
+            "cga-import.xlsx",
+            stream.getvalue(),
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+
+    def test_append_import_updates_existing_rows_and_creates_missing_ones(self):
+        locked_at = timezone.now()
+        existing = AppelCGA.objects.create(
+            numero=1,
+            raison_sociale="Ancienne raison",
+            sigle="OLD",
+            niu="NIU-001",
+            activite_principale="Ancienne activite",
+            regime="Ancien regime",
+            cri="Ancien cri",
+            centre_de_rattachement="Ancien centre",
+            ville="Ancienne ville",
+            telephone="690000000",
+            is_active=False,
+            status="pause",
+            locked_by=self.user,
+            locked_at=locked_at,
+        )
+
+        response = self.client.post(
+            reverse("cga_index"),
+            {
+                "update_mode": "append",
+                "file": self._build_cga_upload(
+                    [
+                        {
+                            "numero": 12,
+                            "raison_sociale": "Nouvelle raison",
+                            "sigle": "NEW",
+                            "niu": "NIU-001",
+                            "activite_principale": "Nouvelle activite",
+                            "regime": "Regime A",
+                            "cri": "CRI A",
+                            "centre_de_rattachement": "Centre A",
+                            "ville": "Garoua",
+                            "telephone": "699000001",
+                        },
+                        {
+                            "numero": 13,
+                            "raison_sociale": "Entreprise B",
+                            "sigle": "ENTB",
+                            "niu": "NIU-002",
+                            "activite_principale": "Commerce",
+                            "regime": "Regime B",
+                            "cri": "CRI B",
+                            "centre_de_rattachement": "Centre B",
+                            "ville": "Maroua",
+                            "telephone": "699000002",
+                        },
+                        {
+                            "numero": 14,
+                            "raison_sociale": "Entreprise B duplicate",
+                            "sigle": "ENTB",
+                            "niu": "NIU-002",
+                            "activite_principale": "Commerce",
+                            "regime": "Regime B",
+                            "cri": "CRI B",
+                            "centre_de_rattachement": "Centre B",
+                            "ville": "Maroua",
+                            "telephone": "699000002",
+                        },
+                    ]
+                ),
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+
+        existing.refresh_from_db()
+        self.assertEqual(existing.numero, 12)
+        self.assertEqual(existing.raison_sociale, "Nouvelle raison")
+        self.assertEqual(existing.sigle, "NEW")
+        self.assertEqual(existing.activite_principale, "Nouvelle activite")
+        self.assertEqual(existing.telephone, "699000001")
+        self.assertTrue(existing.is_active)
+        self.assertEqual(existing.status, "pause")
+        self.assertEqual(existing.locked_by, self.user)
+        self.assertEqual(existing.locked_at, locked_at)
+
+        created = AppelCGA.objects.get(niu="NIU-002")
+        self.assertEqual(created.raison_sociale, "Entreprise B")
+        self.assertEqual(AppelCGA.objects.count(), 2)
+
+    @patch("App_PADESCE.appels.cga_views._sync_cga_append_batch")
+    def test_append_import_splits_file_into_batches_of_2000(self, mock_sync_cga_append_batch):
+        mock_sync_cga_append_batch.side_effect = lambda batch: (len(batch), 0)
+
+        rows = [
+            {
+                "numero": index + 1,
+                "raison_sociale": f"Entreprise {index + 1}",
+                "sigle": f"SIG{index + 1}",
+                "niu": f"NIU-{index + 1:04d}",
+                "activite_principale": "Commerce",
+                "regime": "Regime",
+                "cri": "CRI",
+                "centre_de_rattachement": "Centre",
+                "ville": "Ville",
+                "telephone": f"699{index + 1:06d}",
+            }
+            for index in range(2000)
+        ]
+        rows.append(
+            {
+                "numero": 2001,
+                "raison_sociale": "Duplicate after first batch",
+                "sigle": "DUP",
+                "niu": "NIU-0001",
+                "activite_principale": "Commerce",
+                "regime": "Regime",
+                "cri": "CRI",
+                "centre_de_rattachement": "Centre",
+                "ville": "Ville",
+                "telephone": "699999998",
+            }
+        )
+        rows.append(
+            {
+                "numero": 2002,
+                "raison_sociale": "Entreprise 2001",
+                "sigle": "SIG2001",
+                "niu": "NIU-2001",
+                "activite_principale": "Commerce",
+                "regime": "Regime",
+                "cri": "CRI",
+                "centre_de_rattachement": "Centre",
+                "ville": "Ville",
+                "telephone": "699999999",
+            }
+        )
+
+        response = self.client.post(
+            reverse("cga_index"),
+            {
+                "update_mode": "append",
+                "file": self._build_cga_upload(rows),
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(mock_sync_cga_append_batch.call_count, 2)
+        self.assertEqual(len(mock_sync_cga_append_batch.call_args_list[0].args[0]), 2000)
+        self.assertEqual(len(mock_sync_cga_append_batch.call_args_list[1].args[0]), 1)
 
 
 class AppelsIndexFilterTests(TestCase):
