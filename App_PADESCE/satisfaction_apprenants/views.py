@@ -2557,7 +2557,7 @@ def _build_missing_prestations_analysis(
 
 def _build_prestation_indicators_table():
     """Construit une table agrégée des prestations avec les indicateurs de satisfaction."""
-    from App_PADESCE.formations.models import Classe, Prestation
+    from App_PADESCE.formations.models import Classe, Prestation, Formateur
     from App_PADESCE.satisfaction_apprenants.models import SatisfactionApprenant
 
     def _normalize_indicator_match_text(value: str) -> str:
@@ -2632,55 +2632,6 @@ def _build_prestation_indicators_table():
     table_data = []
 
     for prestation in all_prestations:
-        # Récupérer les classes actives ET inactives de cette prestation
-        # Car les satisfactions peuvent exister même si la classe est inactive
-        classes_qs = Classe.objects.filter(prestation=prestation)
-        classe_ids = list(classes_qs.values_list("pk", flat=True))
-
-        # Indicateurs Apprenant (notes moyennes)
-        if classe_ids:
-            apprenant_satisfactions = SatisfactionApprenant.objects.filter(
-                classe__pk__in=classe_ids
-            )
-        else:
-            apprenant_satisfactions = SatisfactionApprenant.objects.none()
-
-        apprenant_data = {
-            "q1_clarte_exposes": None,
-            "q2_interaction_formateur": None,
-            "q3_maitrise_contenu": None,
-            "q4_salle_adequate": None,
-            "q5_materiel_disponible": None,
-            "q6_organisation_temps": None,
-            "q7_utilite_formation": None,
-            "q8_adequation_besoins": None,
-            "q9_satisfaction_globale": None,
-            "count": apprenant_satisfactions.count(),
-        }
-
-        # Calculer les moyennes pour apprenant
-        for field in [
-            "q1_clarte_exposes",
-            "q2_interaction_formateur",
-            "q3_maitrise_contenu",
-            "q4_salle_adequate",
-            "q5_materiel_disponible",
-            "q6_organisation_temps",
-            "q7_utilite_formation",
-            "q8_adequation_besoins",
-            "q9_satisfaction_globale",
-        ]:
-            try:
-                values = list(
-                    apprenant_satisfactions.filter(**{f"{field}__isnull": False}).values_list(
-                        field, flat=True
-                    )
-                )
-                if values:
-                    apprenant_data[field] = round(sum(values) / len(values), 2)
-            except Exception:
-                pass
-
         combo_key = (
             _normalize_indicator_match_text(
                 prestation.prestataire.raison_sociale if prestation.prestataire else ""
@@ -2690,11 +2641,9 @@ def _build_prestation_indicators_table():
             ),
         )
         formateur_metrics = formateur_metrics_by_combo.get(combo_key)
-
-        # Vérifier si le code de prestation correspond à une combinaison valide
+        
         # Si aucune combinaison prestataire-bénéficiaire correspondante, ne pas afficher cette prestation
         if not formateur_metrics:
-            # Aucune combinaison trouvée - ne pas ajouter cette prestation à la table
             continue
         else:
             # Calculer les moyennes pour les données formateur
@@ -2705,14 +2654,15 @@ def _build_prestation_indicators_table():
                 "count": int(formateur_metrics.get("count") or 0),
             }
 
-            for field in [
-                "q1_prerequis_apprenants",
-                "q2_interaction_apprenants",
-                "q3_competences_acquises",
-            ]:
-                values = formateur_metrics["scores"].get(field, [])
-                if values:
-                    formateur_data[field] = round(sum(values) / len(values), 2)
+            if formateur_metrics:
+                for field in [
+                    "q1_prerequis_apprenants",
+                    "q2_interaction_apprenants",
+                    "q3_competences_acquises",
+                ]:
+                    values = formateur_metrics["scores"].get(field, [])
+                    if values:
+                        formateur_data[field] = round(sum(values) / len(values), 2)
 
             table_data.append(
                 {

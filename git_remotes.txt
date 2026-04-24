@@ -1,2 +1,0 @@
-origin	https://github.com/naumur2017-del/Padesce.git (fetch)
-origin	https://github.com/naumur2017-del/Padesce.git (push)

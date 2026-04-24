@@ -1,5 +1,0 @@
-commit 4be897f1c3a2d469e693db364872c323fb397800
-Author: naumur2017-del <naumur2017@gmail.com>
-Date:   Sun Apr 5 14:52:55 2026 +0200
-
-    Dashboard Consultant : interactivite cards, descriptions statuts, et corrections coherence donnees satisfaction

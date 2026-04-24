@@ -1835,10 +1835,10 @@ def _build_satisfaction_formateurs_dashboard_context(request) -> dict:
 
     appel_summary = _build_formateur_appel_status_summary(qs)
 
-    # Import the prestation indicators builder from apprenants views
-    from App_PADESCE.satisfaction_apprenants.views import _build_prestation_indicators_table
+    # Import the prestation indicators builder for formateurs
+    from .prestation_indicators import _build_formateur_prestation_indicators_table
 
-    prestation_indicators_table = _build_prestation_indicators_table()
+    prestation_indicators_table = _build_formateur_prestation_indicators_table()
 
     # Prestation Ranking Logic (Mirrored from Espace PADESCE)
     from django.db import connection
@@ -2270,10 +2270,10 @@ def satisfaction_formateurs_dashboard_export_chapeau(request):
 @require_analysis_access
 def satisfaction_formateurs_export_full_table_xlsx(request):
     """Export de la table Performance détaillée par prestation complète en Excel."""
-    # Import the prestation indicators builder from apprenants views
-    from App_PADESCE.satisfaction_apprenants.views import _build_prestation_indicators_table
+    # Import the prestation indicators builder for formateurs
+    from .prestation_indicators import _build_formateur_prestation_indicators_table
     
-    prestation_indicators_table = _build_prestation_indicators_table()
+    prestation_indicators_table = _build_formateur_prestation_indicators_table()
     
     wb = openpyxl.Workbook()
     ws = wb.active

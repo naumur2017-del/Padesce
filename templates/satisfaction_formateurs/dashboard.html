@@ -286,6 +286,7 @@
         <thead>
           <tr>
             <th>Code Prestation</th>
+            <th>Prestation ID</th>
             <th>Prestataire</th>
             <th>Bénéficiaire</th>
             <!-- Indicateurs Apprenant -->
@@ -310,6 +311,7 @@
           {% for prestation in prestation_indicators_table %}
           <tr>
             <td><strong>{{ prestation.code }}</strong></td>
+            <td>{{ prestation.prestation_id|default:"-" }}</td>
             <td>{{ prestation.prestataire|truncatechars:30 }}</td>
             <td>{{ prestation.beneficiaire|truncatechars:30 }}</td>
             <!-- Indicateurs Apprenant -->

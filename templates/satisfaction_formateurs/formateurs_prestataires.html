@@ -1,5 +1,8 @@
 {% extends "base.html" %}
 {% block title %}Gestion Formateurs & Prestations{% endblock %}
+{% block extra_head %}
+<script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+{% endblock %}
 {% block content %}
 <style>
   .page-shell { display:grid; gap:18px; max-width:1200px; margin:0 auto; }
@@ -110,6 +113,7 @@
           <input type="hidden" name="action" value="sync_formateurs">
           <button type="submit" class="btn btn-accent btn-sm">&#x21BB; Sync depuis les appels</button>
         </form>
+        <button type="button" class="btn btn-ghost btn-sm" onclick="downloadFormateursPrestations()">&#x21BB; Télécharger</button>
         <a href="{% url 'satisfaction_formateurs_dashboard' %}" class="btn btn-ghost btn-sm">&#8592; Retour à l'analyse</a>
       </div>
     </div>
@@ -229,6 +233,7 @@
             <thead>
               <tr>
                 <th>Code</th>
+                <th>Prestation ID</th>
                 <th>Prestataire</th>
                 <th>Formation</th>
                 <th>Bénéficiaire</th>
@@ -241,6 +246,7 @@
               {% for prest in prestations %}
               <tr data-search="{{ prest.code|lower }} {{ prest.prestataire.raison_sociale|lower }} {{ prest.formation.nom|lower }}">
                 <td><code>{{ prest.code }}</code></td>
+                <td><code>{{ prest.pk }}</code></td>
                 <td>{{ prest.prestataire.raison_sociale }}</td>
                 <td style="max-width:180px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="{{ prest.formation.nom }}">{{ prest.formation.nom }}</td>
                 <td>{{ prest.beneficiaire.nom_structure|default:"—" }}</td>
@@ -467,5 +473,57 @@ function updateVilleChangedCount() {
 
 // Tri initial décroissant par nombre de prestations liées.
 sortFormCardsByLinkedCount();
+
+// ── Téléchargement des données Formateurs-Prestations ──────────────────────────
+function downloadFormateursPrestations() {
+  const formateurs = [];
+  document.querySelectorAll('#formateurs-list .form-card').forEach(card => {
+    const formPk = card.querySelector('.form-card-header').onclick.toString().match(/body-form-(\d+)/)[1];
+    const formCode = card.querySelector('.form-code').textContent.trim();
+    const formName = card.querySelector('.form-name').textContent.trim();
+    
+    const prestations = [];
+    card.querySelectorAll('.prest-toggle-row').forEach(row => {
+      const prestCode = row.querySelector('.prest-code').textContent.trim();
+      const linked = row.classList.contains('linked');
+      prestations.push({
+        code: prestCode,
+        linked: linked
+      });
+    });
+    
+    formateurs.push({
+      pk: formPk,
+      code: formCode,
+      name: formName,
+      prestations: prestations
+    });
+  });
+  
+  // Créer le contenu pour XLSX
+  const data = [
+    ['Formateur PK', 'Formateur Code', 'Formateur Nom', 'Prestation Code', 'Prestation Liée']
+  ];
+  
+  formateurs.forEach(formateur => {
+    formateur.prestations.forEach(prestation => {
+      data.push([
+        formateur.pk,
+        formateur.code,
+        formateur.name,
+        prestation.code,
+        prestation.linked ? 'Oui' : 'Non'
+      ]);
+    });
+  });
+  
+  // Créer le workbook XLSX
+  const ws = XLSX.utils.aoa_to_sheet(data);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Formateurs Prestations');
+  
+  // Télécharger le fichier XLSX
+  XLSX.writeFile(wb, `formateurs_prestations_${new Date().toISOString().split('T')[0]}.xlsx`);
+}
 </script>
 {% endblock %}
