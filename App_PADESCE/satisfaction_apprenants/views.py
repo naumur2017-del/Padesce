@@ -2557,7 +2557,7 @@ def _build_missing_prestations_analysis(
 
 def _build_prestation_indicators_table():
     """Construit une table agrégée des prestations avec les indicateurs de satisfaction."""
-    from App_PADESCE.formations.models import Classe, Prestation, Formateur
+    from App_PADESCE.formations.models import Classe, Formateur, Prestation
     from App_PADESCE.satisfaction_apprenants.models import SatisfactionApprenant
 
     def _normalize_indicator_match_text(value: str) -> str:
@@ -2641,7 +2641,7 @@ def _build_prestation_indicators_table():
             ),
         )
         formateur_metrics = formateur_metrics_by_combo.get(combo_key)
-        
+
         # Si aucune combinaison prestataire-bénéficiaire correspondante, ne pas afficher cette prestation
         if not formateur_metrics:
             continue
@@ -3212,11 +3212,7 @@ def _build_satisfaction_dashboard_data(request):
     filter_query_string = request.GET.copy().urlencode()
     # Prestations analysées = terminées ET ayant atteint le seuil (intersection)
     analyzed_prestations_count = (
-        int(
-            missing_analysis.get("total_analyzed")
-            or missing_analysis.get("total_qualified")
-            or 0
-        )
+        int(missing_analysis.get("total_analyzed") or missing_analysis.get("total_qualified") or 0)
         if missing_analysis.get("available")
         else len(analyzed_prestations)
     )

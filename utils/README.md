@@ -37,7 +37,7 @@ cd utils/database_fixes
 python fix_migrations.py
 
 # Scripts diagnostics (safe)
-cd utils/diagnostics  
+cd utils/diagnostics
 python check_prestation_names.py
 
 # Scripts external_tests (dépendances externes)

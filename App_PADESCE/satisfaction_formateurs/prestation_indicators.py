@@ -1,11 +1,12 @@
 import unicodedata
+
 from App_PADESCE.appels.models import AppelFormateur
-from App_PADESCE.formations.models import Prestation, Formateur
+from App_PADESCE.formations.models import Formateur, Prestation
 
 
 def _build_formateur_prestation_indicators_table():
     """Construit une table agrégée des prestations avec les indicateurs de satisfaction pour les formateurs."""
-    
+
     def _normalize_indicator_match_text(value: str) -> str:
         text = " ".join(str(value or "").split()).casefold()
         if not text:
@@ -71,31 +72,39 @@ def _build_formateur_prestation_indicators_table():
     def _get_formateur_prestations_mapping() -> dict[int, set[int]]:
         """Récupérer les associations formateurs-prestations depuis la table de gestion"""
         formateur_prestations = {}
-        formateurs = Formateur.objects.filter(actif=True).prefetch_related('prestations')
+        formateurs = Formateur.objects.filter(actif=True).prefetch_related("prestations")
         for formateur in formateurs:
-            linked_prestations = set(formateur.prestations.values_list('pk', flat=True))
+            linked_prestations = set(formateur.prestations.values_list("pk", flat=True))
             formateur_prestations[formateur.pk] = linked_prestations
         return formateur_prestations
 
-    def _find_prestation_id_from_mapping(combo_key: tuple[str, str], formateur_prestations_mapping: dict[int, set[int]]) -> int | None:
+    def _find_prestation_id_from_mapping(
+        combo_key: tuple[str, str], formateur_prestations_mapping: dict[int, set[int]]
+    ) -> int | None:
         """Trouver l'ID de prestation correspondant à la combinaison prestataire-bénéficiaire"""
         # Créer un mapping inversé : prestation_id -> (prestataire, beneficiaire)
         prestation_to_combo = {}
         for formateur_pk, linked_prestations in formateur_prestations_mapping.items():
             for prestation_id in linked_prestations:
                 try:
-                    prest = Prestation.objects.get(pk=prestation_id, prestataire__isnull=False, beneficiaire__isnull=False)
-                    prestataire_norm = _normalize_indicator_match_text(prest.prestataire.raison_sociale)
-                    beneficiaire_norm = _normalize_indicator_match_text(prest.beneficiaire.nom_structure)
+                    prest = Prestation.objects.get(
+                        pk=prestation_id, prestataire__isnull=False, beneficiaire__isnull=False
+                    )
+                    prestataire_norm = _normalize_indicator_match_text(
+                        prest.prestataire.raison_sociale
+                    )
+                    beneficiaire_norm = _normalize_indicator_match_text(
+                        prest.beneficiaire.nom_structure
+                    )
                     prestation_to_combo[prestation_id] = (prestataire_norm, beneficiaire_norm)
                 except Prestation.DoesNotExist:
                     continue
-        
+
         # Chercher une correspondance exacte
         for prestation_id, stored_combo in prestation_to_combo.items():
             if stored_combo == combo_key:
                 return prestation_id
-        
+
         return None
 
     formateur_metrics_by_combo = _build_formateur_metrics_by_combo()
@@ -118,7 +127,7 @@ def _build_formateur_prestation_indicators_table():
             ),
         )
         formateur_metrics = formateur_metrics_by_combo.get(combo_key)
-        
+
         # Vérifier si le code de prestation correspond à une combinaison valide
         # et si elle est associée à un formateur via la table de gestion
         is_linked_to_formateur = False
@@ -126,7 +135,7 @@ def _build_formateur_prestation_indicators_table():
             if prestation.pk in linked_prestations:
                 is_linked_to_formateur = True
                 break
-        
+
         # Si aucune combinaison prestataire-bénéficiaire correspondante, Ne pas afficher cette prestation
         if not formateur_metrics and not is_linked_to_formateur:
             # Aucune combinaison trouvée - ne pas ajouter cette prestation à la table

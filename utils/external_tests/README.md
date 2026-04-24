@@ -5,10 +5,10 @@ Ce dossier contient des scripts qui dépendent de **serveurs externes** pour leu
 ## 🌐 Scripts de test externe
 
 ### test_formateur_stats.py
-**Utilité** : Test HTTP externe de la page de stats des formateurs  
-**Cible** : https://call.naumur.com/?scope=formateur&section=stats  
-**Dépendances** : Serveur externe accessible, BeautifulSoup, requests  
-**Fonctionnalités** : Analyse HTML, extraction prestations, détection erreurs  
+**Utilité** : Test HTTP externe de la page de stats des formateurs
+**Cible** : https://call.naumur.com/?scope=formateur&section=stats
+**Dépendances** : Serveur externe accessible, BeautifulSoup, requests
+**Fonctionnalités** : Analyse HTML, extraction prestations, détection erreurs
 
 ## ⚠️ Conditions d'utilisation
 

@@ -481,7 +481,7 @@ function downloadFormateursPrestations() {
     const formPk = card.querySelector('.form-card-header').onclick.toString().match(/body-form-(\d+)/)[1];
     const formCode = card.querySelector('.form-code').textContent.trim();
     const formName = card.querySelector('.form-name').textContent.trim();
-    
+
     const prestations = [];
     card.querySelectorAll('.prest-toggle-row').forEach(row => {
       const prestCode = row.querySelector('.prest-code').textContent.trim();
@@ -491,7 +491,7 @@ function downloadFormateursPrestations() {
         linked: linked
       });
     });
-    
+
     formateurs.push({
       pk: formPk,
       code: formCode,
@@ -499,12 +499,12 @@ function downloadFormateursPrestations() {
       prestations: prestations
     });
   });
-  
+
   // Créer le contenu pour XLSX
   const data = [
     ['Formateur PK', 'Formateur Code', 'Formateur Nom', 'Prestation Code', 'Prestation Liée']
   ];
-  
+
   formateurs.forEach(formateur => {
     formateur.prestations.forEach(prestation => {
       data.push([
@@ -516,12 +516,12 @@ function downloadFormateursPrestations() {
       ]);
     });
   });
-  
+
   // Créer le workbook XLSX
   const ws = XLSX.utils.aoa_to_sheet(data);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Formateurs Prestations');
-  
+
   // Télécharger le fichier XLSX
   XLSX.writeFile(wb, `formateurs_prestations_${new Date().toISOString().split('T')[0]}.xlsx`);
 }

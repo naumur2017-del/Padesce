@@ -1858,7 +1858,14 @@ def _build_satisfaction_formateurs_dashboard_context(request) -> dict:
         """
         )
         prestations_info = cursor.fetchall()
-        for code, id, prestataire_nom, beneficiaire_nom, formation_nom, beneficiaire_region in prestations_info:
+        for (
+            code,
+            id,
+            prestataire_nom,
+            beneficiaire_nom,
+            formation_nom,
+            beneficiaire_region,
+        ) in prestations_info:
             prestation_mapping[code] = {
                 "id": id,
                 "prestataire_nom": str(prestataire_nom or "").strip().lower(),
@@ -2272,25 +2279,25 @@ def satisfaction_formateurs_export_full_table_xlsx(request):
     """Export de la table Performance détaillée par prestation complète en Excel."""
     # Import the prestation indicators builder for formateurs
     from .prestation_indicators import _build_formateur_prestation_indicators_table
-    
+
     prestation_indicators_table = _build_formateur_prestation_indicators_table()
-    
+
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "Performance détaillée par prestation"
-    
+
     # En-têtes
     headers = [
         "Code Prestation",
-        "Prestataire", 
+        "Prestataire",
         "Bénéficiaire",
         "Prérequis app.",
         "Interaction app.",
         "Compétences acquises",
-        "N enquêtes form."
+        "N enquêtes form.",
     ]
     ws.append(headers)
-    
+
     # Données
     for prestation in prestation_indicators_table:
         row = [
@@ -2300,10 +2307,10 @@ def satisfaction_formateurs_export_full_table_xlsx(request):
             prestation.get("formateur", {}).get("q1_prerequis_apprenants"),
             prestation.get("formateur", {}).get("q2_interaction_apprenants"),
             prestation.get("formateur", {}).get("q3_competences_acquises"),
-            prestation.get("formateur", {}).get("count", 0)
+            prestation.get("formateur", {}).get("count", 0),
         ]
         ws.append(row)
-    
+
     # Style
     for col in range(1, len(headers) + 1):
         cell = ws.cell(row=1, column=col)
@@ -2311,11 +2318,11 @@ def satisfaction_formateurs_export_full_table_xlsx(request):
         cell.fill = openpyxl.styles.PatternFill(
             start_color="E6E6FA", end_color="E6E6FA", fill_type="solid"
         )
-    
+
     # Ajuster la largeur des colonnes
     for col in range(1, len(headers) + 1):
         ws.column_dimensions[openpyxl.utils.get_column_letter(col)].width = 20
-    
+
     # Créer la réponse HTTP
     response = HttpResponse(
         content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
