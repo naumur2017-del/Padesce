@@ -43,6 +43,15 @@ def load_env_file(env_path: Path) -> None:
         os.environ.setdefault(key, value)
 
 
+def _int_env(name: str, default: int, *, minimum: int = 0) -> int:
+    raw_value = str(os.getenv(name, str(default)) or str(default)).strip()
+    try:
+        value = int(raw_value)
+    except (TypeError, ValueError):
+        return default
+    return max(value, minimum)
+
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -393,6 +402,8 @@ if not DEBUG:
 
 # Logging configuration: app + access logs
 LOG_DIR = Path(os.getenv("DJANGO_LOG_DIR", str(BASE_DIR / "logs")))
+LOG_MAX_BYTES = _int_env("DJANGO_LOG_MAX_BYTES", 10 * 1024 * 1024, minimum=1024)
+LOG_BACKUP_COUNT = _int_env("DJANGO_LOG_BACKUP_COUNT", 5, minimum=1)
 try:
     LOG_DIR.mkdir(parents=True, exist_ok=True)
 except Exception:
@@ -415,13 +426,19 @@ LOGGING = {
     "handlers": {
         "console": {"class": "logging.StreamHandler", "formatter": "verbose"},
         "app_file": {
-            "class": "logging.FileHandler",
+            "class": "logging.handlers.RotatingFileHandler",
             "filename": LOG_DIR / "app.log",
+            "maxBytes": LOG_MAX_BYTES,
+            "backupCount": LOG_BACKUP_COUNT,
+            "encoding": "utf-8",
             "formatter": "verbose",
         },
         "access_file": {
-            "class": "logging.FileHandler",
+            "class": "logging.handlers.RotatingFileHandler",
             "filename": LOG_DIR / "access.log",
+            "maxBytes": LOG_MAX_BYTES,
+            "backupCount": LOG_BACKUP_COUNT,
+            "encoding": "utf-8",
             "formatter": "access",
         },
     },
