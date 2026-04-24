@@ -17,7 +17,6 @@ gunicorn
 uvicorn
 requests
 paramiko
-faster-whisper
 python-docx
 # Core
 pandas
