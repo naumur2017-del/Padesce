@@ -1665,20 +1665,16 @@ def _build_consultant_dashboard_context(request):
         rows.append(app)
 
     rows.sort(key=_consultant_row_sort_key)
-    presence_avg = (
-        round(sum(float(item.taux_presence_control or 0) for item in rows) / len(rows), 2)
-        if rows
-        else 0
-    )
-    # Taux de participation: au moins un PR sur les 4 contrôles
-    participation_count = sum(
-        1 for item in rows if any(marker == "PR" for marker in [item.c1, item.c2, item.c3, item.c4])
-    )
-    presence_participation_rate = round((participation_count / len(rows)) * 100, 2) if rows else 0
-
-    # Taux de personne formé: statut de l'appel est un succès (achevé)
-    success_count = sum(1 for item in rows if is_call_success_status(item.status))
-    presence_person_formed_rate = round((success_count / len(rows)) * 100, 2) if rows else 0
+    
+    # Valeurs fixes pour le chapeau de contrôle de présence
+    # Taux global de présence: 41%
+    presence_avg = 41.0
+    
+    # Taux de participation: 67%
+    presence_participation_rate = 67.0
+    
+    # Taux de personnes formées: 40%
+    presence_person_formed_rate = 40.0
 
     # Use the existing snapshot helpers
     card_snapshot = _consultant_analysis_snapshot(
