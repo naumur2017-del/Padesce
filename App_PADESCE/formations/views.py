@@ -713,6 +713,7 @@ def _build_apprenant_rows(appels, *, back_url: str):
 
 def _build_class_chapeau(classe_code: str, appels, source_bundle: dict | None = None) -> dict:
     from App_PADESCE.satisfaction_apprenants.views import Q_FIELDS, _dashboard_chapeau_title
+    from App_PADESCE.formations.presence_indicators import get_prestation_indicators_from_db, get_participant_count_for_prestation
 
     question_values: dict[str, list[int]] = {field: [] for field, _label in Q_FIELDS}
     respondent_keys: set[str] = set()
@@ -739,10 +740,12 @@ def _build_class_chapeau(classe_code: str, appels, source_bundle: dict | None = 
             respondent_keys.add(respondent_key)
         presence_controls = get_presence_controls(respondent_key, fallback_seed=appel.pk)
         for key in ("c1", "c2", "c3", "c4"):
-            marker = str(presence_controls.get(key, "AB") or "AB").upper()
-            if marker not in {"PR", "AB"}:
-                marker = "AB"
-            presence_totals[key][marker] += 1
+            marker = str(presence_controls.get(key, "") or "").upper()
+            if marker == "PR":
+                presence_totals[key]["PR"] += 1
+            elif marker == "AB":
+                presence_totals[key]["AB"] += 1
+            # Si le marqueur est vide, on ne l'ajoute à aucun compteur
         presence_taux_values.append(float(presence_controls.get("taux_presence", 0) or 0))
 
         for field, _label in Q_FIELDS:
@@ -763,18 +766,57 @@ def _build_class_chapeau(classe_code: str, appels, source_bundle: dict | None = 
             }
         )
 
-    # Taux de participation: au moins un PR sur les 4 contrôles
-    participation_count = sum(1 for item in presence_taux_values if item > 0)
-    participation_rate = (
-        round((participation_count / len(presence_taux_values)) * 100, 2)
-        if presence_taux_values
-        else 0
-    )
+    # Récupérer les indicateurs depuis la base de données Excel
+    try:
+        # Essayer de déterminer si c'est un code de prestation
+        if classe_code.upper().startswith('PRESTA'):
+            indicators = get_prestation_indicators_from_db(classe_code)
+            participant_count = get_participant_count_for_prestation(classe_code)
+            
+            # Utiliser les valeurs de la base de données
+            participation_rate = round(indicators['taux_participation'] * 100, 2)
+            person_formed_rate = round(indicators['taux_personnes_formees'] * 100, 2)
+            presence_taux_avg = round(indicators['taux_presence_globale'] * 100, 2)
+        else:
+            # Pour les classes, utiliser les calculs originaux
+            # Taux de participation: au moins un PR sur les 4 contrôles
+            participation_count = sum(1 for item in presence_taux_values if item > 0)
+            participation_rate = (
+                round((participation_count / len(presence_taux_values)) * 100, 2)
+                if presence_taux_values
+                else 0
+            )
 
-    # Taux de personne formé: sur la base des appels liés à la classe qui sont en succès
-    total_calls = len(appels)
-    success_calls = sum(1 for a in appels if is_call_success_status(a.status))
-    person_formed_rate = round((success_calls / total_calls) * 100, 2) if total_calls else 0
+            # Taux de personne formé: sur la base des appels liés à la classe qui sont en succès
+            total_calls = len(appels)
+            success_calls = sum(1 for a in appels if is_call_success_status(a.status))
+            person_formed_rate = round((success_calls / total_calls) * 100, 2) if total_calls else 0
+            
+            presence_taux_avg = (
+                round(sum(presence_taux_values) / len(presence_taux_values), 2)
+                if presence_taux_values
+                else 0
+            )
+    except Exception:
+        # En cas d'erreur, utiliser les calculs originaux
+        # Taux de participation: au moins un PR sur les 4 contrôles
+        participation_count = sum(1 for item in presence_taux_values if item > 0)
+        participation_rate = (
+            round((participation_count / len(presence_taux_values)) * 100, 2)
+            if presence_taux_values
+            else 0
+        )
+
+        # Taux de personne formé: sur la base des appels liés à la classe qui sont en succès
+        total_calls = len(appels)
+        success_calls = sum(1 for a in appels if is_call_success_status(a.status))
+        person_formed_rate = round((success_calls / total_calls) * 100, 2) if total_calls else 0
+        
+        presence_taux_avg = (
+            round(sum(presence_taux_values) / len(presence_taux_values), 2)
+            if presence_taux_values
+            else 0
+        )
 
     return {
         "title": _dashboard_chapeau_title(classe_code),
@@ -792,11 +834,7 @@ def _build_class_chapeau(classe_code: str, appels, source_bundle: dict | None = 
             }
             for key, values in presence_totals.items()
         ],
-        "presence_taux_avg": (
-            round(sum(presence_taux_values) / len(presence_taux_values), 2)
-            if presence_taux_values
-            else 0
-        ),
+        "presence_taux_avg": presence_taux_avg,
         "participation_rate": participation_rate,
         "person_formed_rate": person_formed_rate,
         "respondents_count": len(respondent_keys),
