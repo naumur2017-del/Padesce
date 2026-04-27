@@ -129,5 +129,5 @@ def is_refresh_request(request) -> bool:
 
 
 def is_enabled() -> bool:
-    raw = str(os.getenv("PADESCE_PUBLIC_SPACE_HTML_CACHE", "1") or "1").strip().lower()
-    return raw not in {"0", "false", "no", "off"}
+    # Cache HTML désactivé - on utilise maintenant le cache de données optimisé
+    return False  # Cache désactivé pour optimisation
