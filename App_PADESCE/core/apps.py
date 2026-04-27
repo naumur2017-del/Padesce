@@ -13,6 +13,10 @@ class CoreConfig(AppConfig):
 
         # Register signal handlers for audit logging.
         import App_PADESCE.core.signals  # noqa: F401
+        
+        # Register cache invalidation signals
+        import App_PADESCE.core.cache_signals  # noqa: F401
+        App_PADESCE.core.cache_signals.setup_cache_signals()
 
         def ensure_roles(sender, **kwargs):
             Group.objects.get_or_create(name="consultant")

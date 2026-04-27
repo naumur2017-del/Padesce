@@ -69,6 +69,7 @@ from App_PADESCE.core.models import (
 from App_PADESCE.environnement.models import EnqueteEnvironnement
 from App_PADESCE.formations.models import Classe
 from App_PADESCE.presences.control_utils import get_presence_controls
+from App_PADESCE.core.presence_bulk_cache import get_bulk_presence_controls
 from App_PADESCE.presences.models import Presence
 from App_PADESCE.satisfaction_apprenants.models import SatisfactionApprenant
 from App_PADESCE.satisfaction_formateurs.models import SatisfactionFormateur
@@ -1554,7 +1555,8 @@ def _build_consultant_dashboard_context(request):
     rows_qs_list = list(rows_qs)
     matched_apprenants = match_apprenants_to_appels(rows_qs_list)
 
-    rows: list[Appel] = []
+    # Pré-filtrer les appels éligibles avant de récupérer les contrôles de présence
+    eligible_apps = []
     for app in rows_qs_list:
         fenetre = _consultant_dashboard_fenetre(app)
         if fenetre not in {"2", "3"}:
@@ -1565,7 +1567,20 @@ def _build_consultant_dashboard_context(request):
         survey = _consultant_survey_or_none(app)
         if not appel_is_analysis_eligible(app, answer=answers, survey=survey):
             continue
+        eligible_apps.append(app)
 
+    # Récupérer tous les apprenant_ids pour le cache batch
+    apprenant_ids = []
+    for app in eligible_apps:
+        apprenant = matched_apprenants.get(app.pk)
+        apprenant_id = get_local_apprenant_identifier(apprenant)
+        apprenant_ids.append(apprenant_id)
+
+    # Récupérer tous les contrôles de présence en une seule fois
+    bulk_presence_controls = get_bulk_presence_controls(apprenant_ids)
+
+    rows: list[Appel] = []
+    for app in eligible_apps:
         has_audio = _consultant_has_audio(app)
         audio_duration = _consultant_audio_duration_seconds(app) if has_audio else None
         answers_complete = _consultant_answers_complete(answers)
@@ -1577,12 +1592,14 @@ def _build_consultant_dashboard_context(request):
         apprenant = matched_apprenants.get(app.pk)
         app.apprenant_id = get_local_apprenant_identifier(apprenant)
         app.apprenant_db_label = get_local_apprenant_db_label(apprenant)
-        presence_controls = get_presence_controls(app.apprenant_id, fallback_seed=app.code)
-        app.c1 = presence_controls["c1"]
-        app.c2 = presence_controls["c2"]
-        app.c3 = presence_controls["c3"]
-        app.c4 = presence_controls["c4"]
-        app.taux_presence_control = presence_controls["taux_presence"]
+        
+        # Utiliser les contrôles depuis le cache batch
+        presence_controls = bulk_presence_controls.get(app.apprenant_id, {})
+        app.c1 = presence_controls.get("c1", "")
+        app.c2 = presence_controls.get("c2", "")
+        app.c3 = presence_controls.get("c3", "")
+        app.c4 = presence_controls.get("c4", "")
+        app.taux_presence_control = presence_controls.get("taux_presence", 0)
         app.c1_from_excel = bool(presence_controls.get("c1_from_excel"))
         app.c2_from_excel = bool(presence_controls.get("c2_from_excel"))
         app.c3_from_excel = bool(presence_controls.get("c3_from_excel"))
