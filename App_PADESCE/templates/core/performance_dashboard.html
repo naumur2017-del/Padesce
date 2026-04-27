@@ -1,0 +1,325 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Dashboard Performance{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <h1 class="h3 mb-4">
+                <i class="fas fa-tachometer-alt"></i>
+                Dashboard Performance
+            </h1>
+        </div>
+    </div>
+
+    <!-- Métriques en temps réel -->
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-clock"></i>
+                        Métriques en Temps Réel
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <div class="small-box bg-info">
+                                <div class="inner">
+                                    <h3>{{ real_time_metrics.cache_hit_rate|default:0|floatformat:2 }}%</h3>
+                                    <p>Taux Cache Hit</p>
+                                </div>
+                                <div class="icon">
+                                    <i class="fas fa-database"></i>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="small-box bg-success">
+                                <div class="inner">
+                                    <h3>{{ real_time_metrics.total_operations }}</h3>
+                                    <p>Total Opérations</p>
+                                </div>
+                                <div class="icon">
+                                    <i class="fas fa-cogs"></i>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="small-box bg-warning">
+                                <div class="inner">
+                                    <h3>{{ real_time_metrics.slow_queries_count }}</h3>
+                                    <p>Requêtes Lentes</p>
+                                </div>
+                                <div class="icon">
+                                    <i class="fas fa-exclamation-triangle"></i>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="small-box bg-danger">
+                                <div class="inner">
+                                    <h3>{{ real_time_metrics.active_experiments|length }}</h3>
+                                    <p>Tests A/B Actifs</p>
+                                </div>
+                                <div class="icon">
+                                    <i class="fas fa-flask"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Statistiques des Caches -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-memory"></i>
+                        Cache Bulk
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Opération</th>
+                                <th>Entrées</th>
+                                <th>Santé</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for op_name, stats in bulk_cache_stats.operations.items() %}
+                            <tr>
+                                <td>{{ op_name|title }}</td>
+                                <td>{{ stats }}</td>
+                                <td>
+                                    {% if bulk_cache_stats.cache_health == 'healthy' %}
+                                        <span class="badge badge-success">Sain</span>
+                                    {% elif bulk_cache_stats.cache_health == 'warning' %}
+                                        <span class="badge badge-warning">Attention</span>
+                                    {% else %}
+                                        <span class="badge badge-danger">Critique</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-layer-group"></i>
+                        Cache Avancé
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm">
+                        <tbody>
+                            <tr>
+                                <td><strong>Version:</strong></td>
+                                <td>{{ advanced_cache_health.cache_version }}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Activé:</strong></td>
+                                <td>
+                                    {% if advanced_cache_health.enabled %}
+                                        <span class="badge badge-success">Oui</span>
+                                    {% else %}
+                                        <span class="badge badge-danger">Non</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            <tr>
+                                <td><strong>Clés cache:</strong></td>
+                                <td>{{ advanced_cache_health.cache_keys_count }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Statistiques des Templates -->
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-code"></i>
+                        Cache Templates
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm">
+                        <tbody>
+                            <tr>
+                                <td><strong>Fragments cacheés:</strong></td>
+                                <td>{{ template_cache_stats.total_cached_fragments }}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Santé cache:</strong></td>
+                                <td>
+                                    {% if template_cache_stats.cache_health == 'healthy' %}
+                                        <span class="badge badge-success">Sain</span>
+                                    {% elif template_cache_stats.cache_health == 'error' %}
+                                        <span class="badge badge-danger">Erreur</span>
+                                    {% else %}
+                                        <span class="badge badge-warning">Attention</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Indexes de Base de Données -->
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-database"></i>
+                        Indexes Base de Données
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Table</th>
+                                <th>Index</th>
+                                <th>Description</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for index in index_status.existing %}
+                            <tr>
+                                <td>{{ index.table }}</td>
+                                <td><code>{{ index.name }}</code></td>
+                                <td>{{ index.description }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    
+                    {% if index_status.recommendations %}
+                        <h6 class="mt-3">Recommandations:</h6>
+                        <ul class="list-unstyled">
+                            {% for rec in index_status.recommendations %}
+                                <li>
+                                    <span class="badge badge-{{ rec.priority }}">{{ rec.priority|title }}</span>
+                                    {{ rec.reason }}
+                                </li>
+                            {% endfor %}
+                        </ul>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Actions -->
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-tools"></i>
+                        Actions
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="btn-group">
+                        <button type="button" class="btn btn-primary" onclick="location.reload()">
+                            <i class="fas fa-refresh"></i> Actualiser
+                        </button>
+                        <button type="button" class="btn btn-info" onclick="exportReport()">
+                            <i class="fas fa-download"></i> Exporter Rapport
+                        </button>
+                        <button type="button" class="btn btn-warning" onclick="resetMetrics()">
+                            <i class="fas fa-trash"></i> Réinitialiser Métriques
+                        </button>
+                        <button type="button" class="btn btn-secondary" onclick="window.open('/api/performance/database/', '_blank')">
+                            <i class="fas fa-cog"></i> Gérer Indexes
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Dernière mise à jour -->
+    <div class="row">
+        <div class="col-md-12">
+            <small class="text-muted">
+                <i class="fas fa-clock"></i>
+                Dernière mise à jour: {{ last_updated }}
+            </small>
+        </div>
+    </div>
+</div>
+
+<script>
+function exportReport() {
+    window.open('/api/performance/export/?format=csv', '_blank');
+}
+
+function resetMetrics() {
+    if (confirm('Êtes-vous sûr de vouloir réinitialiser toutes les métriques?')) {
+        fetch('/api/performance/reset/', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken'),
+                'Content-Type': 'application/json',
+            }
+        }).then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                alert('Erreur: ' + data.error);
+            }
+        })
+        .catch(error => {
+            alert('Erreur: ' + error);
+        });
+    }
+}
+
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+// Auto-rafraîchissement toutes les 30 secondes
+setInterval(() => {
+    location.reload();
+}, 30000);
+</script>
+{% endblock %}
