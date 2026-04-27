@@ -70,6 +70,8 @@ from App_PADESCE.environnement.models import EnqueteEnvironnement
 from App_PADESCE.formations.models import Classe
 from App_PADESCE.presences.control_utils import get_presence_controls
 from App_PADESCE.core.presence_bulk_cache import get_bulk_presence_controls
+from App_PADESCE.core.dashboard_stats_cache import get_dashboard_stats
+from App_PADESCE.core.advanced_dashboard_cache import get_advanced_dashboard_stats
 from App_PADESCE.presences.models import Presence
 from App_PADESCE.satisfaction_apprenants.models import SatisfactionApprenant
 from App_PADESCE.satisfaction_formateurs.models import SatisfactionFormateur
@@ -1887,6 +1889,36 @@ def _build_consultant_dashboard_context(request):
         "table_empty_message": "Aucun appel terminé à consulter.",
         "detail_url_name": "consultant_call_detail",
     }
+    
+    # Ajouter les statistiques avancées avec cache
+    try:
+        advanced_filters = {
+            'classe': classe_filter,
+            'prestation': prestation_filter,
+            'beneficiaire': beneficiaire_filter,
+            'status': status_filter,
+        }
+        # Nettoyer les filtres vides
+        advanced_filters = {k: v for k, v in advanced_filters.items() if v}
+        
+        # Récupérer les statistiques avancées pour différentes périodes
+        context["advanced_stats"] = {
+            "all": get_advanced_dashboard_stats(advanced_filters, "all"),
+            "30d": get_advanced_dashboard_stats(advanced_filters, "30d"),
+            "7d": get_advanced_dashboard_stats(advanced_filters, "7d"),
+        }
+        
+        logger.debug(f"Statistiques avancées ajoutées au contexte pour {len(advanced_filters)} filtres")
+        
+    except Exception as e:
+        logger.error(f"Erreur récupération statistiques avancées: {e}")
+        context["advanced_stats"] = {
+            "all": {},
+            "30d": {},
+            "7d": {},
+        }
+    
+    return context
 
 
 @require_consultant_access
