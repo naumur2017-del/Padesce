@@ -757,6 +757,33 @@ def _dashboard_row_from_answer(
     presence_controls = get_presence_controls(
         apprenant_id, fallback_seed=apprenant_code or appel.code
     )
+
+    # Map backend presence values to front-end display codes (no DB changes)
+    def _map_presence_display(val):
+        if val is None:
+            return '-'
+        s = str(val).strip()
+        if s == '':
+            return '-'
+        low = s.lower()
+        if low in ('absent', 'ab'):
+            return 'AB'
+        if low in ('present', 'présent', 'pr'):
+            return 'PR'
+        if low in ('-', 'nan'):
+            return '-'
+        # default: return short uppercase token
+        return s.upper()
+
+    # Determine taux display: if any C is blank or '-' then show '-' per rule
+    raw_c_vals = [presence_controls.get(k) for k in ('c1', 'c2', 'c3', 'c4')]
+    any_c_blank = any((v is None) or (str(v).strip() == '') or (str(v).strip().lower() in ('-', 'nan')) for v in raw_c_vals)
+    def _map_taux_display(raw_taux):
+        if any_c_blank:
+            return '-'
+        if raw_taux is None or str(raw_taux).strip() == '':
+            return '-'
+        return raw_taux
     score_values = [
         getattr(answer, field, None) if answer else getattr(survey, field, None) if survey else None
         for field, _ in Q_FIELDS
@@ -809,11 +836,11 @@ def _dashboard_row_from_answer(
         "analysis_exclusion_reason": analysis_exclusion_reason,
         "formulaire_all_three": answer_has_all_three_scores(answer),
         "exclude_from_analysis": appel_is_manually_excluded(appel),
-        "c1": presence_controls["c1"],
-        "c2": presence_controls["c2"],
-        "c3": presence_controls["c3"],
-        "c4": presence_controls["c4"],
-        "taux_presence_control": presence_controls["taux_presence"],
+        "c1": _map_presence_display(presence_controls["c1"]),
+        "c2": _map_presence_display(presence_controls["c2"]),
+        "c3": _map_presence_display(presence_controls["c3"]),
+        "c4": _map_presence_display(presence_controls["c4"]),
+        "taux_presence_control": _map_taux_display(presence_controls["taux_presence"]),
         "moyenne_generale": moyenne_generale,
         **{field: getattr(answer, field, None) if answer else None for field, _ in Q_FIELDS},
     }
