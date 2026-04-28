@@ -1,0 +1,63 @@
+name: Apply Presence Updates to Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      db_type:
+        description: 'Database type: postgres or sqlite'
+        required: true
+        default: 'postgres'
+      sqlite_path:
+        description: 'Path to sqlite file (only for sqlite mode)'
+        required: false
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install DB clients
+        run: |
+          sudo apt-get update
+          if [ "${{ github.event.inputs.db_type }}" = "postgres" ]; then sudo apt-get install -y postgresql-client; fi
+          if [ "${{ github.event.inputs.db_type }}" = "sqlite" ]; then sudo apt-get install -y sqlite3; fi
+
+      - name: Backup and apply (Postgres)
+        if: ${{ github.event.inputs.db_type == 'postgres' }}
+        env:
+          PGHOST: ${{ secrets.PGHOST }}
+          PGPORT: ${{ secrets.PGPORT }}
+          PGUSER: ${{ secrets.PGUSER }}
+          PGPASSWORD: ${{ secrets.PGPASSWORD }}
+          PGDATABASE: ${{ secrets.PGDATABASE }}
+        run: |
+          set -e
+          ts=$(date +%Y%m%d_%H%M%S)
+          backup="prod_pre_sync_${ts}.sql"
+          pg_dump -h "$PGHOST" -p "${PGPORT:-5432}" -U "$PGUSER" -d "$PGDATABASE" -F p -f "$backup"
+          echo "Created backup: $backup"
+          psql -h "$PGHOST" -p "${PGPORT:-5432}" -U "$PGUSER" -d "$PGDATABASE" -f scripts/apply_presence_updates.sql
+          echo "Applied SQL"
+          psql -h "$PGHOST" -p "${PGPORT:-5432}" -U "$PGUSER" -d "$PGDATABASE" -c "\COPY (SELECT id, code, c1, c2, c3, c4 FROM apprenants_apprenant WHERE c1 IS NULL OR TRIM(c1) = '' OR c2 IS NULL OR TRIM(c2) = '' OR c3 IS NULL OR TRIM(c3) = '' OR c4 IS NULL OR TRIM(c4) = '') TO 'remaining.csv' CSV HEADER"
+          echo "Exported remaining empty records to remaining.csv"
+
+      - name: Backup and apply (SQLite)
+        if: ${{ github.event.inputs.db_type == 'sqlite' }}
+        run: |
+          set -e
+          ts=$(date +%Y%m%d_%H%M%S)
+          dbpath="${{ github.event.inputs.sqlite_path }}"
+          cp "$dbpath" "${dbpath}.pre_sync_${ts}.bak"
+          sqlite3 "$dbpath" ".read scripts/apply_presence_updates.sql"
+          sqlite3 "$dbpath" -header -csv "SELECT id, code, c1, c2, c3, c4 FROM apprenants_apprenant WHERE c1 IS NULL OR TRIM(c1) = '' OR c2 IS NULL OR TRIM(c2) = '' OR c3 IS NULL OR TRIM(c3) = '' OR c4 IS NULL OR TRIM(c4) = ''" > remaining.csv
+          echo "SQLite backup and apply completed"
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: prod-presence-apply-outputs
+          path: |
+            prod_pre_sync_*.sql
+            *.bak
+            remaining.csv
