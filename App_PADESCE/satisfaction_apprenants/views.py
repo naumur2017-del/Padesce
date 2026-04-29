@@ -1491,7 +1491,7 @@ def _ordered_survey_rows(rows: list[dict]) -> list[dict]:
             row.get("survey_date") or row.get("date"),
             row.get("survey_time") or row.get("heure"),
             row.get("classe_code", ""),
-            row.get("source_apprenant_id") or row.get("apprenant_code", ""),
+            row.get("apprenant_code", ""),
             row.get("apprenant_nom", ""),
         ),
     )
@@ -1517,7 +1517,7 @@ def _assign_enquete_ids(rows: list[dict]) -> list[dict]:
             key=lambda item: (
                 item[1].get("survey_date") or item[1].get("date"),
                 item[1].get("survey_time") or item[1].get("heure"),
-                item[1].get("source_apprenant_id") or item[1].get("apprenant_code", ""),
+                item[1].get("apprenant_code", ""),
                 item[1].get("apprenant_nom", ""),
                 item[0],
             ),
@@ -2365,7 +2365,7 @@ def _tabular_dashboard_export(
         [
             [
                 index,
-                row.get("source_apprenant_id", ""),
+                row.get("apprenant_code", ""),
                 row["apprenant_nom"],
                 row["beneficiaire"],
                 row["prestataire"],
@@ -3385,8 +3385,7 @@ def satisfaction_dashboard_export_chapeau(request):
             continue
 
         apprenant_key = (
-            str(row.get("source_apprenant_id") or "").strip()
-            or str(row.get("apprenant_code") or "").strip()
+            str(row.get("apprenant_code") or "").strip()
             or str(row.get("apprenant_nom") or "").strip()
         )
 
@@ -3716,7 +3715,7 @@ def satisfaction_dashboard_export_xlsx(request):
                 item["cohorte"],
                 item["ville"],
                 item["apprenant_code"],
-                item.get("source_apprenant_id", ""),
+                item.get("apprenant_code", ""),
                 item["apprenant_nom"],
                 item.get("source_status_label", ""),
                 item.get("source_alerts_label", ""),
@@ -4291,7 +4290,7 @@ def _general_analysis_search_matches(row: dict, query: str) -> bool:
     if not haystack:
         haystack = " ".join(
             [
-                str(row.get("source_apprenant_id") or ""),
+                str(row.get("apprenant_code") or ""),
                 str(row.get("code") or ""),
                 str(row.get("nom") or ""),
                 str(row.get("classe") or ""),
@@ -4355,7 +4354,7 @@ def _build_general_analysis_rows(
         row["q_values"] = [row.get(field) for field, _label in Q_FIELDS]
         row["_search_blob"] = " ".join(
             [
-                str(row.get("source_apprenant_id") or ""),
+                str(row.get("apprenant_code") or ""),
                 str(row.get("code") or ""),
                 str(row.get("nom") or ""),
                 str(row.get("classe") or ""),

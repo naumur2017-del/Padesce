@@ -532,9 +532,6 @@
               </td>
               <td>
                 <strong>{{ row.apprenant_id|default:"-" }}</strong>
-                {% if row.apprenant_db_label %}
-                  <div class="muted">{{ row.apprenant_db_label }}</div>
-                {% endif %}
               </td>
               <td>
                 {% if row.classe and row.classe.code %}

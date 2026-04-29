@@ -1044,9 +1044,6 @@
           <tr>
             <td>
               <strong>{{ row.apprenant_id|default:"-" }}</strong>
-              {% if row.apprenant_db_label %}
-                <div style="font-size:0.78rem; color: var(--muted);">{{ row.apprenant_db_label }}</div>
-              {% endif %}
             </td>
             <td>{{ row.apprenant_nom }}</td>
             <td><a href="{% url 'class_analysis_detail' row.classe_code %}" style="font-weight:700; color:var(--accent-strong); text-decoration:none;">{{ row.classe_code }}</a></td>
