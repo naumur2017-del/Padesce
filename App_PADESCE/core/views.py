@@ -1,7 +1,6 @@
 import hashlib
 import json
 import logging
-import os
 import re
 import unicodedata
 from collections import defaultdict
@@ -10,7 +9,6 @@ from functools import lru_cache
 from types import SimpleNamespace
 from urllib.parse import urlencode
 
-from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
 from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
@@ -35,7 +33,6 @@ from App_PADESCE.appels.models import (
     AppelFormateur,
     appel_answers_completed_q,
     appel_answers_modified_completion_q,
-    is_call_success_status,
     padesce_form_tracking_cutoff,
 )
 from App_PADESCE.apprenants.models import Apprenant
@@ -45,6 +42,7 @@ from App_PADESCE.core.access import (
     require_analysis_access,
     require_consultant_access,
 )
+from App_PADESCE.core.advanced_dashboard_cache import get_advanced_dashboard_stats
 from App_PADESCE.core.analysis_rules import (
     analysis_threshold_target,
     appel_is_analysis_eligible,
@@ -66,12 +64,9 @@ from App_PADESCE.core.models import (
     UserActivityEvent,
     UserLoginLog,
 )
+from App_PADESCE.core.presence_bulk_cache import get_bulk_presence_controls
 from App_PADESCE.environnement.models import EnqueteEnvironnement
 from App_PADESCE.formations.models import Classe
-from App_PADESCE.presences.control_utils import get_presence_controls
-from App_PADESCE.core.presence_bulk_cache import get_bulk_presence_controls
-from App_PADESCE.core.dashboard_stats_cache import get_dashboard_stats
-from App_PADESCE.core.advanced_dashboard_cache import get_advanced_dashboard_stats
 from App_PADESCE.presences.models import Presence
 from App_PADESCE.satisfaction_apprenants.models import SatisfactionApprenant
 from App_PADESCE.satisfaction_formateurs.models import SatisfactionFormateur
@@ -1079,11 +1074,19 @@ def cga_analysis_dashboard(request):
         recent_faux_numeros=Count("id", filter=Q(updated_at__gte=since_24h, mauvais_numero="OUI")),
     )
     processed = int(summary["appeles"] or 0)
-    completion_rate = round((int(summary["termines"] or 0) / processed) * 100, 1) if processed else 0
-    interest_rate = round((int(summary["interesses"] or 0) / processed) * 100, 1) if processed else 0
+    completion_rate = (
+        round((int(summary["termines"] or 0) / processed) * 100, 1) if processed else 0
+    )
+    interest_rate = (
+        round((int(summary["interesses"] or 0) / processed) * 100, 1) if processed else 0
+    )
 
     cga_kpis = [
-        {"label": "Appels CGA charges", "value": int(summary["total"] or 0), "meta": "Lignes actives"},
+        {
+            "label": "Appels CGA charges",
+            "value": int(summary["total"] or 0),
+            "meta": "Lignes actives",
+        },
         {"label": "Appels effectues", "value": processed, "meta": f"{completion_rate}% termines"},
         {
             "label": "Interesses",
@@ -1093,7 +1096,11 @@ def cga_analysis_dashboard(request):
         {"label": "Pas interesses", "value": int(summary["pas_interesses"] or 0), "meta": "CGA"},
         {"label": "Indisponibles", "value": int(summary["indisponibles"] or 0), "meta": "CGA"},
         {"label": "Faux numeros", "value": int(summary["faux_numeros"] or 0), "meta": "A nettoyer"},
-        {"label": "Dernieres 24h", "value": int(summary["recent_24h"] or 0), "meta": "Appels traites"},
+        {
+            "label": "Dernieres 24h",
+            "value": int(summary["recent_24h"] or 0),
+            "meta": "Appels traites",
+        },
     ]
 
     raw_city_rows = list(
@@ -1128,9 +1135,7 @@ def cga_analysis_dashboard(request):
 
     cga_regime_rows = []
     for row in (
-        called_qs.values("regime")
-        .annotate(total=Count("id"))
-        .order_by("-total", "regime")[:8]
+        called_qs.values("regime").annotate(total=Count("id")).order_by("-total", "regime")[:8]
     ):
         label = _clean_cga_dimension(row["regime"], default="Regime non renseigne")
         cga_regime_rows.append(
@@ -1154,9 +1159,7 @@ def cga_analysis_dashboard(request):
         )
         .order_by("-total", "centre_de_rattachement")[:10]
     ):
-        label = _clean_cga_dimension(
-            row["centre_de_rattachement"], default="Centre non renseigne"
-        )
+        label = _clean_cga_dimension(row["centre_de_rattachement"], default="Centre non renseigne")
         cga_centre_rows.append(
             {
                 "label": label,
@@ -1165,9 +1168,7 @@ def cga_analysis_dashboard(request):
                 "pas_interesses": int(row["pas_interesses"] or 0),
                 "indisponibles": int(row["indisponibles"] or 0),
                 "faux_numeros": int(row["faux_numeros"] or 0),
-                "url": _cga_index_url(
-                    centre=label if row["centre_de_rattachement"] else ""
-                ),
+                "url": _cga_index_url(centre=label if row["centre_de_rattachement"] else ""),
             }
         )
 
@@ -1181,7 +1182,8 @@ def cga_analysis_dashboard(request):
         .order_by("-total", "cri")[:12]
     )
     max_cri_interest = max(
-        [int(row["interesses"] or 0) + int(row["pas_interesses"] or 0) for row in raw_cri_rows] or [1]
+        [int(row["interesses"] or 0) + int(row["pas_interesses"] or 0) for row in raw_cri_rows]
+        or [1]
     )
     cga_cri_rows = []
     for row in raw_cri_rows:
@@ -1594,14 +1596,18 @@ def _build_consultant_dashboard_context(request):
         apprenant = matched_apprenants.get(app.pk)
         app.apprenant_id = get_local_apprenant_identifier(apprenant)
         app.apprenant_db_label = get_local_apprenant_db_label(apprenant)
-        
+
         # Utiliser les contrôles depuis le cache batch
         presence_controls = bulk_presence_controls.get(app.apprenant_id, {})
         app.c1 = presence_controls.get("c1", "")
         app.c2 = presence_controls.get("c2", "")
         app.c3 = presence_controls.get("c3", "")
         app.c4 = presence_controls.get("c4", "")
-        app.taux_presence_control = presence_controls.get("taux_presence", 0)
+        app.taux_presence_control = (
+            "-"
+            if any(not str(getattr(app, key, "") or "").strip() for key in ("c1", "c2", "c3", "c4"))
+            else presence_controls.get("taux_presence", 0)
+        )
         app.c1_from_excel = bool(presence_controls.get("c1_from_excel"))
         app.c2_from_excel = bool(presence_controls.get("c2_from_excel"))
         app.c3_from_excel = bool(presence_controls.get("c3_from_excel"))
@@ -1665,14 +1671,14 @@ def _build_consultant_dashboard_context(request):
         rows.append(app)
 
     rows.sort(key=_consultant_row_sort_key)
-    
+
     # Valeurs fixes pour le chapeau de contrôle de présence
     # Taux global de présence: 41%
     presence_avg = 41.0
-    
+
     # Taux de participation: 67%
     presence_participation_rate = 67.0
-    
+
     # Taux de personnes formées: 40%
     presence_person_formed_rate = 40.0
 
@@ -1772,7 +1778,7 @@ def _build_consultant_dashboard_context(request):
     except Exception:
         analysis_recovery = analysis_recovery
 
-    return {
+    context = {
         "rows": current_page_rows,
         "page_obj": page_obj,
         "paginator": paginator,
@@ -1885,27 +1891,29 @@ def _build_consultant_dashboard_context(request):
         "table_empty_message": "Aucun appel terminé à consulter.",
         "detail_url_name": "consultant_call_detail",
     }
-    
+
     # Ajouter les statistiques avancées avec cache
     try:
         advanced_filters = {
-            'classe': classe_filter,
-            'prestation': prestation_filter,
-            'beneficiaire': beneficiaire_filter,
-            'status': status_filter,
+            "classe": classe_filter,
+            "prestation": prestation_filter,
+            "beneficiaire": beneficiaire_filter,
+            "status": status_filter,
         }
         # Nettoyer les filtres vides
         advanced_filters = {k: v for k, v in advanced_filters.items() if v}
-        
+
         # Récupérer les statistiques avancées pour différentes périodes
         context["advanced_stats"] = {
             "all": get_advanced_dashboard_stats(advanced_filters, "all"),
             "30d": get_advanced_dashboard_stats(advanced_filters, "30d"),
             "7d": get_advanced_dashboard_stats(advanced_filters, "7d"),
         }
-        
-        logger.debug(f"Statistiques avancées ajoutées au contexte pour {len(advanced_filters)} filtres")
-        
+
+        logger.debug(
+            f"Statistiques avancées ajoutées au contexte pour {len(advanced_filters)} filtres"
+        )
+
     except Exception as e:
         logger.error(f"Erreur récupération statistiques avancées: {e}")
         context["advanced_stats"] = {
@@ -1913,7 +1921,7 @@ def _build_consultant_dashboard_context(request):
             "30d": {},
             "7d": {},
         }
-    
+
     return context
 
 
@@ -2247,7 +2255,9 @@ def _tracking_cache_key(call_scope: str) -> str:
     return f"{_TRACKING_CACHE_KEY}:{_normalize_tracking_call_scope(call_scope)}"
 
 
-def _build_tracking_payload(*, user_search: str = "", call_scope: str = "padesce") -> dict[str, object]:
+def _build_tracking_payload(
+    *, user_search: str = "", call_scope: str = "padesce"
+) -> dict[str, object]:
     call_scope = _normalize_tracking_call_scope(call_scope)
     # Cache le payload complet (sans filtre) pour eviter de recalculer les agregats a chaque visite.
     if not user_search:
@@ -2261,7 +2271,9 @@ def _build_tracking_payload(*, user_search: str = "", call_scope: str = "padesce
     return _compute_tracking_payload(user_search=user_search, call_scope=call_scope)
 
 
-def _compute_tracking_payload(*, user_search: str = "", call_scope: str = "padesce") -> dict[str, object]:
+def _compute_tracking_payload(
+    *, user_search: str = "", call_scope: str = "padesce"
+) -> dict[str, object]:
     call_scope = _normalize_tracking_call_scope(call_scope)
     User = get_user_model()
     since_24h = timezone.now() - timedelta(hours=24)
@@ -2299,7 +2311,9 @@ def _compute_tracking_payload(*, user_search: str = "", call_scope: str = "pades
                 cga_pas_interesses=Count("id", filter=Q(interet="NON")),
                 cga_indisponibles=Count("id", filter=Q(indisponible="OUI")),
                 cga_faux_numeros=Count("id", filter=Q(mauvais_numero="OUI")),
-                recent_24h=Count("id", filter=Q(updated_at__gte=since_24h) & ~Q(status="en_attente")),
+                recent_24h=Count(
+                    "id", filter=Q(updated_at__gte=since_24h) & ~Q(status="en_attente")
+                ),
             )
         }
         formulaires_remplis_by_user: dict[int, set[int]] = {}
@@ -2340,7 +2354,9 @@ def _compute_tracking_payload(*, user_search: str = "", call_scope: str = "pades
                 formulaires_remplis_status=Count("id", filter=Q(status="formulaire_rempli")),
                 formulaires_avec_audio=Count("id", filter=Q(status="formulaire_avec_audio")),
                 en_cours=Count("id", filter=Q(status="en_cours")),
-                recent_24h=Count("id", filter=Q(updated_at__gte=since_24h) & ~Q(status="en_attente")),
+                recent_24h=Count(
+                    "id", filter=Q(updated_at__gte=since_24h) & ~Q(status="en_attente")
+                ),
             )
         }
         formulaires_remplis_by_user = _group_appel_ids_by_user(
@@ -2746,6 +2762,7 @@ def user_tracking_view(request):
 # VUES D'EXPORT PUBLIQUES POUR LES MOYENNES GENERALES
 # ---------------------------------------------------------------------------
 
+
 def public_export_apprenant_global_averages_xlsx(request):
     """Export public des moyennes générales des apprenants en Excel."""
     try:
@@ -2755,48 +2772,54 @@ def public_export_apprenant_global_averages_xlsx(request):
             Q_FIELDS,
             _build_satisfaction_dashboard_data,
         )
-        
+
         dashboard = _build_satisfaction_dashboard_data(request)
         context = dashboard["context"]
-        
+
         wb = openpyxl.Workbook()
         ws = wb.active
         ws.title = "Moyennes générales"
-        
+
         # En-têtes
         q_labels = [label for _, label in Q_FIELDS]
         ws.append(["Indicateur"] + q_labels)
-        
+
         # Données des moyennes générales
         row_data = ["Moyenne générale"]
         for label in q_labels:
             avg = context.get("global_avgs", {}).get(label, 0)
             row_data.append(round(avg, 2))
         ws.append(row_data)
-        
+
         # Style
         for col in range(1, len(q_labels) + 2):
             cell = ws.cell(row=1, column=col)
             cell.font = openpyxl.styles.Font(bold=True)
-            cell.fill = openpyxl.styles.PatternFill(start_color="E6E6FA", end_color="E6E6FA", fill_type="solid")
-        
+            cell.fill = openpyxl.styles.PatternFill(
+                start_color="E6E6FA", end_color="E6E6FA", fill_type="solid"
+            )
+
         for col in range(1, len(q_labels) + 2):
             cell = ws.cell(row=2, column=col)
             cell.font = openpyxl.styles.Font(bold=True)
-            cell.fill = openpyxl.styles.PatternFill(start_color="FFE6E6", end_color="FFE6E6", fill_type="solid")
-        
+            cell.fill = openpyxl.styles.PatternFill(
+                start_color="FFE6E6", end_color="FFE6E6", fill_type="solid"
+            )
+
         # Ajuster la largeur des colonnes
         for col in range(1, len(q_labels) + 2):
             ws.column_dimensions[openpyxl.utils.get_column_letter(col)].width = 15
-        
+
         # Créer la réponse HTTP
         response = HttpResponse(
             content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
-        response["Content-Disposition"] = 'attachment; filename="moyennes-generales-apprenants.xlsx"'
+        response["Content-Disposition"] = (
+            'attachment; filename="moyennes-generales-apprenants.xlsx"'
+        )
         wb.save(response)
         return response
-        
+
     except Exception as e:
         return HttpResponse(f"Erreur lors de l'export: {str(e)}", status=500)
 
@@ -2810,17 +2833,17 @@ def public_export_formateur_global_averages_xlsx(request):
             Q_FORM_FIELDS,
             _build_satisfaction_formateurs_dashboard_context,
         )
-        
+
         context = _build_satisfaction_formateurs_dashboard_context(request)
-        
+
         wb = openpyxl.Workbook()
         ws = wb.active
         ws.title = "Moyennes générales"
-        
+
         # En-têtes
         q_labels = [label for _, label in Q_FORM_FIELDS]
         ws.append(["Indicateur"] + q_labels + ["Moyenne générale GLOBALE"])
-        
+
         # Données des moyennes générales
         row_data = ["Moyenne générale"]
         for label in q_labels:
@@ -2830,29 +2853,35 @@ def public_export_formateur_global_averages_xlsx(request):
         moyenne_globale = context.get("moyenne_generale_globale", 0)
         row_data.append(round(moyenne_globale, 2))
         ws.append(row_data)
-        
+
         # Style
         for col in range(1, len(q_labels) + 3):
             cell = ws.cell(row=1, column=col)
             cell.font = openpyxl.styles.Font(bold=True)
-            cell.fill = openpyxl.styles.PatternFill(start_color="E6E6FA", end_color="E6E6FA", fill_type="solid")
-        
+            cell.fill = openpyxl.styles.PatternFill(
+                start_color="E6E6FA", end_color="E6E6FA", fill_type="solid"
+            )
+
         for col in range(1, len(q_labels) + 3):
             cell = ws.cell(row=2, column=col)
             cell.font = openpyxl.styles.Font(bold=True)
-            cell.fill = openpyxl.styles.PatternFill(start_color="FFE6E6", end_color="FFE6E6", fill_type="solid")
-        
+            cell.fill = openpyxl.styles.PatternFill(
+                start_color="FFE6E6", end_color="FFE6E6", fill_type="solid"
+            )
+
         # Ajuster la largeur des colonnes
         for col in range(1, len(q_labels) + 3):
             ws.column_dimensions[openpyxl.utils.get_column_letter(col)].width = 15
-        
+
         # Créer la réponse HTTP
         response = HttpResponse(
             content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
-        response["Content-Disposition"] = 'attachment; filename="moyennes-generales-formateurs.xlsx"'
+        response["Content-Disposition"] = (
+            'attachment; filename="moyennes-generales-formateurs.xlsx"'
+        )
         wb.save(response)
         return response
-        
+
     except Exception as e:
         return HttpResponse(f"Erreur lors de l'export: {str(e)}", status=500)

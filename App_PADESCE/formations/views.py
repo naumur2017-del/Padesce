@@ -677,6 +677,11 @@ def _build_apprenant_rows(appels, *, back_url: str):
         apprenant = matched_apprenants.get(appel.pk)
         apprenant_identifier = get_local_apprenant_identifier(apprenant)
         presence_controls = get_presence_controls(apprenant_identifier, fallback_seed=appel.pk)
+        control_values = {
+            key: (str(presence_controls.get(key) or "").strip().upper() or "-")
+            for key in ("c1", "c2", "c3", "c4")
+        }
+        has_missing_presence_control = any(value == "-" for value in control_values.values())
         rows.append(
             {
                 "id": appel.pk,
@@ -694,10 +699,11 @@ def _build_apprenant_rows(appels, *, back_url: str):
                 "has_form": form_state["has_form"],
                 "detail_url": detail_url,
                 "updated_at": appel.updated_at,
-                "c1": presence_controls.get("c1", "AB"),
-                "c2": presence_controls.get("c2", "AB"),
-                "c3": presence_controls.get("c3", "AB"),
-                "c4": presence_controls.get("c4", "AB"),
+                "c1": control_values["c1"],
+                "c2": control_values["c2"],
+                "c3": control_values["c3"],
+                "c4": control_values["c4"],
+                "has_missing_presence_control": has_missing_presence_control,
                 "taux_presence_control": float(presence_controls.get("taux_presence", 0) or 0),
             }
         )
@@ -712,13 +718,19 @@ def _build_apprenant_rows(appels, *, back_url: str):
 
 
 def _build_class_chapeau(classe_code: str, appels, source_bundle: dict | None = None) -> dict:
+    from App_PADESCE.formations.presence_indicators import (
+        get_participant_count_for_prestation,
+        get_prestation_indicators_from_db,
+    )
     from App_PADESCE.satisfaction_apprenants.views import Q_FIELDS, _dashboard_chapeau_title
-    from App_PADESCE.formations.presence_indicators import get_prestation_indicators_from_db, get_participant_count_for_prestation
 
     question_values: dict[str, list[int]] = {field: [] for field, _label in Q_FIELDS}
     respondent_keys: set[str] = set()
     presence_totals = {key: {"PR": 0, "AB": 0} for key in ("c1", "c2", "c3", "c4")}
-    presence_taux_values: list[int] = []
+    participant_keys: set[str] = set()
+    total_known_controls = 0
+    total_present_controls = 0
+    total_participants = 0
 
     for appel in appels:
         answers = _appel_answers_or_none(appel)
@@ -739,14 +751,22 @@ def _build_class_chapeau(classe_code: str, appels, source_bundle: dict | None = 
         if respondent_key:
             respondent_keys.add(respondent_key)
         presence_controls = get_presence_controls(respondent_key, fallback_seed=appel.pk)
+        respondent_known_controls = 0
+        respondent_present_controls = 0
         for key in ("c1", "c2", "c3", "c4"):
             marker = str(presence_controls.get(key, "") or "").upper()
             if marker == "PR":
                 presence_totals[key]["PR"] += 1
+                respondent_known_controls += 1
+                respondent_present_controls += 1
             elif marker == "AB":
                 presence_totals[key]["AB"] += 1
+                respondent_known_controls += 1
             # Si le marqueur est vide, on ne l'ajoute à aucun compteur
-        presence_taux_values.append(float(presence_controls.get("taux_presence", 0) or 0))
+        if respondent_key and respondent_present_controls > 0:
+            participant_keys.add(respondent_key)
+        total_known_controls += respondent_known_controls
+        total_present_controls += respondent_present_controls
 
         for field, _label in Q_FIELDS:
             value = getattr(answers, field, None)
@@ -769,21 +789,34 @@ def _build_class_chapeau(classe_code: str, appels, source_bundle: dict | None = 
     # Récupérer les indicateurs depuis la base de données Excel
     try:
         # Essayer de déterminer si c'est un code de prestation
-        if classe_code.upper().startswith('PRESTA'):
+        if classe_code.upper().startswith("PRESTA"):
             indicators = get_prestation_indicators_from_db(classe_code)
             participant_count = get_participant_count_for_prestation(classe_code)
-            
+
             # Utiliser les valeurs de la base de données
-            participation_rate = round(indicators['taux_participation'] * 100, 2)
-            person_formed_rate = round(indicators['taux_personnes_formees'] * 100, 2)
-            presence_taux_avg = round(indicators['taux_presence_globale'] * 100, 2)
-        else:
-            # Pour les classes, utiliser les calculs originaux
-            # Taux de participation: au moins un PR sur les 4 contrôles
-            participation_count = sum(1 for item in presence_taux_values if item > 0)
+            total_participants = indicators.get("total_participants")
+            if total_participants != "-":
+                total_participants = int(total_participants or participant_count or 0)
             participation_rate = (
-                round((participation_count / len(presence_taux_values)) * 100, 2)
-                if presence_taux_values
+                "-"
+                if indicators["taux_participation"] == "-"
+                else round(indicators["taux_participation"] * 100, 2)
+            )
+            person_formed_rate = (
+                "-"
+                if indicators["taux_personnes_formees"] == "-"
+                else round(indicators["taux_personnes_formees"] * 100, 2)
+            )
+            presence_taux_avg = (
+                "-"
+                if indicators["taux_presence_globale"] == "-"
+                else round(indicators["taux_presence_globale"] * 100, 2)
+            )
+        else:
+            # Pour les classes, les controles vides sont ignores dans les taux.
+            participation_rate = (
+                round((len(participant_keys) / len(respondent_keys)) * 100, 2)
+                if respondent_keys
                 else 0
             )
 
@@ -791,30 +824,26 @@ def _build_class_chapeau(classe_code: str, appels, source_bundle: dict | None = 
             total_calls = len(appels)
             success_calls = sum(1 for a in appels if is_call_success_status(a.status))
             person_formed_rate = round((success_calls / total_calls) * 100, 2) if total_calls else 0
-            
+
             presence_taux_avg = (
-                round(sum(presence_taux_values) / len(presence_taux_values), 2)
-                if presence_taux_values
+                round((total_present_controls / total_known_controls) * 100, 2)
+                if total_known_controls
                 else 0
             )
     except Exception:
-        # En cas d'erreur, utiliser les calculs originaux
-        # Taux de participation: au moins un PR sur les 4 contrôles
-        participation_count = sum(1 for item in presence_taux_values if item > 0)
+        # En cas d'erreur, utiliser les calculs locaux.
         participation_rate = (
-            round((participation_count / len(presence_taux_values)) * 100, 2)
-            if presence_taux_values
-            else 0
+            round((len(participant_keys) / len(respondent_keys)) * 100, 2) if respondent_keys else 0
         )
 
         # Taux de personne formé: sur la base des appels liés à la classe qui sont en succès
         total_calls = len(appels)
         success_calls = sum(1 for a in appels if is_call_success_status(a.status))
         person_formed_rate = round((success_calls / total_calls) * 100, 2) if total_calls else 0
-        
+
         presence_taux_avg = (
-            round(sum(presence_taux_values) / len(presence_taux_values), 2)
-            if presence_taux_values
+            round((total_present_controls / total_known_controls) * 100, 2)
+            if total_known_controls
             else 0
         )
 
@@ -837,6 +866,7 @@ def _build_class_chapeau(classe_code: str, appels, source_bundle: dict | None = 
         "presence_taux_avg": presence_taux_avg,
         "participation_rate": participation_rate,
         "person_formed_rate": person_formed_rate,
+        "total_participants": total_participants,
         "respondents_count": len(respondent_keys),
         "formulaires_remplis": len(respondent_keys),
         "has_data": any(item["count"] for item in question_rows),
@@ -1041,7 +1071,9 @@ def class_detail(request, pk: int):
                     channel_link = link
                 break
     except Exception:
-        logger.exception("Unable to read class channel workbook: %s", _class_channel_workbook_path())
+        logger.exception(
+            "Unable to read class channel workbook: %s", _class_channel_workbook_path()
+        )
 
     from App_PADESCE.satisfaction_apprenants.sharepoint_csv_links import SHAREPOINT_CSV_LINKS
 
@@ -1404,6 +1436,7 @@ def prestation_analysis_detail(request, code: str):
     summary["person_formed_rate"] = class_chapeau.get("person_formed_rate", 0)
     summary["participation_rate"] = class_chapeau.get("participation_rate", 0)
     summary["presence_taux_avg"] = class_chapeau.get("presence_taux_avg", 0)
+    summary["apprenants_total"] = class_chapeau.get("total_participants", 0)
     formateur_chapeau = _build_formateur_chapeau(prestation.code, formateur_appels)
 
     return render(
