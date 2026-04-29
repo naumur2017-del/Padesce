@@ -414,7 +414,7 @@
       </div>
       <div class="meta-card">
         <div class="label">TOTAL DES PARTICIPANTS A LA FORMATION</div>
-        <div class="value">{{ summary.apprenants_total|default:0 }}</div>
+        <div class="value">-</div>
       </div>
       <table class="presence-stats-table" style="width: 100%; margin: 10px 0; border-collapse: collapse; font-size: 14px;">
         <thead>
@@ -426,9 +426,9 @@
         </thead>
         <tbody>
           <tr>
-            <td style="padding: 8px; border: 1px solid #dee2e6;">{{ summary.person_formed_rate|default:0|floatformat:2 }}%</td>
-            <td style="padding: 8px; border: 1px solid #dee2e6;">{{ summary.participation_rate|default:0|floatformat:2 }}%</td>
-            <td style="padding: 8px; border: 1px solid #dee2e6;">{{ summary.presence_taux_avg|default:0|floatformat:2 }}%</td>
+            <td style="padding: 8px; border: 1px solid #dee2e6;">-</td>
+            <td style="padding: 8px; border: 1px solid #dee2e6;">-</td>
+            <td style="padding: 8px; border: 1px solid #dee2e6;">-</td>
           </tr>
         </tbody>
       </table>
@@ -575,19 +575,19 @@
           <tbody>
             <tr>
               <td>Total des participants a la formation</td>
-              <td>{{ summary.apprenants_total|default:0 }}</td>
+              <td>{% if entity_type == "classe" %}-{% else %}{{ summary.apprenants_total|default:0 }}{% endif %}</td>
             </tr>
             <tr>
               <td>Taux de personne forme</td>
-              <td>{{ summary.person_formed_rate|default:0|floatformat:2 }}%</td>
+              <td>{% if entity_type == "classe" or summary.person_formed_rate == "-" %}-{% else %}{{ summary.person_formed_rate|default:0|floatformat:2 }}%{% endif %}</td>
             </tr>
             <tr>
               <td>Taux de participation</td>
-              <td>{{ summary.participation_rate|default:0|floatformat:2 }}%</td>
+              <td>{% if entity_type == "classe" or summary.participation_rate == "-" %}-{% else %}{{ summary.participation_rate|default:0|floatformat:2 }}%{% endif %}</td>
             </tr>
             <tr>
               <td>Taux de presence globale</td>
-              <td>{{ summary.presence_taux_avg|default:0|floatformat:2 }}%</td>
+              <td>{% if entity_type == "classe" or summary.presence_taux_avg == "-" %}-{% else %}{{ summary.presence_taux_avg|default:0|floatformat:2 }}%{% endif %}</td>
             </tr>
           </tbody>
         </table>
@@ -667,11 +667,11 @@
               {% if row.locked_by %}<div class="row-meta">Opérateur: {{ row.locked_by }}</div>{% endif %}
             </td>
             <td>{{ row.telephone|default:"-" }}</td>
-            <td>{{ row.c1|default:"AB" }}</td>
-            <td>{{ row.c2|default:"AB" }}</td>
-            <td>{{ row.c3|default:"AB" }}</td>
-            <td>{{ row.c4|default:"AB" }}</td>
-            <td>{{ row.taux_presence_control|default:0|floatformat:2 }}%</td>
+            <td>{{ row.c1|default:"-" }}</td>
+            <td>{{ row.c2|default:"-" }}</td>
+            <td>{{ row.c3|default:"-" }}</td>
+            <td>{{ row.c4|default:"-" }}</td>
+            <td>{% if row.has_missing_presence_control %}-{% else %}{{ row.taux_presence_control|default:0|floatformat:2 }}%{% endif %}</td>
             <td>{{ row.statut_label }}</td>
             <td>
               {% if row.has_audio %}

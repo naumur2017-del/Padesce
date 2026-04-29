@@ -2557,8 +2557,7 @@ def _build_missing_prestations_analysis(
 
 def _build_prestation_indicators_table():
     """Construit une table agrégée des prestations avec les indicateurs de satisfaction."""
-    from App_PADESCE.formations.models import Classe, Formateur, Prestation
-    from App_PADESCE.satisfaction_apprenants.models import SatisfactionApprenant
+    from App_PADESCE.formations.models import Prestation
 
     def _normalize_indicator_match_text(value: str) -> str:
         text = " ".join(str(value or "").split()).casefold()
@@ -4567,6 +4566,14 @@ def _build_update_form_candidate_row(
     presence_controls = get_presence_controls(
         get_local_apprenant_identifier(apprenant), fallback_seed=appel.code
     )
+    presence_values = {
+        key: str(presence_controls.get(key) or "").strip() for key in ("c1", "c2", "c3", "c4")
+    }
+    taux_presence_control = (
+        "-"
+        if any(not value or value == "-" for value in presence_values.values())
+        else presence_controls["taux_presence"]
+    )
     return {
         "code": appel.code,
         "apprenant_id": get_local_apprenant_identifier(apprenant),
@@ -4584,11 +4591,11 @@ def _build_update_form_candidate_row(
         "computed_status_label": _batch_update_status_display(computed_status),
         "commentaire": getattr(answer or survey, "commentaire", "") or "-",
         "recommandations": getattr(answer or survey, "recommandations", "") or "-",
-        "c1": presence_controls["c1"],
-        "c2": presence_controls["c2"],
-        "c3": presence_controls["c3"],
-        "c4": presence_controls["c4"],
-        "taux_presence_control": presence_controls["taux_presence"],
+        "c1": presence_values["c1"] or "-",
+        "c2": presence_values["c2"] or "-",
+        "c3": presence_values["c3"] or "-",
+        "c4": presence_values["c4"] or "-",
+        "taux_presence_control": taux_presence_control,
         "selection_value": selection_value,
         "has_complete_form": has_complete_form,
     }
@@ -5580,7 +5587,6 @@ def satisfaction_api_classes_excel(request):
 
     dashboard = _build_satisfaction_dashboard_data(request)
     rows = dashboard["rows"]
-    context = dashboard["context"]
 
     # Regrouper par classe_code pour obtenir les métadonnées
     seen: dict[str, dict] = {}
