@@ -568,3 +568,78 @@ class AppelAnswers(TimeStampedModel):
 
     def __str__(self) -> str:
         return f"Answers for {self.appel}"
+
+
+class CallAlert(TimeStampedModel):
+    SOURCE_PADESCE = "padesce"
+    SOURCE_CGA = "cga"
+    SOURCE_CHOICES = [
+        (SOURCE_PADESCE, "PADESCE"),
+        (SOURCE_CGA, "CGA"),
+    ]
+
+    STATUS_TODO = "todo"
+    STATUS_DOING = "doing"
+    STATUS_DONE = "done"
+    STATUS_CHOICES = [
+        (STATUS_TODO, "To Do"),
+        (STATUS_DOING, "Doing"),
+        (STATUS_DONE, "Done"),
+    ]
+
+    reporter = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="call_alerts_reported",
+    )
+    source = models.CharField(max_length=20, choices=SOURCE_CHOICES, db_index=True)
+    alert_types = models.JSONField(default=list, blank=True)
+    details = models.TextField(blank=True)
+    page_path = models.CharField(max_length=255, blank=True)
+    page_title = models.CharField(max_length=255, blank=True)
+    call_id = models.CharField(max_length=64, blank=True, db_index=True)
+    call_label = models.CharField(max_length=255, blank=True)
+    call_status = models.CharField(max_length=40, blank=True)
+    last_actions = models.JSONField(default=list, blank=True)
+    user_agent = models.TextField(blank=True)
+
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default=STATUS_TODO,
+        db_index=True,
+    )
+    assigned_to = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="call_alerts_assigned",
+    )
+    admin_seen_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="call_alerts_seen",
+    )
+    admin_seen_at = models.DateTimeField(null=True, blank=True)
+    first_response_at = models.DateTimeField(null=True, blank=True)
+    resolved_at = models.DateTimeField(null=True, blank=True)
+    reporter_seen_at = models.DateTimeField(null=True, blank=True)
+    admin_message = models.TextField(blank=True)
+    resolution_comment = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["status", "-created_at"], name="callalert_status_created_idx"),
+            models.Index(
+                fields=["reporter", "-updated_at"],
+                name="callalert_reporter_updated_idx",
+            ),
+            models.Index(fields=["source", "status"], name="callalert_source_status_idx"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.get_source_display()} alert #{self.pk} by {self.reporter}"
