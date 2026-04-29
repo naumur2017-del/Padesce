@@ -13,6 +13,86 @@
     </span>
   </button>
 
+  <div
+    id="callAlertWidget"
+    class="call-alert-widget"
+    data-is-admin="{{ user.is_superuser|yesno:'true,false' }}"
+    data-options-url="{% url 'call_alert_options' %}"
+    data-create-url="{% url 'call_alert_create' %}"
+    data-list-url="{% url 'call_alert_list' %}"
+    data-detail-url-template="/appels/alerts/__ID__/"
+    data-update-url-template="/appels/alerts/__ID__/update/"
+    hidden
+  >
+    <button class="call-alert-fab" id="callAlertFab" type="button" aria-label="Ouvrir les alertes appels" title="Alertes appels">
+      <i class="fa-solid fa-bell" aria-hidden="true"></i>
+      <span class="call-alert-count" id="callAlertCount" hidden>0</span>
+    </button>
+
+    <div class="call-alert-panel" id="callAlertPanel" aria-hidden="true">
+      <div class="call-alert-header">
+        <div class="call-alert-header-main">
+          <div class="call-alert-avatar"><i class="fa-solid fa-bell" aria-hidden="true"></i></div>
+          <div>
+            <h3>Bot alertes</h3>
+            <div class="call-alert-subtitle" id="callAlertSubtitle">Page appels</div>
+          </div>
+        </div>
+        <button class="call-alert-close" id="callAlertClose" type="button" aria-label="Fermer les alertes" title="Fermer">×</button>
+      </div>
+
+      <div class="call-alert-tabs" role="tablist" aria-label="Mode alertes">
+        <button class="call-alert-tab is-active" type="button" data-alert-tab="report">Faire une alerte</button>
+        <button class="call-alert-tab" id="callAlertInboxTab" type="button" data-alert-tab="inbox">Mes alertes</button>
+      </div>
+
+      <div class="call-alert-body">
+        <section class="call-alert-view is-active" data-alert-view="report">
+          <div class="call-alert-bot-line">Selectionnez un ou plusieurs problemes constates.</div>
+          <div class="call-alert-type-grid" id="callAlertTypes"></div>
+          <label class="call-alert-field">
+            <span>Precision utile</span>
+            <textarea id="callAlertDetails" rows="3" placeholder="Ex: le statut reste en pause apres avoir clique sur terminer"></textarea>
+          </label>
+          <div class="call-alert-context" id="callAlertContext">Contexte: page courante.</div>
+          <button class="call-alert-submit" id="callAlertSubmit" type="button">
+            <i class="fa-solid fa-paper-plane" aria-hidden="true"></i>
+            <span>Envoyer l'alerte</span>
+          </button>
+        </section>
+
+        <section class="call-alert-view" data-alert-view="inbox">
+          <div class="call-alert-list-head">
+            <div>
+              <strong id="callAlertListTitle">Alertes recues</strong>
+              <span id="callAlertListMeta">0 alerte</span>
+            </div>
+            <label class="call-alert-toggle">
+              <input type="checkbox" id="callAlertIncludeDone">
+              <span>Done</span>
+            </label>
+          </div>
+          <div class="call-alert-list" id="callAlertList"></div>
+        </section>
+      </div>
+    </div>
+
+    <div class="call-alert-detail-backdrop" id="callAlertDetailBackdrop" hidden>
+      <div class="call-alert-detail" role="dialog" aria-modal="true" aria-labelledby="callAlertDetailTitle">
+        <div class="call-alert-detail-head">
+          <div>
+            <div class="call-alert-kicker" id="callAlertDetailKicker">Alerte</div>
+            <h3 id="callAlertDetailTitle">Detail alerte</h3>
+          </div>
+          <button class="call-alert-close" id="callAlertDetailClose" type="button" aria-label="Fermer le detail" title="Fermer">×</button>
+        </div>
+        <div class="call-alert-detail-body" id="callAlertDetailBody"></div>
+      </div>
+    </div>
+
+    <div class="call-alert-toast" id="callAlertToast" role="status" aria-live="polite" hidden></div>
+  </div>
+
   <div class="chat-window" id="chatWindow" aria-hidden="true">
     <div class="chat-header">
       <div class="chat-header-left">
@@ -79,3 +159,4 @@
 
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <script src="{% static 'core/chat_widget.js' %}"></script>
+<script src="{% static 'core/call_alert_widget.js' %}"></script>

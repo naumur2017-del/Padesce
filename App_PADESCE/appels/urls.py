@@ -44,6 +44,31 @@ urlpatterns = [
         name="appel_download_audios",
     ),
     path(
+        "alerts/options/",
+        lazy_view("App_PADESCE.appels.alert_views.call_alert_options"),
+        name="call_alert_options",
+    ),
+    path(
+        "alerts/create/",
+        lazy_view("App_PADESCE.appels.alert_views.call_alert_create"),
+        name="call_alert_create",
+    ),
+    path(
+        "alerts/list/",
+        lazy_view("App_PADESCE.appels.alert_views.call_alert_list"),
+        name="call_alert_list",
+    ),
+    path(
+        "alerts/<int:pk>/",
+        lazy_view("App_PADESCE.appels.alert_views.call_alert_detail"),
+        name="call_alert_detail",
+    ),
+    path(
+        "alerts/<int:pk>/update/",
+        lazy_view("App_PADESCE.appels.alert_views.call_alert_update"),
+        name="call_alert_update",
+    ),
+    path(
         "tools/deduplicate/",
         lazy_view("App_PADESCE.appels.views.deduplicate_all_call_tables"),
         name="deduplicate_all_call_tables",
