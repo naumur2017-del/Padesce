@@ -219,6 +219,9 @@ def _database_settings_from_env() -> dict:
     return {
         "ENGINE": "django.db.backends.sqlite3",
         "NAME": sqlite_name,
+        "OPTIONS": {
+            "timeout": int(str(os.getenv("SQLITE_TIMEOUT", "30") or "30")),
+        },
     }
 
 

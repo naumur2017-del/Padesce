@@ -6,7 +6,7 @@ from django.conf import settings
 from django.contrib.auth import authenticate, login
 from django.contrib.auth.views import redirect_to_login
 from django.core.exceptions import PermissionDenied, SuspiciousOperation
-from django.db import OperationalError, ProgrammingError
+from django.db import OperationalError, ProgrammingError, connection
 from django.http import Http404, HttpRequest, HttpResponseRedirect
 from django.shortcuts import resolve_url
 from django.urls import get_script_prefix, reverse, set_script_prefix
@@ -18,6 +18,13 @@ from App_PADESCE.core.models import UserActivity
 _thread_locals = threading.local()
 logger = logging.getLogger(__name__)
 PATH_PREFIX_ALIASES = ("/padesce",)
+
+
+def _sqlite_in_use() -> bool:
+    try:
+        return connection.vendor == "sqlite"
+    except Exception:
+        return False
 
 
 def _normalize_prefix(prefix: str | None) -> str:
@@ -60,7 +67,8 @@ def _iter_public_analysis_auto_login_prefixes() -> tuple[str, ...]:
 
 
 def _is_public_analysis_auto_login_path(path: str) -> bool:
-    if any(p in path for p in ["/api/", "/import/", "/delete/", "/upload/", "/action/", "/finalize/"]):
+    blocked_fragments = ("/api/", "/import/", "/delete/", "/upload/", "/action/", "/finalize/")
+    if any(fragment in path for fragment in blocked_fragments):
         return False
     return any(path.startswith(prefix) for prefix in _iter_public_analysis_auto_login_prefixes())
 
@@ -269,7 +277,19 @@ class LoginRequiredMiddleware:
 
         if path in ("/", login_path) or any(path.startswith(p) for p in exempt_prefixes if p):
             # Safety: even if a prefix is exempt, block sensitive actions for anonymous users
-            if any(p in path for p in ["/api/", "/import/", "/delete/", "/upload/", "/action/", "/finalize/"]) and not any(path.startswith(p) for p in public_token_api_prefixes):
+            blocked_fragments = (
+                "/api/",
+                "/import/",
+                "/delete/",
+                "/upload/",
+                "/action/",
+                "/finalize/",
+            )
+            has_blocked_fragment = any(fragment in path for fragment in blocked_fragments)
+            has_public_token_prefix = any(
+                path.startswith(prefix) for prefix in public_token_api_prefixes
+            )
+            if has_blocked_fragment and not has_public_token_prefix:
                 return redirect_to_login(request.get_full_path(), login_url)
             return self.get_response(request)
 
@@ -337,6 +357,8 @@ def _update_activity_with_geo(user_id: int, ip: str, now):
             city=next_city,
             country=next_country,
         )
+    except (OperationalError, ProgrammingError):
+        logger.debug("UserActivity geo update skipped because the database is busy.")
     except Exception:
         pass
 
@@ -360,26 +382,28 @@ class UserActivityMiddleware:
                 if activity:
                     delta = (now - activity.last_seen).total_seconds()
                     if delta > 60:
-                        # Mise à jour rapide de last_seen, géo en arrière-plan
+                        # Sur SQLite, éviter les écritures concurrentes via thread.
                         UserActivity.objects.filter(user=user).update(last_seen=now)
+                        if not _sqlite_in_use():
+                            t = threading.Thread(
+                                target=_update_activity_with_geo,
+                                args=(user.pk, ip, now),
+                                daemon=True,
+                            )
+                            t.start()
+                else:
+                    UserActivity.objects.create(user=user, last_seen=now, last_ip=ip or None)
+                    if not _sqlite_in_use():
                         t = threading.Thread(
                             target=_update_activity_with_geo,
                             args=(user.pk, ip, now),
                             daemon=True,
                         )
                         t.start()
-                else:
-                    UserActivity.objects.create(user=user, last_seen=now, last_ip=ip or None)
-                    t = threading.Thread(
-                        target=_update_activity_with_geo,
-                        args=(user.pk, ip, now),
-                        daemon=True,
-                    )
-                    t.start()
             except (OperationalError, ProgrammingError):
                 logger.warning(
-                    "UserActivity tracking skipped because the database schema is not up to date.",
-                    exc_info=True,
+                    "UserActivity tracking skipped because the SQLite database is busy.",
+                    exc_info=False,
                 )
         response = self.get_response(request)
         return response
