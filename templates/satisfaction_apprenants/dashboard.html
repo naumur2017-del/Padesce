@@ -1055,7 +1055,7 @@
             <td style="text-align:center;">{{ row.c2 }}</td>
             <td style="text-align:center;">{{ row.c3 }}</td>
             <td style="text-align:center;">{{ row.c4 }}</td>
-            <td style="text-align:center;">{{ row.taux_presence_control }}%</td>
+            <td style="text-align:center;">{% if row.taux_presence_control == "-" %}-{% else %}{{ row.taux_presence_control }}%{% endif %}</td>
             <td style="text-align:center;"><strong>{{ row.moyenne_generale|floatformat:2 }}</strong></td>
             {% for v in row.q_values %}<td style="text-align:center;">{{ v|default:"-" }}</td>{% endfor %}
             <td style="max-width:180px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="{{ row.commentaire }}">{{ row.commentaire }}</td>
