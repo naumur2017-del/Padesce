@@ -16,10 +16,16 @@ except Exception:  # pragma: no cover
 
 PRESENCE_CONTROLS_CACHE_KEY = "presence_controls_v1"
 PRESENCE_CONTROLS_DB_SYNC_TOKEN_KEY = "presence_controls_db_sync_token_v1"
-VALID_MARKERS = {"PR"}
+VALID_MARKERS = {"PR", "AB"}
 CONTROL_KEYS = ("c1", "c2", "c3", "c4")
-EXCEL_CONTROLS_XLSX = "fichier_concatene (1) 1 (1).xlsx"
-EXCEL_CONTROLS_SHEET = "Donnees"
+EXCEL_CONTROLS_XLSX = "Fichier pour plateforme de satisfaction.xlsx"
+EXCEL_CONTROLS_FALLBACK_XLSX = "fichier_concatene (1) 1 (1).xlsx"
+EXCEL_CONTROLS_SHEET = "Rapport Presence"
+
+
+def _auto_sync_enabled() -> bool:
+    value = str(getattr(settings, "PADESCE_AUTO_SYNC_PRESENCE_CONTROLS", "") or "").strip()
+    return value.lower() in {"1", "true", "yes", "on"}
 
 
 def _normalize_identifier(value: str) -> str:
@@ -28,6 +34,10 @@ def _normalize_identifier(value: str) -> str:
 
 def _normalized_marker(value: str) -> str:
     marker = _normalize_identifier(value)
+    if marker in {"PRESENT", "PRESENCE", "PR"}:
+        return "PR"
+    if marker in {"ABSENT", "AB"}:
+        return "AB"
     return marker if marker in VALID_MARKERS else ""
 
 
@@ -39,8 +49,19 @@ def _normalize_control_type(value: str) -> str:
     return f"c{match.group(1)}"
 
 
+def _controls_xlsx_candidates() -> list[Path]:
+    data_dir = Path(settings.BASE_DIR) / "data"
+    return [
+        data_dir / EXCEL_CONTROLS_XLSX,
+        data_dir / EXCEL_CONTROLS_FALLBACK_XLSX,
+    ]
+
+
 def _controls_xlsx_path() -> Path:
-    return Path(settings.BASE_DIR) / "data" / EXCEL_CONTROLS_XLSX
+    for candidate in _controls_xlsx_candidates():
+        if candidate.exists():
+            return candidate
+    return _controls_xlsx_candidates()[0]
 
 
 def _excel_cache_token() -> tuple[str, float]:
@@ -65,15 +86,20 @@ def _load_excel_presence_payload(_token: tuple[str, float]) -> dict[str, dict]:
         ws = wb[EXCEL_CONTROLS_SHEET] if EXCEL_CONTROLS_SHEET in wb.sheetnames else wb.active
         payload: dict[str, dict] = {}
         for row in ws.iter_rows(min_row=2, values_only=True):
-            apprenant_id = _normalize_identifier(row[1] if len(row) > 1 else "")
+            apprenant_id = _normalize_identifier(row[0] if len(row) > 0 else "")
             if not apprenant_id:
                 continue
-            presence_marker = _normalized_marker(row[11] if len(row) > 11 else "")
-            control_type = _normalize_control_type(row[39] if len(row) > 39 else "")
-            if not control_type:
-                continue
             current = payload.setdefault(apprenant_id, {})
-            current[control_type] = presence_marker
+            if EXCEL_CONTROLS_SHEET in wb.sheetnames:
+                for index, control_type in enumerate(CONTROL_KEYS, start=10):
+                    presence_marker = _normalized_marker(row[index] if len(row) > index else "")
+                    if presence_marker:
+                        current[control_type] = presence_marker
+            else:
+                presence_marker = _normalized_marker(row[11] if len(row) > 11 else "")
+                control_type = _normalize_control_type(row[39] if len(row) > 39 else "")
+                if control_type and presence_marker:
+                    current[control_type] = presence_marker
         return payload
     except Exception:
         return {}
@@ -89,11 +115,51 @@ def _presence_from_controls(controls: dict | None) -> dict:
     return values
 
 
+def _has_known_controls(controls: dict | None) -> bool:
+    controls = controls or {}
+    return any(_normalized_marker(controls.get(key)) for key in CONTROL_KEYS)
+
+
+def _with_presence_metadata(
+    controls: dict,
+    *,
+    source: str,
+    excel_found: bool,
+    excel_controls_found: list[str],
+) -> dict:
+    payload = _presence_from_controls(controls)
+    missing_controls = [key for key in CONTROL_KEYS if key not in excel_controls_found]
+    payload.update(
+        {
+            "source": source,
+            "excel_found": excel_found,
+            "excel_complete": len(excel_controls_found) == len(CONTROL_KEYS),
+            "excel_controls_found": excel_controls_found,
+            "excel_missing_controls": missing_controls,
+            "c1_from_excel": "c1" in excel_controls_found,
+            "c2_from_excel": "c2" in excel_controls_found,
+            "c3_from_excel": "c3" in excel_controls_found,
+            "c4_from_excel": "c4" in excel_controls_found,
+        }
+    )
+    return payload
+
+
+def _get_excel_controls(apprenant_id: str) -> dict:
+    key = _normalize_identifier(apprenant_id)
+    if not key:
+        return {}
+    return _load_excel_presence_payload(_excel_cache_token()).get(key, {})
+
+
 def _default_presence() -> dict:
     return _presence_from_controls({"c1": "", "c2": "", "c3": "", "c4": ""})
 
 
 def _sync_controls_from_excel_to_db(force: bool = False) -> None:
+    if not force and not _auto_sync_enabled():
+        return
+
     token = _excel_cache_token()
     token_key = f"{token[0]}::{token[1]}"
     if not force and cache.get(PRESENCE_CONTROLS_DB_SYNC_TOKEN_KEY) == token_key:
@@ -116,9 +182,12 @@ def _sync_controls_from_excel_to_db(force: bool = False) -> None:
             setattr(apprenant, key, normalized[key])
         to_update.append(apprenant)
 
-    if to_update:
-        Apprenant.objects.bulk_update(to_update, list(CONTROL_KEYS), batch_size=1000)
-    cache.set(PRESENCE_CONTROLS_DB_SYNC_TOKEN_KEY, token_key, timeout=None)
+    try:
+        if to_update:
+            Apprenant.objects.bulk_update(to_update, list(CONTROL_KEYS), batch_size=1000)
+        cache.set(PRESENCE_CONTROLS_DB_SYNC_TOKEN_KEY, token_key, timeout=None)
+    except (OperationalError, ProgrammingError):
+        return
 
 
 def get_presence_controls(apprenant_id: str, fallback_seed: str = "") -> dict:
@@ -134,62 +203,61 @@ def get_presence_controls(apprenant_id: str, fallback_seed: str = "") -> dict:
         except (OperationalError, ProgrammingError):
             apprenant = None
         if apprenant is not None:
-            from_db = _presence_from_controls(
-                {
-                    "c1": apprenant.c1,
-                    "c2": apprenant.c2,
-                    "c3": apprenant.c3,
-                    "c4": apprenant.c4,
-                }
-            )
-            from_db.update(
-                {
-                    "source": "database",
-                    "excel_found": False,
-                    "excel_complete": False,
-                    "excel_controls_found": [],
-                    "excel_missing_controls": list(CONTROL_KEYS),
-                    "c1_from_excel": False,
-                    "c2_from_excel": False,
-                    "c3_from_excel": False,
-                    "c4_from_excel": False,
-                }
-            )
-            return from_db
+            db_controls = {
+                "c1": apprenant.c1,
+                "c2": apprenant.c2,
+                "c3": apprenant.c3,
+                "c4": apprenant.c4,
+            }
+            if _has_known_controls(db_controls):
+                return _with_presence_metadata(
+                    db_controls,
+                    source="database",
+                    excel_found=False,
+                    excel_controls_found=[],
+                )
+
+            excel_controls = _get_excel_controls(key)
+            if excel_controls:
+                return _with_presence_metadata(
+                    excel_controls,
+                    source="excel_readonly",
+                    excel_found=True,
+                    excel_controls_found=[
+                        control_key
+                        for control_key in CONTROL_KEYS
+                        if _normalized_marker(excel_controls.get(control_key))
+                    ],
+                )
 
     payload = cache.get(PRESENCE_CONTROLS_CACHE_KEY) or {}
     if key and key in payload:
-        cached = _presence_from_controls(payload[key])
-        cached.update(
-            {
-                "source": "cache",
-                "excel_found": False,
-                "excel_complete": False,
-                "excel_controls_found": [],
-                "excel_missing_controls": list(CONTROL_KEYS),
-                "c1_from_excel": False,
-                "c2_from_excel": False,
-                "c3_from_excel": False,
-                "c4_from_excel": False,
-            }
+        return _with_presence_metadata(
+            payload[key],
+            source="cache",
+            excel_found=False,
+            excel_controls_found=[],
         )
-        return cached
 
-    default_presence = _default_presence()
-    default_presence.update(
-        {
-            "source": "default_ab",
-            "excel_found": False,
-            "excel_complete": False,
-            "excel_controls_found": [],
-            "excel_missing_controls": list(CONTROL_KEYS),
-            "c1_from_excel": False,
-            "c2_from_excel": False,
-            "c3_from_excel": False,
-            "c4_from_excel": False,
-        }
+    excel_controls = _get_excel_controls(key)
+    if excel_controls:
+        return _with_presence_metadata(
+            excel_controls,
+            source="excel_readonly",
+            excel_found=True,
+            excel_controls_found=[
+                control_key
+                for control_key in CONTROL_KEYS
+                if _normalized_marker(excel_controls.get(control_key))
+            ],
+        )
+
+    return _with_presence_metadata(
+        _default_presence(),
+        source="default_ab",
+        excel_found=False,
+        excel_controls_found=[],
     )
-    return default_presence
 
 
 def upsert_presence_controls(entries: Iterable[dict]) -> int:

@@ -169,7 +169,7 @@
                 <td>{{ row.c2 }}</td>
                 <td>{{ row.c3 }}</td>
                 <td>{{ row.c4 }}</td>
-                <td>{{ row.taux_presence_control }}%</td>
+                <td>{% if row.taux_presence_control == "-" %}-{% else %}{{ row.taux_presence_control }}%{% endif %}</td>
               </tr>
             {% endfor %}
           </tbody>
@@ -369,7 +369,7 @@
                   <td>{{ row.c2 }}</td>
                   <td>{{ row.c3 }}</td>
                   <td>{{ row.c4 }}</td>
-                  <td>{{ row.taux_presence_control }}%</td>
+                  <td>{% if row.taux_presence_control == "-" %}-{% else %}{{ row.taux_presence_control }}%{% endif %}</td>
                   <td>{{ row.commentaire }}</td>
                   <td>{{ row.recommandations }}</td>
                 </tr>
@@ -458,7 +458,7 @@
                   <td>{{ row.c2 }}</td>
                   <td>{{ row.c3 }}</td>
                   <td>{{ row.c4 }}</td>
-                  <td>{{ row.taux_presence_control }}%</td>
+                  <td>{% if row.taux_presence_control == "-" %}-{% else %}{{ row.taux_presence_control }}%{% endif %}</td>
                   <td>{{ row.commentaire }}</td>
                   <td>{{ row.recommandations }}</td>
                 </tr>
@@ -550,7 +550,7 @@
                   <td>{{ row.c2 }}</td>
                   <td>{{ row.c3 }}</td>
                   <td>{{ row.c4 }}</td>
-                  <td>{{ row.taux_presence_control }}%</td>
+                  <td>{% if row.taux_presence_control == "-" %}-{% else %}{{ row.taux_presence_control }}%{% endif %}</td>
                   <td>{{ row.commentaire }}</td>
                   <td>{{ row.recommandations }}</td>
                 </tr>

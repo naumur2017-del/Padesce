@@ -219,6 +219,9 @@ def _database_settings_from_env() -> dict:
     return {
         "ENGINE": "django.db.backends.sqlite3",
         "NAME": sqlite_name,
+        "OPTIONS": {
+            "timeout": int(str(os.getenv("SQLITE_TIMEOUT", "30") or "30")),
+        },
     }
 
 
@@ -465,16 +468,43 @@ if HAS_CHANNELS:
     CHANNEL_LAYERS = _channel_layers_from_env()
 
 # ---------------------------------------------------------------------------
-# Sessions — cached_db : lecture ultra-rapide depuis le cache,
-# écriture persistante dans la base de données. Si le cache expire ou
-# est vidé, la session est rechargée depuis la DB automatiquement.
+# Sessions :
+# - SQLite local : signed_cookies pour éviter un 500 au login si la base est verrouillée
+# - autres backends : cached_db pour garder les sessions persistantes
 # ---------------------------------------------------------------------------
-SESSION_ENGINE = "django.contrib.sessions.backends.cached_db"
+def _session_engine_from_env() -> str:
+    explicit_engine = str(os.getenv("PADESCE_SESSION_ENGINE", "") or "").strip()
+    if explicit_engine:
+        return explicit_engine
+    default_db = DATABASES.get("default", {})
+    if default_db.get("ENGINE") == "django.db.backends.sqlite3":
+        return "django.contrib.sessions.backends.signed_cookies"
+    return "django.contrib.sessions.backends.cached_db"
+
+
+SESSION_ENGINE = _session_engine_from_env()
 SESSION_CACHE_ALIAS = "default"
 SESSION_COOKIE_AGE = 28800  # 8 heures (en secondes)
 SESSION_SAVE_EVERY_REQUEST = False  # ne sauvegarder que si modifiée
 SESSION_EXPIRE_AT_BROWSER_CLOSE = False  # session survit à la fermeture du navigateur
 SESSION_COOKIE_HTTPONLY = True  # non accessible via JavaScript
+
+
+def _activity_tracking_enabled_from_env() -> bool:
+    explicit = str(os.getenv("PADESCE_ENABLE_ACTIVITY_TRACKING", "") or "").strip().lower()
+    if explicit in {"1", "true", "yes", "on"}:
+        return True
+    if explicit in {"0", "false", "no", "off"}:
+        return False
+    return DATABASES.get("default", {}).get("ENGINE") != "django.db.backends.sqlite3"
+
+
+PADESCE_ENABLE_ACTIVITY_TRACKING = _activity_tracking_enabled_from_env()
+
+if DATABASES.get("default", {}).get("ENGINE") == "django.db.backends.sqlite3":
+    AUTHENTICATION_BACKENDS = [
+        "App_PADESCE.core.auth_backends.SQLiteSafeModelBackend",
+    ]
 
 # Security headers (activated when DEBUG=False)
 if not DEBUG:

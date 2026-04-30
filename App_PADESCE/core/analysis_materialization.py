@@ -12,12 +12,23 @@ import os
 from decimal import Decimal
 from typing import Any
 
+from django.db import OperationalError, ProgrammingError, connection
 from django.db.models import Count, Max, Sum
 from django.utils import timezone
 
 from App_PADESCE.core.models import AppelOptimizationSnapshot, MaterializedDashboardPayload
 
 logger = logging.getLogger(__name__)
+
+
+def _db_materialization_enabled() -> bool:
+    raw = str(os.environ.get("PADESCE_ENABLE_DB_MATERIALIZATION", "") or "").strip().lower()
+    if raw:
+        return raw in {"1", "true", "yes", "on"}
+    try:
+        return connection.vendor != "sqlite"
+    except Exception:
+        return False
 
 
 # Durées de cache (secondes) — réutilise l’env analyse si non spécifié.
@@ -200,14 +211,20 @@ def json_safe_materialized_payload(payload: dict) -> dict:
 
 
 def load_materialized_dashboard_payload(cache_key: str) -> dict | None:
+    if not _db_materialization_enabled():
+        return None
+
     digest = materialized_dashboard_cache_key_hash(cache_key)
     now = timezone.now()
     try:
         row = MaterializedDashboardPayload.objects.get(cache_key_hash=digest)
-    except MaterializedDashboardPayload.DoesNotExist:
+    except (MaterializedDashboardPayload.DoesNotExist, OperationalError, ProgrammingError):
         return None
     if row.valid_until < now:
-        row.delete()
+        try:
+            row.delete()
+        except (OperationalError, ProgrammingError):
+            pass
         return None
     return row.payload
 
@@ -215,6 +232,9 @@ def load_materialized_dashboard_payload(cache_key: str) -> dict | None:
 def save_materialized_dashboard_payload(
     cache_key: str, payload: dict, timeout_seconds: int
 ) -> None:
+    if not _db_materialization_enabled():
+        return
+
     digest = materialized_dashboard_cache_key_hash(cache_key)
     try:
         safe = json_safe_materialized_payload(payload)

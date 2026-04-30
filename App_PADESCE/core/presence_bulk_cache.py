@@ -8,14 +8,16 @@ de requêtes base de données pour le dashboard consultant.
 
 import hashlib
 import logging
-from typing import Dict, List, Optional, Set
+from typing import Dict, List
 
 from django.core.cache import cache
 from django.db import OperationalError, ProgrammingError
 
 from App_PADESCE.apprenants.models import Apprenant
 from App_PADESCE.presences.control_utils import (
+    _has_known_controls,
     _normalize_identifier,
+    _with_presence_metadata,
     get_presence_controls,
 )
 
@@ -139,29 +141,22 @@ def _build_controls_from_db(apprenant) -> Dict:
     """
     Construit les contrôles de présence depuis un objet Apprenant de la BD.
     """
-    from App_PADESCE.presences.control_utils import _presence_from_controls
-    
     controls_data = {
         "c1": apprenant.c1 or "",
         "c2": apprenant.c2 or "",
         "c3": apprenant.c3 or "",
         "c4": apprenant.c4 or "",
     }
-    
-    controls = _presence_from_controls(controls_data)
-    controls.update({
-        "source": "database_bulk",
-        "excel_found": False,
-        "excel_complete": False,
-        "excel_controls_found": [],
-        "excel_missing_controls": ["c1", "c2", "c3", "c4"],
-        "c1_from_excel": False,
-        "c2_from_excel": False,
-        "c3_from_excel": False,
-        "c4_from_excel": False,
-    })
-    
-    return controls
+
+    if not _has_known_controls(controls_data):
+        return get_presence_controls(apprenant.code)
+
+    return _with_presence_metadata(
+        controls_data,
+        source="database_bulk",
+        excel_found=False,
+        excel_controls_found=[],
+    )
 
 
 def _get_default_controls() -> Dict:
