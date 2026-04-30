@@ -328,7 +328,13 @@
 <section class="hero">
   <div class="hero-top">
     <div>
-      <p class="hero-subtitle">{{ entity_type|title }} analyse</p>
+      {% if entity_type == "classe" %}
+        <p class="hero-subtitle">{{ entity_type|title }} analysée</p>
+      {% elif entity_type == "prestation" %}
+        <p class="hero-subtitle">{{ entity_type|title }} analysée</p>
+      {% else %}
+        <p class="hero-subtitle">{{ entity_type|title }} analyse</p>
+      {% endif %}
       <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 4px;">
         <h1 style="margin: 0;">{{ entity_title }}</h1>
         {% if channel_link %}
@@ -413,13 +419,13 @@
         <div class="value">{{ classe.fenetre|default:"-" }}</div>
       </div>
       <div class="meta-card">
-        <div class="label">TOTAL DES PARTICIPANTS A LA FORMATION</div>
+        <div class="label">TOTAL DES PARTICIPANTS À LA FORMATION</div>
         <div class="value">-</div>
       </div>
       <table class="presence-stats-table" style="width: 100%; margin: 10px 0; border-collapse: collapse; font-size: 14px;">
         <thead>
           <tr style="background: #f8f9fa;">
-            <th style="padding: 8px; text-align: left; border: 1px solid #dee2e6;">Taux de personne formé</th>
+            <th style="padding: 8px; text-align: left; border: 1px solid #dee2e6;">Taux de personnes formées</th>
             <th style="padding: 8px; text-align: left; border: 1px solid #dee2e6;">Taux de participation</th>
             <th style="padding: 8px; text-align: left; border: 1px solid #dee2e6;">Taux de présence globale</th>
           </tr>
@@ -490,7 +496,7 @@
     <article class="summary-card">
       <div class="kicker">Formateurs</div>
       <strong>{{ summary.formateurs_analyzed }}/{{ summary.formateurs_total }}</strong>
-      <div class="row-meta">Analyzés / Total</div>
+      <div class="row-meta">Analysés / Total</div>
     </article>
   {% endif %}
 </section>
@@ -528,8 +534,8 @@
   <section class="panel tab-panel{% if active_tab == 'apprenants' %} active{% endif %}" data-panel="apprenants-chapeau">
     <div class="panel-head">
       <div>
-        <strong>Chapeau des enquetes de satisfaction</strong>
-        <div class="row-meta">Enquete de satisfaction : {{ entity_title }}</div>
+        <strong>Chapeau des enquêtes de satisfaction</strong>
+        <div class="row-meta">Enquête de satisfaction : {{ entity_title }}</div>
       </div>
       <span class="badge{% if class_chapeau.has_data %} badge-ok{% else %} badge-wait{% endif %}">
         {{ class_chapeau.formulaires_remplis }} formulaire(s) rempli(s)
@@ -560,8 +566,8 @@
     <section class="panel tab-panel{% if active_tab == 'apprenants' %} active{% endif %}" data-panel="apprenants-presence">
       <div class="panel-head">
         <div>
-          <strong>Chapeau de controle de presence</strong>
-          <div class="row-meta">Enquete de satisfaction : {{ entity_title }}</div>
+          <strong>Chapeau de contrôle de présence</strong>
+          <div class="row-meta">Enquête de satisfaction : {{ entity_title }}</div>
         </div>
       </div>
       <div class="table-wrap">
@@ -574,11 +580,11 @@
           </thead>
           <tbody>
             <tr>
-              <td>Total des participants a la formation</td>
+              <td>Total des participants à la formation</td>
               <td>{% if entity_type == "classe" %}-{% else %}{{ summary.apprenants_total|default:0 }}{% endif %}</td>
             </tr>
             <tr>
-              <td>Taux de personne forme</td>
+              <td>Taux de personnes formées</td>
               <td>{% if entity_type == "classe" or summary.person_formed_rate == "-" %}-{% else %}{{ summary.person_formed_rate|default:0|floatformat:2 }}%{% endif %}</td>
             </tr>
             <tr>
@@ -586,7 +592,7 @@
               <td>{% if entity_type == "classe" or summary.participation_rate == "-" %}-{% else %}{{ summary.participation_rate|default:0|floatformat:2 }}%{% endif %}</td>
             </tr>
             <tr>
-              <td>Taux de presence globale</td>
+              <td>Taux de présence globale</td>
               <td>{% if entity_type == "classe" or summary.presence_taux_avg == "-" %}-{% else %}{{ summary.presence_taux_avg|default:0|floatformat:2 }}%{% endif %}</td>
             </tr>
           </tbody>
