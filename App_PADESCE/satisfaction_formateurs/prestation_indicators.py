@@ -146,7 +146,7 @@ def _build_formateur_prestation_indicators_table():
                 "q1_prerequis_apprenants": None,
                 "q2_interaction_apprenants": None,
                 "q3_competences_acquises": None,
-                "count": int(formateur_metrics.get("count") or 0),
+                "count": int(formateur_metrics.get("count") or 0) if formateur_metrics else 0,
             }
 
             if formateur_metrics:
