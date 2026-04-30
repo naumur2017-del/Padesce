@@ -13,6 +13,7 @@ from django.urls import get_script_prefix, reverse, set_script_prefix
 from django.utils import timezone
 
 from App_PADESCE.core import error_views
+from App_PADESCE.core.auth_views import _sqlite_safe_auth_login
 from App_PADESCE.core.models import UserActivity
 
 _thread_locals = threading.local()
@@ -25,6 +26,10 @@ def _sqlite_in_use() -> bool:
         return connection.vendor == "sqlite"
     except Exception:
         return False
+
+
+def _activity_tracking_enabled() -> bool:
+    return bool(getattr(settings, "PADESCE_ENABLE_ACTIVITY_TRACKING", True))
 
 
 def _normalize_prefix(prefix: str | None) -> str:
@@ -96,7 +101,10 @@ def _try_public_analysis_auto_login(request: HttpRequest, path: str) -> bool:
         )
         return False
 
-    login(request, user)
+    if _sqlite_in_use():
+        _sqlite_safe_auth_login(request, user)
+    else:
+        login(request, user)
     request.user = user
     return True
 
@@ -373,6 +381,8 @@ class UserActivityMiddleware:
         self.get_response = get_response
 
     def __call__(self, request: HttpRequest):
+        if not _activity_tracking_enabled():
+            return self.get_response(request)
         user = getattr(request, "user", None)
         if user and user.is_authenticated:
             try:

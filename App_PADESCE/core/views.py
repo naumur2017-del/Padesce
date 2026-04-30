@@ -9,6 +9,7 @@ from functools import lru_cache
 from types import SimpleNamespace
 from urllib.parse import urlencode
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
 from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
@@ -2605,6 +2606,9 @@ def _compute_tracking_payload(
 def activity_track_api(request):
     if not (request.user.is_authenticated and not request.user.is_anonymous):
         return JsonResponse({"ok": False, "error": "authentication_required"}, status=401)
+
+    if not getattr(settings, "PADESCE_ENABLE_ACTIVITY_TRACKING", True):
+        return JsonResponse({"ok": True, "tracking_disabled": True})
 
     try:
         payload = json.loads(request.body.decode("utf-8"))

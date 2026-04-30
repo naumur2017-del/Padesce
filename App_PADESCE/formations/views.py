@@ -28,6 +28,7 @@ from App_PADESCE.core.apprenant_lookup import (
     get_local_apprenant_identifier,
     match_apprenants_to_appels,
 )
+from App_PADESCE.core.presence_bulk_cache import get_bulk_presence_controls
 from App_PADESCE.environnement.models import EnqueteEnvironnement
 from App_PADESCE.formations.forms import ClasseCreateForm
 from App_PADESCE.formations.models import Classe, Lieu, Prestation
@@ -663,6 +664,11 @@ def _resolve_classe_for_formateur_analysis(row: AppelFormateur):
 def _build_apprenant_rows(appels, *, back_url: str):
     appels = list(appels)
     matched_apprenants = match_apprenants_to_appels(appels)
+    presence_ids = [
+        get_local_apprenant_identifier(matched_apprenants.get(appel.pk))
+        for appel in appels
+    ]
+    bulk_presence_controls = get_bulk_presence_controls(presence_ids)
     rows = []
     for appel in appels:
         answers = _appel_answers_or_none(appel)
@@ -676,7 +682,12 @@ def _build_apprenant_rows(appels, *, back_url: str):
         detail_url = _detail_url("analysis_apprenant_call_detail", appel.pk, back_url)
         apprenant = matched_apprenants.get(appel.pk)
         apprenant_identifier = get_local_apprenant_identifier(apprenant)
-        presence_controls = get_presence_controls(apprenant_identifier, fallback_seed=appel.pk)
+        presence_controls = bulk_presence_controls.get(apprenant_identifier)
+        if not presence_controls:
+            presence_controls = get_presence_controls(
+                apprenant_identifier,
+                fallback_seed=appel.pk,
+            )
         control_values = {
             key: (str(presence_controls.get(key) or "").strip().upper() or "-")
             for key in ("c1", "c2", "c3", "c4")
@@ -732,6 +743,8 @@ def _build_class_chapeau(classe_code: str, appels, source_bundle: dict | None = 
     total_present_controls = 0
     total_participants = 0
 
+    presence_lookup_keys: list[str] = []
+    eligible_appels = []
     for appel in appels:
         answers = _appel_answers_or_none(appel)
         satisfaction = _satisfaction_or_none(appel)
@@ -748,9 +761,21 @@ def _build_class_chapeau(classe_code: str, appels, source_bundle: dict | None = 
             or str(getattr(appel, "code", "") or "").strip()
             or str(getattr(appel, "nom", "") or "").strip()
         )
+        eligible_appels.append((appel, answers, respondent_key))
+        if respondent_key:
+            presence_lookup_keys.append(respondent_key)
         if respondent_key:
             respondent_keys.add(respondent_key)
-        presence_controls = get_presence_controls(respondent_key, fallback_seed=appel.pk)
+
+    bulk_presence_controls = get_bulk_presence_controls(
+        presence_lookup_keys or list(respondent_keys)
+    )
+
+    for appel, answers, respondent_key in eligible_appels:
+        presence_controls = bulk_presence_controls.get(respondent_key) or get_presence_controls(
+            respondent_key,
+            fallback_seed=appel.pk,
+        )
         respondent_known_controls = 0
         respondent_present_controls = 0
         for key in ("c1", "c2", "c3", "c4"):

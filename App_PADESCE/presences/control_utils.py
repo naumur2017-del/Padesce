@@ -16,10 +16,11 @@ except Exception:  # pragma: no cover
 
 PRESENCE_CONTROLS_CACHE_KEY = "presence_controls_v1"
 PRESENCE_CONTROLS_DB_SYNC_TOKEN_KEY = "presence_controls_db_sync_token_v1"
-VALID_MARKERS = {"PR"}
+VALID_MARKERS = {"PR", "AB"}
 CONTROL_KEYS = ("c1", "c2", "c3", "c4")
-EXCEL_CONTROLS_XLSX = "fichier_concatene (1) 1 (1).xlsx"
-EXCEL_CONTROLS_SHEET = "Donnees"
+EXCEL_CONTROLS_XLSX = "Fichier pour plateforme de satisfaction.xlsx"
+EXCEL_CONTROLS_FALLBACK_XLSX = "fichier_concatene (1) 1 (1).xlsx"
+EXCEL_CONTROLS_SHEET = "Rapport Presence"
 
 
 def _auto_sync_enabled() -> bool:
@@ -33,6 +34,10 @@ def _normalize_identifier(value: str) -> str:
 
 def _normalized_marker(value: str) -> str:
     marker = _normalize_identifier(value)
+    if marker in {"PRESENT", "PRESENCE", "PR"}:
+        return "PR"
+    if marker in {"ABSENT", "AB"}:
+        return "AB"
     return marker if marker in VALID_MARKERS else ""
 
 
@@ -44,8 +49,19 @@ def _normalize_control_type(value: str) -> str:
     return f"c{match.group(1)}"
 
 
+def _controls_xlsx_candidates() -> list[Path]:
+    data_dir = Path(settings.BASE_DIR) / "data"
+    return [
+        data_dir / EXCEL_CONTROLS_XLSX,
+        data_dir / EXCEL_CONTROLS_FALLBACK_XLSX,
+    ]
+
+
 def _controls_xlsx_path() -> Path:
-    return Path(settings.BASE_DIR) / "data" / EXCEL_CONTROLS_XLSX
+    for candidate in _controls_xlsx_candidates():
+        if candidate.exists():
+            return candidate
+    return _controls_xlsx_candidates()[0]
 
 
 def _excel_cache_token() -> tuple[str, float]:
@@ -70,15 +86,20 @@ def _load_excel_presence_payload(_token: tuple[str, float]) -> dict[str, dict]:
         ws = wb[EXCEL_CONTROLS_SHEET] if EXCEL_CONTROLS_SHEET in wb.sheetnames else wb.active
         payload: dict[str, dict] = {}
         for row in ws.iter_rows(min_row=2, values_only=True):
-            apprenant_id = _normalize_identifier(row[1] if len(row) > 1 else "")
+            apprenant_id = _normalize_identifier(row[0] if len(row) > 0 else "")
             if not apprenant_id:
                 continue
-            presence_marker = _normalized_marker(row[11] if len(row) > 11 else "")
-            control_type = _normalize_control_type(row[39] if len(row) > 39 else "")
-            if not control_type:
-                continue
             current = payload.setdefault(apprenant_id, {})
-            current[control_type] = presence_marker
+            if EXCEL_CONTROLS_SHEET in wb.sheetnames:
+                for index, control_type in enumerate(CONTROL_KEYS, start=10):
+                    presence_marker = _normalized_marker(row[index] if len(row) > index else "")
+                    if presence_marker:
+                        current[control_type] = presence_marker
+            else:
+                presence_marker = _normalized_marker(row[11] if len(row) > 11 else "")
+                control_type = _normalize_control_type(row[39] if len(row) > 39 else "")
+                if control_type and presence_marker:
+                    current[control_type] = presence_marker
         return payload
     except Exception:
         return {}

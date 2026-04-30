@@ -1,4 +1,5 @@
 import unicodedata
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -13,11 +14,22 @@ except Exception:  # pragma: no cover
 def _workbook_candidates() -> list[Path]:
     base_dir = Path(settings.BASE_DIR)
     return [
+        base_dir / "data" / "Fichier pour plateforme de satisfaction.xlsx",
         base_dir / "Decompte et facturation.xlsm",
         base_dir / "data" / "network_excel_cache" / "network-fichier-consolide.xlsm",
         base_dir / "data" / "network_excel_cache" / "network-fichier-consolide-cutoff.xlsm",
         base_dir / "data" / "network_excel_bundle" / "network-fichier-consolide-cutoff.xlsm",
     ]
+
+
+def _workbook_token() -> tuple[tuple[str, float], ...]:
+    tokens: list[tuple[str, float]] = []
+    for workbook in _workbook_candidates():
+        if workbook.exists():
+            tokens.append((str(workbook), workbook.stat().st_mtime))
+        else:
+            tokens.append((str(workbook), 0.0))
+    return tuple(tokens)
 
 
 def _normalize_label(value: Any) -> str:
@@ -75,6 +87,24 @@ def _find_column(labels: list[str], *needles: str, suffixes: tuple[str, ...] = (
     return None
 
 
+def _find_prestation_code_column(labels: list[str], ws) -> int | None:
+    direct_index = _find_column(labels, "prestation id")
+    if direct_index is not None:
+        return direct_index
+
+    for candidate_index in range(min(5, len(labels))):
+        sample_values = []
+        for row in ws.iter_rows(min_row=3, max_row=12, values_only=True):
+            if len(row) <= candidate_index:
+                continue
+            value = str(row[candidate_index] or "").strip().upper()
+            if value:
+                sample_values.append(value)
+        if sample_values[:3] and all(value.startswith("PRESTA") for value in sample_values[:3]):
+            return candidate_index
+    return None
+
+
 def _excel_displays_dash(value: Any, number_format: str = "") -> bool:
     if _is_blank_indicator(value):
         return True
@@ -84,7 +114,9 @@ def _excel_displays_dash(value: Any, number_format: str = "") -> bool:
     return len(sections) >= 3 and '"-"' in sections[2]
 
 
-def _read_decompte_global_row(
+@lru_cache(maxsize=512)
+def _read_decompte_global_row_cached(
+    _token: tuple[tuple[str, float], ...],
     prestation_code: str,
 ) -> tuple[list[str], tuple[Any, ...], tuple[str, ...]] | None:
     if load_workbook is None:
@@ -122,7 +154,7 @@ def _read_decompte_global_row(
                 if bottom is not None:
                     parts.append(str(bottom).strip())
                 labels.append(" ".join(parts))
-            prestation_index = _find_column(labels, "prestation id")
+            prestation_index = _find_prestation_code_column(labels, ws)
             if prestation_index is None:
                 continue
             for cells in ws.iter_rows(min_row=3):
@@ -143,6 +175,12 @@ def _read_decompte_global_row(
     return None
 
 
+def _read_decompte_global_row(
+    prestation_code: str,
+) -> tuple[list[str], tuple[Any, ...], tuple[str, ...]] | None:
+    return _read_decompte_global_row_cached(_workbook_token(), prestation_code)
+
+
 def get_prestation_indicators_from_db(prestation_code: str) -> dict[str, float]:
     """
     Recupere les indicateurs de la feuille Decompte Global pour une prestation.
@@ -159,32 +197,36 @@ def get_prestation_indicators_from_db(prestation_code: str) -> dict[str, float]:
 
     labels, row, formats = payload
     participants_index = _find_column(labels, "projection sur personnes suivie")
-
-    available_index = _find_column(
+    participation_rate_index = _find_column(
         labels,
-        "apprenants suivis avec",
-        suffixes=(" total", " t"),
+        "taux de participation",
+        suffixes=("",),
     )
-    formed_rate_index = _find_column(labels, "taux", "personnes form")
+    formed_rate_index = _find_column(
+        labels,
+        "taux de personnes formees",
+        suffixes=(" taux de personnes formees",),
+    )
+    if formed_rate_index is None:
+        formed_rate_index = _find_column(labels, "taux", "personnes form")
     presence_rate_index = _find_column(labels, "taux", "presence moyen")
 
     participants_raw = row[participants_index] if participants_index is not None else None
-    available_raw = row[available_index] if available_index is not None else None
     participants = (
         "-"
         if participants_index is None
         or _excel_displays_dash(participants_raw, formats[participants_index])
         else _as_count(participants_raw)
     )
-    available = _as_number(available_raw) if available_index is not None else None
     formed_raw = row[formed_rate_index] if formed_rate_index is not None else None
+    participation_raw = (
+        row[participation_rate_index] if participation_rate_index is not None else None
+    )
     presence_raw = row[presence_rate_index] if presence_rate_index is not None else None
     formed_rate = _as_number(formed_raw)
     presence_rate = _as_number(presence_raw)
     participation_rate = (
-        "-"
-        if participants == "-" or _is_blank_indicator(available_raw)
-        else ((participants / available) if available and available > 0 else 0)
+        "-" if _is_blank_indicator(participation_raw) else (_as_number(participation_raw) or 0)
     )
 
     taux_personnes_formees = (
