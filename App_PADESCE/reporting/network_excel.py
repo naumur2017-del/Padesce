@@ -22,6 +22,7 @@ from django.shortcuts import render
 from openpyxl import Workbook, load_workbook
 
 from App_PADESCE.core.access import require_analysis_access
+from App_PADESCE.formations.models import Classe
 
 logger = logging.getLogger(__name__)
 
@@ -748,14 +749,49 @@ def _build_padesce_source_index_cached(cache_key: tuple[str, int, str, str]) -> 
         duplicate_codes: set[str] = set()
         descente_channels = build_descente_channel_index()
 
-        class_rows = workbook["Classes"].iter_rows(values_only=True)
-        class_headers = _sheet_header_lookup(next(class_rows, ()))
-        for row in class_rows:
+        class_rows = list(workbook["Classes"].iter_rows(values_only=True))
+        class_headers = _sheet_header_lookup(class_rows[0] if class_rows else ())
+        
+        # Récupérer les phases depuis la base de données pour les classes
+        classes_phases = {}
+        try:
+            class_codes = [row[0] for row in class_rows if row[0]]
+            logger.info(f"Recherche des phases pour {len(class_codes)} classes: {class_codes[:5]}...")
+            db_classes = Classe.objects.filter(code__in=class_codes)
+            logger.info(f"Trouvé {len(db_classes)} classes dans la BD")
+            
+            for db_classe in db_classes:
+                if db_classe.phase:
+                    phase_id = str(db_classe.phase.id_phase)
+                    classes_phases[db_classe.code] = phase_id
+                    logger.info(f"Classe {db_classe.code} -> phase {phase_id}")
+                else:
+                    logger.warning(f"Classe {db_classe.code} n'a pas de phase")
+                    
+        except Exception as e:
+            logger.error(f"Impossible de charger les phases depuis la BD: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+        
+        logger.info(f"Début du traitement des classes - nombre de lignes: {len(class_rows)}")
+        row_count = 0
+        for row in class_rows[1:]:  # Skip header row
+            row_count += 1
             classe_id = _sheet_get(row, class_headers, "Classe ID", "Classe", "Class ID")
             classe_key = _normalize_lookup(classe_id)
             if not classe_key:
+                logger.info(f"Ligne {row_count}: classe_id vide, skip")
                 continue
-            classes_by_id[classe_key] = {
+            
+            # Ajouter la phase depuis la base de données
+            phase_id = classes_phases.get(classe_id)
+            logger.info(f"Traitement classe {classe_id} -> phase_id: {phase_id}")
+            
+            # S'assurer que phase_id est une chaîne de caractères
+            if phase_id is not None:
+                phase_id = str(phase_id)
+            
+            class_data = {
                 "classe_id": classe_id,
                 "prestation_id": _sheet_get(row, class_headers, "Prestation ID", "ID Prestation"),
                 "prestataire": _sheet_get(row, class_headers, "Nom du Prestataire", "Prestataire"),
@@ -771,6 +807,7 @@ def _build_padesce_source_index_cached(cache_key: tuple[str, int, str, str]) -> 
                 "ville": _sheet_get(row, class_headers, "Ville"),
                 "formation": _sheet_get(row, class_headers, "FORMATION", "Formation"),
                 "region": _sheet_get(row, class_headers, "Region"),
+                "phase_id": phase_id,  # Ajouter la phase depuis la BD
                 "statut_prestation": _sheet_get(
                     row,
                     class_headers,
@@ -778,6 +815,13 @@ def _build_padesce_source_index_cached(cache_key: tuple[str, int, str, str]) -> 
                     "Statut prestation",
                 ),
             }
+            
+            # Log pour vérifier que la phase est bien ajoutée
+            logger.info(f"Classe {classe_id} ajoutée avec phase_id: {class_data['phase_id']}")
+            
+            classes_by_id[classe_key] = class_data
+            
+        logger.info(f"Fin du traitement des classes - {row_count} lignes traitées, {len(classes_by_id)} classes dans le dictionnaire")
 
         prestation_rows = workbook["Prestations"].iter_rows(values_only=True)
         prestation_headers = _sheet_header_lookup(next(prestation_rows, ()))
@@ -1036,6 +1080,10 @@ def build_padesce_source_index(
     force_refresh: bool = False,
     source_key: str = DEFAULT_WORKBOOK_SOURCE,
 ) -> dict:
+    # Forcer le vidage du cache pour tester les phases
+    if force_refresh:
+        _build_padesce_source_index_cached.cache_clear()
+        cache.delete("padesce-source-index:*")
     normalized_source_key = normalize_workbook_source_key(source_key)
     source = _ensure_cached_workbook(source_key=normalized_source_key, force_refresh=force_refresh)
     cache_key = (
@@ -1052,7 +1100,8 @@ def build_padesce_source_index(
         _build_padesce_source_index_cached.cache_clear()
         cache.delete(shared_cache_key)
 
-    cached_payload = cache.get(shared_cache_key)
+    # Si force_refresh, ne pas utiliser le cache même s'il existe
+    cached_payload = None if force_refresh else cache.get(shared_cache_key)
     if cached_payload is not None:
         return cached_payload
 

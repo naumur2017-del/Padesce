@@ -3,6 +3,18 @@ from django.db import models
 from App_PADESCE.core.models import TimeStampedModel
 
 
+class Phase(models.Model):
+    id_phase = models.AutoField(primary_key=True, db_column="ID_Phase")
+    date_debut = models.DateField()
+    date_fin = models.DateField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["id_phase"]
+
+    def __str__(self) -> str:
+        return f"Phase {self.id_phase}"
+
+
 class Formateur(TimeStampedModel):
     code = models.CharField(max_length=20, unique=True)
     nom_complet = models.CharField(max_length=255)
@@ -15,6 +27,9 @@ class Formateur(TimeStampedModel):
     ville_residence = models.CharField(max_length=120, blank=True)
     autres_infos = models.TextField(blank=True)
     actif = models.BooleanField(default=True)
+    phase = models.ForeignKey(
+        "Phase", on_delete=models.SET_NULL, related_name="formateurs", null=True, blank=True
+    )
     # Lien explicite formateur ↔ prestations (toggle géré via l'interface de gestion)
     prestations = models.ManyToManyField(
         "Prestation",
@@ -106,6 +121,9 @@ class Prestation(TimeStampedModel):
     jalons_contractuels = models.TextField(blank=True)
     ville = models.CharField(max_length=120, blank=True, verbose_name="Ville de la prestation")
     actif = models.BooleanField(default=True)
+    phase = models.ForeignKey(
+        "Phase", on_delete=models.SET_NULL, related_name="prestations", null=True, blank=True
+    )
 
     class Meta:
         ordering = ["code"]
@@ -168,6 +186,9 @@ class Classe(TimeStampedModel):
     cohorte = models.PositiveIntegerField(default=1)
     statut = models.CharField(max_length=20, choices=STATUT_CHOICES, default="non_demarre")
     actif = models.BooleanField(default=True)
+    phase = models.ForeignKey(
+        "Phase", on_delete=models.SET_NULL, related_name="classes", null=True, blank=True
+    )
 
     class Meta:
         ordering = ["code"]

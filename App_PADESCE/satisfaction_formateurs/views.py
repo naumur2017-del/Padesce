@@ -42,8 +42,13 @@ from App_PADESCE.appels.models import (
 )
 from App_PADESCE.core.access import require_analysis_access
 from App_PADESCE.core.analysis_rules import analysis_threshold_label, analysis_threshold_target
+from App_PADESCE.core.analysis_materialization import (
+    load_materialized_dashboard_payload,
+    save_materialized_dashboard_payload,
+)
 from App_PADESCE.core.cache_versions import get_analysis_cache_version
 from App_PADESCE.core.fast_stats import build_fast_stats_context
+from App_PADESCE.core.phase_scope import normalize_phase_scope, phase_scope_options
 from App_PADESCE.formations.models import (
     Beneficiaire,
     Classe,
@@ -1747,6 +1752,7 @@ def _build_satisfaction_formateurs_dashboard_context(request) -> dict:
     f_prestataire = (request.GET.get("prestataire") or "").strip()
     f_beneficiaire = (request.GET.get("beneficiaire") or "").strip()
     f_cohorte = (request.GET.get("cohorte") or "").strip()
+    f_phase_scope = normalize_phase_scope(request.GET.get("phase_scope"))
     active_tab = _active_formateurs_tab(request)
 
     _formateur_marker = get_analysis_cache_version("model:appels.appelformateur")
@@ -1755,6 +1761,7 @@ def _build_satisfaction_formateurs_dashboard_context(request) -> dict:
         f_prestataire,
         f_beneficiaire,
         f_cohorte,
+        f_phase_scope,
         _formateur_marker,
     )
     _cached = cache.get(_cache_key)
@@ -1768,6 +1775,10 @@ def _build_satisfaction_formateurs_dashboard_context(request) -> dict:
         qs = qs.filter(beneficiaire=f_beneficiaire)
     if f_cohorte:
         qs = qs.filter(cohorte=f_cohorte)
+    
+    # Appliquer le filtre de phase
+    from App_PADESCE.core.phase_scope import filter_appelformateur_queryset_by_phase
+    qs = filter_appelformateur_queryset_by_phase(qs, f_phase_scope)
 
     records = list(
         qs.values(
@@ -1986,6 +1997,16 @@ def _build_satisfaction_formateurs_dashboard_context(request) -> dict:
         "audios_enregistres_appels": appel_summary["audios_enregistres"],
         "prestation_indicators_table": prestation_indicators_table,
         "toutes_prestations_classees": toutes_prestations_classees,
+        "phase_tabs": [
+            {
+                "label": item["label"],
+                "value": item["value"],
+                "active": bool(item.get("selected")),
+                "url": f"{request.path}?phase_scope={item['value']}&prestataire={f_prestataire}&beneficiaire={f_beneficiaire}&cohorte={f_cohorte}",
+            }
+            for item in phase_scope_options(f_phase_scope)
+        ],
+        "phase_scope": f_phase_scope,
     }
     context.update(build_fast_stats_context(request, default_mode="formateur"))
     cache.set(_cache_key, context, timeout=_FORMATEURS_CACHE_TIMEOUT)

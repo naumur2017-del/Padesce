@@ -45,6 +45,9 @@ class Apprenant(TimeStampedModel):
     c4 = models.CharField(max_length=2, choices=PRESENCE_MARKER_CHOICES, default="", blank=True)
     appartenance_beneficiaire = models.BooleanField(default=False)
     actif = models.BooleanField(default=True)
+    phase = models.ForeignKey(
+        "formations.Phase", on_delete=models.SET_NULL, related_name="apprenants", null=True, blank=True
+    )
 
     class Meta:
         ordering = ["nom_complet"]

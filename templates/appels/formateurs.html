@@ -157,10 +157,29 @@
 
 <div class="scope-switch">
   <div class="scope-tabs" role="tablist" aria-label="Navigation des appels">
-    <a class="scope-tab" href="{% url 'appels_index' %}">Appels Apprenants</a>
-    <a class="scope-tab active" href="{% url 'formateurs_index' %}" aria-current="page">Appels Formateurs</a>
+    <a class="scope-tab" href="{% url 'appels_index' %}?phase_scope={{ filters.phase_scope|urlencode }}">Appels apprenants</a>
+    <a class="scope-tab active" href="{% url 'formateurs_index' %}?phase_scope={{ filters.phase_scope|urlencode }}" aria-current="page">Appels formateurs</a>
   </div>
-  <div class="scope-note">Basculer entre les appels apprenants et les appels formateurs.</div>
+  <div class="scope-note">Basculer entre les appels apprenants PADESCE et les appels formateurs.</div>
+</div>
+<div class="phase-switch-row">
+  <form method="get" class="scope-tabs" role="tablist" aria-label="Choix du perimetre de phase">
+    <input type="hidden" name="q" value="{{ filters.q }}">
+    <input type="hidden" name="taux_min" value="{{ filters.taux_min }}">
+    <input type="hidden" name="date_from" value="{{ filters.date_from }}">
+    <input type="hidden" name="date_to" value="{{ filters.date_to }}">
+    <input type="hidden" name="status" value="{{ filters.status }}">
+    <input type="hidden" name="prestataire" value="{{ filters.prestataire }}">
+    <input type="hidden" name="beneficiaire" value="{{ filters.beneficiaire }}">
+    <input type="hidden" name="classe" value="{{ filters.classe }}">
+    <input type="hidden" name="fenetre" value="{{ filters.fenetre }}">
+    <input type="hidden" name="agent" value="{{ filters.agent }}">
+    <input type="hidden" name="formulaire" value="{{ filters.formulaire }}">
+    <input type="hidden" name="modified_by" value="{{ filters.modified_by }}">
+    {% for option in filters.phase_scope_options %}
+      <button type="submit" name="phase_scope" value="{{ option.value }}" class="scope-tab{% if option.selected %} active{% endif %}">{{ option.label }}</button>
+    {% endfor %}
+  </form>
 </div>
 
 {% if user.is_superuser %}
@@ -250,6 +269,11 @@
     <input type="text" name="q" class="input" style="flex:1; min-width:200px;" placeholder="Recherche numero / prestataire / formation..." value="{{ filters.q }}">
     <input type="datetime-local" name="date_from" class="input" value="{{ filters.date_from }}">
     <input type="datetime-local" name="date_to" class="input" value="{{ filters.date_to }}">
+    <select name="phase_scope" class="input">
+      {% for option in filters.phase_scope_options %}
+        <option value="{{ option.value }}" {% if option.selected %}selected{% endif %}>{{ option.label }}</option>
+      {% endfor %}
+    </select>
     <select name="status" class="input">
       <option value="">Statut</option>
       <option value="en_attente" {% if filters.status == "en_attente" %}selected{% endif %}>En attente</option>

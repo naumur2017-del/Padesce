@@ -45,6 +45,13 @@ from App_PADESCE.core.call_metrics import (
     phone_variants,
     summarize_source_class_phone_coverage,
 )
+from App_PADESCE.core.phase_scope import (
+    PHASE_SCOPE_V1_COMBINED,
+    normalize_phase_scope,
+    phase_scope_options,
+    phase_ids_for_scope,
+    filter_appel_queryset_by_phase,
+)
 from App_PADESCE.formations.models import Classe
 from App_PADESCE.reporting.network_excel import build_padesce_source_index, normalize_network_lookup
 from App_PADESCE.satisfaction_apprenants.models import SatisfactionApprenant
@@ -584,7 +591,8 @@ def _source_class_is_finished(source_class: dict) -> bool:
 
 def _safe_build_padesce_source_index() -> dict | None:
     try:
-        return build_padesce_source_index()
+        # Forcer le rafraîchissement pour contourner le cache et tester les phases
+        return build_padesce_source_index(force_refresh=True)
     except Exception as exc:
         logger.warning(
             "Impossible de charger la source PADESCE pour les optimisations d'appels: %s", exc
@@ -618,22 +626,35 @@ def _callable_phone_summary_from_appel_rows(appel_rows: list[dict]) -> dict[str,
     return summary
 
 
-_SNAPSHOT_CACHE_KEY = "appel_class_progress_snapshot"
+_SNAPSHOT_CACHE_KEY_PREFIX = "appel_class_progress_snapshot"
 _SNAPSHOT_CACHE_TTL = 120  # secondes
 
 
-def _build_appel_class_progress_snapshot(source_bundle: dict | None = None) -> dict:
-    cached = cache.get(_SNAPSHOT_CACHE_KEY)
+def _build_appel_class_progress_snapshot(
+    source_bundle: dict | None = None,
+    phase_scope: str = PHASE_SCOPE_V1_COMBINED,
+) -> dict:
+    cache_key = f"{_SNAPSHOT_CACHE_KEY_PREFIX}:{normalize_phase_scope(phase_scope)}"
+    cached = cache.get(cache_key)
     if cached is not None:
         return cached
-    result = _compute_appel_class_progress_snapshot(source_bundle)
-    cache.set(_SNAPSHOT_CACHE_KEY, result, timeout=_SNAPSHOT_CACHE_TTL)
+    result = _compute_appel_class_progress_snapshot(source_bundle, phase_scope=phase_scope)
+    cache.set(cache_key, result, timeout=_SNAPSHOT_CACHE_TTL)
     return result
 
 
-def _compute_appel_class_progress_snapshot(source_bundle: dict | None = None) -> dict:
+def _compute_appel_class_progress_snapshot(
+    source_bundle: dict | None,
+    phase_scope: str = PHASE_SCOPE_V1_COMBINED,
+) -> dict:
+    phase_scope = normalize_phase_scope(phase_scope, default=PHASE_SCOPE_V1_COMBINED)
+    phase_ids = set(str(pid) for pid in phase_ids_for_scope(phase_scope))
+    logger.info(f"Phase scope: {phase_scope} -> phase_ids: {phase_ids}")
     appel_rows = list(
-        Appel.objects.filter(is_active=True)
+        filter_appel_queryset_by_phase(
+            Appel.objects.filter(is_active=True),
+            phase_scope,
+        )
         .exclude(classe_label="")
         .values(
             "id",
@@ -685,6 +706,7 @@ def _compute_appel_class_progress_snapshot(source_bundle: dict | None = None) ->
     prestation_classes: dict[str, set[str]] = defaultdict(set)
 
     if source_bundle:
+        logger.info(f"Source bundle disponible: {type(source_bundle)}, classes: {len(source_bundle.get('classes', {}))}")
         for classe_label, count in count_callable_source_records_by_class(source_bundle).items():
             classe_key = normalize_network_lookup(classe_label)
             if classe_key:
@@ -694,6 +716,11 @@ def _compute_appel_class_progress_snapshot(source_bundle: dict | None = None) ->
             if classe_key:
                 source_phone_summary_by_key[classe_key] = summary
         for source_class in (source_bundle.get("classes") or {}).values():
+            source_phase_id = source_class.get("phase_id")
+            logger.info(f"Classe {source_class.get('classe_id')} -> phase_id: {source_phase_id}")
+            if source_phase_id not in phase_ids:
+                logger.info(f"Classe {source_class.get('classe_id')} phase {source_phase_id} filtrée (phase_ids: {phase_ids})")
+                continue
             classe_id = str(source_class.get("classe_id") or "").strip()
             classe_key = normalize_network_lookup(classe_id)
             if not classe_key:
@@ -705,6 +732,7 @@ def _compute_appel_class_progress_snapshot(source_bundle: dict | None = None) ->
             prestation_key = normalize_network_lookup(source_class.get("prestation_id", ""))
             if prestation_key:
                 prestation_classes[prestation_key].add(classe_key)
+                logger.info(f"Ajout classe {classe_id} (phase {source_phase_id}) à prestation {prestation_key}")
 
     classe_keys = (
         set(label_by_key)
@@ -774,6 +802,7 @@ def _compute_appel_class_progress_snapshot(source_bundle: dict | None = None) ->
     recommended_classes = []
     if source_bundle:
         prestations = source_bundle.get("prestations") or {}
+        logger.info(f"Calcul des recommandations: {len(prestations)} prestations, {len(prestation_classes)} prestation_classes")
         for prestation_key, class_keys in prestation_classes.items():
             actionable_keys = [
                 classe_key
@@ -781,6 +810,7 @@ def _compute_appel_class_progress_snapshot(source_bundle: dict | None = None) ->
                 if int(progress_by_key.get(classe_key, {}).get("total") or 0) > 0
                 and not bool(progress_by_key.get(classe_key, {}).get("reached"))
             ]
+            
             if not actionable_keys:
                 continue
 
@@ -853,6 +883,7 @@ def _compute_appel_class_progress_snapshot(source_bundle: dict | None = None) ->
                     }
                 )
 
+    logger.info(f"Nombre de recommandations créées: {len(recommended_classes)}")
     recommended_classes.sort(key=lambda item: item["score"])
     for item in recommended_classes:
         item.pop("score", None)
@@ -892,7 +923,14 @@ def _compute_appel_class_progress_snapshot(source_bundle: dict | None = None) ->
 
 
 def _build_filtered_appels_queryset(request, *, hidden_class_labels: list[str] | None = None):
-    appels_qs = Appel.objects.filter(is_active=True)
+    phase_scope = normalize_phase_scope(
+        request.GET.get("phase_scope"),
+        default=PHASE_SCOPE_V1_COMBINED,
+    )
+    appels_qs = filter_appel_queryset_by_phase(
+        Appel.objects.filter(is_active=True),
+        phase_scope,
+    )
     hidden_class_labels = [
         label for label in (hidden_class_labels or []) if str(label or "").strip()
     ]
@@ -1053,6 +1091,8 @@ def _build_filtered_appels_queryset(request, *, hidden_class_labels: list[str] |
     }
 
     filters = {
+        "phase_scope": phase_scope,
+        "phase_scope_options": phase_scope_options(phase_scope),
         "status": status_filter,
         "prestataire": prestataire_filter,
         "beneficiaire": beneficiaire_filter,
@@ -1140,6 +1180,10 @@ def appels_export_xlsx(request):
 @login_required
 @transaction.atomic
 def appels_index(request):
+    phase_scope = normalize_phase_scope(
+        request.GET.get("phase_scope"),
+        default=PHASE_SCOPE_V1_COMBINED,
+    )
     if request.method == "POST" and request.FILES.get("file"):
         if not request.user.is_superuser:
             messages.error(request, "Seul un superadmin peut importer des fichiers d'appels.")
@@ -1247,7 +1291,10 @@ def appels_index(request):
             )
         return redirect(request.path_info)
 
-    optimization_snapshot = _build_appel_class_progress_snapshot(_safe_build_padesce_source_index())
+    optimization_snapshot = _build_appel_class_progress_snapshot(
+        _safe_build_padesce_source_index(),
+        phase_scope=phase_scope,
+    )
     appels_qs, filters = _build_filtered_appels_queryset(
         request,
         hidden_class_labels=optimization_snapshot["hidden_class_labels"],
@@ -1329,7 +1376,14 @@ def appels_index(request):
 
 @login_required
 def appels_export_filtered_csv(request):
-    optimization_snapshot = _build_appel_class_progress_snapshot(_safe_build_padesce_source_index())
+    phase_scope = normalize_phase_scope(
+        request.GET.get("phase_scope"),
+        default=PHASE_SCOPE_V1_COMBINED,
+    )
+    optimization_snapshot = _build_appel_class_progress_snapshot(
+        _safe_build_padesce_source_index(),
+        phase_scope=phase_scope,
+    )
     appels_qs, _ = _build_filtered_appels_queryset(
         request,
         hidden_class_labels=optimization_snapshot["hidden_class_labels"],

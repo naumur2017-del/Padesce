@@ -36,6 +36,12 @@ from App_PADESCE.appels.views import (
     _has_audio_file,
     _safe_audio_url,
 )
+from App_PADESCE.core.phase_scope import (
+    PHASE_SCOPE_V1_COMBINED,
+    normalize_phase_scope,
+    phase_scope_options,
+    filter_appelformateur_queryset_by_phase,
+)
 from App_PADESCE.formations.models import Classe
 from App_PADESCE.satisfaction_formateurs.models import SatisfactionFormateur
 
@@ -414,7 +420,14 @@ def _pas_forme_q_filter():
 
 
 def _build_filtered_formateurs_queryset(request):
-    qs = AppelFormateur.objects.filter(is_active=True).select_related("locked_by")
+    phase_scope = normalize_phase_scope(
+        request.GET.get("phase_scope"),
+        default=PHASE_SCOPE_V1_COMBINED,
+    )
+    qs = filter_appelformateur_queryset_by_phase(
+        AppelFormateur.objects.filter(is_active=True),
+        phase_scope,
+    ).select_related("locked_by")
     status_filter = (request.GET.get("status") or "").strip()
     prestataire_filter = (request.GET.get("prestataire") or "").strip()
     beneficiaire_filter = (request.GET.get("beneficiaire") or "").strip()
@@ -475,6 +488,8 @@ def _build_filtered_formateurs_queryset(request):
             pass
 
     filters = {
+        "phase_scope": phase_scope,
+        "phase_scope_options": phase_scope_options(phase_scope),
         "status": status_filter,
         "prestataire": prestataire_filter,
         "beneficiaire": beneficiaire_filter,
