@@ -593,26 +593,26 @@
   </section>
 {% elif section == "principal" and scope == "formateur" %}
   <section class="public-panel">
-    <div class="title-with-help"><h2>Chapeau satisfaction formateurs</h2>{% include "includes/help_tooltip.html" with title="Satisfaction formateurs" text="Évaluation sur 3 questions quantitatives  EQ1 Prérequis apprenants, Q2 Interaction apprenants, Q3 Compétences acquises  Eéchelle 1 (insuffisant) à 5 (excellent)." section="methodologie-de-calcul-et-formules" %}</div>
+    <div class="title-with-help"><h2>Chapeau satisfaction formateurs</h2>{% include "includes/help_tooltip.html" with title="Satisfaction formateurs" text="Évaluation sur 3 questions quantitatives : Q1 Prérequis apprenants, Q2 Interaction apprenants, Q3 Compétences acquises (échelle 1 (insuffisant) à 5 (excellent))." section="methodologie-de-calcul-et-formules" %}</div>
     <div class="table-wrap">
       <table class="stats-table">
         <thead>
           <tr>
             <th>Questions</th>
-            <th title="Moyenne des réponses  Eéchelle 1 à 5">Notes /5</th>
+            <th title="Moyenne des réponses (échelle 1 à 5)">Notes /5</th>
           </tr>
         </thead>
         <tbody>
           <tr>
-            <td>Q1  EPrérequis apprenants <span style="display:block;font-size:.76rem;color:var(--muted);">Les apprenants avaient les prérequis nécessaires</span></td>
+            <td>Q1 - Prérequis apprenants <span style="display:block;font-size:.76rem;color:var(--muted);">Les apprenants avaient les prérequis nécessaires</span></td>
             <td><strong>{{ principal.summary_moyenne_prerequis|floatformat:1 }}</strong></td>
           </tr>
           <tr>
-            <td>Q2  EInteractions apprenants <span style="display:block;font-size:.76rem;color:var(--muted);">Qualité des interactions formateur–apprenants</span></td>
+            <td>Q2 - Interactions apprenants <span style="display:block;font-size:.76rem;color:var(--muted);">Qualité des interactions formateur–apprenants</span></td>
             <td><strong>{{ principal.summary_moyenne_interaction|floatformat:1 }}</strong></td>
           </tr>
           <tr>
-            <td>Q3  ECompétences acquises <span style="display:block;font-size:.76rem;color:var(--muted);">Compétences prévues effectivement transmises</span></td>
+            <td>Q3 - Compétences acquises <span style="display:block;font-size:.76rem;color:var(--muted);">Compétences prévues effectivement transmises</span></td>
             <td><strong>{{ principal.summary_moyenne_competences|floatformat:1 }}</strong></td>
           </tr>
           <tr style="background:rgba(111,60,195,.06);">
