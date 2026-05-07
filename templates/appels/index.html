@@ -2015,41 +2015,5 @@
     });
 
 </script>
-
-<script>
-// Navigation menu toggle
-document.getElementById('navToggle').addEventListener('click', function() {
-  const navMenu = document.getElementById('navMenu');
-  const isExpanded = this.getAttribute('aria-expanded') === 'true';
-  
-  this.setAttribute('aria-expanded', !isExpanded);
-  navMenu.classList.toggle('open');
-});
-
-// Close dropdown when clicking outside
-document.addEventListener('click', function(event) {
-  const navMenu = document.getElementById('navMenu');
-  const navToggle = document.getElementById('navToggle');
-  
-  if (!navMenu.contains(event.target) && !navToggle.contains(event.target)) {
-    navMenu.classList.remove('open');
-    navToggle.setAttribute('aria-expanded', 'false');
-  }
-});
-
-// Add scroll effect to navigation
-window.addEventListener('scroll', function() {
-  const appNav = document.getElementById('appNav');
-  if (window.scrollY > 10) {
-    appNav.classList.add('is-scrolled');
-  } else {
-    appNav.classList.remove('is-scrolled');
-  }
-});
-</script>
-
 </main>
-
 {% endblock %}
-
-
