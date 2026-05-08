@@ -278,9 +278,9 @@ def _ensure_minimal_fallback_workbook(path: Path) -> None:
             if {"Apprenants", "Classes", "Prestations"}.issubset(names):
                 need_write = False
         except Exception as exc:
-            logger.warning("Classeur de secours illisible, recréation (%s): %s", path, exc)
-    if need_write:
-        _write_minimal_consolidated_workbook(path)
+            pass
+        if need_write:
+            _write_minimal_consolidated_workbook(path)
 
 
 def _resolve_network_workbook(source_key: str = DEFAULT_WORKBOOK_SOURCE) -> Path:
@@ -318,21 +318,9 @@ def _resolve_network_workbook(source_key: str = DEFAULT_WORKBOOK_SOURCE) -> Path
         fallback_path = _minimal_fallback_workbook_path(source_key)
         _ensure_minimal_fallback_workbook(fallback_path)
         if fallback_path.is_file():
-            logger.warning(
-                "Classeur consolidé « %s » introuvable pour la source %s. "
-                "Gabarit vide utilisé : %s. Définissez la variable %s ou placez le fichier "
-                "dans le cache (data/network_excel_cache/) pour les données réelles.",
-                config["name"],
-                normalize_workbook_source_key(source_key),
-                fallback_path,
-                config["env_var"],
-            )
             return fallback_path
     except Exception:
-        logger.exception(
-            "Impossible de créer le classeur de secours pour la source %s",
-            normalize_workbook_source_key(source_key),
-        )
+        pass
 
     raise FileNotFoundError(
         f"Le fichier Excel consolide attendu ({config['name']}) n'a ete trouve ni sur le partage reseau, ni dans le cache local, ni dans le fallback embarque."
@@ -373,13 +361,6 @@ def _ensure_cached_workbook(
                 CACHE_DIRECTORY.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(source_path, cached_path)
             except Exception as copy_exc:
-                logger.warning(
-                    "Impossible de copier le classeur vers le cache (%s → %s): %s. "
-                    "Ouverture directe depuis la source.",
-                    source_path,
-                    cached_path,
-                    copy_exc,
-                )
                 # Utiliser la source directement si la copie ou la création du
                 # répertoire cache échoue (droits, filesystem en lecture seule…).
                 cached_path = source_path
@@ -756,37 +737,26 @@ def _build_padesce_source_index_cached(cache_key: tuple[str, int, str, str]) -> 
         classes_phases = {}
         try:
             class_codes = [row[0] for row in class_rows if row[0]]
-            logger.info(f"Recherche des phases pour {len(class_codes)} classes: {class_codes[:5]}...")
             db_classes = Classe.objects.filter(code__in=class_codes)
-            logger.info(f"Trouvé {len(db_classes)} classes dans la BD")
             
             for db_classe in db_classes:
                 if db_classe.phase:
                     phase_id = str(db_classe.phase.id_phase)
                     classes_phases[db_classe.code] = phase_id
-                    logger.info(f"Classe {db_classe.code} -> phase {phase_id}")
-                else:
-                    logger.warning(f"Classe {db_classe.code} n'a pas de phase")
-                    
-        except Exception as e:
-            logger.error(f"Impossible de charger les phases depuis la BD: {e}")
-            import traceback
-            logger.error(traceback.format_exc())
+        except Exception:
+            pass
         
-        logger.info(f"Début du traitement des classes - nombre de lignes: {len(class_rows)}")
         row_count = 0
         for row in class_rows[1:]:  # Skip header row
             row_count += 1
             classe_id = _sheet_get(row, class_headers, "Classe ID", "Classe", "Class ID")
             classe_key = _normalize_lookup(classe_id)
             if not classe_key:
-                logger.info(f"Ligne {row_count}: classe_id vide, skip")
-                continue
+                                continue
             
             # Ajouter la phase depuis la base de données
             phase_id = classes_phases.get(classe_id)
-            logger.info(f"Traitement classe {classe_id} -> phase_id: {phase_id}")
-            
+                        
             # S'assurer que phase_id est une chaîne de caractères
             if phase_id is not None:
                 phase_id = str(phase_id)
@@ -816,12 +786,7 @@ def _build_padesce_source_index_cached(cache_key: tuple[str, int, str, str]) -> 
                 ),
             }
             
-            # Log pour vérifier que la phase est bien ajoutée
-            logger.info(f"Classe {classe_id} ajoutée avec phase_id: {class_data['phase_id']}")
-            
             classes_by_id[classe_key] = class_data
-            
-        logger.info(f"Fin du traitement des classes - {row_count} lignes traitées, {len(classes_by_id)} classes dans le dictionnaire")
 
         prestation_rows = workbook["Prestations"].iter_rows(values_only=True)
         prestation_headers = _sheet_header_lookup(next(prestation_rows, ()))

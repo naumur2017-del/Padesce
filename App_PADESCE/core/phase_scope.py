@@ -12,8 +12,8 @@ PHASE_SCOPE_V1_COMBINED = "v1_combined"
 
 PHASE_SCOPE_CHOICES = [
     (PHASE_SCOPE_V1, "Vague 1"),
-    (PHASE_SCOPE_V1_POST, "Vague 1 (post)"),
-    (PHASE_SCOPE_V1_COMBINED, "Vague 1 (combiné)"),
+    (PHASE_SCOPE_V1_POST, "Vague 1 (POST)"),
+    (PHASE_SCOPE_V1_COMBINED, "Vague 1 (COMBINÉ)"),
 ]
 
 

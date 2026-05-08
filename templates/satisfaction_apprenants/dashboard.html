@@ -98,6 +98,14 @@
   </div>
 </div>
 
+<div class="scope-switch">
+  <div class="scope-tabs" role="tablist" aria-label="Choix du perimetre de phase">
+    {% for option in phase_scope_options %}
+      <a class="scope-tab{% if option.selected %} active{% endif %}" href="?phase_scope={{ option.value }}{% if request.GET.urlencode %}&{{ request.GET.urlencode }}{% endif %}">{{ option.label }}</a>
+    {% endfor %}
+  </div>
+</div>
+
 {% include "includes/fast_stats_modal.html" %}
 
 <script>
@@ -141,15 +149,7 @@
       {% endfor %}
     </select>
   </div>
-  <div class="filter-field">
-    <label>Perimetre</label>
-    <div class="inline-toggle" role="group" aria-label="Choix du perimetre de phase">
-      {% for option in phase_scope_options %}
-        <button type="submit" name="phase_scope" value="{{ option.value }}" class="btn {% if option.selected %}btn-primary{% else %}btn-ghost{% endif %} btn-sm">{{ option.label }}</button>
-      {% endfor %}
-    </div>
-  </div>
-  <div class="filter-field">
+    <div class="filter-field">
     <label for="f-prestation">Prestation</label>
     <select id="f-prestation" name="prestation">
       <option value="">Toutes</option>

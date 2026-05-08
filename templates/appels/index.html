@@ -191,7 +191,7 @@
   form.scope-tabs { margin: 0; }
   .phase-switch-row { margin:0 0 12px; }
   .phase-switch-row .scope-tabs { max-width:100%; overflow-x:auto; scrollbar-width:thin; }
-  .scope-tab { display:inline-flex; align-items:center; justify-content:center; min-width:140px; padding:9px 18px; border-radius:999px; font-size:0.85rem; font-weight:700; color:var(--muted); text-decoration:none; transition:background .15s, color .15s, box-shadow .15s; }
+  .scope-tab { display:inline-flex; align-items:center; justify-content:center; min-width:120px; padding:9px 18px; border-radius:999px; font-size:0.85rem; font-weight:700; color:var(--muted); text-decoration:none; transition:background .15s, color .15s, box-shadow .15s; }
   .scope-tab:hover { background:rgba(111,60,195,0.08); color:var(--accent-strong); }
   .scope-tab.active { background:var(--accent); color:#fff; box-shadow:0 8px 18px rgba(76,29,149,0.18); }
   .scope-note { font-size:0.85rem; color:var(--muted); }
@@ -215,23 +215,11 @@
   <div class="scope-note">Basculer entre les appels apprenants PADESCE et les appels formateurs.</div>
 </div>
 <div class="phase-switch-row">
-  <form method="get" class="scope-tabs" role="tablist" aria-label="Choix du perimetre de phase">
-    <input type="hidden" name="q" value="{{ filters.q }}">
-    <input type="hidden" name="taux_min" value="{{ filters.taux_min }}">
-    <input type="hidden" name="date_from" value="{{ filters.date_from }}">
-    <input type="hidden" name="date_to" value="{{ filters.date_to }}">
-    <input type="hidden" name="status" value="{{ filters.status }}">
-    <input type="hidden" name="prestataire" value="{{ filters.prestataire }}">
-    <input type="hidden" name="beneficiaire" value="{{ filters.beneficiaire }}">
-    <input type="hidden" name="classe" value="{{ filters.classe }}">
-    <input type="hidden" name="fenetre" value="{{ filters.fenetre }}">
-    <input type="hidden" name="agent" value="{{ filters.agent }}">
-    <input type="hidden" name="formulaire" value="{{ filters.formulaire }}">
-    <input type="hidden" name="modified_by" value="{{ filters.modified_by }}">
+  <div class="scope-tabs" role="tablist" aria-label="Choix du perimetre de phase">
     {% for option in filters.phase_scope_options %}
-      <button type="submit" name="phase_scope" value="{{ option.value }}" class="scope-tab{% if option.selected %} active{% endif %}">{{ option.label }}</button>
+      <a class="scope-tab{% if option.selected %} active{% endif %}" href="?phase_scope={{ option.value }}&prestataire={{ filters.prestataire }}&beneficiaire={{ filters.beneficiaire }}&classe={{ filters.classe }}&fenetre={{ filters.fenetre }}&agent={{ filters.agent }}&formulaire={{ filters.formulaire }}&modified_by={{ filters.modified_by }}">{{ option.label }}</a>
     {% endfor %}
-  </form>
+  </div>
 </div>
 
 <!-- <h1 class="h4 mb-2">Appels</h1>

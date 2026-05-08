@@ -393,15 +393,13 @@ def _find_apprenant_for_appel(base_qs, appel: Appel):
     if appel.code:
         apprenant = base_qs.filter(code__iexact=str(appel.code or "").strip()).first()
         if apprenant:
-            logger.debug("Apprenant trouvé par code exact: %s", appel.code)
-            return apprenant
+                        return apprenant
 
     # 2. Chercher par code (partiel)
     if appel.code:
         apprenant = base_qs.filter(code__icontains=str(appel.code).strip()).order_by("id").first()
         if apprenant:
-            logger.debug("Apprenant trouvé par code partiel: %s", appel.code)
-            return apprenant
+                        return apprenant
 
     # 3. Chercher par téléphone
     tel_candidates = {_normalize_phone(appel.telephone1), _normalize_phone(appel.telephone2)}
@@ -413,7 +411,6 @@ def _find_apprenant_for_appel(base_qs, appel: Appel):
             .first()
         )
         if apprenant:
-            logger.debug("Apprenant trouvé par téléphone: %s", tel)
             return apprenant
 
     # 4. Chercher par nom complet
@@ -422,7 +419,6 @@ def _find_apprenant_for_appel(base_qs, appel: Appel):
         for candidate in base_qs.only("id", "nom_complet").iterator(chunk_size=2000):
             if _normalize_name(candidate.nom_complet) == nom_norm:
                 apprenant = candidate
-                logger.debug("Apprenant trouvé par nom: %s (%s)", appel.nom, apprenant.id)
                 return apprenant
 
     # 5. Chercher par nom + prénom (plus flexible)
@@ -441,20 +437,9 @@ def _find_apprenant_for_appel(base_qs, appel: Appel):
             # Retourner celui avec le plus de mots correspondants
             matching_apprenants.sort(key=lambda x: x[0], reverse=True)
             apprenant = matching_apprenants[0][1]
-            logger.debug(
-                "Apprenant trouvé par correspondance de nom flexible: %s (%s)",
-                appel.nom,
-                apprenant.id,
-            )
             return apprenant
 
-    logger.warning(
-        "Apprenant NON trouvé. code=%s nom=%s tel=%s",
-        appel.code or "-",
-        appel.nom or "-",
-        appel.telephone1 or appel.telephone2 or "-",
-    )
-    return None
+        return None
 
 
 def _parse_excel_sheet(file_obj, sheet_name: str):
@@ -594,10 +579,7 @@ def _safe_build_padesce_source_index() -> dict | None:
         # Forcer le rafraîchissement pour contourner le cache et tester les phases
         return build_padesce_source_index(force_refresh=True)
     except Exception as exc:
-        logger.warning(
-            "Impossible de charger la source PADESCE pour les optimisations d'appels: %s", exc
-        )
-        return None
+                return None
 
 
 def _callable_phone_summary_from_appel_rows(appel_rows: list[dict]) -> dict[str, dict[str, int]]:
@@ -649,7 +631,6 @@ def _compute_appel_class_progress_snapshot(
 ) -> dict:
     phase_scope = normalize_phase_scope(phase_scope, default=PHASE_SCOPE_V1_COMBINED)
     phase_ids = set(str(pid) for pid in phase_ids_for_scope(phase_scope))
-    logger.info(f"Phase scope: {phase_scope} -> phase_ids: {phase_ids}")
     appel_rows = list(
         filter_appel_queryset_by_phase(
             Appel.objects.filter(is_active=True),
@@ -706,7 +687,6 @@ def _compute_appel_class_progress_snapshot(
     prestation_classes: dict[str, set[str]] = defaultdict(set)
 
     if source_bundle:
-        logger.info(f"Source bundle disponible: {type(source_bundle)}, classes: {len(source_bundle.get('classes', {}))}")
         for classe_label, count in count_callable_source_records_by_class(source_bundle).items():
             classe_key = normalize_network_lookup(classe_label)
             if classe_key:
@@ -717,9 +697,7 @@ def _compute_appel_class_progress_snapshot(
                 source_phone_summary_by_key[classe_key] = summary
         for source_class in (source_bundle.get("classes") or {}).values():
             source_phase_id = source_class.get("phase_id")
-            logger.info(f"Classe {source_class.get('classe_id')} -> phase_id: {source_phase_id}")
             if source_phase_id not in phase_ids:
-                logger.info(f"Classe {source_class.get('classe_id')} phase {source_phase_id} filtrée (phase_ids: {phase_ids})")
                 continue
             classe_id = str(source_class.get("classe_id") or "").strip()
             classe_key = normalize_network_lookup(classe_id)
@@ -732,8 +710,7 @@ def _compute_appel_class_progress_snapshot(
             prestation_key = normalize_network_lookup(source_class.get("prestation_id", ""))
             if prestation_key:
                 prestation_classes[prestation_key].add(classe_key)
-                logger.info(f"Ajout classe {classe_id} (phase {source_phase_id}) à prestation {prestation_key}")
-
+                
     classe_keys = (
         set(label_by_key)
         | set(source_callable_counts_by_key)
@@ -802,7 +779,6 @@ def _compute_appel_class_progress_snapshot(
     recommended_classes = []
     if source_bundle:
         prestations = source_bundle.get("prestations") or {}
-        logger.info(f"Calcul des recommandations: {len(prestations)} prestations, {len(prestation_classes)} prestation_classes")
         for prestation_key, class_keys in prestation_classes.items():
             actionable_keys = [
                 classe_key
@@ -883,8 +859,7 @@ def _compute_appel_class_progress_snapshot(
                     }
                 )
 
-    logger.info(f"Nombre de recommandations créées: {len(recommended_classes)}")
-    recommended_classes.sort(key=lambda item: item["score"])
+        recommended_classes.sort(key=lambda item: item["score"])
     for item in recommended_classes:
         item.pop("score", None)
 
@@ -1648,13 +1623,7 @@ def finalize_appel(request, pk: int):
             appel = Appel.objects.select_for_update().get(pk=pk)
             action = request.POST.get("action", "terminer")
             file_obj = request.FILES.get("audio")
-            logger.info(
-                (
-                    f"finalize_appel: pk={pk}, action={action}, has_file={bool(file_obj)}, "
-                    f"files={list(request.FILES.keys())}, post_keys={list(request.POST.keys())}"
-                )
-            )
-
+            
             if action == "terminer":
                 # form_modified=1 uniquement si l'utilisateur a explicitement cliqué un radio Q1-Q9
                 _has_real_form = request.POST.get("form_modified") == "1"
@@ -1731,14 +1700,8 @@ def finalize_appel(request, pk: int):
                 satisfaction_id = None
 
             if file_obj:
-                logger.info(
-                    f"Saving audio file for appel {appel.pk}: {file_obj.name}, size={file_obj.size}"
-                )
                 appel.audio_file = file_obj
                 appel.save(update_fields=["audio_file", "updated_at"])
-                logger.info(
-                    f"Audio file saved: {appel.audio_file.path if appel.audio_file else 'None'}"
-                )
                 if satisfaction_id:
                     satisfaction = SatisfactionApprenant.objects.filter(pk=satisfaction_id).first()
                     _attach_appel_audio_to_satisfaction(satisfaction, appel)
@@ -1879,26 +1842,14 @@ def _auto_process_satisfaction_from_appel(appel: Appel, user, manual_data: dict 
 
     satisfaction = _save_satisfaction_for_appel(appel, user, manual_data, apprenant)
     if not apprenant:
-        logger.info(
-            "Satisfaction sauvegardee sans apprenant lie. %s",
-            _appel_reference_details(appel),
-        )
-        return {
+                return {
             "ok": True,
             "satisfaction_saved": True,
             "satisfaction_id": satisfaction.id,
             "message": "Questionnaire apprenant enregistre.",
         }
 
-    # Log pour analyse avec ID apprenant, classe, prestataire, bénéficiaire
-    logger.info(
-        "Satisfaction enregistrée. apprenant_id=%s classe=%s prestataire=%s beneficiaire=%s",
-        apprenant.id if apprenant else "N/A",
-        getattr(satisfaction.classe, "code", "N/A"),
-        appel.prestataire or "N/A",
-        appel.beneficiaire or "N/A",
-    )
-
+    
     return {
         "ok": True,
         "satisfaction_saved": True,

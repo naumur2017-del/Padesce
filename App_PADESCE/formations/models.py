@@ -5,14 +5,16 @@ from App_PADESCE.core.models import TimeStampedModel
 
 class Phase(models.Model):
     id_phase = models.AutoField(primary_key=True, db_column="ID_Phase")
+    nom = models.CharField(max_length=100, verbose_name="Nom de la phase")
+    vague = models.PositiveIntegerField(verbose_name="Numéro de vague")
     date_debut = models.DateField()
     date_fin = models.DateField(null=True, blank=True)
 
     class Meta:
-        ordering = ["id_phase"]
+        ordering = ["vague", "id_phase"]
 
     def __str__(self) -> str:
-        return f"Phase {self.id_phase}"
+        return self.nom
 
 
 class Formateur(TimeStampedModel):
