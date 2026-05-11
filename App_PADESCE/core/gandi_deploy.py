@@ -764,6 +764,8 @@ def _app_env_values_from_env() -> dict[str, str]:
         text = str(os.getenv(key, "") or "").strip()
         if text:
             values[key] = text
+    if not values.get("CGA_PUBLIC_API_KEY") and values.get("EXPORT_API_KEY"):
+        values["CGA_PUBLIC_API_KEY"] = values["EXPORT_API_KEY"]
     return values
 
 

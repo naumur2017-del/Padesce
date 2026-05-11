@@ -12,6 +12,7 @@ from django.urls import reverse
 
 from App_PADESCE.core.deployment_live import LIVE_MARKER_FILENAME
 from App_PADESCE.core.gandi_deploy import (
+    _app_env_values_from_env,
     _cache_busted_url,
     _http_check_with_retries,
     _merge_env_content,
@@ -150,6 +151,33 @@ class GandiDeployHelpersTests(SimpleTestCase):
         self.assertIn("MICROSOFT_GRAPH_TENANT_ID=tenant-001", merged)
         self.assertIn("# keep comment", merged)
         self.assertIn("EMAIL_HOST=smtp.gmail.com", merged)
+
+    def test_app_env_values_uses_export_key_as_cga_public_key_fallback(self) -> None:
+        with patch.dict(
+            os.environ,
+            {
+                "EXPORT_API_KEY": "export-secret",
+                "CGA_PUBLIC_API_KEY": "",
+            },
+            clear=False,
+        ):
+            values = _app_env_values_from_env()
+
+        self.assertEqual(values["EXPORT_API_KEY"], "export-secret")
+        self.assertEqual(values["CGA_PUBLIC_API_KEY"], "export-secret")
+
+    def test_app_env_values_prefers_explicit_cga_public_key(self) -> None:
+        with patch.dict(
+            os.environ,
+            {
+                "EXPORT_API_KEY": "export-secret",
+                "CGA_PUBLIC_API_KEY": "cga-secret",
+            },
+            clear=False,
+        ):
+            values = _app_env_values_from_env()
+
+        self.assertEqual(values["CGA_PUBLIC_API_KEY"], "cga-secret")
 
     def test_cache_busted_url_preserves_existing_query(self) -> None:
         url = _cache_busted_url(

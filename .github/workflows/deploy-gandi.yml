@@ -90,8 +90,8 @@ jobs:
       GANDI_SFTP_REMOTE_PATH: ${{ secrets.GANDI_SFTP_REMOTE_PATH }}
       GANDI_DEPLOY_VERIFY_URL: https://call.naumur.com
       GANDI_DEPLOY_INCLUDE_PATHS: App_PADESCE,agent_padesceV2,templates,static,staticfiles,admin,data,docs,manage.py,requirements.txt,Dockerfile,docker-compose.yml,start-command,Decompte et facturation.xlsm
-      EXPORT_API_KEY: ${{ secrets.EXPORT_API_KEY }}
-      CGA_PUBLIC_API_KEY: ${{ secrets.CGA_PUBLIC_API_KEY }}
+      EXPORT_API_KEY: ${{ secrets.EXPORT_API_KEY || vars.EXPORT_API_KEY }}
+      CGA_PUBLIC_API_KEY: ${{ secrets.CGA_PUBLIC_API_KEY || vars.CGA_PUBLIC_API_KEY || secrets.EXPORT_API_KEY || vars.EXPORT_API_KEY }}
       MICROSOFT_GRAPH_CLIENT_ID: b375cd25-86a8-4f59-8d14-10436238957d
       MICROSOFT_GRAPH_CLIENT_SECRET: ${{ secrets.MICROSOFT_GRAPH_CLIENT_SECRET }}
       MICROSOFT_GRAPH_TENANT_ID: 2c91375e-f3f5-486e-8fdd-c8273053bd5d
@@ -120,6 +120,13 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+
+      - name: Validate required deployment secrets
+        run: |
+          if [ -z "$CGA_PUBLIC_API_KEY" ]; then
+            echo "::error::CGA_PUBLIC_API_KEY is missing. Add it as a GitHub secret or variable."
+            exit 1
+          fi
 
       - name: Validate Django configuration
         run: python manage.py check
