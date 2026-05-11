@@ -490,6 +490,18 @@ class CgaPublicApiTests(TestCase):
         self.assertEqual(response.json()["total"], 1)
 
     @override_settings(CGA_PUBLIC_API_KEY="cga-public-secret")
+    def test_public_interested_api_disables_shared_cache(self):
+        response = self.client.get(
+            reverse("cga_public_interested_api"),
+            HTTP_X_CGA_API_KEY="cga-public-secret",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("no-store", response["Cache-Control"])
+        self.assertIn("Authorization", response["Vary"])
+        self.assertIn("X-CGA-Api-Key", response["Vary"])
+
+    @override_settings(CGA_PUBLIC_API_KEY="cga-public-secret")
     def test_public_interested_api_rejects_invalid_updated_since(self):
         response = self.client.get(
             reverse("cga_public_interested_api"),

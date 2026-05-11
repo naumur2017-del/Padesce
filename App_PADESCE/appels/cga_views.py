@@ -17,6 +17,7 @@ from django.utils.crypto import constant_time_compare
 from django.utils.dateparse import parse_datetime
 from django.utils import timezone
 from django.utils.text import slugify
+from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_GET, require_POST
 
 from App_PADESCE.appels.cga_report import (
@@ -378,6 +379,7 @@ def cga_export_xlsx(request):
     return response
 
 
+@never_cache
 @require_GET
 def cga_public_interested_api(request):
     auth_error = _cga_public_api_auth_error(request)
@@ -422,7 +424,11 @@ def cga_public_interested_api(request):
         "updated_since": updated_since.isoformat() if updated_since else "",
         "appels": [_serialize_cga_public_row(row) for row in page_obj.object_list],
     }
-    return JsonResponse(payload)
+    response = JsonResponse(payload)
+    response["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    response["Pragma"] = "no-cache"
+    response["Vary"] = "Authorization, X-CGA-Api-Key, X-Export-Api-Key"
+    return response
 
 
 @login_required
