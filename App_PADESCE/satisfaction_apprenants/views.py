@@ -3366,6 +3366,17 @@ def _build_satisfaction_dashboard_data(request):
     context["formulaires_avec_audio_appels"] = _appel_stats["formulaires_avec_audio"]
     context["audios_enregistres_appels"] = _appel_stats["audios_enregistres"]
     context["tab_details"] = _build_table_details_context(context, rows)
+    
+    # Add phase navigation tabs (like in formateurs dashboard)
+    context["phase_tabs"] = [
+        {
+            "label": item["label"],
+            "value": item["value"],
+            "active": bool(item.get("selected")),
+            "url": f"{reverse('satisfaction_dashboard')}?phase_scope={item['value']}&source={selected_source}&prestation={filters['prestation']}&fenetre={filters['fenetre']}&ville={filters['ville']}&user={filters['user']}&classe={filters['classe']}&prestataire={filters['prestataire']}&beneficiaire={filters['beneficiaire']}&cohorte={filters['cohorte']}&status={filters['status']}",
+        }
+        for item in phase_scope_options(phase_scope)
+    ]
 
     # Source file availability indicators for the dashboard banner
     context["cutoff_file_available"] = BUNDLED_CUTOFF_WORKBOOK_COPY.exists()

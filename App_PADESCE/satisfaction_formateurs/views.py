@@ -2002,7 +2002,7 @@ def _build_satisfaction_formateurs_dashboard_context(request) -> dict:
                 "label": item["label"],
                 "value": item["value"],
                 "active": bool(item.get("selected")),
-                "url": f"{request.path}?phase_scope={item['value']}&prestataire={f_prestataire}&beneficiaire={f_beneficiaire}&cohorte={f_cohorte}",
+                "url": f"{reverse('satisfaction_formateurs_dashboard')}?phase_scope={item['value']}&prestataire={f_prestataire}&beneficiaire={f_beneficiaire}&cohorte={f_cohorte}",
             }
             for item in phase_scope_options(f_phase_scope)
         ],

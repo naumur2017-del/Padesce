@@ -100,8 +100,8 @@
 
 <div class="scope-switch">
   <div class="scope-tabs" role="tablist" aria-label="Choix du perimetre de phase">
-    {% for option in phase_scope_options %}
-      <a class="scope-tab{% if option.selected %} active{% endif %}" href="?phase_scope={{ option.value }}{% if request.GET.urlencode %}&{{ request.GET.urlencode }}{% endif %}">{{ option.label }}</a>
+    {% for tab in phase_tabs %}
+      <a class="scope-tab{% if tab.active %} active{% endif %}" href="{{ tab.url }}">{{ tab.label }}</a>
     {% endfor %}
   </div>
 </div>
