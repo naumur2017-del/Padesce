@@ -162,7 +162,13 @@
             {% for row in all_apprenants_rows %}
               <tr>
                 <td><strong>{{ row.code }}</strong></td>
-                <td>{{ row.apprenant_id|default:"-" }}</td>
+                <td>
+                  {% if row.apprenant_id %}
+                    <a href="{% url 'apprenant_analysis_shortcut' row.apprenant_id %}" style="color: inherit; text-decoration: none;">{{ row.apprenant_id }}</a>
+                  {% else %}
+                    -
+                  {% endif %}
+                </td>
                 <td>{{ row.nom }}</td>
                 <td>{{ row.classe_code }}</td>
                 <td>{{ row.c1 }}</td>
@@ -353,7 +359,7 @@
                   </td>
                   <td><strong>{{ row.code }}</strong></td>
                   <td>
-                    <strong>{{ row.apprenant_id|default:"-" }}</strong>
+                    {% if row.apprenant_id %}<strong><a href="{% url 'apprenant_analysis_shortcut' row.apprenant_id %}">{{ row.apprenant_id }}</a></strong>{% else %}<strong>-</strong>{% endif %}
                     {% if row.apprenant_db_label %}
                       <div class="muted">{{ row.apprenant_db_label }}</div>
                     {% endif %}
@@ -442,7 +448,7 @@
                   </td>
                   <td><strong>{{ row.code }}</strong></td>
                   <td>
-                    <strong>{{ row.apprenant_id|default:"-" }}</strong>
+                    {% if row.apprenant_id %}<strong><a href="{% url 'apprenant_analysis_shortcut' row.apprenant_id %}">{{ row.apprenant_id }}</a></strong>{% else %}<strong>-</strong>{% endif %}
                     {% if row.apprenant_db_label %}
                       <div class="muted">{{ row.apprenant_db_label }}</div>
                     {% endif %}
@@ -534,7 +540,7 @@
                   </td>
                   <td><strong>{{ row.code }}</strong></td>
                   <td>
-                    <strong>{{ row.apprenant_id|default:"-" }}</strong>
+                    {% if row.apprenant_id %}<strong><a href="{% url 'apprenant_analysis_shortcut' row.apprenant_id %}">{{ row.apprenant_id }}</a></strong>{% else %}<strong>-</strong>{% endif %}
                     {% if row.apprenant_db_label %}
                       <div class="muted">{{ row.apprenant_db_label }}</div>
                     {% endif %}

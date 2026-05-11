@@ -530,7 +530,11 @@
                 {{ row.nom }}
               </td>
               <td>
-                <strong>{{ row.apprenant_id|default:"-" }}</strong>
+                {% if row.apprenant_id %}
+                  <strong><a href="{% url 'apprenant_analysis_shortcut' row.apprenant_id %}">{{ row.apprenant_id }}</a></strong>
+                {% else %}
+                  <strong>-</strong>
+                {% endif %}
               </td>
               <td>
                 {% if row.classe and row.classe.code %}

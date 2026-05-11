@@ -341,7 +341,20 @@
         <tr>
           <td>{{ e.date }}</td>
           <td>{% if e.classe %}{{ e.classe }}{% elif e.appel %}{{ e.appel.classe_label|default:"-" }}{% else %}-{% endif %}</td>
-          <td>{% if e.apprenant %}{{ e.apprenant }}{% elif e.appel %}{{ e.appel.nom|default:"-" }}{% if e.appel.code %} ({{ e.appel.code }}){% endif %}{% else %}-{% endif %}</td>
+          <td>
+                {% if e.apprenant %}
+                  {% if e.appel and e.appel.code %}
+                    <a href="{% url 'apprenant_analysis_shortcut' e.appel.code %}">{{ e.apprenant }}</a>
+                  {% else %}
+                    {{ e.apprenant }}
+                  {% endif %}
+                {% elif e.appel %}
+                  {{ e.appel.nom|default:"-" }}
+                  {% if e.appel.code %} (<a href="{% url 'apprenant_analysis_shortcut' e.appel.code %}">{{ e.appel.code }}</a>){% endif %}
+                {% else %}
+                  -
+                {% endif %}
+              </td>
           <td>{{ e.inspecteur }}</td>
           <td>{{ e.enquêteur }}</td>
           <td>{{ e.q9_satisfaction_globale }}</td>
