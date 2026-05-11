@@ -273,6 +273,7 @@ class LoginRequiredMiddleware:
             "/backup/api/trigger/",
             "/backup/api/trigger-status/",
             "/reporting/api/daily-digest/trigger/",
+            "/cga/api/public/interested/",
         ]
         exempt_prefixes.extend(public_token_api_prefixes)
         if getattr(settings, "PUBLIC_CONSULTANT_ACCESS", False):

@@ -2,6 +2,7 @@ import os
 import shutil
 import tempfile
 import io
+import datetime
 from unittest.mock import patch
 
 import openpyxl
@@ -399,6 +400,107 @@ class CgaImportTests(TestCase):
         self.assertEqual(mock_sync_cga_append_batch.call_count, 2)
         self.assertEqual(len(mock_sync_cga_append_batch.call_args_list[0].args[0]), 2000)
         self.assertEqual(len(mock_sync_cga_append_batch.call_args_list[1].args[0]), 1)
+
+
+class CgaPublicApiTests(TestCase):
+    @override_settings(CGA_PUBLIC_API_KEY="cga-public-secret")
+    def test_public_interested_api_requires_api_key(self):
+        response = self.client.get(reverse("cga_public_interested_api"))
+
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.json()["error"], "Cle API manquante ou invalide.")
+
+    @override_settings(CGA_PUBLIC_API_KEY="cga-public-secret")
+    def test_public_interested_api_returns_only_active_interested_rows(self):
+        old_row = AppelCGA.objects.create(
+            raison_sociale="Entreprise Alpha",
+            niu="NIU-CGA-OLD",
+            telephone="699000100",
+            status="termine",
+            interet="OUI",
+            is_active=True,
+        )
+        fresh_row = AppelCGA.objects.create(
+            raison_sociale="Entreprise Beta",
+            niu="NIU-CGA-NEW",
+            telephone="699000101",
+            status="termine",
+            interet="OUI",
+            is_active=True,
+            ville="Garoua",
+        )
+        AppelCGA.objects.create(
+            raison_sociale="Entreprise Gamma",
+            niu="NIU-CGA-NO",
+            telephone="699000102",
+            status="termine",
+            interet="NON",
+            is_active=True,
+        )
+        AppelCGA.objects.create(
+            raison_sociale="Entreprise Delta",
+            niu="NIU-CGA-INACTIVE",
+            telephone="699000103",
+            status="termine",
+            interet="OUI",
+            is_active=False,
+        )
+
+        old_updated_at = timezone.now() - datetime.timedelta(days=2)
+        fresh_updated_at = timezone.now() - datetime.timedelta(minutes=5)
+        AppelCGA.objects.filter(pk=old_row.pk).update(updated_at=old_updated_at)
+        AppelCGA.objects.filter(pk=fresh_row.pk).update(updated_at=fresh_updated_at)
+
+        response = self.client.get(
+            reverse("cga_public_interested_api"),
+            {
+                "updated_since": (timezone.now() - datetime.timedelta(hours=1)).isoformat(),
+            },
+            HTTP_X_CGA_API_KEY="cga-public-secret",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+
+        self.assertEqual(payload["total"], 1)
+        self.assertEqual(payload["page"], 1)
+        self.assertEqual(payload["page_size"], 100)
+        self.assertEqual([item["niu"] for item in payload["appels"]], ["NIU-CGA-NEW"])
+        self.assertEqual(payload["appels"][0]["telephone"], "699000101")
+        self.assertEqual(payload["appels"][0]["ville"], "Garoua")
+        self.assertEqual(payload["appels"][0]["status"], "termine")
+
+    @override_settings(CGA_PUBLIC_API_KEY="cga-public-secret")
+    def test_public_interested_api_accepts_bearer_token(self):
+        AppelCGA.objects.create(
+            raison_sociale="Entreprise Bearer",
+            niu="NIU-CGA-BEARER",
+            telephone="699000104",
+            status="termine",
+            interet="OUI",
+            is_active=True,
+        )
+
+        response = self.client.get(
+            reverse("cga_public_interested_api"),
+            HTTP_AUTHORIZATION="Bearer cga-public-secret",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["total"], 1)
+
+    @override_settings(CGA_PUBLIC_API_KEY="cga-public-secret")
+    def test_public_interested_api_rejects_invalid_updated_since(self):
+        response = self.client.get(
+            reverse("cga_public_interested_api"),
+            {"updated_since": "not-a-date"},
+            HTTP_X_CGA_API_KEY="cga-public-secret",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(
+            response.json()["error"], "updated_since invalide. Utilisez un datetime ISO 8601."
+        )
 
 
 class AppelsIndexFilterTests(TestCase):

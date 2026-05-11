@@ -5,6 +5,11 @@ from App_PADESCE.core.lazy_urls import lazy_view
 urlpatterns = [
     path("", lazy_view("App_PADESCE.appels.cga_views.cga_index"), name="cga_index"),
     path(
+        "api/public/interested/",
+        lazy_view("App_PADESCE.appels.cga_views.cga_public_interested_api"),
+        name="cga_public_interested_api",
+    ),
+    path(
         "export/xlsx/",
         lazy_view("App_PADESCE.appels.cga_views.cga_export_xlsx"),
         name="cga_export_xlsx",

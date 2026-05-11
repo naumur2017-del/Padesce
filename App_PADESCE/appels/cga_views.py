@@ -6,15 +6,18 @@ import zipfile
 from pathlib import Path
 
 import openpyxl
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.db.models import Q
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils.crypto import constant_time_compare
+from django.utils.dateparse import parse_datetime
 from django.utils import timezone
 from django.utils.text import slugify
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_GET, require_POST
 
 from App_PADESCE.appels.cga_report import (
     build_cga_calls_report_workbook,
@@ -34,6 +37,8 @@ from App_PADESCE.appels.views import (
 IMPORT_BATCH_SIZE = 2000
 PAGE_SIZE_DEFAULT = 100
 PAGE_SIZE_MAX = 500
+CGA_PUBLIC_API_PAGE_SIZE_DEFAULT = 100
+CGA_PUBLIC_API_PAGE_SIZE_MAX = 500
 CGA_IMPORT_FIELDS = (
     "numero",
     "raison_sociale",
@@ -149,6 +154,74 @@ def _parse_bool_flag(value):
     if value is None:
         return None
     return str(value).strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _expected_cga_public_api_key() -> str:
+    return str(
+        getattr(settings, "CGA_PUBLIC_API_KEY", "")
+        or getattr(settings, "EXPORT_API_KEY", "")
+        or ""
+    ).strip()
+
+
+def _provided_cga_public_api_key(request) -> str:
+    bearer = str(request.headers.get("Authorization", "") or "").strip()
+    if bearer.lower().startswith("bearer "):
+        token = bearer[7:].strip()
+        if token:
+            return token
+    for header_name in ("X-CGA-Api-Key", "X-Export-Api-Key"):
+        token = str(request.headers.get(header_name, "") or "").strip()
+        if token:
+            return token
+    return ""
+
+
+def _cga_public_api_auth_error(request):
+    expected = _expected_cga_public_api_key()
+    if not expected:
+        return JsonResponse({"error": "CGA_PUBLIC_API_KEY non configuree."}, status=503)
+    provided = _provided_cga_public_api_key(request)
+    if not provided or not constant_time_compare(provided, expected):
+        return JsonResponse({"error": "Cle API manquante ou invalide."}, status=403)
+    return None
+
+
+def _parse_cga_public_page_size(raw_value):
+    if raw_value in (None, ""):
+        return CGA_PUBLIC_API_PAGE_SIZE_DEFAULT
+    try:
+        page_size = int(raw_value)
+    except (TypeError, ValueError):
+        raise ValueError("page_size doit etre un entier positif.")
+    if page_size < 1:
+        raise ValueError("page_size doit etre superieur ou egal a 1.")
+    return min(page_size, CGA_PUBLIC_API_PAGE_SIZE_MAX)
+
+
+def _serialize_cga_public_row(row):
+    return {
+        "id": row.pk,
+        "numero": row.numero,
+        "niu": row.niu,
+        "raison_sociale": row.raison_sociale,
+        "sigle": row.sigle,
+        "activite_principale": row.activite_principale,
+        "regime": row.regime,
+        "cri": row.cri,
+        "centre_de_rattachement": row.centre_de_rattachement,
+        "ville": row.ville,
+        "telephone": row.telephone,
+        "status": row.status,
+        "status_label": row.get_status_display(),
+        "interet": row.interet,
+        "mauvais_numero": row.mauvais_numero,
+        "indisponible": row.indisponible,
+        "resultat_summary": row.resultat_summary,
+        "rappel_at": row.rappel_at.isoformat() if row.rappel_at else "",
+        "created_at": row.created_at.isoformat() if getattr(row, "created_at", None) else "",
+        "updated_at": row.updated_at.isoformat() if getattr(row, "updated_at", None) else "",
+    }
 
 
 def _build_filtered_cga_queryset(request):
@@ -303,6 +376,53 @@ def cga_export_xlsx(request):
         f'attachment; filename="{get_cga_calls_report_filename()}"'
     )
     return response
+
+
+@require_GET
+def cga_public_interested_api(request):
+    auth_error = _cga_public_api_auth_error(request)
+    if auth_error is not None:
+        return auth_error
+
+    qs, _filters = _build_filtered_cga_queryset(request)
+    qs = qs.filter(interet="OUI").order_by("-updated_at", "-id")
+
+    updated_since_raw = (request.GET.get("updated_since") or "").strip()
+    updated_since = None
+    if updated_since_raw:
+        updated_since = parse_datetime(updated_since_raw)
+        if updated_since is None:
+            return JsonResponse(
+                {"error": "updated_since invalide. Utilisez un datetime ISO 8601."},
+                status=400,
+            )
+        if timezone.is_naive(updated_since):
+            updated_since = timezone.make_aware(updated_since, timezone.get_current_timezone())
+        qs = qs.filter(updated_at__gte=updated_since)
+
+    try:
+        page_size = _parse_cga_public_page_size(request.GET.get("page_size"))
+    except ValueError as exc:
+        return JsonResponse({"error": str(exc)}, status=400)
+
+    paginator = Paginator(qs, page_size)
+    page_obj = paginator.get_page(request.GET.get("page"))
+
+    payload = {
+        "source": "cga_interested_calls",
+        "exported_at": timezone.now().isoformat(),
+        "total": paginator.count,
+        "page": page_obj.number,
+        "page_size": page_size,
+        "pages": paginator.num_pages,
+        "has_next": page_obj.has_next(),
+        "has_previous": page_obj.has_previous(),
+        "next_page": page_obj.next_page_number() if page_obj.has_next() else None,
+        "previous_page": page_obj.previous_page_number() if page_obj.has_previous() else None,
+        "updated_since": updated_since.isoformat() if updated_since else "",
+        "appels": [_serialize_cga_public_row(row) for row in page_obj.object_list],
+    }
+    return JsonResponse(payload)
 
 
 @login_required
