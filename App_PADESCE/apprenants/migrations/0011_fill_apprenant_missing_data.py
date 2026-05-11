@@ -15,6 +15,21 @@ def normalize_name(text):
     return text
 
 
+def fit_apprenant_update(Apprenant, field_name, value):
+    field = Apprenant._meta.get_field(field_name)
+    max_length = getattr(field, "max_length", None)
+    if max_length and isinstance(value, str):
+        return value[:max_length]
+    return value
+
+
+def fit_apprenant_updates(Apprenant, updates):
+    return {
+        field_name: fit_apprenant_update(Apprenant, field_name, value)
+        for field_name, value in updates.items()
+    }
+
+
 def fill_apprenant_missing_data(apps, schema_editor):
     """
     Remplissage des données manquantes des apprenants par matching
@@ -156,7 +171,9 @@ def fill_apprenant_missing_data(apps, schema_editor):
         
         # Appliquer les mises à jour
         if updates:
-            Apprenant.objects.filter(pk=apprenant.pk).update(**updates)
+            Apprenant.objects.filter(pk=apprenant.pk).update(
+                **fit_apprenant_updates(Apprenant, updates)
+            )
             updated_count += 1
         else:
             skipped_count += 1
