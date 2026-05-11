@@ -8,7 +8,7 @@ import os
 import re
 
 # ---------------------------------------------------------------------------
-# Import-notification store – in-memory, global, polled by all active sessions
+# Import-notification store  Ein-memory, global, polled by all active sessions
 # ---------------------------------------------------------------------------
 import threading as _threading
 import time as _time
@@ -75,6 +75,12 @@ from App_PADESCE.core.call_metrics import (
     count_callable_source_records_by_class,
     has_usable_phone,
     normalize_phone_digits,
+)
+from App_PADESCE.core.phase_scope import (
+    PHASE_SCOPE_V1,
+    normalize_phase_scope,
+    phase_scope_options,
+    filter_appel_queryset_by_phase,
 )
 from App_PADESCE.core.fast_stats import build_fast_stats_context
 from App_PADESCE.formations.models import Classe
@@ -657,8 +663,8 @@ def _avg(values):
     return round(sum(nums) / len(nums), 2) if nums else 0
 
 
-def _satisfaction_dashboard_base_queryset():
-    return AppelAnswers.objects.select_related(
+def _satisfaction_dashboard_base_queryset(phase_scope: str = PHASE_SCOPE_V1):
+    queryset = AppelAnswers.objects.select_related(
         "appel",
         "appel__classe",
         "appel__classe__prestation",
@@ -670,6 +676,7 @@ def _satisfaction_dashboard_base_queryset():
         "appel__satisfaction_apprenant__apprenant",
         "modified_by",
     ).filter(appel__is_active=True)
+    return filter_appel_queryset_by_phase(queryset, phase_scope)
 
 
 def _autosize_worksheet(worksheet, max_width: int = 40):
@@ -965,9 +972,12 @@ def _analysis_class_count(counts: dict[str, int], classe_code: str) -> int:
     return int((counts or {}).get(normalize_network_lookup(classe_code), 0) or 0)
 
 
-def _local_analysis_class_summary() -> dict[str, dict[str, int | str]]:
+def _local_analysis_class_summary(phase_scope: str = PHASE_SCOPE_V1) -> dict[str, dict[str, int | str]]:
     summary: dict[str, dict[str, int | str]] = {}
-    queryset = Appel.objects.filter(is_active=True).select_related(
+    queryset = filter_appel_queryset_by_phase(
+        Appel.objects.filter(is_active=True),
+        phase_scope,
+    ).select_related(
         "classe",
         "classe__prestation",
         "classe__prestation__beneficiaire",
@@ -996,9 +1006,10 @@ def _local_analysis_class_summary() -> dict[str, dict[str, int | str]]:
     return summary
 
 
-def _local_analysis_class_counts() -> dict[str, int]:
+def _local_analysis_class_counts(phase_scope: str = PHASE_SCOPE_V1) -> dict[str, int]:
     return {
-        key: int(item.get("eligible") or 0) for key, item in _local_analysis_class_summary().items()
+        key: int(item.get("eligible") or 0)
+        for key, item in _local_analysis_class_summary(phase_scope=phase_scope).items()
     }
 
 
@@ -1333,6 +1344,7 @@ def _build_class_filter_options(
 def _build_dashboard_active_filters_summary(filters: dict) -> list[dict]:
     filter_labels = {
         "source": "Source",
+        "phase_scope": "Perimetre",
         "prestation": "Prestation",
         "fenetre": "Fenêtre",
         "classe": "Classe",
@@ -1344,7 +1356,7 @@ def _build_dashboard_active_filters_summary(filters: dict) -> list[dict]:
         "status": "Status",
     }
     return [
-        {"label": filter_labels[key], "value": str(value).strip()}
+        {"label": filter_labels.get(key, key), "value": str(value).strip()}
         for key, value in filters.items()
         if str(value or "").strip()
     ]
@@ -2726,8 +2738,10 @@ def _build_satisfaction_dashboard_data(request):
     selected_source = _analysis_selected_source(request)
     source_options = get_workbook_source_options()
     source_option_map = {item["value"]: item for item in source_options}
+    phase_scope = normalize_phase_scope(request.GET.get("phase_scope"), default=PHASE_SCOPE_V1)
     filters = {
         "source": selected_source,
+        "phase_scope": phase_scope,
         "prestation": request.GET.get("prestation", ""),
         "fenetre": request.GET.get("fenetre", ""),
         "ville": request.GET.get("ville", ""),
@@ -2739,15 +2753,18 @@ def _build_satisfaction_dashboard_data(request):
         "status": request.GET.get("status", ""),
     }
 
-    try:
-        source_bundle = build_padesce_source_index(source_key=selected_source)
-    except Exception as _src_exc:
-        logger.warning(
-            "Source bundle indisponible (source=%s): %s: %s",
-            selected_source,
-            type(_src_exc).__name__,
-            _src_exc,
-        )
+    if phase_scope == PHASE_SCOPE_V1:
+        try:
+            source_bundle = build_padesce_source_index(source_key=selected_source)
+        except Exception as _src_exc:
+            logger.warning(
+                "Source bundle indisponible (source=%s): %s: %s",
+                selected_source,
+                type(_src_exc).__name__,
+                _src_exc,
+            )
+            source_bundle = None
+    else:
         source_bundle = None
     cache_key = _analysis_cache_key(
         "dashboard-data",
@@ -2777,7 +2794,7 @@ def _build_satisfaction_dashboard_data(request):
 
     threshold_class_codes = _status_threshold_class_codes(source_bundle)
 
-    answers = list(_satisfaction_dashboard_base_queryset())
+    answers = list(_satisfaction_dashboard_base_queryset(phase_scope=phase_scope))
     matched_apprenants = match_apprenants_to_appels(
         [answer.appel if hasattr(answer, "appel") else answer for answer in answers]
     )
@@ -2794,7 +2811,7 @@ def _build_satisfaction_dashboard_data(request):
         row for row in all_rows if row["fenetre"] in {"2", "3"} and row.get("analysis_included")
     ]
 
-    classe_apprenant_counts = _local_analysis_class_counts()
+    classe_apprenant_counts = _local_analysis_class_counts(phase_scope=phase_scope)
     analysis_scope_filters = {key: "" for key in filters}
     analysis_scope_filters["source"] = selected_source
     rows, _filtered_classe_stats = _thresholded_dashboard_rows(
@@ -3045,7 +3062,7 @@ def _build_satisfaction_dashboard_data(request):
         if str(prestation_groups.get(key, {}).get("beneficiaire", "") or "").strip()
     }
 
-    # Full list (unfiltered by qualified) — used for ranking/map features
+    # Full list (unfiltered by qualified)  Eused for ranking/map features
     prestation_stats_all = sorted(
         [
             _make_prestation_stat(item, normalize_network_lookup(item["code"]))
@@ -3188,7 +3205,7 @@ def _build_satisfaction_dashboard_data(request):
         threshold_class_codes=threshold_class_codes,
     )
 
-    # Build prestataire → classes/beneficiaires mapping for dynamic filters
+    # Build prestataire ↁEclasses/beneficiaires mapping for dynamic filters
     prestataire_to_classes: dict[str, set[str]] = {}
     prestataire_to_beneficiaires: dict[str, set[str]] = {}
     for row in all_rows:
@@ -3242,6 +3259,7 @@ def _build_satisfaction_dashboard_data(request):
         "filter_beneficiaire": filters["beneficiaire"],
         "filter_cohorte": filters["cohorte"],
         "filter_status": filters["status"],
+        "filter_phase_scope": phase_scope,
         "analyzed_classes": analyzed_classes,
         "analyzed_prestations": analyzed_prestations,
         "analyzed_fenetres": analyzed_fenetres,
@@ -3263,6 +3281,7 @@ def _build_satisfaction_dashboard_data(request):
         "active_filters_summary": active_filters_summary,
         "source_summary": source_summary,
         "source_options": source_options,
+        "phase_scope_options": phase_scope_options(phase_scope),
         "class_options": class_options,
         "missing_analysis": missing_analysis,
         "prestations": filter_options.get("prestation", []),
@@ -3467,7 +3486,7 @@ def satisfaction_dashboard_export_prestation_lists_xlsx(request):
         if item.get("code")
     }
 
-    # Group rows by normalized prestation code — restrict to analyzed prestations only
+    # Group rows by normalized prestation code  Erestrict to analyzed prestations only
     prestation_rows: dict[str, list[dict]] = {}
     prestation_meta: dict[str, dict] = {}
     for row in _ordered_survey_rows(rows):
@@ -3490,7 +3509,7 @@ def satisfaction_dashboard_export_prestation_lists_xlsx(request):
     # Summary sheet
     ws_summary = wb.active
     ws_summary.title = "Synthèse"
-    ws_summary.append(["Listes par prestation — Analyse satisfaction apprenants"])
+    ws_summary.append(["Listes par prestation  EAnalyse satisfaction apprenants"])
     ws_summary.append([])
     ws_summary.append(["Total enquêtes", context["total"]])
     ws_summary.append(["Prestations", len(prestation_rows)])
@@ -4001,12 +4020,12 @@ def satisfaction_dashboard_daily_report_xlsx(request):
         "Téléphone",
         "Statut",
         "Date séance",
-        "Q1 – Prérequis apprenants",
-        "Q2 – Interaction apprenants",
-        "Q3 – Compétences acquises",
-        "Q4 – Gestion administrative",
-        "Q5 – Gestion financière",
-        "Q6 – Communication",
+        "Q1  EPrérequis apprenants",
+        "Q2  EInteraction apprenants",
+        "Q3  ECompétences acquises",
+        "Q4  EGestion administrative",
+        "Q5  EGestion financière",
+        "Q6  ECommunication",
         "Commentaires",
         "Créé le",
         "Mis à jour le",
@@ -5514,7 +5533,7 @@ def _check_export_api_key(request) -> bool:
 
 def satisfaction_dashboard_export_classe_csv(request, code: str):
     """Export CSV des enquêtes d'une seule classe (pour fill_excel.py).
-    Authentification par clé API (X-Export-Api-Key) — pas de login requis.
+    Authentification par clé API (X-Export-Api-Key)  Epas de login requis.
     """
     if not _check_export_api_key(request):
         return JsonResponse({"error": "Clé API manquante ou invalide."}, status=403)
@@ -5571,7 +5590,7 @@ def satisfaction_dashboard_export_classe_csv(request, code: str):
 
 def satisfaction_api_classes_excel(request):
     """
-    API JSON — liste des classes analysées avec leurs URLs (pour fill_excel.py).
+    API JSON  Eliste des classes analysées avec leurs URLs (pour fill_excel.py).
     Authentification via en-tête HTTP : X-Export-Api-Key: <EXPORT_API_KEY>
     """
     if not _check_export_api_key(request):
@@ -5686,15 +5705,15 @@ def apprenants_manquants_page(request):
         missing_keys = set()
         source_prestations = {}
 
-    # -- Index des appels existants (code → telephone1 courant) ------------
+    # -- Index des appels existants (code ↁEtelephone1 courant) ------------
     existing_appels: dict[str, str] = {
         code: (tel or "")
         for code, tel in Appel.objects.filter(is_active=True).values_list("code", "telephone1")
     }
 
-    # -- Index classe_label → prestation_key depuis le fichier source ------
+    # -- Index classe_label ↁEprestation_key depuis le fichier source ------
     # La feuille Consolidation n'a pas de colonne Prestation ID : on passe par
-    # classe_label → classes_by_id → prestation_id (feuilles Classes/Prestations)
+    # classe_label ↁEclasses_by_id ↁEprestation_id (feuilles Classes/Prestations)
     classes_data: dict = source_bundle.get("classes", {}) if source_bundle else {}
     classe_to_presta_key: dict[str, str] = {}
     for cls_key, cls_info in classes_data.items():
@@ -5713,7 +5732,7 @@ def apprenants_manquants_page(request):
             consol_by_code[code] = rec
         # 1. Prestation ID direct (colonne optionnelle dans Consolidation)
         p_key = normalize_network_lookup(rec.get("prestation_id", ""))
-        # 2. Fallback : classe_label → prestation via feuille Classes
+        # 2. Fallback : classe_label ↁEprestation via feuille Classes
         if not p_key:
             cls_key = normalize_network_lookup(rec.get("classe_label", ""))
             p_key = classe_to_presta_key.get(cls_key, "")
@@ -5768,7 +5787,7 @@ def apprenants_manquants_page(request):
                 if current_has_phone:
                     loaded_with_phone.append({**row, "telephone": current_tel})
                 else:
-                    # Dans DB mais sans téléphone — peut être mis à jour
+                    # Dans DB mais sans téléphone  Epeut être mis à jour
                     loaded_no_phone.append({**row, "telephone_consol": numero})
             elif has_phone:
                 importable.append(row)
@@ -5825,7 +5844,7 @@ def apprenants_manquants_page(request):
 
 @require_analysis_access
 def import_missing_apprenants(request):
-    """POST – importe un lot de 20 apprenants depuis le fichier réseau consolidé.
+    """POST  Eimporte un lot de 20 apprenants depuis le fichier réseau consolidé.
 
     Body JSON attendu :
         {
@@ -5863,9 +5882,9 @@ def import_missing_apprenants(request):
     if not consol_bundle:
         return JsonResponse({"error": "Feuille Consolidation non disponible."}, status=400)
 
-    # -- Index classe_label → prestation_key via feuille Classes -----------
+    # -- Index classe_label ↁEprestation_key via feuille Classes -----------
     # La feuille Consolidation n'a pas de colonne Prestation ID :
-    # on résout via classe_label → Classes sheet → prestation_id
+    # on résout via classe_label ↁEClasses sheet ↁEprestation_id
     try:
         src_bundle_import = build_padesce_source_index(source_key=selected_source)
     except Exception:
@@ -6010,7 +6029,7 @@ def import_missing_apprenants(request):
 
 @require_analysis_access
 def sync_phones_from_consolidation(request):
-    """POST – met à jour les champs vides des Appel existants depuis la feuille Consolidation.
+    """POST  Emet à jour les champs vides des Appel existants depuis la feuille Consolidation.
 
     Seuls les champs manquants sont complétés ; aucune donnée déjà présente n'est écrasée.
 
@@ -6190,7 +6209,7 @@ def sync_phones_from_consolidation(request):
 
 @require_analysis_access
 def import_notifications_poll(request):
-    """GET – retourne les notifications d'import depuis un timestamp donné.
+    """GET  Eretourne les notifications d'import depuis un timestamp donné.
 
     Paramètre : since=<float unix timestamp>
     Utilisé par tous les clients pour afficher les notifications en temps réel.
@@ -6205,7 +6224,7 @@ def import_notifications_poll(request):
 
 
 # ---------------------------------------------------------------------------
-# Page synchronisation référentiel BD ↔ source
+# Page synchronisation référentiel BD ↁEsource
 # ---------------------------------------------------------------------------
 
 
@@ -6405,3 +6424,4 @@ def satisfaction_sync_reference_page(request):
         "total_map_count": len(apprenant_id_map),
     }
     return render(request, "satisfaction_apprenants/sync_reference.html", context)
+

@@ -18,6 +18,8 @@
   .filter-field { min-width:180px; flex:1; display:flex; flex-direction:column; gap:4px; }
   .filter-field label { font-size:0.85rem; color:var(--muted); }
   .filter-field select { width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:10px; background:var(--panel); color:var(--text); }
+  .inline-toggle { display:flex; gap:6px; flex-wrap:wrap; }
+  .inline-toggle .btn { padding:8px 12px; font-size:0.82rem; border-radius:999px; }
   .filter-actions { display:flex; gap:8px; align-items:end; flex-wrap:wrap; }
   .btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; padding:10px 14px; border-radius:12px; font-weight:600; border:1px solid transparent; cursor:pointer; background:var(--accent); color:#fff; text-decoration:none; transition: transform .15s, box-shadow .15s; }
   .btn:hover { transform:translateY(-1px); box-shadow:0 6px 16px rgba(76,29,149,0.15); }
@@ -96,6 +98,14 @@
   </div>
 </div>
 
+<div class="scope-switch">
+  <div class="scope-tabs" role="tablist" aria-label="Choix du perimetre de phase">
+    {% for option in phase_scope_options %}
+      <a class="scope-tab{% if option.selected %} active{% endif %}" href="?phase_scope={{ option.value }}{% if request.GET.urlencode %}&{{ request.GET.urlencode }}{% endif %}">{{ option.label }}</a>
+    {% endfor %}
+  </div>
+</div>
+
 {% include "includes/fast_stats_modal.html" %}
 
 <script>
@@ -139,7 +149,7 @@
       {% endfor %}
     </select>
   </div>
-  <div class="filter-field">
+    <div class="filter-field">
     <label for="f-prestation">Prestation</label>
     <select id="f-prestation" name="prestation">
       <option value="">Toutes</option>
@@ -223,10 +233,10 @@
   <div class="filter-actions">
     <button class="btn btn-primary btn-sm" type="submit">Filtrer</button>
     <a class="btn btn-ghost btn-sm" href="{% url 'satisfaction_general_page' %}{% if request.GET.urlencode %}?{{ request.GET.urlencode }}{% endif %}">Ouvrir General</a>
-    <a class="btn btn-ghost btn-sm" href="{% url 'satisfaction_dashboard_export_xlsx' %}?source={{ filter_source|urlencode }}">Exporter tout (XLSX)</a>
+    <a class="btn btn-ghost btn-sm" href="{% url 'satisfaction_dashboard_export_xlsx' %}?source={{ filter_source|urlencode }}&phase_scope={{ filter_phase_scope|urlencode }}">Exporter tout (XLSX)</a>
     <a class="btn btn-ghost btn-sm" href="{% url 'satisfaction_dashboard_export_xlsx' %}{% if request.GET.urlencode %}?{{ request.GET.urlencode }}{% endif %}">Exporter le filtre (XLSX)</a>
     <a class="btn btn-ghost btn-sm" href="{% url 'satisfaction_dashboard_export_chapeau' %}{% if request.GET.urlencode %}?{{ request.GET.urlencode }}{% endif %}">Exporter le chapeau (DOCX)</a>
-    <a class="btn btn-ghost btn-sm" href="{% url 'satisfaction_dashboard' %}?source={{ filter_source|urlencode }}">Réinitialiser</a>
+    <a class="btn btn-ghost btn-sm" href="{% url 'satisfaction_dashboard' %}?source={{ filter_source|urlencode }}&phase_scope={{ filter_phase_scope|urlencode }}">Réinitialiser</a>
   </div>
 </form>
 

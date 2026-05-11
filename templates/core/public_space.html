@@ -406,6 +406,14 @@
     {% endfor %}
   </div>
   </div>
+  <div class="public-switch-group">
+    <div class="public-switch-label">Perimetre de phase</div>
+    <div class="segment-control" role="tablist" aria-label="Choix du perimetre de phase">
+    {% for item in phase_tabs %}
+      <a class="segment-link{% if item.active %} active{% endif %}" href="{{ item.url }}">{{ item.label }}</a>
+    {% endfor %}
+  </div>
+  </div>
 </div>
 
 {% if section == "principal" and scope == "apprenant" %}
@@ -463,10 +471,12 @@
 
   <section class="public-panel">
     <div class="title-with-help"><h2>Page principale apprenant</h2>{% include "includes/help_tooltip.html" with title="Page apprenant" text="Tableau détaillé des apprenants avec filtres par bénéficiaire, prestataire, classe et fenêtre. C1-C4 = nombre d'appels à chaque période." section="architecture-des-pages" %}</div>
+    
     <form method="get" class="public-toolbar">
       <input type="hidden" name="scope" value="apprenant">
       <input type="hidden" name="section" value="principal">
       <input type="hidden" name="source_mode" value="{{ request.GET.source_mode|default:'base' }}">
+      <input type="hidden" name="phase_scope" value="{{ phase_scope }}">
       <input class="public-input" type="text" name="q" value="{{ principal.filters.q }}" placeholder="Recherche apprenant">
       <select class="public-select" name="beneficiaire">
         <option value="">Bénéficiaire</option>
@@ -493,7 +503,7 @@
         {% endfor %}
       </select>
       <button class="public-btn primary" type="submit">Filtrer</button>
-      <a class="public-btn" href="{% url 'public_space' %}?scope=apprenant&section=principal">Réinitialiser</a>
+      <a class="public-btn" href="{% url 'public_space' %}?scope=apprenant&section=principal&phase_scope={{ principal.filters.phase_scope|urlencode }}">Réinitialiser</a>
     </form>
 
     <div class="table-wrap">
@@ -548,7 +558,7 @@
     {% if principal.page_obj %}
       <div class="table-pagination" data-controller="apprenant-table">
         {% if principal.page_obj.has_previous %}
-          <a class="prev-btn" href="?scope=apprenant&section=principal&q={{ principal.filters.q|urlencode }}&classe={{ principal.filters.classe|urlencode }}&prestation={{ principal.filters.prestation|urlencode }}&beneficiaire={{ principal.filters.beneficiaire|urlencode }}&fenetre={{ principal.filters.fenetre|urlencode }}&page={{ principal.page_obj.previous_page_number }}">Précédent</a>
+          <a class="prev-btn" href="?scope=apprenant&section=principal&phase_scope={{ principal.filters.phase_scope|urlencode }}&q={{ principal.filters.q|urlencode }}&classe={{ principal.filters.classe|urlencode }}&prestation={{ principal.filters.prestation|urlencode }}&beneficiaire={{ principal.filters.beneficiaire|urlencode }}&fenetre={{ principal.filters.fenetre|urlencode }}&page={{ principal.page_obj.previous_page_number }}">Précédent</a>
         {% else %}
           <button class="prev-btn" type="button" disabled>Précédent</button>
         {% endif %}
@@ -558,13 +568,13 @@
               {% if num == principal.page_obj.number %}
                 <span class="page-btn active">{{ num }}</span>
               {% else %}
-                <a class="page-btn" href="?scope=apprenant&section=principal&q={{ principal.filters.q|urlencode }}&classe={{ principal.filters.classe|urlencode }}&prestation={{ principal.filters.prestation|urlencode }}&beneficiaire={{ principal.filters.beneficiaire|urlencode }}&fenetre={{ principal.filters.fenetre|urlencode }}&page={{ num }}">{{ num }}</a>
+                <a class="page-btn" href="?scope=apprenant&section=principal&phase_scope={{ principal.filters.phase_scope|urlencode }}&q={{ principal.filters.q|urlencode }}&classe={{ principal.filters.classe|urlencode }}&prestation={{ principal.filters.prestation|urlencode }}&beneficiaire={{ principal.filters.beneficiaire|urlencode }}&fenetre={{ principal.filters.fenetre|urlencode }}&page={{ num }}">{{ num }}</a>
               {% endif %}
             {% endif %}
           {% endfor %}
         </div>
         {% if principal.page_obj.has_next %}
-          <a class="next-btn" href="?scope=apprenant&section=principal&q={{ principal.filters.q|urlencode }}&classe={{ principal.filters.classe|urlencode }}&prestation={{ principal.filters.prestation|urlencode }}&beneficiaire={{ principal.filters.beneficiaire|urlencode }}&fenetre={{ principal.filters.fenetre|urlencode }}&page={{ principal.page_obj.next_page_number }}">Suivant</a>
+          <a class="next-btn" href="?scope=apprenant&section=principal&phase_scope={{ principal.filters.phase_scope|urlencode }}&q={{ principal.filters.q|urlencode }}&classe={{ principal.filters.classe|urlencode }}&prestation={{ principal.filters.prestation|urlencode }}&beneficiaire={{ principal.filters.beneficiaire|urlencode }}&fenetre={{ principal.filters.fenetre|urlencode }}&page={{ principal.page_obj.next_page_number }}">Suivant</a>
         {% else %}
           <button class="next-btn" type="button" disabled>Suivant</button>
         {% endif %}
@@ -573,26 +583,26 @@
   </section>
 {% elif section == "principal" and scope == "formateur" %}
   <section class="public-panel">
-    <div class="title-with-help"><h2>Chapeau satisfaction formateurs</h2>{% include "includes/help_tooltip.html" with title="Satisfaction formateurs" text="Évaluation sur 3 questions quantitatives — Q1 Prérequis apprenants, Q2 Interaction apprenants, Q3 Compétences acquises — échelle 1 (insuffisant) à 5 (excellent)." section="methodologie-de-calcul-et-formules" %}</div>
+    <div class="title-with-help"><h2>Chapeau satisfaction formateurs</h2>{% include "includes/help_tooltip.html" with title="Satisfaction formateurs" text="Évaluation sur 3 questions quantitatives : Q1 Prérequis apprenants, Q2 Interaction apprenants, Q3 Compétences acquises (échelle 1 (insuffisant) à 5 (excellent))." section="methodologie-de-calcul-et-formules" %}</div>
     <div class="table-wrap">
       <table class="stats-table">
         <thead>
           <tr>
             <th>Questions</th>
-            <th title="Moyenne des réponses — échelle 1 à 5">Notes /5</th>
+            <th title="Moyenne des réponses (échelle 1 à 5)">Notes /5</th>
           </tr>
         </thead>
         <tbody>
           <tr>
-            <td>Q1 — Prérequis apprenants <span style="display:block;font-size:.76rem;color:var(--muted);">Les apprenants avaient les prérequis nécessaires</span></td>
+            <td>Q1 - Prérequis apprenants <span style="display:block;font-size:.76rem;color:var(--muted);">Les apprenants avaient les prérequis nécessaires</span></td>
             <td><strong>{{ principal.summary_moyenne_prerequis|floatformat:1 }}</strong></td>
           </tr>
           <tr>
-            <td>Q2 — Interactions apprenants <span style="display:block;font-size:.76rem;color:var(--muted);">Qualité des interactions formateur–apprenants</span></td>
+            <td>Q2 - Interactions apprenants <span style="display:block;font-size:.76rem;color:var(--muted);">Qualité des interactions formateur–apprenants</span></td>
             <td><strong>{{ principal.summary_moyenne_interaction|floatformat:1 }}</strong></td>
           </tr>
           <tr>
-            <td>Q3 — Compétences acquises <span style="display:block;font-size:.76rem;color:var(--muted);">Compétences prévues effectivement transmises</span></td>
+            <td>Q3 - Compétences acquises <span style="display:block;font-size:.76rem;color:var(--muted);">Compétences prévues effectivement transmises</span></td>
             <td><strong>{{ principal.summary_moyenne_competences|floatformat:1 }}</strong></td>
           </tr>
           <tr style="background:rgba(111,60,195,.06);">
@@ -627,6 +637,7 @@
     <form method="get" class="public-toolbar">
       <input type="hidden" name="scope" value="formateur">
       <input type="hidden" name="section" value="principal">
+      <input type="hidden" name="phase_scope" value="{{ phase_scope }}">
       <input class="public-input" type="text" name="q" value="{{ principal.filters.q }}" placeholder="Recherche">
       <select class="public-select" name="status">
         {% for item in principal.filters.status_choices %}
@@ -658,7 +669,7 @@
         {% endfor %}
       </select>
       <button class="public-btn primary" type="submit">Filtrer</button>
-      <a class="public-btn" href="{% url 'public_space' %}?scope=formateur&section=principal">Reset</a>
+      <a class="public-btn" href="{% url 'public_space' %}?scope=formateur&section=principal&phase_scope={{ principal.filters.phase_scope|urlencode }}">Reset</a>
     </form>
 
     <div class="table-wrap">
@@ -717,7 +728,7 @@
     {% if principal.page_obj %}
       <div class="table-pagination" data-controller="formateur-table">
         {% if principal.page_obj.has_previous %}
-          <a class="prev-btn" href="?scope=formateur&section=principal&q={{ principal.filters.q|urlencode }}&status={{ principal.filters.status|urlencode }}&prestataire={{ principal.filters.prestataire|urlencode }}&beneficiaire={{ principal.filters.beneficiaire|urlencode }}&formation={{ principal.filters.formation|urlencode }}&cohorte={{ principal.filters.cohorte|urlencode }}&page={{ principal.page_obj.previous_page_number }}">Précédent</a>
+          <a class="prev-btn" href="?scope=formateur&section=principal&phase_scope={{ principal.filters.phase_scope|urlencode }}&q={{ principal.filters.q|urlencode }}&status={{ principal.filters.status|urlencode }}&prestataire={{ principal.filters.prestataire|urlencode }}&beneficiaire={{ principal.filters.beneficiaire|urlencode }}&formation={{ principal.filters.formation|urlencode }}&cohorte={{ principal.filters.cohorte|urlencode }}&page={{ principal.page_obj.previous_page_number }}">Précédent</a>
         {% else %}
           <button class="prev-btn" type="button" disabled>Précédent</button>
         {% endif %}
@@ -727,13 +738,13 @@
               {% if num == principal.page_obj.number %}
                 <span class="page-btn active">{{ num }}</span>
               {% else %}
-                <a class="page-btn" href="?scope=formateur&section=principal&q={{ principal.filters.q|urlencode }}&status={{ principal.filters.status|urlencode }}&prestataire={{ principal.filters.prestataire|urlencode }}&beneficiaire={{ principal.filters.beneficiaire|urlencode }}&formation={{ principal.filters.formation|urlencode }}&cohorte={{ principal.filters.cohorte|urlencode }}&page={{ num }}">{{ num }}</a>
+                <a class="page-btn" href="?scope=formateur&section=principal&phase_scope={{ principal.filters.phase_scope|urlencode }}&q={{ principal.filters.q|urlencode }}&status={{ principal.filters.status|urlencode }}&prestataire={{ principal.filters.prestataire|urlencode }}&beneficiaire={{ principal.filters.beneficiaire|urlencode }}&formation={{ principal.filters.formation|urlencode }}&cohorte={{ principal.filters.cohorte|urlencode }}&page={{ num }}">{{ num }}</a>
               {% endif %}
             {% endif %}
           {% endfor %}
         </div>
         {% if principal.page_obj.has_next %}
-          <a class="next-btn" href="?scope=formateur&section=principal&q={{ principal.filters.q|urlencode }}&status={{ principal.filters.status|urlencode }}&prestataire={{ principal.filters.prestataire|urlencode }}&beneficiaire={{ principal.filters.beneficiaire|urlencode }}&formation={{ principal.filters.formation|urlencode }}&cohorte={{ principal.filters.cohorte|urlencode }}&page={{ principal.page_obj.next_page_number }}">Suivant</a>
+          <a class="next-btn" href="?scope=formateur&section=principal&phase_scope={{ principal.filters.phase_scope|urlencode }}&q={{ principal.filters.q|urlencode }}&status={{ principal.filters.status|urlencode }}&prestataire={{ principal.filters.prestataire|urlencode }}&beneficiaire={{ principal.filters.beneficiaire|urlencode }}&formation={{ principal.filters.formation|urlencode }}&cohorte={{ principal.filters.cohorte|urlencode }}&page={{ principal.page_obj.next_page_number }}">Suivant</a>
         {% else %}
           <button class="next-btn" type="button" disabled>Suivant</button>
         {% endif %}
@@ -1215,3 +1226,5 @@
   })();
 </script>
 {% endblock %}
+
+

@@ -66,6 +66,14 @@ from App_PADESCE.core.models import (
     UserLoginLog,
 )
 from App_PADESCE.core.presence_bulk_cache import get_bulk_presence_controls
+from App_PADESCE.core.phase_scope import (
+    PHASE_SCOPE_V1,
+    PHASE_SCOPE_V1_COMBINED,
+    normalize_phase_scope,
+    phase_scope_options,
+    filter_appel_queryset_by_phase,
+    filter_appelformateur_queryset_by_phase,
+)
 from App_PADESCE.environnement.models import EnqueteEnvironnement
 from App_PADESCE.formations.models import Classe
 from App_PADESCE.presences.models import Presence
@@ -416,13 +424,16 @@ def _bundled_terminated_prestations_count(source_key: str = "cutoff") -> int:
         return 0
 
 
-def _bundled_vague1_apprenants_count(source_key: str = "cutoff") -> int:
+def _bundled_vague1_apprenants_count(source_key: str = "cutoff", phase_scope: str = PHASE_SCOPE_V1) -> int:
     """Fallback: apprenants source des prestations terminées (Vague 1)."""
     try:
         from App_PADESCE.reporting.network_excel import load_bundled_source_meta
 
         meta = load_bundled_source_meta(source_key)
-        return int(meta.get("vague1_apprenants_count") or meta.get("total_apprenants") or 0)
+        # Utiliser la même logique de calcul pour toutes les phases
+        # Forcer l'utilisation de total_apprenants (7462) pour toutes les phases
+        # comme la logique de calcul de vague 1
+        return int(meta.get("total_apprenants") or meta.get("vague1_apprenants_count") or meta.get("apprenants") or 0)
     except Exception:
         return 0
 
@@ -430,6 +441,7 @@ def _bundled_vague1_apprenants_count(source_key: str = "cutoff") -> int:
 def _consultant_analysis_snapshot(
     user,
     *,
+    phase_scope: str = PHASE_SCOPE_V1,
     classe_filter: str = "",
     prestataire_filter: str = "",
     beneficiaire_filter: str = "",
@@ -440,6 +452,7 @@ def _consultant_analysis_snapshot(
 
         query = QueryDict("", mutable=True)
         query["source"] = "cutoff"
+        query["phase_scope"] = phase_scope
         if classe_filter:
             query["classe"] = classe_filter
         if prestataire_filter:
@@ -495,7 +508,7 @@ def _consultant_analysis_snapshot(
                 # Vague 1 = apprenants source des prestations dont toutes les classes sont terminées
                 "source_apprenant_count": (
                     context.get("vague1_apprenants_count")
-                    or _bundled_vague1_apprenants_count("cutoff")
+                    or _bundled_vague1_apprenants_count("cutoff", phase_scope)
                 ),
                 "appels_cibles": context.get("appels_cibles", 0),
                 "appels_tentes": context.get("appels_tentes", 0),
@@ -527,8 +540,6 @@ def home(request):
     cached_counts = cache.get(cache_key)
 
     if cached_counts is None:
-        from django.db.models import Count, Q
-
         # Get all counts in a single query using aggregation
         counts = {
             "nb_classes": Classe.objects.count(),
@@ -1305,8 +1316,15 @@ def _consultant_formateurs_dashboard_context(request):
     cohorte_filter = (request.GET.get("cohorte") or "").strip()
     formation_filter = (request.GET.get("formation") or "").strip()
     status_filter = (request.GET.get("status") or "").strip()
+    phase_scope = normalize_phase_scope(
+        request.GET.get("phase_scope"),
+        default=PHASE_SCOPE_V1_COMBINED,
+    )
 
-    rows_qs = AppelFormateur.objects.filter(is_active=True).exclude(status="en_attente")
+    rows_qs = filter_appelformateur_queryset_by_phase(
+        AppelFormateur.objects.filter(is_active=True),
+        phase_scope,
+    ).exclude(status="en_attente")
 
     if search:
         rows_qs = rows_qs.filter(
@@ -1356,7 +1374,10 @@ def _consultant_formateurs_dashboard_context(request):
         row.classe = classe
 
     # Base QS for counts includes all active records (including en_attente)
-    stats_qs = AppelFormateur.objects.filter(is_active=True)
+    stats_qs = filter_appelformateur_queryset_by_phase(
+        AppelFormateur.objects.filter(is_active=True),
+        phase_scope,
+    )
     # Success statuses
     # Integer fields (scores 1-4)
     formateur_score_fields = [
@@ -1481,6 +1502,8 @@ def _consultant_formateurs_dashboard_context(request):
             "cohorte": cohorte_filter,
             "formation": formation_filter,
             "status": status_filter,
+            "phase_scope": phase_scope,
+            "phase_scope_options": phase_scope_options(phase_scope),
             "formations": _sorted_distinct_non_empty_strings(
                 row.get("formation", "") for row in _filter_rows
             ),
@@ -1532,19 +1555,19 @@ def _build_consultant_dashboard_context(request):
     fenetre_filter = (request.GET.get("fenetre") or "").strip()
     status_filter = (request.GET.get("status") or "").strip()
     apprenant_id_filter = (request.GET.get("apprenant_id") or "").strip()
+    phase_scope = normalize_phase_scope(request.GET.get("phase_scope"), default=PHASE_SCOPE_V1)
 
-    rows_qs = (
-        Appel.objects.filter(is_active=True)
-        .exclude(status="en_attente")
-        .select_related(
-            "classe",
-            "classe__prestation__beneficiaire",
-            "classe__prestation__prestataire",
-            "answers",
-            "answers__modified_by",
-            "satisfaction_apprenant",
-            "satisfaction_apprenant__enqueteur",
-        )
+    rows_qs = filter_appel_queryset_by_phase(
+        Appel.objects.filter(is_active=True),
+        phase_scope,
+    ).exclude(status="en_attente").select_related(
+        "classe",
+        "classe__prestation__beneficiaire",
+        "classe__prestation__prestataire",
+        "answers",
+        "answers__modified_by",
+        "satisfaction_apprenant",
+        "satisfaction_apprenant__enqueteur",
     )
     if classe_filter:
         rows_qs = rows_qs.filter(
@@ -1686,6 +1709,7 @@ def _build_consultant_dashboard_context(request):
     # Use the existing snapshot helpers
     card_snapshot = _consultant_analysis_snapshot(
         request.user,
+        phase_scope=phase_scope,
         classe_filter=classe_filter,
         prestataire_filter=prestation_filter,
         beneficiaire_filter=beneficiaire_filter,
@@ -1760,7 +1784,10 @@ def _build_consultant_dashboard_context(request):
         from App_PADESCE.satisfaction_apprenants.views import _build_satisfaction_dashboard_data
 
         rf = RequestFactory()
-        analysis_request = rf.get("/satisfaction/dashboard", {"source": "cutoff"})
+        analysis_request = rf.get(
+            "/satisfaction/dashboard",
+            {"source": "cutoff", "phase_scope": phase_scope},
+        )
         analysis_dashboard = _build_satisfaction_dashboard_data(analysis_request)
         analysis_ctx = analysis_dashboard.get("context", {})
         missing = analysis_ctx.get("missing_analysis", {}) or {}
@@ -1791,6 +1818,8 @@ def _build_consultant_dashboard_context(request):
             "beneficiaire": beneficiaire_filter,
             "fenetre": fenetre_filter,
             "status": status_filter,
+            "phase_scope": phase_scope,
+            "phase_scope_options": phase_scope_options(phase_scope),
             "classes": analysis_snapshot["class_options"] if analysis_snapshot else [],
             "prestataires": analysis_snapshot["prestataire_options"] if analysis_snapshot else [],
             "beneficiaires": (

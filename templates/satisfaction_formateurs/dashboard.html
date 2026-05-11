@@ -71,6 +71,15 @@
   <div class="scope-note">Basculer entre les tableaux apprenants et formateurs depuis le module d'analyse.</div>
 </div>
 
+<div class="scope-switch">
+  <div class="scope-tabs" role="tablist" aria-label="Choix du perimetre de phase">
+    {% for item in phase_tabs %}
+      <a class="scope-tab{% if item.active %} active{% endif %}" href="{{ item.url }}">{{ item.label }}</a>
+    {% endfor %}
+  </div>
+  <div class="scope-note">Choisir le périmètre de phase pour l'analyse.</div>
+</div>
+
 {% include "includes/fast_stats_modal.html" %}
 
 <form method="get" class="filter-bar">

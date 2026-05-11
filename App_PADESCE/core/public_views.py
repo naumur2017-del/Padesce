@@ -39,6 +39,7 @@ FIELD_LABELS = {
 }
 
 from App_PADESCE.core.views import _build_consultant_dashboard_context
+from App_PADESCE.core.phase_scope import PHASE_SCOPE_V1, normalize_phase_scope, phase_scope_options
 from App_PADESCE.formations.views import _resolve_classe_for_formateur_analysis
 from App_PADESCE.satisfaction_apprenants.services import get_prestations_ranking
 from App_PADESCE.satisfaction_apprenants.views import _build_satisfaction_dashboard_data
@@ -68,8 +69,11 @@ def _public_section(request) -> str:
     return section if section in PUBLIC_SECTION_CHOICES else "principal"
 
 
-def _public_space_url(*, section: str, scope: str) -> str:
-    return f"{reverse('public_space')}?scope={scope}&section={section}"
+def _public_space_url(*, section: str, scope: str, phase_scope: str | None = None) -> str:
+    params = {"scope": scope, "section": section}
+    if phase_scope:
+        params["phase_scope"] = phase_scope
+    return f"{reverse('public_space')}?{urlencode(params)}"
 
 
 def _login_url_for(request) -> str:
@@ -922,6 +926,7 @@ def _build_formateur_stats_enhanced(request) -> dict:
 def public_space(request):
     scope = _public_scope(request)
     section = _public_section(request)
+    phase_scope = normalize_phase_scope(request.GET.get("phase_scope"), default=PHASE_SCOPE_V1)
 
     # ---- Fast path : servir le HTML figé depuis disque si disponible ----
     # Toute la logique de cache est protégée : si elle échoue pour une
@@ -950,19 +955,19 @@ def public_space(request):
                 "label": "Page principale",
                 "value": "principal",
                 "active": section == "principal",
-                "url": _public_space_url(section="principal", scope=scope),
+                "url": _public_space_url(section="principal", scope=scope, phase_scope=phase_scope),
             },
             {
                 "label": "Apercu",
                 "value": "apercu",
                 "active": section == "apercu",
-                "url": _public_space_url(section="apercu", scope=scope),
+                "url": _public_space_url(section="apercu", scope=scope, phase_scope=phase_scope),
             },
             {
                 "label": "Stats",
                 "value": "stats",
                 "active": section == "stats",
-                "url": _public_space_url(section="stats", scope=scope),
+                "url": _public_space_url(section="stats", scope=scope, phase_scope=phase_scope),
             },
         ],
         "scope_tabs": [
@@ -970,15 +975,29 @@ def public_space(request):
                 "label": "Apprenant",
                 "value": "apprenant",
                 "active": scope == "apprenant",
-                "url": _public_space_url(section=section, scope="apprenant"),
+                "url": _public_space_url(
+                    section=section, scope="apprenant", phase_scope=phase_scope
+                ),
             },
             {
                 "label": "Formateur",
                 "value": "formateur",
                 "active": scope == "formateur",
-                "url": _public_space_url(section=section, scope="formateur"),
+                "url": _public_space_url(
+                    section=section, scope="formateur", phase_scope=phase_scope
+                ),
             },
         ],
+        "phase_tabs": [
+            {
+                "label": item["label"],
+                "value": item["value"],
+                "active": bool(item.get("selected")),
+                "url": _public_space_url(section=section, scope=scope, phase_scope=item["value"]),
+            }
+            for item in phase_scope_options(phase_scope)
+        ],
+        "phase_scope": phase_scope,
         "login_url": _login_url_for(request),
     }
 

@@ -7,9 +7,26 @@ from .models import (
     Formation,
     Inspecteur,
     Lieu,
+    Phase,
     Prestataire,
     Prestation,
 )
+
+
+@admin.register(Phase)
+class PhaseAdmin(admin.ModelAdmin):
+    list_display = ("id_phase", "nom", "vague", "date_debut", "date_fin")
+    search_fields = ("nom", "id_phase")
+    list_filter = ("vague",)
+    ordering = ("vague", "id_phase")
+    fieldsets = (
+        ("Informations générales", {
+            "fields": ("nom", "vague")
+        }),
+        ("Période", {
+            "fields": ("date_debut", "date_fin")
+        }),
+    )
 
 
 @admin.register(Formateur)

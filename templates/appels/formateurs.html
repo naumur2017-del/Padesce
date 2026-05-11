@@ -147,7 +147,7 @@
   @media (max-width: 720px) { .survey-side { grid-template-columns:1fr; } }
   .scope-switch { display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:12px; }
   .scope-tabs { display:inline-flex; align-items:center; gap:6px; padding:6px; border-radius:999px; border:1px solid var(--border); background:rgba(111,60,195,0.05); }
-  .scope-tab { display:inline-flex; align-items:center; justify-content:center; min-width:140px; padding:9px 18px; border-radius:999px; font-size:0.85rem; font-weight:700; color:var(--muted); text-decoration:none; transition:background .15s, color .15s, box-shadow .15s; }
+  .scope-tab { display:inline-flex; align-items:center; justify-content:center; min-width:120px; padding:9px 18px; border-radius:999px; font-size:0.85rem; font-weight:700; color:var(--muted); text-decoration:none; transition:background .15s, color .15s, box-shadow .15s; }
   .scope-tab:hover { background:rgba(111,60,195,0.08); color:var(--accent-strong); }
   .scope-tab.active { background:var(--accent); color:#fff; box-shadow:0 8px 18px rgba(76,29,149,0.18); }
   .scope-note { font-size:0.85rem; color:var(--muted); }
@@ -157,10 +157,17 @@
 
 <div class="scope-switch">
   <div class="scope-tabs" role="tablist" aria-label="Navigation des appels">
-    <a class="scope-tab" href="{% url 'appels_index' %}">Appels Apprenants</a>
-    <a class="scope-tab active" href="{% url 'formateurs_index' %}" aria-current="page">Appels Formateurs</a>
+    <a class="scope-tab" href="{% url 'appels_index' %}?phase_scope={{ filters.phase_scope|urlencode }}">Appels apprenants</a>
+    <a class="scope-tab active" href="{% url 'formateurs_index' %}?phase_scope={{ filters.phase_scope|urlencode }}" aria-current="page">Appels formateurs</a>
   </div>
-  <div class="scope-note">Basculer entre les appels apprenants et les appels formateurs.</div>
+  <div class="scope-note">Basculer entre les appels apprenants PADESCE et les appels formateurs.</div>
+</div>
+<div class="phase-switch-row">
+  <div class="scope-tabs" role="tablist" aria-label="Choix du perimetre de phase">
+    {% for option in filters.phase_scope_options %}
+      <a class="scope-tab{% if option.selected %} active{% endif %}" href="?phase_scope={{ option.value }}&prestataire={{ filters.prestataire }}&beneficiaire={{ filters.beneficiaire }}&classe={{ filters.classe }}&fenetre={{ filters.fenetre }}&agent={{ filters.agent }}&formulaire={{ filters.formulaire }}&modified_by={{ filters.modified_by }}">{{ option.label }}</a>
+    {% endfor %}
+  </div>
 </div>
 
 {% if user.is_superuser %}
@@ -250,6 +257,11 @@
     <input type="text" name="q" class="input" style="flex:1; min-width:200px;" placeholder="Recherche numero / prestataire / formation..." value="{{ filters.q }}">
     <input type="datetime-local" name="date_from" class="input" value="{{ filters.date_from }}">
     <input type="datetime-local" name="date_to" class="input" value="{{ filters.date_to }}">
+    <select name="phase_scope" class="input">
+      {% for option in filters.phase_scope_options %}
+        <option value="{{ option.value }}" {% if option.selected %}selected{% endif %}>{{ option.label }}</option>
+      {% endfor %}
+    </select>
     <select name="status" class="input">
       <option value="">Statut</option>
       <option value="en_attente" {% if filters.status == "en_attente" %}selected{% endif %}>En attente</option>

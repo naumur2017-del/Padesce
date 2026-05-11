@@ -45,6 +45,13 @@ from App_PADESCE.core.call_metrics import (
     phone_variants,
     summarize_source_class_phone_coverage,
 )
+from App_PADESCE.core.phase_scope import (
+    PHASE_SCOPE_V1_COMBINED,
+    normalize_phase_scope,
+    phase_scope_options,
+    phase_ids_for_scope,
+    filter_appel_queryset_by_phase,
+)
 from App_PADESCE.formations.models import Classe
 from App_PADESCE.reporting.network_excel import build_padesce_source_index, normalize_network_lookup
 from App_PADESCE.satisfaction_apprenants.models import SatisfactionApprenant
@@ -386,15 +393,13 @@ def _find_apprenant_for_appel(base_qs, appel: Appel):
     if appel.code:
         apprenant = base_qs.filter(code__iexact=str(appel.code or "").strip()).first()
         if apprenant:
-            logger.debug("Apprenant trouvé par code exact: %s", appel.code)
-            return apprenant
+                        return apprenant
 
     # 2. Chercher par code (partiel)
     if appel.code:
         apprenant = base_qs.filter(code__icontains=str(appel.code).strip()).order_by("id").first()
         if apprenant:
-            logger.debug("Apprenant trouvé par code partiel: %s", appel.code)
-            return apprenant
+                        return apprenant
 
     # 3. Chercher par téléphone
     tel_candidates = {_normalize_phone(appel.telephone1), _normalize_phone(appel.telephone2)}
@@ -406,7 +411,6 @@ def _find_apprenant_for_appel(base_qs, appel: Appel):
             .first()
         )
         if apprenant:
-            logger.debug("Apprenant trouvé par téléphone: %s", tel)
             return apprenant
 
     # 4. Chercher par nom complet
@@ -415,7 +419,6 @@ def _find_apprenant_for_appel(base_qs, appel: Appel):
         for candidate in base_qs.only("id", "nom_complet").iterator(chunk_size=2000):
             if _normalize_name(candidate.nom_complet) == nom_norm:
                 apprenant = candidate
-                logger.debug("Apprenant trouvé par nom: %s (%s)", appel.nom, apprenant.id)
                 return apprenant
 
     # 5. Chercher par nom + prénom (plus flexible)
@@ -434,20 +437,9 @@ def _find_apprenant_for_appel(base_qs, appel: Appel):
             # Retourner celui avec le plus de mots correspondants
             matching_apprenants.sort(key=lambda x: x[0], reverse=True)
             apprenant = matching_apprenants[0][1]
-            logger.debug(
-                "Apprenant trouvé par correspondance de nom flexible: %s (%s)",
-                appel.nom,
-                apprenant.id,
-            )
             return apprenant
 
-    logger.warning(
-        "Apprenant NON trouvé. code=%s nom=%s tel=%s",
-        appel.code or "-",
-        appel.nom or "-",
-        appel.telephone1 or appel.telephone2 or "-",
-    )
-    return None
+        return None
 
 
 def _parse_excel_sheet(file_obj, sheet_name: str):
@@ -584,12 +576,10 @@ def _source_class_is_finished(source_class: dict) -> bool:
 
 def _safe_build_padesce_source_index() -> dict | None:
     try:
-        return build_padesce_source_index()
+        # Forcer le rafraîchissement pour contourner le cache et tester les phases
+        return build_padesce_source_index(force_refresh=True)
     except Exception as exc:
-        logger.warning(
-            "Impossible de charger la source PADESCE pour les optimisations d'appels: %s", exc
-        )
-        return None
+                return None
 
 
 def _callable_phone_summary_from_appel_rows(appel_rows: list[dict]) -> dict[str, dict[str, int]]:
@@ -618,22 +608,34 @@ def _callable_phone_summary_from_appel_rows(appel_rows: list[dict]) -> dict[str,
     return summary
 
 
-_SNAPSHOT_CACHE_KEY = "appel_class_progress_snapshot"
+_SNAPSHOT_CACHE_KEY_PREFIX = "appel_class_progress_snapshot"
 _SNAPSHOT_CACHE_TTL = 120  # secondes
 
 
-def _build_appel_class_progress_snapshot(source_bundle: dict | None = None) -> dict:
-    cached = cache.get(_SNAPSHOT_CACHE_KEY)
+def _build_appel_class_progress_snapshot(
+    source_bundle: dict | None = None,
+    phase_scope: str = PHASE_SCOPE_V1_COMBINED,
+) -> dict:
+    cache_key = f"{_SNAPSHOT_CACHE_KEY_PREFIX}:{normalize_phase_scope(phase_scope)}"
+    cached = cache.get(cache_key)
     if cached is not None:
         return cached
-    result = _compute_appel_class_progress_snapshot(source_bundle)
-    cache.set(_SNAPSHOT_CACHE_KEY, result, timeout=_SNAPSHOT_CACHE_TTL)
+    result = _compute_appel_class_progress_snapshot(source_bundle, phase_scope=phase_scope)
+    cache.set(cache_key, result, timeout=_SNAPSHOT_CACHE_TTL)
     return result
 
 
-def _compute_appel_class_progress_snapshot(source_bundle: dict | None = None) -> dict:
+def _compute_appel_class_progress_snapshot(
+    source_bundle: dict | None,
+    phase_scope: str = PHASE_SCOPE_V1_COMBINED,
+) -> dict:
+    phase_scope = normalize_phase_scope(phase_scope, default=PHASE_SCOPE_V1_COMBINED)
+    phase_ids = set(str(pid) for pid in phase_ids_for_scope(phase_scope))
     appel_rows = list(
-        Appel.objects.filter(is_active=True)
+        filter_appel_queryset_by_phase(
+            Appel.objects.filter(is_active=True),
+            phase_scope,
+        )
         .exclude(classe_label="")
         .values(
             "id",
@@ -694,6 +696,9 @@ def _compute_appel_class_progress_snapshot(source_bundle: dict | None = None) ->
             if classe_key:
                 source_phone_summary_by_key[classe_key] = summary
         for source_class in (source_bundle.get("classes") or {}).values():
+            source_phase_id = source_class.get("phase_id")
+            if source_phase_id not in phase_ids:
+                continue
             classe_id = str(source_class.get("classe_id") or "").strip()
             classe_key = normalize_network_lookup(classe_id)
             if not classe_key:
@@ -705,7 +710,7 @@ def _compute_appel_class_progress_snapshot(source_bundle: dict | None = None) ->
             prestation_key = normalize_network_lookup(source_class.get("prestation_id", ""))
             if prestation_key:
                 prestation_classes[prestation_key].add(classe_key)
-
+                
     classe_keys = (
         set(label_by_key)
         | set(source_callable_counts_by_key)
@@ -781,6 +786,7 @@ def _compute_appel_class_progress_snapshot(source_bundle: dict | None = None) ->
                 if int(progress_by_key.get(classe_key, {}).get("total") or 0) > 0
                 and not bool(progress_by_key.get(classe_key, {}).get("reached"))
             ]
+            
             if not actionable_keys:
                 continue
 
@@ -853,7 +859,7 @@ def _compute_appel_class_progress_snapshot(source_bundle: dict | None = None) ->
                     }
                 )
 
-    recommended_classes.sort(key=lambda item: item["score"])
+        recommended_classes.sort(key=lambda item: item["score"])
     for item in recommended_classes:
         item.pop("score", None)
 
@@ -892,7 +898,14 @@ def _compute_appel_class_progress_snapshot(source_bundle: dict | None = None) ->
 
 
 def _build_filtered_appels_queryset(request, *, hidden_class_labels: list[str] | None = None):
-    appels_qs = Appel.objects.filter(is_active=True)
+    phase_scope = normalize_phase_scope(
+        request.GET.get("phase_scope"),
+        default=PHASE_SCOPE_V1_COMBINED,
+    )
+    appels_qs = filter_appel_queryset_by_phase(
+        Appel.objects.filter(is_active=True),
+        phase_scope,
+    )
     hidden_class_labels = [
         label for label in (hidden_class_labels or []) if str(label or "").strip()
     ]
@@ -1053,6 +1066,8 @@ def _build_filtered_appels_queryset(request, *, hidden_class_labels: list[str] |
     }
 
     filters = {
+        "phase_scope": phase_scope,
+        "phase_scope_options": phase_scope_options(phase_scope),
         "status": status_filter,
         "prestataire": prestataire_filter,
         "beneficiaire": beneficiaire_filter,
@@ -1140,6 +1155,10 @@ def appels_export_xlsx(request):
 @login_required
 @transaction.atomic
 def appels_index(request):
+    phase_scope = normalize_phase_scope(
+        request.GET.get("phase_scope"),
+        default=PHASE_SCOPE_V1_COMBINED,
+    )
     if request.method == "POST" and request.FILES.get("file"):
         if not request.user.is_superuser:
             messages.error(request, "Seul un superadmin peut importer des fichiers d'appels.")
@@ -1247,7 +1266,10 @@ def appels_index(request):
             )
         return redirect(request.path_info)
 
-    optimization_snapshot = _build_appel_class_progress_snapshot(_safe_build_padesce_source_index())
+    optimization_snapshot = _build_appel_class_progress_snapshot(
+        _safe_build_padesce_source_index(),
+        phase_scope=phase_scope,
+    )
     appels_qs, filters = _build_filtered_appels_queryset(
         request,
         hidden_class_labels=optimization_snapshot["hidden_class_labels"],
@@ -1329,7 +1351,14 @@ def appels_index(request):
 
 @login_required
 def appels_export_filtered_csv(request):
-    optimization_snapshot = _build_appel_class_progress_snapshot(_safe_build_padesce_source_index())
+    phase_scope = normalize_phase_scope(
+        request.GET.get("phase_scope"),
+        default=PHASE_SCOPE_V1_COMBINED,
+    )
+    optimization_snapshot = _build_appel_class_progress_snapshot(
+        _safe_build_padesce_source_index(),
+        phase_scope=phase_scope,
+    )
     appels_qs, _ = _build_filtered_appels_queryset(
         request,
         hidden_class_labels=optimization_snapshot["hidden_class_labels"],
@@ -1594,13 +1623,7 @@ def finalize_appel(request, pk: int):
             appel = Appel.objects.select_for_update().get(pk=pk)
             action = request.POST.get("action", "terminer")
             file_obj = request.FILES.get("audio")
-            logger.info(
-                (
-                    f"finalize_appel: pk={pk}, action={action}, has_file={bool(file_obj)}, "
-                    f"files={list(request.FILES.keys())}, post_keys={list(request.POST.keys())}"
-                )
-            )
-
+            
             if action == "terminer":
                 # form_modified=1 uniquement si l'utilisateur a explicitement cliqué un radio Q1-Q9
                 _has_real_form = request.POST.get("form_modified") == "1"
@@ -1677,14 +1700,8 @@ def finalize_appel(request, pk: int):
                 satisfaction_id = None
 
             if file_obj:
-                logger.info(
-                    f"Saving audio file for appel {appel.pk}: {file_obj.name}, size={file_obj.size}"
-                )
                 appel.audio_file = file_obj
                 appel.save(update_fields=["audio_file", "updated_at"])
-                logger.info(
-                    f"Audio file saved: {appel.audio_file.path if appel.audio_file else 'None'}"
-                )
                 if satisfaction_id:
                     satisfaction = SatisfactionApprenant.objects.filter(pk=satisfaction_id).first()
                     _attach_appel_audio_to_satisfaction(satisfaction, appel)
@@ -1825,26 +1842,14 @@ def _auto_process_satisfaction_from_appel(appel: Appel, user, manual_data: dict 
 
     satisfaction = _save_satisfaction_for_appel(appel, user, manual_data, apprenant)
     if not apprenant:
-        logger.info(
-            "Satisfaction sauvegardee sans apprenant lie. %s",
-            _appel_reference_details(appel),
-        )
-        return {
+                return {
             "ok": True,
             "satisfaction_saved": True,
             "satisfaction_id": satisfaction.id,
             "message": "Questionnaire apprenant enregistre.",
         }
 
-    # Log pour analyse avec ID apprenant, classe, prestataire, bénéficiaire
-    logger.info(
-        "Satisfaction enregistrée. apprenant_id=%s classe=%s prestataire=%s beneficiaire=%s",
-        apprenant.id if apprenant else "N/A",
-        getattr(satisfaction.classe, "code", "N/A"),
-        appel.prestataire or "N/A",
-        appel.beneficiaire or "N/A",
-    )
-
+    
     return {
         "ok": True,
         "satisfaction_saved": True,
