@@ -30,6 +30,17 @@ def fit_apprenant_updates(Apprenant, updates):
     }
 
 
+def can_use_telephone1(Apprenant, apprenant, telephone):
+    telephone = fit_apprenant_update(Apprenant, "telephone1", telephone)
+    if not telephone or not apprenant.formation_id:
+        return bool(telephone)
+    return not (
+        Apprenant.objects.filter(formation_id=apprenant.formation_id, telephone1=telephone)
+        .exclude(pk=apprenant.pk)
+        .exists()
+    )
+
+
 def fill_apprenant_missing_data(apps, schema_editor):
     """
     Remplissage des données manquantes des apprenants par matching
@@ -155,7 +166,9 @@ def fill_apprenant_missing_data(apps, schema_editor):
                 appel = appel_index[norm_appr_name]
                 appel_matches += 1
                 
-                if not apprenant.telephone1 and appel.telephone1:
+                if not apprenant.telephone1 and can_use_telephone1(
+                    Apprenant, apprenant, appel.telephone1
+                ):
                     updates['telephone1'] = appel.telephone1
                 if not apprenant.telephone2 and appel.telephone2:
                     updates['telephone2'] = appel.telephone2
