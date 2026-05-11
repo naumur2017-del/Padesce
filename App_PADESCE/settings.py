@@ -17,10 +17,14 @@ from pathlib import Path
 from urllib.parse import unquote, urlparse
 
 
+ENV_FILE_OVERRIDE_KEYS = {"CGA_PUBLIC_API_KEY"}
+
+
 def load_env_file(env_path: Path) -> None:
     """
     Charge un fichier .env simple (clé=valeur, sans quotes) si présent.
-    Ne remplace pas une variable déjà définie dans l'environnement.
+    Ne remplace pas une variable déjà définie, sauf pour les clés explicitement
+    gérées par le fichier synchronisé.
     """
     if not env_path.exists():
         return
@@ -40,7 +44,10 @@ def load_env_file(env_path: Path) -> None:
         value = value.strip()
         if not key or any(char.isspace() for char in key):
             continue
-        os.environ.setdefault(key, value)
+        if key in ENV_FILE_OVERRIDE_KEYS:
+            os.environ[key] = value
+        else:
+            os.environ.setdefault(key, value)
 
 
 def _int_env(name: str, default: int, *, minimum: int = 0) -> int:
