@@ -42,6 +42,20 @@
   .table-wrap { max-height: 360px; overflow: auto; border-radius: 12px; border: 1px solid var(--border); }
   .checkbox-col { width: 32px; text-align: center; }
   .checkbox-col input { transform: scale(1.05); }
+  .presence-modal[hidden] { display: none; }
+  .presence-modal {
+    position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center;
+    background: rgba(0,0,0,.38); padding: 18px;
+  }
+  .presence-dialog {
+    width: min(980px, 100%); max-height: 92vh; overflow: auto; background: var(--panel);
+    border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow); padding: 16px;
+  }
+  .presence-form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; }
+  .presence-field { display: flex; flex-direction: column; gap: 4px; }
+  .presence-field label { font-size: .86rem; font-weight: 700; }
+  .presence-field input, .presence-field select { width: 100%; min-height: 38px; }
+  .presence-modal-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; margin-top: 12px; }
 </style>
 
 <div class="header">
@@ -59,7 +73,11 @@
       <a class="btn btn-outline" href="/satisfaction-formateurs/" id="btn-sat-form">Enquête satisfaction formateur</a>
       <a class="btn btn-outline" href="/satisfaction-apprenants/" id="btn-sat-appr">Enquête satisfaction apprenants</a>
       <a class="btn btn-outline" href="{% url 'environnement_index' %}?classe={{ classe.id }}#environnement-form" id="btn-env">Enquête environnement</a>
-      <a class="btn btn-outline" href="/presences/" id="btn-pres">Enquête présence</a>
+      {% if presence_next_type %}
+        <button class="btn btn-outline" type="button" id="btn-pres" data-presence-modal-open>Contrôle présence</button>
+      {% else %}
+        <a class="btn btn-outline disabled" href="{% url 'presence_control_create' classe.id %}" id="btn-pres">Contrôles C1-C6 créés</a>
+      {% endif %}
       <a class="btn btn-outline" href="{% url 'class_reports' classe.id %}" id="btn-rapports">Rapports enquetes</a>
       {% if channel_link %}
         <a class="btn btn-outline" href="{{ channel_link }}" target="_blank" rel="noopener noreferrer" onclick="event.preventDefault();var opened=window.open(this.href,'_blank'); if(!opened){ window.location.href=this.href; }" id="btn-channel">&#128101; Canal Teams</a>
@@ -148,6 +166,90 @@
   </div> -->
 </div>
 
+<div class="presence-modal" id="presence-modal" hidden>
+  <div class="presence-dialog" role="dialog" aria-modal="true" aria-labelledby="presence-modal-title">
+    <h3 id="presence-modal-title" style="margin-top:0;">Contrôle de présence - {{ classe.code }}</h3>
+    <form method="post" action="{% url 'presence_control_create' classe.id %}">
+      {% csrf_token %}
+      <div class="presence-form-grid">
+        <div class="presence-field">
+          <label for="presence-inspecteur">Inspecteur</label>
+          <select id="presence-inspecteur" name="inspecteur">
+            <option value="">-</option>
+            {% for inspecteur in inspecteurs %}
+              <option value="{{ inspecteur.id }}">{{ inspecteur.nom_complet }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="presence-field">
+          <label for="presence-theme">Thème de la séance</label>
+          <input id="presence-theme" name="theme" type="text" required>
+        </div>
+        <div class="presence-field">
+          <label for="presence-date">Date</label>
+          <input id="presence-date" name="date" type="date" value="{{ presence_default_date|date:'Y-m-d' }}" required>
+        </div>
+        <div class="presence-field">
+          <label for="presence-debut">H. Début</label>
+          <input id="presence-debut" name="heure_debut" type="time" required>
+        </div>
+        <div class="presence-field">
+          <label for="presence-fin">H. Fin</label>
+          <input id="presence-fin" name="heure_fin" type="time" required>
+        </div>
+        <div class="presence-field">
+          <label for="presence-conformite">Conformité</label>
+          <select id="presence-conformite" name="conformite" required>
+            <option value="">-</option>
+            <option value="conforme">Conforme</option>
+            <option value="non_conforme">Non Conforme</option>
+          </select>
+        </div>
+        <div class="presence-field">
+          <label for="presence-type">Type de contrôle</label>
+          <select id="presence-type" name="type_controle" required>
+            {% for control_type in presence_control_type_choices %}
+              <option value="{{ control_type }}" {% if control_type == presence_next_type %}selected{% endif %}>{{ control_type }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="presence-field">
+          <label for="presence-duree">Durée prévue</label>
+          <input id="presence-duree" name="duree_prevue_formation" type="number" min="0" step="0.01" value="{{ presence_default_duration|default:'' }}">
+        </div>
+        <div class="presence-field">
+          <label for="presence-formateur1">Formateur 1</label>
+          <input id="presence-formateur1" name="formateur1_nom" type="text" value="{{ presence_default_formateur.nom_complet|default:'' }}">
+        </div>
+        <div class="presence-field">
+          <label for="presence-formateur1-tel">Téléphone formateur 1</label>
+          <input id="presence-formateur1-tel" name="formateur1_telephone" type="text" value="{{ presence_default_formateur.telephone|default:'' }}">
+        </div>
+        <div class="presence-field">
+          <label for="presence-formateur2">Formateur 2</label>
+          <input id="presence-formateur2" name="formateur2_nom" type="text">
+        </div>
+        <div class="presence-field">
+          <label for="presence-formateur2-tel">Téléphone formateur 2</label>
+          <input id="presence-formateur2-tel" name="formateur2_telephone" type="text">
+        </div>
+        <div class="presence-field">
+          <label for="presence-formateur3">Formateur 3</label>
+          <input id="presence-formateur3" name="formateur3_nom" type="text">
+        </div>
+        <div class="presence-field">
+          <label for="presence-formateur3-tel">Téléphone formateur 3</label>
+          <input id="presence-formateur3-tel" name="formateur3_telephone" type="text">
+        </div>
+      </div>
+      <div class="presence-modal-actions">
+        <button class="btn btn-outline" type="button" data-presence-modal-close>Annuler</button>
+        <button class="btn" type="submit">Créer</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <script>
   (function() {
     const checkAll = document.getElementById("check-all");
@@ -157,6 +259,19 @@
     const deleteBtn = document.getElementById("btn-delete");
     const smsBtn = document.getElementById("btn-sms");
     const classeId = "{{ classe.id }}";
+    const presenceModal = document.getElementById("presence-modal");
+    const presenceOpen = document.querySelector("[data-presence-modal-open]");
+    const presenceClose = document.querySelector("[data-presence-modal-close]");
+    presenceOpen?.addEventListener("click", () => {
+      presenceModal.hidden = false;
+      document.getElementById("presence-theme")?.focus();
+    });
+    presenceClose?.addEventListener("click", () => {
+      presenceModal.hidden = true;
+    });
+    presenceModal?.addEventListener("click", (e) => {
+      if (e.target === presenceModal) presenceModal.hidden = true;
+    });
     checkAll?.addEventListener("change", (e) => {
       rows().forEach(chk => chk.checked = e.target.checked);
     });

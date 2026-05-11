@@ -169,6 +169,7 @@ def fill_apprenant_missing_data(apps, schema_editor):
 class Migration(migrations.Migration):
     dependencies = [
         ('apprenants', '0010_apprenant_phase_and_seed'),
+        ('reporting', '0003_widen_fields_for_postgres_import'),
     ]
 
     operations = [

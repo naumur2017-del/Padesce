@@ -43,6 +43,8 @@ class Apprenant(TimeStampedModel):
     c2 = models.CharField(max_length=2, choices=PRESENCE_MARKER_CHOICES, default="", blank=True)
     c3 = models.CharField(max_length=2, choices=PRESENCE_MARKER_CHOICES, default="", blank=True)
     c4 = models.CharField(max_length=2, choices=PRESENCE_MARKER_CHOICES, default="", blank=True)
+    c5 = models.CharField(max_length=2, choices=PRESENCE_MARKER_CHOICES, default="", blank=True)
+    c6 = models.CharField(max_length=2, choices=PRESENCE_MARKER_CHOICES, default="", blank=True)
     appartenance_beneficiaire = models.BooleanField(default=False)
     actif = models.BooleanField(default=True)
     phase = models.ForeignKey(

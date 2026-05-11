@@ -1,6 +1,7 @@
 import logging
 import re
 import unicodedata
+from datetime import date as date_cls
 from pathlib import Path
 from types import SimpleNamespace
 from urllib.parse import quote
@@ -31,9 +32,9 @@ from App_PADESCE.core.apprenant_lookup import (
 from App_PADESCE.core.presence_bulk_cache import get_bulk_presence_controls
 from App_PADESCE.environnement.models import EnqueteEnvironnement
 from App_PADESCE.formations.forms import ClasseCreateForm
-from App_PADESCE.formations.models import Classe, Lieu, Prestation
-from App_PADESCE.presences.control_utils import get_presence_controls
-from App_PADESCE.presences.models import Presence
+from App_PADESCE.formations.models import Classe, Inspecteur, Lieu, Prestation
+from App_PADESCE.presences.control_utils import CONTROL_KEYS, get_presence_controls
+from App_PADESCE.presences.models import Presence, PresenceControl
 from App_PADESCE.reporting.network_excel import build_padesce_source_index, normalize_network_lookup
 from App_PADESCE.satisfaction_apprenants.models import SatisfactionApprenant
 from App_PADESCE.satisfaction_formateurs.models import SatisfactionFormateur
@@ -665,8 +666,7 @@ def _build_apprenant_rows(appels, *, back_url: str):
     appels = list(appels)
     matched_apprenants = match_apprenants_to_appels(appels)
     presence_ids = [
-        get_local_apprenant_identifier(matched_apprenants.get(appel.pk))
-        for appel in appels
+        get_local_apprenant_identifier(matched_apprenants.get(appel.pk)) for appel in appels
     ]
     bulk_presence_controls = get_bulk_presence_controls(presence_ids)
     rows = []
@@ -690,9 +690,9 @@ def _build_apprenant_rows(appels, *, back_url: str):
             )
         control_values = {
             key: (str(presence_controls.get(key) or "").strip().upper() or "-")
-            for key in ("c1", "c2", "c3", "c4")
+            for key in CONTROL_KEYS
         }
-        has_missing_presence_control = any(value == "-" for value in control_values.values())
+        has_missing_presence_control = any(control_values[key] == "-" for key in CONTROL_KEYS[:4])
         rows.append(
             {
                 "id": appel.pk,
@@ -710,10 +710,7 @@ def _build_apprenant_rows(appels, *, back_url: str):
                 "has_form": form_state["has_form"],
                 "detail_url": detail_url,
                 "updated_at": appel.updated_at,
-                "c1": control_values["c1"],
-                "c2": control_values["c2"],
-                "c3": control_values["c3"],
-                "c4": control_values["c4"],
+                **control_values,
                 "has_missing_presence_control": has_missing_presence_control,
                 "taux_presence_control": float(presence_controls.get("taux_presence", 0) or 0),
             }
@@ -737,7 +734,7 @@ def _build_class_chapeau(classe_code: str, appels, source_bundle: dict | None = 
 
     question_values: dict[str, list[int]] = {field: [] for field, _label in Q_FIELDS}
     respondent_keys: set[str] = set()
-    presence_totals = {key: {"PR": 0, "AB": 0} for key in ("c1", "c2", "c3", "c4")}
+    presence_totals = {key: {"PR": 0, "AB": 0} for key in CONTROL_KEYS}
     participant_keys: set[str] = set()
     total_known_controls = 0
     total_present_controls = 0
@@ -766,7 +763,6 @@ def _build_class_chapeau(classe_code: str, appels, source_bundle: dict | None = 
             presence_lookup_keys.append(respondent_key)
         if respondent_key:
             respondent_keys.add(respondent_key)
-
     bulk_presence_controls = get_bulk_presence_controls(
         presence_lookup_keys or list(respondent_keys)
     )
@@ -778,7 +774,7 @@ def _build_class_chapeau(classe_code: str, appels, source_bundle: dict | None = 
         )
         respondent_known_controls = 0
         respondent_present_controls = 0
-        for key in ("c1", "c2", "c3", "c4"):
+        for key in CONTROL_KEYS:
             marker = str(presence_controls.get(key, "") or "").upper()
             if marker == "PR":
                 presence_totals[key]["PR"] += 1
@@ -1103,6 +1099,13 @@ def class_detail(request, pk: int):
     from App_PADESCE.satisfaction_apprenants.sharepoint_csv_links import SHAREPOINT_CSV_LINKS
 
     sharepoint_csv_url = SHAREPOINT_CSV_LINKS.get(classe.code.upper(), "")
+    used_presence_controls = set(
+        PresenceControl.objects.filter(classe=classe).values_list("type_controle", flat=True)
+    )
+    presence_control_type_choices = [
+        f"C{index}" for index in range(1, 7) if f"C{index}" not in used_presence_controls
+    ]
+    presence_next_type = presence_control_type_choices[0] if presence_control_type_choices else ""
 
     return render(
         request,
@@ -1113,6 +1116,12 @@ def class_detail(request, pk: int):
             "apprenants": apprenants,
             "channel_link": channel_link,
             "sharepoint_csv_url": sharepoint_csv_url,
+            "inspecteurs": Inspecteur.objects.filter(actif=True).order_by("nom_complet"),
+            "presence_control_type_choices": presence_control_type_choices,
+            "presence_next_type": presence_next_type,
+            "presence_default_date": date_cls.today(),
+            "presence_default_duration": classe.prestation.duree_prevue_heures,
+            "presence_default_formateur": classe.formateur,
         },
     )
 

@@ -69,13 +69,14 @@ from App_PADESCE.core.presence_bulk_cache import get_bulk_presence_controls
 from App_PADESCE.core.phase_scope import (
     PHASE_SCOPE_V1,
     PHASE_SCOPE_V1_COMBINED,
-    normalize_phase_scope,
-    phase_scope_options,
     filter_appel_queryset_by_phase,
     filter_appelformateur_queryset_by_phase,
+    normalize_phase_scope,
+    phase_scope_options,
 )
 from App_PADESCE.environnement.models import EnqueteEnvironnement
 from App_PADESCE.formations.models import Classe
+from App_PADESCE.presences.control_utils import CONTROL_KEYS
 from App_PADESCE.presences.models import Presence
 from App_PADESCE.satisfaction_apprenants.models import SatisfactionApprenant
 from App_PADESCE.satisfaction_formateurs.models import SatisfactionFormateur
@@ -424,7 +425,9 @@ def _bundled_terminated_prestations_count(source_key: str = "cutoff") -> int:
         return 0
 
 
-def _bundled_vague1_apprenants_count(source_key: str = "cutoff", phase_scope: str = PHASE_SCOPE_V1) -> int:
+def _bundled_vague1_apprenants_count(
+    source_key: str = "cutoff", phase_scope: str = PHASE_SCOPE_V1
+) -> int:
     """Fallback: apprenants source des prestations terminées (Vague 1)."""
     try:
         from App_PADESCE.reporting.network_excel import load_bundled_source_meta
@@ -433,7 +436,12 @@ def _bundled_vague1_apprenants_count(source_key: str = "cutoff", phase_scope: st
         # Utiliser la même logique de calcul pour toutes les phases
         # Forcer l'utilisation de total_apprenants (7462) pour toutes les phases
         # comme la logique de calcul de vague 1
-        return int(meta.get("total_apprenants") or meta.get("vague1_apprenants_count") or meta.get("apprenants") or 0)
+        return int(
+            meta.get("total_apprenants")
+            or meta.get("vague1_apprenants_count")
+            or meta.get("apprenants")
+            or 0
+        )
     except Exception:
         return 0
 
@@ -1557,17 +1565,21 @@ def _build_consultant_dashboard_context(request):
     apprenant_id_filter = (request.GET.get("apprenant_id") or "").strip()
     phase_scope = normalize_phase_scope(request.GET.get("phase_scope"), default=PHASE_SCOPE_V1)
 
-    rows_qs = filter_appel_queryset_by_phase(
-        Appel.objects.filter(is_active=True),
-        phase_scope,
-    ).exclude(status="en_attente").select_related(
-        "classe",
-        "classe__prestation__beneficiaire",
-        "classe__prestation__prestataire",
-        "answers",
-        "answers__modified_by",
-        "satisfaction_apprenant",
-        "satisfaction_apprenant__enqueteur",
+    rows_qs = (
+        filter_appel_queryset_by_phase(
+            Appel.objects.filter(is_active=True),
+            phase_scope,
+        )
+        .exclude(status="en_attente")
+        .select_related(
+            "classe",
+            "classe__prestation__beneficiaire",
+            "classe__prestation__prestataire",
+            "answers",
+            "answers__modified_by",
+            "satisfaction_apprenant",
+            "satisfaction_apprenant__enqueteur",
+        )
     )
     if classe_filter:
         rows_qs = rows_qs.filter(
@@ -1623,19 +1635,20 @@ def _build_consultant_dashboard_context(request):
 
         # Utiliser les contrôles depuis le cache batch
         presence_controls = bulk_presence_controls.get(app.apprenant_id, {})
-        app.c1 = presence_controls.get("c1", "")
-        app.c2 = presence_controls.get("c2", "")
-        app.c3 = presence_controls.get("c3", "")
-        app.c4 = presence_controls.get("c4", "")
+        for control_key in CONTROL_KEYS:
+            setattr(app, control_key, presence_controls.get(control_key, ""))
+        required_control_keys = CONTROL_KEYS[:4]
         app.taux_presence_control = (
             "-"
-            if any(not str(getattr(app, key, "") or "").strip() for key in ("c1", "c2", "c3", "c4"))
+            if any(not str(getattr(app, key, "") or "").strip() for key in required_control_keys)
             else presence_controls.get("taux_presence", 0)
         )
-        app.c1_from_excel = bool(presence_controls.get("c1_from_excel"))
-        app.c2_from_excel = bool(presence_controls.get("c2_from_excel"))
-        app.c3_from_excel = bool(presence_controls.get("c3_from_excel"))
-        app.c4_from_excel = bool(presence_controls.get("c4_from_excel"))
+        for control_key in CONTROL_KEYS:
+            setattr(
+                app,
+                f"{control_key}_from_excel",
+                bool(presence_controls.get(f"{control_key}_from_excel")),
+            )
         app.presence_excel_found = bool(presence_controls.get("excel_found"))
         app.presence_excel_complete = bool(presence_controls.get("excel_complete"))
         app.presence_excel_missing_controls = list(

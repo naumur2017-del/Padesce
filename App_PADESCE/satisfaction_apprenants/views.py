@@ -84,7 +84,11 @@ from App_PADESCE.core.phase_scope import (
 )
 from App_PADESCE.core.fast_stats import build_fast_stats_context
 from App_PADESCE.formations.models import Classe
-from App_PADESCE.presences.control_utils import get_presence_controls, upsert_presence_controls
+from App_PADESCE.presences.control_utils import (
+    CONTROL_KEYS,
+    get_presence_controls,
+    upsert_presence_controls,
+)
 from App_PADESCE.reporting.network_excel import (
     BUNDLED_CUTOFF_WORKBOOK_COPY,
     BUNDLED_WORKBOOK_COPY,
@@ -761,29 +765,34 @@ def _dashboard_row_from_answer(
     # Map backend presence values to front-end display codes (no DB changes)
     def _map_presence_display(val):
         if val is None:
-            return '-'
+            return "-"
         s = str(val).strip()
-        if s == '':
-            return '-'
+        if s == "":
+            return "-"
         low = s.lower()
-        if low in ('absent', 'ab'):
-            return 'AB'
-        if low in ('present', 'présent', 'pr'):
-            return 'PR'
-        if low in ('-', 'nan'):
-            return '-'
+        if low in ("absent", "ab"):
+            return "AB"
+        if low in ("present", "présent", "pr"):
+            return "PR"
+        if low in ("-", "nan"):
+            return "-"
         # default: return short uppercase token
         return s.upper()
 
-    # Determine taux display: if any C is blank or '-' then show '-' per rule
-    raw_c_vals = [presence_controls.get(k) for k in ('c1', 'c2', 'c3', 'c4')]
-    any_c_blank = any((v is None) or (str(v).strip() == '') or (str(v).strip().lower() in ('-', 'nan')) for v in raw_c_vals)
+    # Determine taux display: if any available C is blank or '-' then show '-' per rule
+    raw_c_vals = [presence_controls.get(k) for k in CONTROL_KEYS]
+    any_c_blank = any(
+        (v is None) or (str(v).strip() == "") or (str(v).strip().lower() in ("-", "nan"))
+        for v in raw_c_vals
+    )
+
     def _map_taux_display(raw_taux):
         if any_c_blank:
-            return '-'
-        if raw_taux is None or str(raw_taux).strip() == '':
-            return '-'
+            return "-"
+        if raw_taux is None or str(raw_taux).strip() == "":
+            return "-"
         return raw_taux
+
     score_values = [
         getattr(answer, field, None) if answer else getattr(survey, field, None) if survey else None
         for field, _ in Q_FIELDS
@@ -836,10 +845,7 @@ def _dashboard_row_from_answer(
         "analysis_exclusion_reason": analysis_exclusion_reason,
         "formulaire_all_three": answer_has_all_three_scores(answer),
         "exclude_from_analysis": appel_is_manually_excluded(appel),
-        "c1": _map_presence_display(presence_controls["c1"]),
-        "c2": _map_presence_display(presence_controls["c2"]),
-        "c3": _map_presence_display(presence_controls["c3"]),
-        "c4": _map_presence_display(presence_controls["c4"]),
+        **{key: _map_presence_display(presence_controls[key]) for key in CONTROL_KEYS},
         "taux_presence_control": _map_taux_display(presence_controls["taux_presence"]),
         "moyenne_generale": moyenne_generale,
         **{field: getattr(answer, field, None) if answer else None for field, _ in Q_FIELDS},
@@ -999,7 +1005,9 @@ def _analysis_class_count(counts: dict[str, int], classe_code: str) -> int:
     return int((counts or {}).get(normalize_network_lookup(classe_code), 0) or 0)
 
 
-def _local_analysis_class_summary(phase_scope: str = PHASE_SCOPE_V1) -> dict[str, dict[str, int | str]]:
+def _local_analysis_class_summary(
+    phase_scope: str = PHASE_SCOPE_V1,
+) -> dict[str, dict[str, int | str]]:
     summary: dict[str, dict[str, int | str]] = {}
     queryset = filter_appel_queryset_by_phase(
         Appel.objects.filter(is_active=True),
@@ -3393,7 +3401,7 @@ def _build_satisfaction_dashboard_data(request):
     context["formulaires_avec_audio_appels"] = _appel_stats["formulaires_avec_audio"]
     context["audios_enregistres_appels"] = _appel_stats["audios_enregistres"]
     context["tab_details"] = _build_table_details_context(context, rows)
-    
+
     # Add phase navigation tabs (like in formateurs dashboard)
     context["phase_tabs"] = [
         {
@@ -3571,6 +3579,8 @@ def satisfaction_dashboard_export_prestation_lists_xlsx(request):
         "C2",
         "C3",
         "C4",
+        "C5",
+        "C6",
         "Taux présence",
         *[label for _, label in Q_FIELDS],
         "Moyenne",
@@ -3606,6 +3616,8 @@ def satisfaction_dashboard_export_prestation_lists_xlsx(request):
                     row.get("c2", ""),
                     row.get("c3", ""),
                     row.get("c4", ""),
+                    row.get("c5", ""),
+                    row.get("c6", ""),
                     row.get("taux_presence_control", ""),
                     *scores,
                     avg,
@@ -4622,12 +4634,10 @@ def _build_update_form_candidate_row(
     presence_controls = get_presence_controls(
         get_local_apprenant_identifier(apprenant), fallback_seed=appel.code
     )
-    presence_values = {
-        key: str(presence_controls.get(key) or "").strip() for key in ("c1", "c2", "c3", "c4")
-    }
+    presence_values = {key: str(presence_controls.get(key) or "").strip() for key in CONTROL_KEYS}
     taux_presence_control = (
         "-"
-        if any(not value or value == "-" for value in presence_values.values())
+        if any(not presence_values[key] or presence_values[key] == "-" for key in CONTROL_KEYS[:4])
         else presence_controls["taux_presence"]
     )
     return {
@@ -4647,10 +4657,7 @@ def _build_update_form_candidate_row(
         "computed_status_label": _batch_update_status_display(computed_status),
         "commentaire": getattr(answer or survey, "commentaire", "") or "-",
         "recommandations": getattr(answer or survey, "recommandations", "") or "-",
-        "c1": presence_values["c1"] or "-",
-        "c2": presence_values["c2"] or "-",
-        "c3": presence_values["c3"] or "-",
-        "c4": presence_values["c4"] or "-",
+        **{key: presence_values[key] or "-" for key in CONTROL_KEYS},
         "taux_presence_control": taux_presence_control,
         "selection_value": selection_value,
         "has_complete_form": has_complete_form,
@@ -4773,6 +4780,7 @@ def _import_presence_controls_from_excel(uploaded_file) -> tuple[int, list[str]]
         return 0, [f"Colonnes manquantes dans le fichier: {', '.join(missing)}"]
 
     index = {name: headers.index(name) for name in required}
+    optional_control_indexes = {key: headers.index(key) for key in ("c5", "c6") if key in headers}
     entries = []
     errors: list[str] = []
     for row_num, row_values in enumerate(
@@ -4781,10 +4789,16 @@ def _import_presence_controls_from_excel(uploaded_file) -> tuple[int, list[str]]
         apprenant_id = str(row_values[index["apprenantid"]] or "").strip()
         if not apprenant_id:
             continue
-        c1 = _normalize_presence_marker(row_values[index["c1"]])
-        c2 = _normalize_presence_marker(row_values[index["c2"]])
-        c3 = _normalize_presence_marker(row_values[index["c3"]])
-        c4 = _normalize_presence_marker(row_values[index["c4"]])
+        controls = {
+            "c1": _normalize_presence_marker(row_values[index["c1"]]),
+            "c2": _normalize_presence_marker(row_values[index["c2"]]),
+            "c3": _normalize_presence_marker(row_values[index["c3"]]),
+            "c4": _normalize_presence_marker(row_values[index["c4"]]),
+            "c5": "",
+            "c6": "",
+        }
+        for control_key, control_index in optional_control_indexes.items():
+            controls[control_key] = _normalize_presence_marker(row_values[control_index])
         taux_raw = row_values[index["taux"]]
         try:
             taux_presence = float(taux_raw) if taux_raw not in (None, "") else None
@@ -4794,10 +4808,7 @@ def _import_presence_controls_from_excel(uploaded_file) -> tuple[int, list[str]]
         entries.append(
             {
                 "apprenant_id": apprenant_id,
-                "c1": c1,
-                "c2": c2,
-                "c3": c3,
-                "c4": c4,
+                **controls,
                 "taux_presence": taux_presence,
             }
         )
@@ -6462,4 +6473,3 @@ def satisfaction_sync_reference_page(request):
         "total_map_count": len(apprenant_id_map),
     }
     return render(request, "satisfaction_apprenants/sync_reference.html", context)
-
