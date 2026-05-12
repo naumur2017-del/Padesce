@@ -1207,6 +1207,11 @@
       document.body.style.overflow = '';
     };
 
+    // Add click event listener to close button
+    if (closeBtn) {
+      closeBtn.addEventListener('click', closeModal);
+    }
+
     // Delegated listener for rows
     document.addEventListener('click', function(e) {
       const row = e.target.closest('.js-public-row');
