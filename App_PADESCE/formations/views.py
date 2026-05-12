@@ -1355,6 +1355,17 @@ def class_analysis_detail(request, code: str):
     from App_PADESCE.satisfaction_apprenants.sharepoint_csv_links import SHAREPOINT_CSV_LINKS
 
     sharepoint_csv_url = SHAREPOINT_CSV_LINKS.get(code.upper(), "")
+    presence_control_enabled = bool(getattr(classe, "pk", None))
+    if presence_control_enabled:
+        used_presence_controls = set(
+            PresenceControl.objects.filter(classe=classe).values_list("type_controle", flat=True)
+        )
+        presence_control_type_choices = [
+            f"C{index}" for index in range(1, 7) if f"C{index}" not in used_presence_controls
+        ]
+    else:
+        presence_control_type_choices = []
+    presence_next_type = presence_control_type_choices[0] if presence_control_type_choices else ""
 
     return render(
         request,
@@ -1380,6 +1391,15 @@ def class_analysis_detail(request, code: str):
             "reference_warning": reference_warning,
             "channel_link": channel_link,
             "sharepoint_csv_url": sharepoint_csv_url,
+            "presence_control_enabled": presence_control_enabled,
+            "inspecteurs": Inspecteur.objects.filter(actif=True).order_by("nom_complet"),
+            "presence_control_type_choices": presence_control_type_choices,
+            "presence_next_type": presence_next_type,
+            "presence_default_date": date_cls.today(),
+            "presence_default_duration": getattr(
+                getattr(classe, "prestation", None), "duree_prevue_heures", ""
+            ),
+            "presence_default_formateur": getattr(classe, "formateur", None),
         },
     )
 
