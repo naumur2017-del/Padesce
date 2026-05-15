@@ -1,222 +1,3 @@
-{% extends "base.html" %}
-{% block title %}Rapport{% endblock %}
-{% block content %}
-<style>
-  .report-shell { display: grid; gap: 16px; }
-  .hero {
-    padding: 22px;
-    border-radius: 18px;
-    border: 1px solid rgba(111, 60, 195, 0.16);
-    background:
-      radial-gradient(circle at top right, rgba(111, 60, 195, 0.14), transparent 34%),
-      linear-gradient(135deg, #faf7ff 0%, #ffffff 100%);
-    box-shadow: var(--shadow);
-  }
-  .hero h1 { margin: 0 0 8px; color: var(--accent-strong); }
-  .hero p { margin: 0; color: var(--muted); }
-  .toolbar, .cards, .panels { display: grid; gap: 14px; }
-  .toolbar { grid-template-columns: 1fr auto; align-items: end; }
-  .toolbar-card, .card, .panel {
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    background: #fff;
-    box-shadow: var(--shadow);
-  }
-  .toolbar-card, .panel { padding: 16px; }
-  .filters { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; }
-  .field { display: grid; gap: 6px; min-width: 180px; }
-  .field label { font-size: .86rem; color: var(--muted); font-weight: 700; }
-  .field input,
-  .field select {
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 10px 12px;
-    font: inherit;
-  }
-  .scope-field { min-width: 260px; }
-  .scope-toggle {
-    display: inline-flex;
-    gap: 6px;
-    padding: 4px;
-    border: 1px solid var(--border);
-    border-radius: 999px;
-    background: #f8fafc;
-  }
-  .scope-option {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 999px;
-    padding: 8px 12px;
-    color: var(--accent-strong);
-    font-weight: 800;
-    cursor: pointer;
-  }
-  .scope-option input { position: absolute; opacity: 0; pointer-events: none; }
-  .scope-option.active { background: var(--accent); color: #fff; }
-  .actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
-  .btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    padding: 10px 14px;
-    border-radius: 12px;
-    border: 1px solid transparent;
-    text-decoration: none;
-    font-weight: 700;
-    cursor: pointer;
-  }
-  .btn-primary { background: var(--accent); color: #fff; }
-  .btn-ghost { background: #fff; color: var(--accent-strong); border-color: var(--border); }
-  .btn-soft { background: rgba(111, 60, 195, 0.08); color: var(--accent-strong); border-color: rgba(111, 60, 195, 0.15); }
-  .cards { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
-  .card { padding: 16px; }
-  .card .label { color: var(--muted); font-size: .9rem; }
-  .card .value { margin-top: 8px; font-size: 1.7rem; font-weight: 800; color: var(--accent-strong); }
-  .card .meta { margin-top: 6px; color: var(--muted); font-size: .88rem; }
-  .panels { grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
-  .panel h3 { margin: 0 0 12px; color: var(--accent-strong); }
-  .table-scroll {
-    width: 100%;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    border-radius: 14px;
-  }
-  .metric-list { display: grid; gap: 10px; }
-  .metric-row {
-    display: flex;
-    justify-content: space-between;
-    gap: 12px;
-    padding: 10px 12px;
-    border-radius: 12px;
-    background: #faf7ff;
-    border: 1px solid rgba(111, 60, 195, 0.08);
-  }
-  .metric-row strong { color: var(--accent-strong); }
-  .user-card {
-    border: 1px solid var(--border);
-    border-radius: 14px;
-    padding: 12px;
-    background: #faf7ff;
-    display: grid;
-    gap: 8px;
-  }
-  .user-card-title {
-    font-weight: 800;
-    color: var(--accent-strong);
-    font-size: .98rem;
-  }
-  .user-card-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 8px 10px;
-  }
-  .user-card-item {
-    border: 1px solid rgba(111, 60, 195, 0.08);
-    border-radius: 10px;
-    background: #fff;
-    padding: 8px 10px;
-  }
-  .user-card-item span {
-    display: block;
-    color: var(--muted);
-    font-size: .76rem;
-    margin-bottom: 4px;
-  }
-  .user-card-item strong {
-    color: var(--accent-strong);
-    font-size: .92rem;
-  }
-  .hour-list { display: grid; gap: 10px; }
-  .hour-row { display: grid; gap: 6px; }
-  .hour-top { display: flex; justify-content: space-between; gap: 10px; font-size: .92rem; }
-  .bar {
-    height: 11px;
-    border-radius: 999px;
-    background: #f3ecff;
-    overflow: hidden;
-    border: 1px solid rgba(111, 60, 195, 0.08);
-  }
-  .bar > span {
-    display: block;
-    height: 100%;
-    border-radius: inherit;
-    background: linear-gradient(90deg, #6f3cc3, #10b981);
-  }
-  .pill {
-    display: inline-flex;
-    align-items: center;
-    padding: 6px 10px;
-    border-radius: 999px;
-    border: 1px solid var(--border);
-    background: #faf7ff;
-    color: var(--accent-strong);
-    font-weight: 700;
-    font-size: .84rem;
-  }
-  .pagination {
-    margin-top: 12px;
-    display: flex;
-    gap: 8px;
-    align-items: center;
-    justify-content: flex-end;
-    flex-wrap: wrap;
-  }
-  .pagination a,
-  .pagination span {
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 8px 10px;
-    background: #fff;
-    color: var(--accent-strong);
-    font-weight: 700;
-  }
-  table { width: 100%; border-collapse: collapse; }
-  th, td { padding: 9px 10px; border-bottom: 1px solid var(--border); text-align: left; }
-  th { color: var(--muted); font-size: .84rem; text-transform: uppercase; letter-spacing: .04em; }
-  .muted { color: var(--muted); }
-  @media (max-width: 860px) {
-    .toolbar { grid-template-columns: 1fr; }
-    .actions { justify-content: flex-start; }
-    .actions,
-    .filters { width: 100%; }
-    .actions > *,
-    .filters > * { flex: 1 1 100%; }
-    .actions .btn,
-    .actions form,
-    .actions form .btn,
-    .filters .btn,
-    .field,
-    .field input { width: 100%; }
-    .cards { grid-template-columns: 1fr 1fr; }
-    .panels { grid-template-columns: 1fr; }
-    .metric-row { flex-direction: column; align-items: flex-start; }
-    .hero { padding: 18px; }
-    .hero h1 { font-size: 1.5rem; }
-    .user-card-grid { grid-template-columns: 1fr; }
-  }
-  @media (max-width: 560px) {
-    .cards { grid-template-columns: 1fr; }
-    .toolbar-card, .panel, .card { padding: 14px; }
-    th, td { padding: 8px; font-size: .88rem; }
-    .card .value { font-size: 1.45rem; }
-    .pill { width: 100%; justify-content: center; }
-  }
-  .dot-not-formed { background: #f59e0b; }
-  .dot-fake-number { background: #ef4444; }
-  .dot-false-name { background: #7c3aed; }
-  .anomaly-not-formed td { background: rgba(245, 158, 11, 0.12); }
-  .anomaly-duplicate td { background: rgba(239, 68, 68, 0.10); }
-  .anomaly-false-name td { background: rgba(124, 58, 237, 0.10); }
-  .th-not-formed { background: rgba(245, 158, 11, 0.16); color: #92400e; }
-  .th-fake-number { background: rgba(239, 68, 68, 0.14); color: #991b1b; }
-  .th-false-name { background: rgba(124, 58, 237, 0.14); color: #6d28d9; }
-  .th-code { background: #f8fafc; color: #334155; }
-  .legend-item { display: inline-flex; align-items: center; gap: 8px; margin-right: 16px; font-size: 0.9rem; }
-  .legend-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
-</style>
-
 <div class="report-shell">
   <section class="hero">
     <h1>Rapport de l'application</h1>
@@ -226,8 +7,12 @@
   <section class="toolbar">
     <div class="toolbar-card">
       <form method="get" class="filters">
+        {% if embedded_public_report %}
+          <input type="hidden" name="scope" value="{{ scope|default:'apprenant' }}">
+          <input type="hidden" name="section" value="rapport">
+        {% endif %}
         <div class="field">
-          <label for="id_start">Début</label>
+          <label for="id_start">Debut</label>
           <input id="id_start" type="date" name="start" value="{{ start_value }}">
         </div>
         <div class="field">
@@ -249,10 +34,12 @@
       </form>
     </div>
     <div class="actions">
-      <a class="btn btn-ghost" href="{% url 'reporting_manual' %}">Documentation</a>
-      <a class="btn btn-primary" href="{% url 'application_report_export_word' %}?{{ download_query }}">Télécharger Word</a>
-      <a class="btn btn-ghost" href="{% url 'application_report_export_excel' %}?{{ download_query }}">Télécharger Excel</a>
-      <a class="btn btn-soft" href="{% url 'application_report_export_csv' %}?{{ download_query }}">Télécharger CSV</a>
+      {% if not embedded_public_report %}
+        <a class="btn btn-ghost" href="{% url 'reporting_manual' %}">Documentation</a>
+      {% endif %}
+      <a class="btn btn-primary" href="{% url 'application_report_export_word' %}?{{ download_query }}">Telecharger Word</a>
+      <a class="btn btn-ghost" href="{% url 'application_report_export_excel' %}?{{ download_query }}">Telecharger Excel</a>
+      <a class="btn btn-soft" href="{% url 'application_report_export_csv' %}?{{ download_query }}">Telecharger CSV</a>
       {% if manual_send_enabled %}
       <form method="post" action="{% url 'application_report_send_mail' %}">
         {% csrf_token %}
@@ -267,18 +54,18 @@
 
   <section class="cards">
     <article class="card">
-      <div class="label">Utilisateurs ayant appelé</div>
+      <div class="label">Utilisateurs ayant appele</div>
       <div class="value">{{ report.users.called_today }}</div>
-      <div class="meta">Au moins un appel effectué {{ report.daily_reference_label }}</div>
+      <div class="meta">Au moins un appel effectue {{ report.daily_reference_label }}</div>
     </article>
     <article class="card">
-      <div class="label">Appels terminés</div>
+      <div class="label">Appels termines</div>
       <div class="value">{{ report.calls.completed }}</div>
-      <div class="meta">{{ report.calls.processed }} appels effectués</div>
+      <div class="meta">{{ report.calls.processed }} appels effectues</div>
     </article>
     {% if report.call_scope == "cga" %}
       <article class="card">
-        <div class="label">Régimes / Centres</div>
+        <div class="label">Regimes / Centres</div>
         <div class="value">{{ report.cga_dimensions.regimes_count }}</div>
         <div class="meta">{{ report.cga_dimensions.centres_count }} centres de rattachement</div>
       </article>
@@ -289,20 +76,20 @@
       </article>
     {% else %}
       <article class="card">
-        <div class="label">Classes analysées</div>
+        <div class="label">Classes analysees</div>
         <div class="value">{{ report.analysis.classes_count }}</div>
-        <div class="meta">{{ report.analysis.prestations_count }} prestations analysées</div>
+        <div class="meta">{{ report.analysis.prestations_count }} prestations analysees</div>
       </article>
       <article class="card">
-        <div class="label">Prestataires analysés</div>
+        <div class="label">Prestataires analyses</div>
         <div class="value">{{ report.analysis.prestataires_count }}</div>
-        <div class="meta">{{ report.analysis.beneficiaires_count }} bénéficiaires analysés</div>
+        <div class="meta">{{ report.analysis.beneficiaires_count }} beneficiaires analyses</div>
       </article>
     {% endif %}
     <article class="card">
       <div class="label">Heure la plus performante</div>
       <div class="value">{% if report.best_hour %}{{ report.best_hour.label|slice:":5" }}{% else %}-{% endif %}</div>
-      <div class="meta">{% if report.best_hour %}{{ report.best_hour.completed }} appels terminés{% else %}Aucune donnée{% endif %}</div>
+      <div class="meta">{% if report.best_hour %}{{ report.best_hour.completed }} appels termines{% else %}Aucune donnee{% endif %}</div>
     </article>
     <article class="card">
       <div class="label">Source appels</div>
@@ -319,7 +106,7 @@
         <div class="metric-row">
           <div>
             <strong>{{ source.label }}</strong>
-            <div class="muted">{{ source.completed }} terminés, {{ source.with_audio }} audios</div>
+            <div class="muted">{{ source.completed }} termines, {{ source.with_audio }} audios</div>
           </div>
           <div>{{ source.total }}</div>
         </div>
@@ -328,18 +115,18 @@
       <div class="metric-list" style="margin-top:12px;">
         <div class="metric-row"><span>En attente</span><strong>{{ report.calls.pending }}</strong></div>
         <div class="metric-row"><span>En cours</span><strong>{{ report.calls.in_progress }}</strong></div>
-        <div class="metric-row"><span>À rappeler</span><strong>{{ report.calls.callbacks }}</strong></div>
+        <div class="metric-row"><span>A rappeler</span><strong>{{ report.calls.callbacks }}</strong></div>
       </div>
     </article>
 
     {% if report.call_scope == "cga" %}
     <article class="panel">
-      <h3>Résultats CGA</h3>
+      <h3>Resultats CGA</h3>
       <div class="metric-list">
-        <div class="metric-row"><span>Intéressés</span><strong>{{ report.cga_outcomes.interesses }}</strong></div>
-        <div class="metric-row"><span>Pas intéressés</span><strong>{{ report.cga_outcomes.pas_interesses }}</strong></div>
+        <div class="metric-row"><span>Interesses</span><strong>{{ report.cga_outcomes.interesses }}</strong></div>
+        <div class="metric-row"><span>Pas interesses</span><strong>{{ report.cga_outcomes.pas_interesses }}</strong></div>
         <div class="metric-row"><span>Indisponibles</span><strong>{{ report.cga_outcomes.indisponibles }}</strong></div>
-        <div class="metric-row"><span>Faux numéros</span><strong>{{ report.cga_outcomes.faux_numeros }}</strong></div>
+        <div class="metric-row"><span>Faux numeros</span><strong>{{ report.cga_outcomes.faux_numeros }}</strong></div>
       </div>
     </article>
     {% endif %}
@@ -349,7 +136,7 @@
       <div class="metric-list">
         <div class="metric-row"><span>Total comptes</span><strong>{{ report.users.total }}</strong></div>
         <div class="metric-row"><span>Comptes actifs</span><strong>{{ report.users.active }}</strong></div>
-        <div class="metric-row"><span>Utilisateurs ayant appelé</span><strong>{{ report.users.called_today }}</strong></div>
+        <div class="metric-row"><span>Utilisateurs ayant appele</span><strong>{{ report.users.called_today }}</strong></div>
         <div class="metric-row"><span>Staff</span><strong>{{ report.users.staff }}</strong></div>
         <div class="metric-row"><span>Superadmin</span><strong>{{ report.users.superusers }}</strong></div>
         <div class="metric-row"><span>Groupes</span><strong>{{ user_groups_total }}</strong></div>
@@ -361,24 +148,24 @@
       <article class="panel">
         <h3>Analyse CGA</h3>
         <div class="metric-list">
-          <div class="metric-row"><span>Régimes</span><strong>{{ report.cga_dimensions.regimes_count }}</strong></div>
+          <div class="metric-row"><span>Regimes</span><strong>{{ report.cga_dimensions.regimes_count }}</strong></div>
           <div class="metric-row"><span>Centres</span><strong>{{ report.cga_dimensions.centres_count }}</strong></div>
           <div class="metric-row"><span>CRI</span><strong>{{ report.cga_dimensions.cris_count }}</strong></div>
           <div class="metric-row"><span>Villes</span><strong>{{ report.cga_dimensions.villes_count }}</strong></div>
-          <div class="metric-row"><span>Intéressés</span><strong>{{ report.cga_dimensions.interesses }}</strong></div>
-          <div class="metric-row"><span>Pas intéressés</span><strong>{{ report.cga_dimensions.pas_interesses }}</strong></div>
+          <div class="metric-row"><span>Interesses</span><strong>{{ report.cga_dimensions.interesses }}</strong></div>
+          <div class="metric-row"><span>Pas interesses</span><strong>{{ report.cga_dimensions.pas_interesses }}</strong></div>
           <div class="metric-row"><span>Indisponibles</span><strong>{{ report.cga_dimensions.indisponibles }}</strong></div>
-          <div class="metric-row"><span>Faux numéros</span><strong>{{ report.cga_dimensions.faux_numeros }}</strong></div>
+          <div class="metric-row"><span>Faux numeros</span><strong>{{ report.cga_dimensions.faux_numeros }}</strong></div>
         </div>
       </article>
     {% else %}
       <article class="panel">
         <h3>Analyse satisfaction</h3>
         <div class="metric-list">
-          <div class="metric-row"><span>Classes analysées</span><strong>{{ report.analysis.classes_count }}</strong></div>
-          <div class="metric-row"><span>Prestations analysées</span><strong>{{ report.analysis.prestations_count }}</strong></div>
-          <div class="metric-row"><span>Prestataires analysés</span><strong>{{ report.analysis.prestataires_count }}</strong></div>
-          <div class="metric-row"><span>Bénéficiaires analysés</span><strong>{{ report.analysis.beneficiaires_count }}</strong></div>
+          <div class="metric-row"><span>Classes analysees</span><strong>{{ report.analysis.classes_count }}</strong></div>
+          <div class="metric-row"><span>Prestations analysees</span><strong>{{ report.analysis.prestations_count }}</strong></div>
+          <div class="metric-row"><span>Prestataires analyses</span><strong>{{ report.analysis.prestataires_count }}</strong></div>
+          <div class="metric-row"><span>Beneficiaires analyses</span><strong>{{ report.analysis.beneficiaires_count }}</strong></div>
         </div>
       </article>
     {% endif %}
@@ -387,13 +174,13 @@
       <article class="panel" style="grid-column: 1 / -1;">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; gap:12px; flex-wrap:wrap;">
           <div>
-            <h3 style="margin:0;">Anomalies CGA: faux numéros</h3>
+            <h3 style="margin:0;">Anomalies CGA: faux numeros</h3>
             <div class="muted">Pagination de 5 lignes par page.</div>
           </div>
-          <a class="btn btn-soft" href="{% url 'application_report_export_anomalies_excel' %}?{{ download_query }}">Exporter les faux numéros</a>
+          <a class="btn btn-soft" href="{% url 'application_report_export_anomalies_excel' %}?{{ download_query }}">Exporter les faux numeros</a>
         </div>
         <div class="legend" style="margin-bottom:16px; padding:12px; border-radius:12px; background:#f8fafc; border:1px solid #e2e8f0;">
-          <span class="legend-item"><span class="legend-dot dot-fake-number"></span>Faux numéros : {{ report.anomalies.false_number_count }}</span>
+          <span class="legend-item"><span class="legend-dot dot-fake-number"></span>Faux numeros : {{ report.anomalies.false_number_count }}</span>
         </div>
         <div class="table-scroll">
           <table>
@@ -401,8 +188,8 @@
               <tr>
                 <th>NIU</th>
                 <th>Raison sociale</th>
-                <th>Téléphone</th>
-                <th>Régime</th>
+                <th>Telephone</th>
+                <th>Regime</th>
                 <th>Centre</th>
                 <th>CRI</th>
                 <th>Ville</th>
@@ -424,7 +211,7 @@
                   <td>{{ row.updated_at_label|default:"-" }}</td>
                 </tr>
               {% empty %}
-                <tr><td colspan="9" class="muted" style="text-align:center; padding:20px;">Aucun faux numéro détecté.</td></tr>
+                <tr><td colspan="9" class="muted" style="text-align:center; padding:20px;">Aucun faux numero detecte.</td></tr>
               {% endfor %}
             </tbody>
           </table>
@@ -432,7 +219,7 @@
         {% if cga_anomaly_page_obj and cga_anomaly_page_obj.paginator.num_pages > 1 %}
           <div class="pagination">
             {% if cga_anomaly_page_obj.has_previous %}
-              <a href="?{{ cga_anomaly_query }}&cga_anomaly_page={{ cga_anomaly_page_obj.previous_page_number }}">Précédent</a>
+              <a href="?{{ cga_anomaly_query }}&cga_anomaly_page={{ cga_anomaly_page_obj.previous_page_number }}">Precedent</a>
             {% endif %}
             <span>Page {{ cga_anomaly_page_obj.number }} / {{ cga_anomaly_page_obj.paginator.num_pages }}</span>
             {% if cga_anomaly_page_obj.has_next %}
@@ -448,12 +235,16 @@
           <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; justify-content:flex-end;">
             <a class="btn btn-soft" href="{% url 'application_report_export_anomalies_excel' %}?{{ download_query }}">Exporter les anomalies</a>
             <form method="get" id="anomaly-filter-form" style="display:flex; gap:10px; align-items:center;">
+              {% if embedded_public_report %}
+                <input type="hidden" name="scope" value="{{ scope|default:'apprenant' }}">
+                <input type="hidden" name="section" value="rapport">
+              {% endif %}
               <input type="hidden" name="start" value="{{ start_value }}">
               <input type="hidden" name="end" value="{{ end_value }}">
               <input type="hidden" name="call_scope" value="{{ call_scope }}">
               <label for="id_classe_selector" style="font-size:0.9rem; font-weight:700; color:var(--muted);">Filtrer par classe :</label>
               <select name="classe" id="id_classe_selector" onchange="this.form.submit()" style="padding:8px 12px; border-radius:10px; border:1px solid var(--border); background:#fff; font-weight:600; color:var(--accent-strong);">
-                <option value="">— Toutes les classes anormales —</option>
+                <option value="">- Toutes les classes anormales -</option>
                 {% for cl in class_options %}
                 <option value="{{ cl.code }}" {% if selected_class_code == cl.code %}selected{% endif %}>
                   {{ cl.label }}{% if cl.has_not_formed %} &#x1F7E0;{% endif %}{% if cl.has_duplicate %} &#x1F534;{% endif %}{% if cl.has_false_name %} &#x1F7E3;{% endif %}
@@ -466,10 +257,10 @@
 
         <div class="legend" style="margin-bottom:16px; padding:12px; border-radius:12px; background:#f8fafc; border:1px solid #e2e8f0;">
           {% if report.anomalies.selected_class.not_formed_count %}
-          <span class="legend-item"><span class="legend-dot dot-not-formed"></span>Pas formé : {{ report.anomalies.selected_class.not_formed_count }}</span>
+          <span class="legend-item"><span class="legend-dot dot-not-formed"></span>Pas forme : {{ report.anomalies.selected_class.not_formed_count }}</span>
           {% endif %}
           {% if report.anomalies.selected_class.duplicate_numbers_count %}
-          <span class="legend-item"><span class="legend-dot dot-fake-number"></span>Numéro double : {{ report.anomalies.selected_class.duplicate_numbers_count }}</span>
+          <span class="legend-item"><span class="legend-dot dot-fake-number"></span>Numero double : {{ report.anomalies.selected_class.duplicate_numbers_count }}</span>
           {% endif %}
           {% if report.anomalies.selected_class.false_name_count %}
           <span class="legend-item"><span class="legend-dot dot-false-name"></span>Faux nom : {{ report.anomalies.selected_class.false_name_count }}</span>
@@ -482,8 +273,8 @@
             <thead>
               <tr>
                 <th class="th-code">ApprenantID</th>
-                {% if report.anomalies.selected_class.not_formed_count %}<th class="th-not-formed">Pas formé</th>{% endif %}
-                {% if report.anomalies.selected_class.duplicate_numbers_count %}<th class="th-fake-number">Numéro double</th>{% endif %}
+                {% if report.anomalies.selected_class.not_formed_count %}<th class="th-not-formed">Pas forme</th>{% endif %}
+                {% if report.anomalies.selected_class.duplicate_numbers_count %}<th class="th-fake-number">Numero double</th>{% endif %}
                 {% if report.anomalies.selected_class.false_name_count %}<th class="th-false-name">Faux nom</th>{% endif %}
               </tr>
             </thead>
@@ -492,7 +283,7 @@
               <tr class="{% if row.anomaly_label == 'Pas forme' %}anomaly-not-formed{% elif row.anomaly_label == 'Doublon' %}anomaly-duplicate{% else %}anomaly-false-name{% endif %}">
                 <td>{{ row.apprenant_id|default:"-" }}</td>
                 {% if report.anomalies.selected_class.not_formed_count %}
-                <td>{% if row.anomaly_label == "Pas forme" %}Pas formé{% endif %}</td>
+                <td>{% if row.anomaly_label == "Pas forme" %}Pas forme{% endif %}</td>
                 {% endif %}
                 {% if report.anomalies.selected_class.duplicate_numbers_count %}
                 <td>{% if row.anomaly_label == "Doublon" %}{{ row.phone_display }}{% endif %}</td>
@@ -502,7 +293,7 @@
                 {% endif %}
               </tr>
               {% empty %}
-              <tr><td colspan="4" class="muted" style="text-align:center; padding:20px;">Aucune anomalie détectée.</td></tr>
+              <tr><td colspan="4" class="muted" style="text-align:center; padding:20px;">Aucune anomalie detectee.</td></tr>
               {% endfor %}
             </tbody>
           </table>
@@ -513,8 +304,8 @@
     <article class="panel">
       <h3>Bugs et incidents</h3>
       <div class="metric-list">
-        <div class="metric-row"><span>Bugs signalés</span><strong>{{ report.bugs.alarms_total }}</strong></div>
-        <div class="metric-row"><span>Bugs résolus</span><strong>{{ report.bugs.alarms_resolved }}</strong></div>
+        <div class="metric-row"><span>Bugs signales</span><strong>{{ report.bugs.alarms_total }}</strong></div>
+        <div class="metric-row"><span>Bugs resolus</span><strong>{{ report.bugs.alarms_resolved }}</strong></div>
         <div class="metric-row"><span>Bugs ouverts</span><strong>{{ report.bugs.alarms_open }}</strong></div>
         <div class="metric-row"><span>Erreurs logs</span><strong>{{ report.bugs.log_errors }}</strong></div>
         <div class="metric-row"><span>Erreurs critiques</span><strong>{{ report.bugs.log_critical }}</strong></div>
@@ -523,7 +314,7 @@
       <div class="table-scroll" style="margin-top:12px;">
         <table>
           <thead>
-            <tr><th>Incident</th><th>Module</th><th>État</th></tr>
+            <tr><th>Incident</th><th>Module</th><th>Etat</th></tr>
           </thead>
           <tbody>
             {% for alarm in report.bugs.recent_alarms %}
@@ -542,7 +333,7 @@
     <article class="panel">
       <h3>Appels par heure</h3>
       {% if report.best_hour %}
-      <div class="pill" style="margin-bottom:12px;">Pic journalier : {{ report.best_hour.label }} avec {{ report.best_hour.completed }} appels terminés</div>
+      <div class="pill" style="margin-bottom:12px;">Pic journalier : {{ report.best_hour.label }} avec {{ report.best_hour.completed }} appels termines</div>
       {% endif %}
       <div class="hour-list">
         {% for row in report.hourly_rows %}
@@ -567,7 +358,7 @@
           <div class="user-card-title">{{ item.username }}</div>
           <div class="user-card-grid">
             <div class="user-card-item">
-              <span>Appels effectués</span>
+              <span>Appels effectues</span>
               <strong>{{ item.calls_made }}</strong>
             </div>
             <div class="user-card-item">
@@ -575,25 +366,25 @@
               <strong>{{ item.calls_today }}</strong>
             </div>
             <div class="user-card-item">
-              <span>Appels terminés</span>
+              <span>Appels termines</span>
               <strong>{{ item.completed_calls }}</strong>
             </div>
             <div class="user-card-item">
-              <span>Temps estimé</span>
+              <span>Temps estime</span>
               <strong>{{ item.time_spent_label }}</strong>
             </div>
             <div class="user-card-item">
-              <span>Première activité</span>
+              <span>Premiere activite</span>
               <strong>{{ item.first_activity_label }}</strong>
             </div>
             <div class="user-card-item">
-              <span>Dernière activité</span>
+              <span>Derniere activite</span>
               <strong>{{ item.last_activity_label }}</strong>
             </div>
           </div>
         </article>
         {% empty %}
-        <div class="muted">Aucune activité utilisateur sur la période.</div>
+        <div class="muted">Aucune activite utilisateur sur la periode.</div>
         {% endfor %}
       </div>
     </article>
@@ -606,7 +397,7 @@
           <strong>17h30</strong>
         </div>
         <div class="metric-row">
-          <span>Destinataires configurés</span>
+          <span>Destinataires configures</span>
           <strong>{{ report.mail_status.configured_recipients|length }}</strong>
         </div>
       </div>
@@ -618,11 +409,10 @@
       {% if report.mail_status.missing_configuration %}
       <p class="muted" style="margin:12px 0 0;">Renseignez `REPORT_EMAIL_TO` dans le fichier `.env` pour activer les destinataires.</p>
       {% elif not report.mail_status.smtp_ready %}
-      <p class="muted" style="margin:12px 0 0;">La liste des destinataires existe, mais la configuration SMTP n'est pas encore complète.</p>
+      <p class="muted" style="margin:12px 0 0;">La liste des destinataires existe, mais la configuration SMTP n'est pas encore complete.</p>
       {% else %}
-      <p class="muted" style="margin:12px 0 0;">La diffusion automatique par mail est prête.</p>
+      <p class="muted" style="margin:12px 0 0;">La diffusion automatique par mail est prete.</p>
       {% endif %}
     </article>
   </section>
 </div>
-{% endblock %}

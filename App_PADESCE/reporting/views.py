@@ -57,6 +57,18 @@ from App_PADESCE.satisfaction_apprenants.models import SatisfactionApprenant
 from App_PADESCE.satisfaction_formateurs.models import SatisfactionFormateur
 
 
+def _application_report_public_url(request) -> str:
+    params = {
+        "scope": "apprenant",
+        "section": "rapport",
+    }
+    for key in ("start", "end", "call_scope", "classe", "cga_anomaly_page"):
+        value = str(request.GET.get(key) or request.POST.get(key) or "").strip()
+        if value:
+            params[key] = value
+    return f"{reverse('public_space')}?{urlencode(params)}"
+
+
 def _normalize_cell(value) -> str:
     if value is None:
         return ""
@@ -1836,8 +1848,7 @@ def _report_call_scope_from_request(request, source: str = "GET") -> str:
     return normalize_report_call_scope(data.get("call_scope"))
 
 
-@require_analysis_access
-def application_report_view(request):
+def _build_application_report_context(request) -> dict:
     start_date, end_date = parse_report_dates(request.GET.get("start"), request.GET.get("end"))
     selected_class_code = (request.GET.get("classe") or "").strip()
     call_scope = _report_call_scope_from_request(request)
@@ -1884,7 +1895,12 @@ def application_report_view(request):
         .count(),
         "mail_recipients": get_report_email_recipients(),
     }
-    return render(request, "reporting/rapport.html", context)
+    return context
+
+
+@require_analysis_access
+def application_report_view(request):
+    return redirect(_application_report_public_url(request))
 
 
 @require_analysis_access
@@ -1973,7 +1989,7 @@ def application_report_export_anomalies_excel_view(request):
 @require_superadmin_access
 def application_report_send_mail_view(request):
     if request.method != "POST":
-        return redirect("application_report")
+        return redirect(reverse("public_space") + "?scope=apprenant&section=rapport")
     start_date, end_date = parse_report_dates(request.POST.get("start"), request.POST.get("end"))
     call_scope = _report_call_scope_from_request(request, source="POST")
     report = build_application_report(start_date, end_date, call_scope=call_scope)
@@ -1982,10 +1998,19 @@ def application_report_send_mail_view(request):
         messages.success(request, result["detail"])
     else:
         messages.warning(request, result["detail"])
-    query = urlencode(
-        {"start": start_date.isoformat(), "end": end_date.isoformat(), "call_scope": call_scope}
+    return redirect(
+        reverse("public_space")
+        + "?"
+        + urlencode(
+            {
+                "scope": "apprenant",
+                "section": "rapport",
+                "start": start_date.isoformat(),
+                "end": end_date.isoformat(),
+                "call_scope": call_scope,
+            }
+        )
     )
-    return redirect(f"{reverse('application_report')}?{query}")
 
 
 @csrf_exempt

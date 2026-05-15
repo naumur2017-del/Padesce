@@ -40,6 +40,7 @@ FIELD_LABELS = {
 
 from App_PADESCE.core.views import _build_consultant_dashboard_context
 from App_PADESCE.core.phase_scope import PHASE_SCOPE_V1, normalize_phase_scope, phase_scope_options
+from App_PADESCE.reporting.views import _build_application_report_context
 from App_PADESCE.formations.views import _resolve_classe_for_formateur_analysis
 from App_PADESCE.satisfaction_apprenants.services import get_prestations_ranking
 from App_PADESCE.satisfaction_apprenants.views import _build_satisfaction_dashboard_data
@@ -49,7 +50,7 @@ from App_PADESCE.satisfaction_formateurs.views import (
 )
 
 PUBLIC_SCOPE_CHOICES = ("apprenant", "formateur")
-PUBLIC_SECTION_CHOICES = ("principal", "apercu", "stats")
+PUBLIC_SECTION_CHOICES = ("principal", "apercu", "stats", "rapport")
 
 
 def _ensure_debug_route_access(request) -> None:
@@ -79,6 +80,18 @@ def _public_space_url(*, section: str, scope: str, phase_scope: str | None = Non
 def _login_url_for(request) -> str:
     path = request.get_full_path() or reverse("public_space")
     return f"{reverse('login')}?{urlencode({'next': path})}"
+
+
+def _report_url_for(request) -> str:
+    params = {}
+    for key in ("start", "end", "call_scope", "classe", "cga_anomaly_page"):
+        value = str(request.GET.get(key) or "").strip()
+        if value:
+            params[key] = value
+    params["scope"] = "apprenant"
+    params["section"] = "rapport"
+    base_url = reverse("public_space")
+    return f"{base_url}?{urlencode(params)}" if params else base_url
 
 
 def _region_map_from_rankings(rankings: list[dict]) -> dict[str, list[dict]]:
@@ -969,6 +982,12 @@ def public_space(request):
                 "active": section == "stats",
                 "url": _public_space_url(section="stats", scope=scope, phase_scope=phase_scope),
             },
+            {
+                "label": "Rapport",
+                "value": "rapport",
+                "active": section == "rapport",
+                "url": _public_space_url(section="rapport", scope=scope, phase_scope=phase_scope),
+            },
         ],
         "scope_tabs": [
             {
@@ -999,9 +1018,17 @@ def public_space(request):
         ],
         "phase_scope": phase_scope,
         "login_url": _login_url_for(request),
+        "report_url": _report_url_for(request),
     }
 
-    if scope == "apprenant":
+    if section == "rapport":
+        context["report_embedded"] = bool(
+            getattr(request, "user", None) and request.user.is_authenticated
+        )
+        if context["report_embedded"]:
+            context["embedded_public_report"] = True
+            context.update(_build_application_report_context(request))
+    elif scope == "apprenant":
         if section == "principal":
             ctx = _build_consultant_dashboard_context(request)
             # Calculate Average satisfaction for the current filtered set

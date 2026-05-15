@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from django.conf import settings
 from django.urls import NoReverseMatch, reverse
 
 from App_PADESCE.core.access import has_analysis_access, has_consultant_access
@@ -87,13 +88,6 @@ def _build_menu_items(user, path: str, consultant_only: bool) -> list[dict[str, 
         add_item("Backup", _safe_reverse("backup_dashboard"), "/backup/")
 
     if analysis_access:
-        if not consultant_only:
-            add_item(
-                "Rapport",
-                _safe_reverse("application_report_view"),
-                "/reporting/rapport/",
-                "/reporting/rapport/view/",
-            )
         add_item(
             "Documentation Reporting",
             _safe_reverse("reporting_manual"),
@@ -137,4 +131,9 @@ def navbar(request):
             _build_menu_items(user, path, consultant_only) if is_authenticated else []
         ),
         "nav_is_consultant_only": consultant_only,
+        "activity_tracking_enabled": bool(
+            getattr(settings, "PADESCE_ENABLE_ACTIVITY_TRACKING", True)
+        )
+        and str(settings.DATABASES.get("default", {}).get("ENGINE", "") or "")
+        != "django.db.backends.sqlite3",
     }

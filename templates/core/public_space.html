@@ -66,6 +66,31 @@
     gap: 10px;
     margin-bottom: 16px;
   }
+  .embedded-report-shell {
+    display: grid;
+    gap: 16px;
+  }
+  .embedded-report-frame {
+    width: 100%;
+    min-height: 78vh;
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    background: #fff;
+    box-shadow: var(--shadow);
+  }
+  .report-lock {
+    padding: 24px;
+    text-align: center;
+  }
+  .report-lock h2 {
+    margin: 0 0 10px;
+    color: var(--accent-strong);
+  }
+  .report-lock p {
+    margin: 0 auto 16px;
+    max-width: 720px;
+    color: var(--muted);
+  }
   .public-switch-label {
     font-size: 0.8rem;
     color: var(--muted);
@@ -398,25 +423,42 @@
     </div>
   </div>
 
-  <div class="public-switch-group">
-    <div class="public-switch-label">Mode d'affichage</div>
-    <div class="segment-control" role="tablist" aria-label="Choix du profil">
-    {% for item in scope_tabs %}
-      <a class="segment-link{% if item.active %} active{% endif %}" href="{{ item.url }}">{{ item.label }}</a>
-    {% endfor %}
-  </div>
-  </div>
-  <div class="public-switch-group">
-    <div class="public-switch-label">Perimetre de phase</div>
-    <div class="segment-control" role="tablist" aria-label="Choix du perimetre de phase">
-    {% for item in phase_tabs %}
-      <a class="segment-link{% if item.active %} active{% endif %}" href="{{ item.url }}">{{ item.label }}</a>
-    {% endfor %}
-  </div>
-  </div>
+  {% if section != "rapport" %}
+    <div class="public-switch-group">
+      <div class="public-switch-label">Mode d'affichage</div>
+      <div class="segment-control" role="tablist" aria-label="Choix du profil">
+      {% for item in scope_tabs %}
+        <a class="segment-link{% if item.active %} active{% endif %}" href="{{ item.url }}">{{ item.label }}</a>
+      {% endfor %}
+    </div>
+    </div>
+    <div class="public-switch-group">
+      <div class="public-switch-label">Perimetre de phase</div>
+      <div class="segment-control" role="tablist" aria-label="Choix du perimetre de phase">
+      {% for item in phase_tabs %}
+        <a class="segment-link{% if item.active %} active{% endif %}" href="{{ item.url }}">{{ item.label }}</a>
+      {% endfor %}
+    </div>
+    </div>
+  {% endif %}
 </div>
 
-{% if section == "principal" and scope == "apprenant" %}
+{% if section == "rapport" %}
+  <section class="embedded-report-shell">
+    {% include "reporting/_rapport_styles.html" %}
+    <article>
+      {% if report_embedded %}
+        {% include "reporting/_rapport_content.html" %}
+      {% else %}
+        <div class="report-lock public-panel">
+          <h2>Connexion requise pour le rapport</h2>
+          <p>Le rapport application reste protégé par les droits d'analyse, mais il est maintenant accessible depuis cette page unique via l'onglet Rapport.</p>
+          <a class="public-btn primary" href="{{ login_url }}">Se connecter pour ouvrir le rapport</a>
+        </div>
+      {% endif %}
+    </article>
+  </section>
+{% elif section == "principal" and scope == "apprenant" %}
   <section class="public-panel">
     <div class="title-with-help"><h2>Chapeau contrôle de présence</h2>{% include "includes/help_tooltip.html" with title="Contrôle de présence" text="Indicateurs synthétiques du taux de présence aux formations, calculés sur les appels réussis et les formulaires remplis." section="perimetre-et-sources-de-donnees" %}</div>
     <div class="table-wrap">
@@ -1235,5 +1277,3 @@
   })();
 </script>
 {% endblock %}
-
-
