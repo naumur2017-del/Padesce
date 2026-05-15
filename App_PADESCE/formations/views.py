@@ -478,8 +478,29 @@ def _class_channel_workbook_path() -> Path:
 def _presence_control_apprenant_payload(classe: Classe) -> list[dict]:
     if not getattr(classe, "pk", None):
         return []
+    prestation = getattr(classe, "prestation", None)
+    prestataire = getattr(prestation, "prestataire", None) if prestation else None
+    beneficiaire = getattr(prestation, "beneficiaire", None) if prestation else None
+    lieu = getattr(classe, "lieu", None)
+
+    prix_total = ""
+    if prestation:
+        prix_total = str(
+            (getattr(prestation, "montant_formation_psoaf_ttc", None) or 0)
+            + (getattr(prestation, "montant_mcdc_ttc", None) or 0)
+        )
+
     rows = []
-    for apprenant in classe.apprenants.filter(actif=True).order_by("nom_complet", "code"):
+    apprenants = classe.apprenants.filter(actif=True).select_related("formation", "classe")
+    for apprenant in apprenants.order_by("nom_complet", "code"):
+        formation = getattr(apprenant, "formation", None) or getattr(classe, "formation", None)
+        type_formation = (
+            apprenant.intitule_formation_dispensee
+            or apprenant.intitule_formation_solicitee
+            or getattr(formation, "nom_harmonise", "")
+            or getattr(formation, "nom", "")
+            or getattr(classe, "intitule_formation", "")
+        )
         rows.append(
             {
                 "id": apprenant.pk,
@@ -487,10 +508,38 @@ def _presence_control_apprenant_payload(classe: Classe) -> list[dict]:
                 "numero": apprenant.numero or "",
                 "apprenant_id": get_local_apprenant_identifier(apprenant),
                 "nom": apprenant.nom_complet or "",
+                "nom_complet": apprenant.nom_complet or "",
+                "prestataire": apprenant.prestataire
+                or getattr(prestataire, "raison_sociale", "")
+                or "",
+                "beneficiaire": apprenant.beneficiaire
+                or getattr(beneficiaire, "nom_structure", "")
+                or "",
+                "classe": classe.code or "",
+                "enq": "",
+                "presence": "AB",
+                "statut": "Absent",
+                "moyen": "",
                 "telephone": apprenant.telephone1 or "",
                 "genre": apprenant.genre or "",
+                "age": apprenant.age or "",
                 "fonction": apprenant.fonction or "",
                 "qualification": apprenant.qualification or "",
+                "experience": apprenant.nb_annees_experience,
+                "type_formation": type_formation,
+                "fenetre": apprenant.fenetre or classe.fenetre or "",
+                "ville": apprenant.ville_residence or getattr(lieu, "ville", "") or "",
+                "arrondissement": apprenant.arrondissement
+                or getattr(lieu, "arrondissement", "")
+                or "",
+                "departement": apprenant.departement or getattr(lieu, "departement", "") or "",
+                "region": apprenant.region or getattr(lieu, "region", "") or "",
+                "lieu": apprenant.lieu_formation or getattr(lieu, "nom_lieu", "") or "",
+                "cohorte": apprenant.cohorte or classe.cohorte or "",
+                "prix_total": prix_total,
+                "statut_appr": "Actif" if apprenant.actif else "Inactif",
+                "classe_origine": getattr(apprenant.classe, "code", "") or classe.code or "",
+                "prestation_id": getattr(prestation, "code", "") or "",
             }
         )
     return rows

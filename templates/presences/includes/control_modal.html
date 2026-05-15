@@ -6,7 +6,7 @@
     background: rgba(0,0,0,.42); padding: 18px;
   }
   .pc-dialog {
-    width: min(1180px, 100%); max-height: 94vh; overflow: auto; background: var(--panel);
+    width: min(1500px, 100%); max-height: 94vh; overflow: auto; background: var(--panel);
     border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow); padding: 16px;
   }
   .pc-section {
@@ -27,8 +27,9 @@
   .pc-btn.primary { background: var(--accent); border-color: var(--accent); color: white; }
   .pc-btn.soft { background: rgba(15,139,141,.1); color: var(--accent-strong); }
   .pc-table-wrap { max-height: 390px; overflow: auto; border: 1px solid var(--border); border-radius: 10px; margin-top: 10px; }
-  .pc-table { width: 100%; border-collapse: collapse; min-width: 920px; }
-  .pc-table th, .pc-table td { padding: 7px 8px; border: 1px solid var(--border); font-size: .86rem; }
+  .pc-table { width: 100%; border-collapse: collapse; min-width: 4200px; }
+  .pc-table th, .pc-table td { padding: 7px 8px; border: 1px solid var(--border); font-size: .84rem; white-space: nowrap; }
+  .pc-table th { position: sticky; top: 0; z-index: 1; background: rgba(15,139,141,.1); }
   .pc-table tbody tr { cursor: pointer; }
   .pc-table tbody tr:hover { background: rgba(15,139,141,.06); }
   .pc-status { font-weight: 800; }
@@ -145,9 +146,7 @@
         <div class="pc-table-wrap">
           <table class="pc-table">
             <thead>
-              <tr>
-                <th>Uploader</th><th>Apprenant ID</th><th>Nom</th><th>Téléphone</th><th>Genre</th><th>Fonction</th><th>Présence</th><th>Moyen</th><th>Heure</th>
-              </tr>
+              <tr id="presence-learners-head"></tr>
             </thead>
             <tbody id="presence-learners-body"></tbody>
           </table>
@@ -181,11 +180,11 @@
     const learners = JSON.parse(document.getElementById("presence-control-apprenants")?.textContent || "[]");
     const byId = new Map(learners.map((learner) => [String(learner.id), learner]));
     const marks = {};
-    let sessionSummary = "";
     let selectedLearnerId = "";
 
     const form = document.getElementById("presence-control-form");
     const hiddenMarks = document.getElementById("presence-marks-json");
+    const thead = document.getElementById("presence-learners-head");
     const tbody = document.getElementById("presence-learners-body");
     const tableSection = document.getElementById("presence-table-section");
     const nameSearch = document.getElementById("presence-name-search");
@@ -193,9 +192,56 @@
     const count = document.getElementById("presence-count");
     const mini = document.getElementById("presence-manual-modal");
     const miniName = document.getElementById("presence-manual-name");
+    const columns = [
+      ["apprenant_id", "Apprenant ID"],
+      ["nom_complet", "Nom complet"],
+      ["date", "Date"],
+      ["jour", "Jour"],
+      ["heure", "Heure"],
+      ["prestataire", "Prestataire"],
+      ["beneficiaire", "Bénéficiaire"],
+      ["inspecteur", "Inspecteur"],
+      ["classe", "Classe"],
+      ["enq", "ENQ"],
+      ["presence", "Présence"],
+      ["statut", "Statut"],
+      ["moyen", "Moyen"],
+      ["genre", "Genre"],
+      ["age", "Âge"],
+      ["fonction", "Fonction"],
+      ["qualification", "Qualif."],
+      ["experience", "Exp."],
+      ["type_formation", "Type Form."],
+      ["fenetre", "Fenêtre"],
+      ["ville", "Ville"],
+      ["arrondissement", "Arrondissement"],
+      ["departement", "Département"],
+      ["region", "Région"],
+      ["lieu", "Lieux"],
+      ["telephone", "Téléphone"],
+      ["cohorte", "Cohorte"],
+      ["code", "Code"],
+      ["prix_total", "Prix Total"],
+      ["theme", "Thème de la séance"],
+      ["heure_debut", "H. Début"],
+      ["heure_fin", "H. Fin"],
+      ["conformite", "Conformité"],
+      ["statut_appr", "Statut Appr."],
+      ["classe_origine", "Classe Origine"],
+      ["type_controle", "Type Contrôle"],
+      ["prestation_id", "Prestation ID"],
+      ["type_de_controle", "Type de contrôle"],
+      ["duree_prevue_formation", "Durée Prevu de la formation"],
+      ["formateur1_nom", "Nom du formateur 1"],
+      ["formateur1_telephone", "Telephone formateur1"],
+      ["formateur2_nom", "Nom de la formation 2"],
+      ["formateur2_telephone", "Telephone du formateur 2"],
+      ["formateur3_nom", "Nom du formateur 3"],
+      ["formateur3_telephone", "Telephone du formateur 3"],
+    ];
 
     function escapeHtml(value) {
-      return String(value || "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char]));
+      return String(value === null || value === undefined ? "" : value).replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char]));
     }
     function nowTime() {
       return new Date().toTimeString().slice(0, 5);
@@ -203,21 +249,44 @@
     function fieldValue(id) {
       return document.getElementById(id)?.value || "";
     }
-    function sessionText() {
-      const inspecteur = document.getElementById("presence-inspecteur");
-      const inspecteurText = inspecteur?.options[inspecteur.selectedIndex]?.textContent?.trim() || "-";
-      return [
-        "{{ classe.code }}",
-        fieldValue("presence-type") || "-",
-        fieldValue("presence-date") || "-",
-        `${fieldValue("presence-debut") || "-"}-${fieldValue("presence-fin") || "-"}`,
-        inspecteurText,
-        fieldValue("presence-theme") || "-",
-      ].join(" | ");
+    function selectedText(id) {
+      const element = document.getElementById(id);
+      const selected = element?.options[element.selectedIndex];
+      return selected?.textContent?.trim() || "";
+    }
+    function tableDate(value) {
+      const parts = String(value || "").split("-");
+      return parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : value;
+    }
+    function tableDay(value) {
+      const parts = String(value || "").split("-").map(Number);
+      if (parts.length !== 3 || parts.some(Number.isNaN)) return "";
+      const day = new Date(parts[0], parts[1] - 1, parts[2]).toLocaleDateString("fr-FR", { weekday: "long" });
+      return day ? day.charAt(0).toUpperCase() + day.slice(1) : "";
+    }
+    function sessionData() {
+      const date = fieldValue("presence-date");
+      return {
+        date: tableDate(date),
+        jour: tableDay(date),
+        inspecteur: selectedText("presence-inspecteur").replace(/^-$/, ""),
+        theme: fieldValue("presence-theme"),
+        heure_debut: fieldValue("presence-debut"),
+        heure_fin: fieldValue("presence-fin"),
+        conformite: selectedText("presence-conformite").replace(/^-$/, ""),
+        type_controle: fieldValue("presence-type"),
+        type_de_controle: fieldValue("presence-type"),
+        duree_prevue_formation: fieldValue("presence-duree"),
+        formateur1_nom: fieldValue("presence-formateur1"),
+        formateur1_telephone: fieldValue("presence-formateur1-tel"),
+        formateur2_nom: fieldValue("presence-formateur2"),
+        formateur2_telephone: fieldValue("presence-formateur2-tel"),
+        formateur3_nom: fieldValue("presence-formateur3"),
+        formateur3_telephone: fieldValue("presence-formateur3-tel"),
+      };
     }
     function validateSession() {
       if (!form.reportValidity()) return false;
-      sessionSummary = sessionText();
       tableSection.open = true;
       render();
       return true;
@@ -225,7 +294,7 @@
     function syncMarks() {
       hiddenMarks.value = JSON.stringify(marks);
       const total = Object.keys(marks).length;
-      count.textContent = `${total} présence${total > 1 ? "s" : ""} validée${total > 1 ? "s" : ""}`;
+      count.textContent = `${total} présence${total > 1 ? "s" : ""} validée${total > 1 ? "s" : ""} / ${learners.length} apprenant${learners.length > 1 ? "s" : ""}`;
       count.classList.toggle("present", total > 0);
       count.classList.toggle("absent", total === 0);
     }
@@ -238,23 +307,38 @@
     function filteredLearners() {
       const q = (nameSearch?.value || "").trim().toLowerCase();
       if (!q) return learners;
-      return learners.filter((learner) => [learner.nom, learner.code, learner.numero, learner.apprenant_id, learner.telephone].join(" ").toLowerCase().includes(q));
+      return learners.filter((learner) => Object.values(learner).join(" ").toLowerCase().includes(q));
+    }
+    function rowData(learner, item) {
+      const present = Boolean(item);
+      const session = sessionData();
+      return {
+        ...learner,
+        ...session,
+        apprenant_id: learner.apprenant_id || learner.code || learner.numero || "",
+        nom_complet: learner.nom_complet || learner.nom || "",
+        heure: present ? item.heure : "",
+        presence: present ? "PR" : "AB",
+        statut: present ? "Présent" : "Absent",
+        moyen: present ? item.moyen : "",
+      };
     }
     function render() {
-      tbody.innerHTML = filteredLearners().map((learner) => {
+      thead.innerHTML = columns.map((column) => `<th>${escapeHtml(column[1])}</th>`).join("");
+      const rows = filteredLearners();
+      if (!rows.length) {
+        tbody.innerHTML = `<tr><td colspan="${columns.length}" style="text-align:center;color:var(--muted);">Aucun apprenant actif dans cette classe.</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = rows.map((learner) => {
         const item = marks[String(learner.id)];
         const present = Boolean(item);
-        return `<tr data-learner-id="${learner.id}">
-          <td>${escapeHtml(sessionSummary || "Paramètres non validés")}</td>
-          <td>${escapeHtml(learner.apprenant_id || learner.code || learner.numero || "-")}</td>
-          <td><strong>${escapeHtml(learner.nom || "-")}</strong></td>
-          <td>${escapeHtml(learner.telephone || "-")}</td>
-          <td>${escapeHtml(learner.genre || "-")}</td>
-          <td>${escapeHtml(learner.fonction || "-")}</td>
-          <td class="pc-status ${present ? "present" : "absent"}">${present ? "PR" : "AB"}</td>
-          <td>${present ? escapeHtml(item.moyen) : ""}</td>
-          <td>${present ? escapeHtml(item.heure) : ""}</td>
-        </tr>`;
+        const data = rowData(learner, item);
+        const cells = columns.map(([key]) => {
+          const statusClass = key === "presence" || key === "statut" ? ` class="pc-status ${present ? "present" : "absent"}"` : "";
+          return `<td${statusClass}>${escapeHtml(data[key])}</td>`;
+        }).join("");
+        return `<tr data-learner-id="${learner.id}">${cells}</tr>`;
       }).join("");
     }
     function openModal() {
@@ -274,6 +358,7 @@
     document.getElementById("presence-code-validate")?.addEventListener("click", () => {
       if (!validateSession()) return;
       const q = (codeSearch.value || "").trim().toLowerCase();
+      if (!q) return;
       const learner = learners.find((item) => [item.code, item.numero, item.apprenant_id].some((value) => String(value || "").toLowerCase() === q));
       if (!learner) {
         alert("Aucun apprenant ne correspond exactement à ce code.");
@@ -288,7 +373,7 @@
       if (!validateSession()) return;
       selectedLearnerId = row.dataset.learnerId;
       const learner = byId.get(selectedLearnerId);
-      miniName.textContent = learner ? learner.nom : "";
+      miniName.textContent = learner ? (learner.nom_complet || learner.nom || "") : "";
       mini.hidden = false;
     });
     document.querySelectorAll("[data-presence-manual]").forEach((button) => {
