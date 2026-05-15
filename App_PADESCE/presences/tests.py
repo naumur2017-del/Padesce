@@ -16,6 +16,7 @@ from App_PADESCE.formations.models import (
     Prestation,
 )
 from App_PADESCE.presences.models import Presence, PresenceControl
+from App_PADESCE.presences.views import _exact_code_match
 
 
 class PresenceControlTests(TestCase):
@@ -45,14 +46,16 @@ class PresenceControlTests(TestCase):
             cohorte=1,
         )
         self.apprenant = Apprenant.objects.create(
-            code="APP001",
+            code="9GHB",
+            numero="APP001",
             classe=self.classe,
             formation=self.formation,
             nom_complet="Alice Exemple",
             telephone1="699000001",
         )
         self.second = Apprenant.objects.create(
-            code="APP002",
+            code="8XYZ",
+            numero="APP002",
             classe=self.classe,
             formation=self.formation,
             nom_complet="Alice Deux",
@@ -172,7 +175,7 @@ class PresenceControlTests(TestCase):
 
         response = self.client.post(
             reverse("presence_control_detail", args=[control.id]),
-            {"action": "search", "q": "APP001"},
+            {"action": "search", "q": "9GHB"},
         )
 
         self.assertEqual(response.status_code, 302)
@@ -183,6 +186,12 @@ class PresenceControlTests(TestCase):
         self.assertIsNotNone(presence.heure_presence)
         self.apprenant.refresh_from_db()
         self.assertEqual(self.apprenant.c1, "PR")
+
+    def test_internal_number_search_does_not_auto_mark_as_code(self):
+        control = self._create_control()
+
+        self.assertIsNone(_exact_code_match(control, "APP001"))
+        self.assertEqual(_exact_code_match(control, "9GHB"), self.apprenant)
 
     def test_csv_export_uses_expected_presence_filename_and_columns(self):
         control = self._create_control()

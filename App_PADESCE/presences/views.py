@@ -261,7 +261,7 @@ def _exact_code_match(control: PresenceControl, query: str):
         return None
     matches = list(
         control.classe.apprenants.all()
-        .filter(Q(code__iexact=clean_query) | Q(numero__iexact=clean_query))
+        .filter(code__iexact=clean_query)
         .order_by("nom_complet", "code")[:2]
     )
     return matches[0] if len(matches) == 1 else None

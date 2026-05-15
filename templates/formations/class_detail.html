@@ -40,6 +40,13 @@
   .disabled { opacity: 0.5; pointer-events: none; }
   .toolbar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
   .table-wrap { max-height: 360px; overflow: auto; border-radius: 12px; border: 1px solid var(--border); }
+  .control-list { display: grid; gap: 8px; }
+  .control-link {
+    display: block; border: 1px solid var(--border); border-radius: 8px; padding: 10px;
+    text-decoration: none; color: inherit; background: rgba(15,139,141,0.05);
+  }
+  .control-link:hover { background: rgba(15,139,141,0.1); }
+  .control-link strong { color: var(--accent-strong); }
   .checkbox-col { width: 32px; text-align: center; }
   .checkbox-col input { transform: scale(1.05); }
   .presence-modal[hidden] { display: none; }
@@ -135,6 +142,24 @@
         </tbody>
       </table>
     </div>
+  </div>
+
+  <div class="panel" id="presence-controls">
+    <h4 style="margin-top:0;">Contrôles de présence</h4>
+    <div class="subtitle" style="margin-bottom:10px;">Gestion des contrôles déjà créés pour cette classe.</div>
+    <div class="control-list">
+      {% for control in presence_existing_controls %}
+        <a class="control-link" href="{% url 'presence_control_detail' control.id %}">
+          <strong>{{ control.type_controle }}</strong> - {{ control.date|date:"d/m/Y" }}
+          <div class="subtitle">{{ control.presents|default:0 }}/{{ control.total|default:0 }} présent(s) | {{ control.theme|default:"-" }}</div>
+        </a>
+      {% empty %}
+        <div class="subtitle">Aucun contrôle créé pour le moment.</div>
+      {% endfor %}
+    </div>
+    {% if presence_next_type %}
+      <button class="btn btn-soft" type="button" data-presence-modal-open style="margin-top:10px;">Créer {{ presence_next_type }}</button>
+    {% endif %}
   </div>
 
   <!-- <div class="panel">

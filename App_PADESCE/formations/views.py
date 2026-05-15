@@ -506,7 +506,7 @@ def _presence_control_apprenant_payload(classe: Classe) -> list[dict]:
                 "id": apprenant.pk,
                 "code": apprenant.code or "",
                 "numero": apprenant.numero or "",
-                "apprenant_id": get_local_apprenant_identifier(apprenant),
+                "apprenant_id": apprenant.code or "",
                 "nom": apprenant.nom_complet or "",
                 "nom_complet": apprenant.nom_complet or "",
                 "prestataire": apprenant.prestataire
@@ -548,14 +548,25 @@ def _presence_control_apprenant_payload(classe: Classe) -> list[dict]:
 def _presence_control_modal_context(classe: Classe) -> dict:
     enabled = bool(getattr(classe, "pk", None))
     if enabled:
+        controls = list(
+            PresenceControl.objects.filter(classe=classe)
+            .annotate(
+                total=Count("presences", distinct=True),
+                presents=Count("presences", filter=Q(presences__presence="PR"), distinct=True),
+            )
+            .order_by("type_controle", "-date")
+        )
         used = set(
-            PresenceControl.objects.filter(classe=classe).values_list("type_controle", flat=True)
+            control.type_controle for control in controls
         )
         choices = [f"C{index}" for index in range(1, 7) if f"C{index}" not in used]
     else:
+        controls = []
         choices = []
     return {
         "presence_control_enabled": enabled,
+        "presence_existing_controls": controls,
+        "presence_latest_control": controls[-1] if controls else None,
         "inspecteurs": Inspecteur.objects.filter(actif=True).order_by("code", "nom_complet"),
         "presence_control_type_choices": choices,
         "presence_next_type": choices[0] if choices else "",
@@ -1151,6 +1162,7 @@ def generate_code(model_cls, prefix: str, padding: int = 3) -> str:
 def class_list(request):
     classes = (
         Classe.objects.select_related("prestation", "formation", "lieu", "formateur")
+        .annotate(presence_controls_count=Count("presence_controls", distinct=True))
         .all()
         .order_by("code")
     )

@@ -88,6 +88,7 @@
       <div class="meta"><strong>Cohorte :</strong> {{ classe.cohorte }}</div>
     </a>
     <div class="card-actions">
+      <a class="link" href="{% url 'class_detail' classe.id %}#presence-controls">Contrôles présence{% if classe.presence_controls_count %} ({{ classe.presence_controls_count }}){% endif %}</a>
       <form action="{% url 'class_delete' classe.id %}" method="post" onsubmit="return confirm('Supprimer {{ classe.code }} ?');">
         {% csrf_token %}
         <button type="submit" class="link danger">&#128465; Supprimer</button>

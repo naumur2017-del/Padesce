@@ -135,6 +135,27 @@
   .class-link strong {
     color: var(--accent-strong);
   }
+  .presence-control-links {
+    display: grid;
+    gap: 10px;
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  }
+  .presence-control-card {
+    display: block;
+    text-decoration: none;
+    color: inherit;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: rgba(15,139,141,0.05);
+    padding: 12px;
+  }
+  .presence-control-card:hover {
+    background: rgba(15,139,141,0.1);
+    border-color: rgba(15,139,141,0.26);
+  }
+  .presence-control-card strong {
+    color: var(--accent-strong);
+  }
   .tabbar {
     display: inline-flex;
     gap: 8px;
@@ -407,6 +428,9 @@
           {% else %}
             <span class="badge presence-action" aria-disabled="true">Contrôles C1-C6 créés</span>
           {% endif %}
+          {% if presence_latest_control %}
+            <a href="{% url 'presence_control_detail' presence_latest_control.id %}" class="badge presence-action" style="text-decoration:none;">Gérer contrôles</a>
+          {% endif %}
         {% endif %}
         {% if channel_link %}
           <a href="{{ channel_link }}" target="_blank" class="badge badge-ok" style="background: rgba(15, 139, 141, 0.1); color: #0f5f61; border-color: rgba(15, 139, 141, 0.28); text-decoration: none; padding: 6px 12px; cursor: pointer; transition: background 0.2s;" onmouseover="this.style.background='rgba(15, 139, 141, 0.2)'" onmouseout="this.style.background='rgba(15, 139, 141, 0.1)'">Ouvrir lien du canal</a>
@@ -586,6 +610,31 @@
           <strong>{{ item.code }}</strong>
           <div>{{ item.intitule|default:"Sans intitule" }}</div>
         </a>
+      {% endfor %}
+    </div>
+  </section>
+{% endif %}
+
+{% if entity_type == "classe" %}
+  <section class="panel" id="presence-controls">
+    <div class="panel-head">
+      <div>
+        <strong>Contrôles de présence</strong>
+        <div class="row-meta">Accès direct aux contrôles créés pour cette classe.</div>
+      </div>
+      {% if presence_next_type %}
+        <button class="badge presence-action" type="button" data-presence-modal-open>Créer {{ presence_next_type }}</button>
+      {% endif %}
+    </div>
+    <div class="presence-control-links">
+      {% for control in presence_existing_controls %}
+        <a class="presence-control-card" href="{% url 'presence_control_detail' control.id %}">
+          <strong>{{ control.type_controle }} - {{ control.date|date:"d/m/Y" }}</strong>
+          <div class="row-meta">{{ control.presents|default:0 }}/{{ control.total|default:0 }} présent(s)</div>
+          <div>{{ control.theme|default:"-" }}</div>
+        </a>
+      {% empty %}
+        <div class="row-meta">Aucun contrôle créé pour le moment.</div>
       {% endfor %}
     </div>
   </section>

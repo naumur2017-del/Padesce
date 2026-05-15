@@ -2,73 +2,136 @@
 {% block title %}{{ control.type_controle }} - {{ classe.code }}{% endblock %}
 {% block content %}
 <style>
-  .shell { max-width: 1380px; margin: 0 auto; }
-  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 14px; box-shadow: var(--shadow); margin-bottom: 12px; }
-  .subtitle { color: var(--muted); }
-  .meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 8px; margin-top: 10px; }
-  .metric { border: 1px solid var(--border); border-radius: 8px; padding: 9px 10px; background: rgba(15,139,141,.05); }
-  .metric b { display: block; font-size: 1.05rem; }
-  .toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-  .toolbar input, .toolbar select { min-height: 38px; }
-  .table-wrap { overflow: auto; max-height: 560px; border: 1px solid var(--border); border-radius: 10px; }
-  table { width: 100%; border-collapse: collapse; min-width: 1180px; }
-  th, td { padding: 7px 8px; border: 1px solid var(--border); font-size: .88rem; vertical-align: middle; }
-  thead { background: rgba(15,139,141,.08); position: sticky; top: 0; z-index: 1; }
-  .pill { display: inline-block; padding: 4px 8px; border-radius: 999px; border: 1px solid var(--border); font-weight: 700; font-size: .78rem; }
-  .pill-pr { color: #116329; background: rgba(22,163,74,.12); border-color: rgba(22,163,74,.25); }
-  .pill-ab { color: #9a3412; background: rgba(249,115,22,.12); border-color: rgba(249,115,22,.25); }
-  .inline-form { display: inline-flex; gap: 5px; align-items: center; margin: 1px 0; }
+  .pc-page { max-width: 1440px; margin: 0 auto; display: grid; gap: 12px; }
+  .pc-hero,
+  .pc-panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: var(--shadow);
+  }
+  .pc-hero { padding: 16px; display: grid; gap: 14px; }
+  .pc-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+  .pc-title { margin: 0; color: var(--accent-strong); font-size: clamp(1.25rem, 2vw, 1.8rem); }
+  .pc-muted { color: var(--muted); font-size: .9rem; }
+  .pc-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(145px, 1fr)); gap: 8px; }
+  .pc-kpi {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px;
+    background: rgba(15,139,141,.05);
+  }
+  .pc-kpi span { display: block; color: var(--muted); font-size: .78rem; font-weight: 700; text-transform: uppercase; }
+  .pc-kpi strong { display: block; margin-top: 5px; color: var(--accent-strong); font-size: 1.18rem; }
+  .pc-panel { padding: 12px; }
+  .pc-toolbar { display: flex; gap: 8px; align-items: end; flex-wrap: wrap; }
+  .pc-toolbar form { display: flex; gap: 8px; align-items: end; flex-wrap: wrap; margin: 0; }
+  .pc-field { display: grid; gap: 4px; min-width: min(320px, 100%); }
+  .pc-field label { font-size: .78rem; font-weight: 800; color: var(--accent-strong); }
+  .pc-field input, .pc-field select { min-height: 38px; border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; background: white; }
+  .pc-btn {
+    min-height: 38px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    padding: 8px 12px;
+    font-weight: 800;
+    text-decoration: none;
+    cursor: pointer;
+    background: white;
+    color: var(--text);
+  }
+  .pc-btn.primary { background: var(--accent); border-color: var(--accent); color: white; }
+  .pc-btn.soft { background: rgba(15,139,141,.08); color: var(--accent-strong); border-color: rgba(15,139,141,.18); }
+  .pc-btn.warn { color: #92400e; background: rgba(234,179,8,.12); border-color: rgba(234,179,8,.24); }
+  .pc-btn:hover { transform: translateY(-1px); }
+  .pc-note { margin-top: 8px; padding: 9px 10px; border: 1px solid rgba(234,179,8,.24); border-radius: 8px; background: rgba(234,179,8,.08); color: #713f12; font-size: .88rem; }
+  .pc-table-wrap { overflow: auto; max-height: 590px; border: 1px solid var(--border); border-radius: 8px; }
+  .pc-table { width: 100%; min-width: 1180px; border-collapse: collapse; }
+  .pc-table th, .pc-table td { padding: 8px; border: 1px solid var(--border); font-size: .86rem; vertical-align: middle; }
+  .pc-table thead { background: rgba(15,139,141,.08); position: sticky; top: 0; z-index: 1; }
+  .pc-table th { color: var(--accent-strong); text-transform: uppercase; font-size: .74rem; letter-spacing: .03em; }
+  .pc-code { font-weight: 900; color: var(--accent-strong); }
+  .pc-pill { display: inline-flex; align-items: center; justify-content: center; min-width: 42px; padding: 4px 8px; border-radius: 999px; border: 1px solid var(--border); font-weight: 900; }
+  .pc-pill.pr { color: #166534; background: rgba(22,163,74,.12); border-color: rgba(22,163,74,.25); }
+  .pc-pill.ab { color: #991b1b; background: rgba(239,68,68,.1); border-color: rgba(239,68,68,.2); }
+  .pc-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+  .pc-inline { display: inline-flex; gap: 5px; align-items: center; margin: 0; }
+  .pc-inline select { min-height: 34px; border: 1px solid var(--border); border-radius: 8px; background: white; }
+  .pc-section-head { display: flex; justify-content: space-between; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
 </style>
 
-<div class="shell">
-  <div class="panel">
-    <h1 class="h4 mb-2">{{ control.type_controle }} - {{ classe.code }} - {{ classe.intitule_formation }}</h1>
-    <div class="subtitle">Date : {{ control.date|date:"d/m/Y" }} | Jour : {{ control.jour }} | Thème : {{ control.theme }}</div>
-    <div class="meta">
-      <div class="metric"><b>{{ stats.total|default:0 }}</b>Total</div>
-      <div class="metric"><b>{{ stats.presents|default:0 }}</b>Présents</div>
-      <div class="metric"><b>{{ stats.absents|default:0 }}</b>Absents</div>
-      <div class="metric"><b>{{ control.get_conformite_display|default:"-" }}</b>Conformité</div>
-      <div class="metric"><b>{{ control.heure_debut|time:"H:i" }} - {{ control.heure_fin|time:"H:i" }}</b>Horaire</div>
-      <div class="metric"><b>{% if control.teams_sent_at %}Envoyé{% else %}Non envoyé{% endif %}</b>Teams</div>
+<div class="pc-page">
+  <section class="pc-hero">
+    <div class="pc-top">
+      <div>
+        <div class="pc-muted">Gestion du contrôle de présence</div>
+        <h1 class="pc-title">{{ control.type_controle }} - {{ classe.code }}</h1>
+        <div class="pc-muted">{{ classe.intitule_formation }} | {{ control.date|date:"d/m/Y" }} | {{ control.jour }} | {{ control.theme }}</div>
+      </div>
+      <div class="pc-actions">
+        <a class="pc-btn soft" href="{% url 'class_analysis_detail' classe.code %}">Page classe</a>
+        <a class="pc-btn" href="{% url 'class_detail' classe.id %}#presence-controls">Gestion classe</a>
+      </div>
     </div>
-  </div>
 
-  <div class="panel">
-    <div class="toolbar">
-      <form method="post" class="toolbar">
+    <div class="pc-kpis">
+      <div class="pc-kpi"><span>Total</span><strong>{{ stats.total|default:0 }}</strong></div>
+      <div class="pc-kpi"><span>Présents</span><strong>{{ stats.presents|default:0 }}</strong></div>
+      <div class="pc-kpi"><span>Absents</span><strong>{{ stats.absents|default:0 }}</strong></div>
+      <div class="pc-kpi"><span>Conformité</span><strong>{{ control.get_conformite_display|default:"-" }}</strong></div>
+      <div class="pc-kpi"><span>Horaire</span><strong>{{ control.heure_debut|time:"H:i" }} - {{ control.heure_fin|time:"H:i" }}</strong></div>
+      <div class="pc-kpi"><span>Teams</span><strong>{% if control.teams_sent_at %}Envoyé{% else %}Non envoyé{% endif %}</strong></div>
+    </div>
+  </section>
+
+  <section class="pc-panel">
+    <div class="pc-toolbar">
+      <form method="post">
         {% csrf_token %}
         <input type="hidden" name="action" value="search">
-        <input type="search" name="q" value="{{ query }}" placeholder="Code ou nom apprenant" required>
-        <button class="btn btn-primary" type="submit">Rechercher / marquer code</button>
+        <div class="pc-field">
+          <label for="presence-search">Code apprenant</label>
+          <input id="presence-search" type="search" name="q" value="{{ query }}" placeholder="Scanner le code court, ex. 9GHB" required>
+        </div>
+        <button class="pc-btn primary" type="submit">Valider par code</button>
       </form>
-      <a class="btn btn-outline" href="{% url 'presence_control_export_csv' control.id %}">CSV</a>
-      <a class="btn btn-outline" href="{% url 'presence_control_export_xlsx' control.id %}">Excel</a>
+      <a class="pc-btn" href="{% url 'presence_control_export_csv' control.id %}">CSV</a>
+      <a class="pc-btn" href="{% url 'presence_control_export_xlsx' control.id %}">Excel</a>
       <form method="post" action="{% url 'presence_control_send_teams' control.id %}">
         {% csrf_token %}
-        <button class="btn btn-outline" type="submit">Envoyer Teams</button>
+        <button class="pc-btn warn" type="submit">Envoyer Teams</button>
       </form>
-      <a class="btn btn-outline" href="{% url 'class_detail' classe.id %}">Retour classe</a>
     </div>
     {% if control.teams_file_url %}
-      <div class="subtitle" style="margin-top:8px;">Dernier fichier Teams : <a href="{{ control.teams_file_url }}" target="_blank" rel="noopener noreferrer">{{ csv_filename }}</a></div>
+      <div class="pc-muted" style="margin-top:8px;">Dernier fichier Teams : <a href="{{ control.teams_file_url }}" target="_blank" rel="noopener noreferrer">{{ csv_filename }}</a></div>
+    {% else %}
+      <div class="pc-note">Si l'envoi Teams renvoie <strong>invalid_client</strong>, vérifiez que <code>MICROSOFT_GRAPH_CLIENT_SECRET</code> contient la valeur du secret Azure, pas son Secret ID.</div>
     {% endif %}
-  </div>
+  </section>
 
   {% if search_results %}
-    <div class="panel">
-      <h5>Résultats</h5>
-      <div class="table-wrap" style="max-height:260px;">
-        <table>
-          <thead><tr><th>Code</th><th>Nom</th><th>Téléphone</th><th>Action</th></tr></thead>
+    <section class="pc-panel">
+      <div class="pc-section-head">
+        <div>
+          <strong>Résultats de recherche</strong>
+          <div class="pc-muted">Le scan automatique accepte uniquement le code apprenant.</div>
+        </div>
+      </div>
+      <div class="pc-table-wrap" style="max-height:280px;">
+        <table class="pc-table">
+          <thead><tr><th>Code apprenant</th><th>Nom complet</th><th>Téléphone</th><th>Action</th></tr></thead>
           <tbody>
             {% for apprenant in search_results %}
               <tr>
-                <td>{{ apprenant.code }}</td>
+                <td class="pc-code">{{ apprenant.code }}</td>
                 <td>{{ apprenant.nom_complet }}</td>
                 <td>{{ apprenant.telephone1|default:"-" }}</td>
                 <td>
-                  <form method="post" class="inline-form">
+                  <form method="post" class="pc-inline">
                     {% csrf_token %}
                     <input type="hidden" name="action" value="mark_present">
                     <input type="hidden" name="apprenant_id" value="{{ apprenant.id }}">
@@ -78,7 +141,7 @@
                         <option value="{{ value }}">{{ label }}</option>
                       {% endfor %}
                     </select>
-                    <button class="btn btn-primary btn-sm" type="submit">Présent</button>
+                    <button class="pc-btn primary" type="submit">Présent</button>
                   </form>
                 </td>
               </tr>
@@ -86,72 +149,77 @@
           </tbody>
         </table>
       </div>
-    </div>
+    </section>
   {% endif %}
 
-  <div class="panel">
-    <div class="table-wrap">
-      <table>
+  <section class="pc-panel">
+    <div class="pc-section-head">
+      <div>
+        <strong>Feuille de présence</strong>
+        <div class="pc-muted">Code apprenant = code court à scanner, comme 9GHB.</div>
+      </div>
+      <div class="pc-muted">{{ xlsx_filename }}</div>
+    </div>
+    <div class="pc-table-wrap">
+      <table class="pc-table">
         <thead>
           <tr>
-            <th>ApprenantID</th>
-            <th>Nom</th>
+            <th>Code apprenant</th>
+            <th>Nom complet</th>
+            <th>Téléphone</th>
             <th>Présence</th>
             <th>Statut</th>
             <th>Moyen</th>
+            <th>Heure</th>
             <th>Date</th>
             <th>Jour</th>
-            <th>Heure</th>
-            <th>Thème</th>
-            <th>H. Début</th>
-            <th>H. Fin</th>
             <th>Conformité</th>
             <th>Type</th>
-            <th>Action</th>
+            <th>Actions</th>
           </tr>
         </thead>
         <tbody>
           {% for p in presences %}
             <tr>
-              <td>{{ p.apprenant.code }}</td>
+              <td class="pc-code">{{ p.apprenant.code }}</td>
               <td>{{ p.apprenant.nom_complet }}</td>
-              <td><span class="pill {% if p.presence == 'PR' %}pill-pr{% else %}pill-ab{% endif %}">{{ p.presence }}</span></td>
+              <td>{{ p.apprenant.telephone1|default:p.apprenant.telephone2|default:"-" }}</td>
+              <td><span class="pc-pill {% if p.presence == 'PR' %}pr{% else %}ab{% endif %}">{{ p.presence }}</span></td>
               <td>{{ p.get_statut_display }}</td>
               <td>{{ p.moyen_enregistrement|default:"" }}</td>
+              <td>{{ p.heure_presence|time:"H:i" }}</td>
               <td>{{ control.date|date:"d/m/Y" }}</td>
               <td>{{ control.jour }}</td>
-              <td>{{ p.heure_presence|time:"H:i" }}</td>
-              <td>{{ control.theme }}</td>
-              <td>{{ control.heure_debut|time:"H:i" }}</td>
-              <td>{{ control.heure_fin|time:"H:i" }}</td>
               <td>{{ control.get_conformite_display|default:"" }}</td>
               <td>{{ control.type_controle }}</td>
               <td>
-                <form method="post" class="inline-form">
-                  {% csrf_token %}
-                  <input type="hidden" name="action" value="mark_present">
-                  <input type="hidden" name="apprenant_id" value="{{ p.apprenant.id }}">
-                  <select name="moyen">
-                    <option value="P">P</option>
-                    <option value="R">R</option>
-                    <option value="C">C</option>
-                  </select>
-                  <button class="btn btn-primary btn-sm" type="submit">PR</button>
-                </form>
-                <form method="post" class="inline-form">
-                  {% csrf_token %}
-                  <input type="hidden" name="action" value="mark_absent">
-                  <input type="hidden" name="apprenant_id" value="{{ p.apprenant.id }}">
-                  <button class="btn btn-outline btn-sm" type="submit">AB</button>
-                </form>
+                <div class="pc-actions">
+                  <form method="post" class="pc-inline">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="mark_present">
+                    <input type="hidden" name="apprenant_id" value="{{ p.apprenant.id }}">
+                    <select name="moyen">
+                      <option value="P">P</option>
+                      <option value="R">R</option>
+                      <option value="C">C</option>
+                    </select>
+                    <button class="pc-btn primary" type="submit">PR</button>
+                  </form>
+                  <form method="post" class="pc-inline">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="mark_absent">
+                    <input type="hidden" name="apprenant_id" value="{{ p.apprenant.id }}">
+                    <button class="pc-btn" type="submit">AB</button>
+                  </form>
+                </div>
               </td>
             </tr>
           {% empty %}
-            <tr><td colspan="14" style="text-align:center; color:var(--muted);">Aucun apprenant.</td></tr>
+            <tr><td colspan="12" style="text-align:center; color:var(--muted);">Aucun apprenant dans ce contrôle.</td></tr>
           {% endfor %}
         </tbody>
       </table>
     </div>
-  </div>
+  </section>
 </div>
 {% endblock %}

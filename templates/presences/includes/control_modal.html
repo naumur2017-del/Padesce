@@ -127,7 +127,7 @@
         <div class="pc-row">
           <div class="pc-field pc-grow">
             <label for="presence-code-search">Code apprenant</label>
-            <input id="presence-code-search" type="search" placeholder="Scanner ou saisir le code">
+            <input id="presence-code-search" type="search" placeholder="Scanner le code court, ex. 9GHB">
           </div>
           <button class="pc-btn soft" type="button" id="presence-code-validate">Valider présence par code</button>
           <button class="pc-btn primary" type="button" id="presence-session-validate">Valider paramètres</button>
@@ -381,9 +381,9 @@
       if (!validateSession()) return;
       const q = (codeSearch.value || "").trim().toLowerCase();
       if (!q) return;
-      const learner = learners.find((item) => [item.code, item.numero, item.apprenant_id].some((value) => String(value || "").toLowerCase() === q));
+      const learner = learners.find((item) => String(item.code || "").toLowerCase() === q);
       if (!learner) {
-        alert("Aucun apprenant ne correspond exactement à ce code.");
+        alert("Aucun apprenant ne correspond exactement à ce code apprenant.");
         return;
       }
       mark(learner, "C");

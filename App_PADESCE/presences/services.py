@@ -223,7 +223,18 @@ def _graph_token() -> str:
         timeout=30,
     )
     if response.status_code >= 400:
-        raise TeamsSendError(f"Token Graph refuse: {response.status_code} {response.text[:300]}")
+        detail = response.text[:300]
+        try:
+            payload = response.json()
+        except ValueError:
+            payload = {}
+        description = str(payload.get("error_description") or "")
+        if "AADSTS7000215" in description or "Invalid client secret" in description:
+            detail = (
+                "Secret Microsoft Graph invalide. Dans Azure, copiez la valeur du "
+                "client secret dans MICROSOFT_GRAPH_CLIENT_SECRET, pas le Secret ID."
+            )
+        raise TeamsSendError(f"Token Graph refuse: {response.status_code} {detail}")
     token = response.json().get("access_token")
     if not token:
         raise TeamsSendError("Token Graph absent dans la reponse.")
