@@ -192,6 +192,22 @@
     const count = document.getElementById("presence-count");
     const mini = document.getElementById("presence-manual-modal");
     const miniName = document.getElementById("presence-manual-name");
+    const sessionFieldIds = [
+      "presence-inspecteur",
+      "presence-theme",
+      "presence-date",
+      "presence-debut",
+      "presence-fin",
+      "presence-conformite",
+      "presence-type",
+      "presence-duree",
+      "presence-formateur1",
+      "presence-formateur1-tel",
+      "presence-formateur2",
+      "presence-formateur2-tel",
+      "presence-formateur3",
+      "presence-formateur3-tel",
+    ];
     const columns = [
       ["apprenant_id", "Apprenant ID"],
       ["nom_complet", "Nom complet"],
@@ -354,6 +370,12 @@
     document.querySelectorAll("[data-presence-modal-close]").forEach((button) => button.addEventListener("click", closeModal));
     modal.addEventListener("click", (event) => { if (event.target === modal) closeModal(); });
     document.getElementById("presence-session-validate")?.addEventListener("click", validateSession);
+    sessionFieldIds.forEach((id) => {
+      const field = document.getElementById(id);
+      if (!field) return;
+      field.addEventListener("input", () => { if (tableSection.open) render(); });
+      field.addEventListener("change", () => { if (tableSection.open) render(); });
+    });
     nameSearch?.addEventListener("input", render);
     document.getElementById("presence-code-validate")?.addEventListener("click", () => {
       if (!validateSession()) return;

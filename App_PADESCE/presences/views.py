@@ -114,7 +114,7 @@ def _set_apprenant_control_marker(
 
 
 def _seed_presence_rows(control: PresenceControl) -> int:
-    apprenants = list(control.classe.apprenants.filter(actif=True).order_by("nom_complet", "code"))
+    apprenants = list(control.classe.apprenants.all().order_by("nom_complet", "code"))
     rows = [
         Presence(
             controle=control,
@@ -200,7 +200,7 @@ def _apply_creation_marks(control: PresenceControl, raw_marks: str) -> int:
         if moyen not in {"C", "P", "R"}:
             continue
         apprenant = (
-            control.classe.apprenants.filter(pk=apprenant_id, actif=True)
+            control.classe.apprenants.filter(pk=apprenant_id)
             .only("id", "classe_id")
             .first()
         )
@@ -244,7 +244,7 @@ def _search_control_apprenants(control: PresenceControl, query: str):
     if not clean_query:
         return Apprenant.objects.none()
     return (
-        control.classe.apprenants.filter(actif=True)
+        control.classe.apprenants.all()
         .filter(
             Q(code__icontains=clean_query)
             | Q(numero__icontains=clean_query)
@@ -260,7 +260,7 @@ def _exact_code_match(control: PresenceControl, query: str):
     if not clean_query:
         return None
     matches = list(
-        control.classe.apprenants.filter(actif=True)
+        control.classe.apprenants.all()
         .filter(Q(code__iexact=clean_query) | Q(numero__iexact=clean_query))
         .order_by("nom_complet", "code")[:2]
     )
@@ -327,7 +327,7 @@ def presence_control_detail(request, pk: int):
                 messages.warning(request, "Aucun apprenant trouvé pour cette recherche.")
         elif action == "mark_present":
             apprenant = get_object_or_404(
-                Apprenant, pk=request.POST.get("apprenant_id"), classe=control.classe, actif=True
+                Apprenant, pk=request.POST.get("apprenant_id"), classe=control.classe
             )
             moyen = request.POST.get("moyen", "")
             if moyen not in {"P", "R", "C"}:
@@ -338,7 +338,7 @@ def presence_control_detail(request, pk: int):
                 return redirect("presence_control_detail", pk=control.pk)
         elif action == "mark_absent":
             apprenant = get_object_or_404(
-                Apprenant, pk=request.POST.get("apprenant_id"), classe=control.classe, actif=True
+                Apprenant, pk=request.POST.get("apprenant_id"), classe=control.classe
             )
             _mark_absent(control, apprenant)
             messages.success(request, f"{apprenant.nom_complet} remis absent.")

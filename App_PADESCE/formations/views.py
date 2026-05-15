@@ -491,7 +491,7 @@ def _presence_control_apprenant_payload(classe: Classe) -> list[dict]:
         )
 
     rows = []
-    apprenants = classe.apprenants.filter(actif=True).select_related("formation", "classe")
+    apprenants = classe.apprenants.all().select_related("formation", "classe")
     for apprenant in apprenants.order_by("nom_complet", "code"):
         formation = getattr(apprenant, "formation", None) or getattr(classe, "formation", None)
         type_formation = (
