@@ -1,0 +1,309 @@
+{% if presence_control_enabled and presence_next_type %}
+<style>
+  .pc-modal[hidden], .pc-mini-modal[hidden] { display: none; }
+  .pc-modal {
+    position: fixed; inset: 0; z-index: 70; display: flex; align-items: center; justify-content: center;
+    background: rgba(0,0,0,.42); padding: 18px;
+  }
+  .pc-dialog {
+    width: min(1180px, 100%); max-height: 94vh; overflow: auto; background: var(--panel);
+    border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow); padding: 16px;
+  }
+  .pc-section {
+    border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; margin-top: 10px;
+    background: rgba(255,255,255,.72);
+  }
+  .pc-section summary { cursor: pointer; font-weight: 800; color: var(--accent-strong); }
+  .pc-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(205px, 1fr)); gap: 10px; margin-top: 10px; }
+  .pc-field { display: flex; flex-direction: column; gap: 4px; }
+  .pc-field label { font-size: .84rem; font-weight: 700; }
+  .pc-field input, .pc-field select { width: 100%; min-height: 38px; }
+  .pc-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: end; margin-top: 10px; }
+  .pc-grow { flex: 1 1 240px; }
+  .pc-btn {
+    border: 1px solid var(--border); border-radius: 999px; padding: 8px 12px; font-weight: 800;
+    cursor: pointer; background: var(--panel); color: var(--text);
+  }
+  .pc-btn.primary { background: var(--accent); border-color: var(--accent); color: white; }
+  .pc-btn.soft { background: rgba(15,139,141,.1); color: var(--accent-strong); }
+  .pc-table-wrap { max-height: 390px; overflow: auto; border: 1px solid var(--border); border-radius: 10px; margin-top: 10px; }
+  .pc-table { width: 100%; border-collapse: collapse; min-width: 920px; }
+  .pc-table th, .pc-table td { padding: 7px 8px; border: 1px solid var(--border); font-size: .86rem; }
+  .pc-table tbody tr { cursor: pointer; }
+  .pc-table tbody tr:hover { background: rgba(15,139,141,.06); }
+  .pc-status { font-weight: 800; }
+  .pc-status.present { color: #166534; }
+  .pc-status.absent { color: #991b1b; }
+  .pc-footer { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+  .pc-mini-modal {
+    position: fixed; inset: 0; z-index: 80; display: flex; align-items: center; justify-content: center;
+    background: rgba(0,0,0,.35); padding: 16px;
+  }
+  .pc-mini-dialog { width: min(420px, 100%); background: var(--panel); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow); padding: 14px; }
+</style>
+
+{{ presence_control_apprenants|json_script:"presence-control-apprenants" }}
+<div class="pc-modal" id="presence-modal" hidden>
+  <div class="pc-dialog" role="dialog" aria-modal="true" aria-labelledby="presence-modal-title">
+    <h3 id="presence-modal-title" style="margin:0;">Contrôle de présence - {{ classe.code }}</h3>
+    <form method="post" action="{% url 'presence_control_create' classe.id %}" id="presence-control-form">
+      {% csrf_token %}
+      <input type="hidden" name="presence_marks_json" id="presence-marks-json" value="{}">
+
+      <details class="pc-section" open>
+        <summary>Paramètres de la séance</summary>
+        <div class="pc-grid">
+          <div class="pc-field">
+            <label for="presence-inspecteur">Inspecteur</label>
+            <select id="presence-inspecteur" name="inspecteur">
+              <option value="">-</option>
+              {% for inspecteur in inspecteurs %}
+                <option value="{{ inspecteur.id }}">{{ inspecteur.code }} - {{ inspecteur.nom_complet }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="pc-field">
+            <label for="presence-theme">Thème de la séance</label>
+            <input id="presence-theme" name="theme" type="text" required>
+          </div>
+          <div class="pc-field">
+            <label for="presence-date">Date</label>
+            <input id="presence-date" name="date" type="date" value="{{ presence_default_date|date:'Y-m-d' }}" required>
+          </div>
+          <div class="pc-field">
+            <label for="presence-debut">H. début</label>
+            <input id="presence-debut" name="heure_debut" type="time" required>
+          </div>
+          <div class="pc-field">
+            <label for="presence-fin">H. fin</label>
+            <input id="presence-fin" name="heure_fin" type="time" required>
+          </div>
+          <div class="pc-field">
+            <label for="presence-conformite">Conformité</label>
+            <select id="presence-conformite" name="conformite" required>
+              <option value="">-</option>
+              <option value="conforme">Conforme</option>
+              <option value="non_conforme">Non Conforme</option>
+            </select>
+          </div>
+          <div class="pc-field">
+            <label for="presence-type">Type de contrôle</label>
+            <select id="presence-type" name="type_controle" required>
+              {% for control_type in presence_control_type_choices %}
+                <option value="{{ control_type }}" {% if control_type == presence_next_type %}selected{% endif %}>{{ control_type }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="pc-field">
+            <label for="presence-duree">Durée prévue</label>
+            <input id="presence-duree" name="duree_prevue_formation" type="number" min="0" step="0.01" value="{{ presence_default_duration|default:'' }}">
+          </div>
+          <div class="pc-field">
+            <label for="presence-formateur1">Formateur 1</label>
+            <input id="presence-formateur1" name="formateur1_nom" type="text" value="{{ presence_default_formateur.nom_complet|default:'' }}">
+          </div>
+          <div class="pc-field">
+            <label for="presence-formateur1-tel">Téléphone formateur 1</label>
+            <input id="presence-formateur1-tel" name="formateur1_telephone" type="text" value="{{ presence_default_formateur.telephone|default:'' }}">
+          </div>
+          <div class="pc-field">
+            <label for="presence-formateur2">Formateur 2</label>
+            <input id="presence-formateur2" name="formateur2_nom" type="text">
+          </div>
+          <div class="pc-field">
+            <label for="presence-formateur2-tel">Téléphone formateur 2</label>
+            <input id="presence-formateur2-tel" name="formateur2_telephone" type="text">
+          </div>
+          <div class="pc-field">
+            <label for="presence-formateur3">Formateur 3</label>
+            <input id="presence-formateur3" name="formateur3_nom" type="text">
+          </div>
+          <div class="pc-field">
+            <label for="presence-formateur3-tel">Téléphone formateur 3</label>
+            <input id="presence-formateur3-tel" name="formateur3_telephone" type="text">
+          </div>
+        </div>
+        <div class="pc-row">
+          <div class="pc-field pc-grow">
+            <label for="presence-code-search">Code apprenant</label>
+            <input id="presence-code-search" type="search" placeholder="Scanner ou saisir le code">
+          </div>
+          <button class="pc-btn soft" type="button" id="presence-code-validate">Valider présence par code</button>
+          <button class="pc-btn primary" type="button" id="presence-session-validate">Valider paramètres</button>
+        </div>
+      </details>
+
+      <details class="pc-section" id="presence-table-section">
+        <summary>Table dynamique des apprenants</summary>
+        <div class="pc-row">
+          <div class="pc-field pc-grow">
+            <label for="presence-name-search">Recherche par nom</label>
+            <input id="presence-name-search" type="search" placeholder="Nom, code ou téléphone">
+          </div>
+          <span id="presence-count" class="pc-status absent">0 présence validée</span>
+        </div>
+        <div class="pc-table-wrap">
+          <table class="pc-table">
+            <thead>
+              <tr>
+                <th>Uploader</th><th>Apprenant ID</th><th>Nom</th><th>Téléphone</th><th>Genre</th><th>Fonction</th><th>Présence</th><th>Moyen</th><th>Heure</th>
+              </tr>
+            </thead>
+            <tbody id="presence-learners-body"></tbody>
+          </table>
+        </div>
+      </details>
+
+      <div class="pc-footer">
+        <button class="pc-btn" type="button" data-presence-modal-close>Annuler</button>
+        <button class="pc-btn primary" type="submit">Créer le contrôle</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="pc-mini-modal" id="presence-manual-modal" hidden>
+  <div class="pc-mini-dialog">
+    <h4 style="margin:0 0 8px 0;">Validation manuelle</h4>
+    <div id="presence-manual-name" style="font-weight:800;margin-bottom:10px;"></div>
+    <div class="pc-row">
+      <button class="pc-btn soft" type="button" data-presence-manual="P">Papier (P)</button>
+      <button class="pc-btn soft" type="button" data-presence-manual="R">Rien (R)</button>
+      <button class="pc-btn" type="button" id="presence-manual-cancel">Annuler</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function() {
+    const modal = document.getElementById("presence-modal");
+    if (!modal) return;
+    const learners = JSON.parse(document.getElementById("presence-control-apprenants")?.textContent || "[]");
+    const byId = new Map(learners.map((learner) => [String(learner.id), learner]));
+    const marks = {};
+    let sessionSummary = "";
+    let selectedLearnerId = "";
+
+    const form = document.getElementById("presence-control-form");
+    const hiddenMarks = document.getElementById("presence-marks-json");
+    const tbody = document.getElementById("presence-learners-body");
+    const tableSection = document.getElementById("presence-table-section");
+    const nameSearch = document.getElementById("presence-name-search");
+    const codeSearch = document.getElementById("presence-code-search");
+    const count = document.getElementById("presence-count");
+    const mini = document.getElementById("presence-manual-modal");
+    const miniName = document.getElementById("presence-manual-name");
+
+    function escapeHtml(value) {
+      return String(value || "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char]));
+    }
+    function nowTime() {
+      return new Date().toTimeString().slice(0, 5);
+    }
+    function fieldValue(id) {
+      return document.getElementById(id)?.value || "";
+    }
+    function sessionText() {
+      const inspecteur = document.getElementById("presence-inspecteur");
+      const inspecteurText = inspecteur?.options[inspecteur.selectedIndex]?.textContent?.trim() || "-";
+      return [
+        "{{ classe.code }}",
+        fieldValue("presence-type") || "-",
+        fieldValue("presence-date") || "-",
+        `${fieldValue("presence-debut") || "-"}-${fieldValue("presence-fin") || "-"}`,
+        inspecteurText,
+        fieldValue("presence-theme") || "-",
+      ].join(" | ");
+    }
+    function validateSession() {
+      if (!form.reportValidity()) return false;
+      sessionSummary = sessionText();
+      tableSection.open = true;
+      render();
+      return true;
+    }
+    function syncMarks() {
+      hiddenMarks.value = JSON.stringify(marks);
+      const total = Object.keys(marks).length;
+      count.textContent = `${total} présence${total > 1 ? "s" : ""} validée${total > 1 ? "s" : ""}`;
+      count.classList.toggle("present", total > 0);
+      count.classList.toggle("absent", total === 0);
+    }
+    function mark(learner, moyen) {
+      if (!learner) return;
+      marks[String(learner.id)] = { moyen, heure: nowTime() };
+      syncMarks();
+      render();
+    }
+    function filteredLearners() {
+      const q = (nameSearch?.value || "").trim().toLowerCase();
+      if (!q) return learners;
+      return learners.filter((learner) => [learner.nom, learner.code, learner.numero, learner.apprenant_id, learner.telephone].join(" ").toLowerCase().includes(q));
+    }
+    function render() {
+      tbody.innerHTML = filteredLearners().map((learner) => {
+        const item = marks[String(learner.id)];
+        const present = Boolean(item);
+        return `<tr data-learner-id="${learner.id}">
+          <td>${escapeHtml(sessionSummary || "Paramètres non validés")}</td>
+          <td>${escapeHtml(learner.apprenant_id || learner.code || learner.numero || "-")}</td>
+          <td><strong>${escapeHtml(learner.nom || "-")}</strong></td>
+          <td>${escapeHtml(learner.telephone || "-")}</td>
+          <td>${escapeHtml(learner.genre || "-")}</td>
+          <td>${escapeHtml(learner.fonction || "-")}</td>
+          <td class="pc-status ${present ? "present" : "absent"}">${present ? "PR" : "AB"}</td>
+          <td>${present ? escapeHtml(item.moyen) : ""}</td>
+          <td>${present ? escapeHtml(item.heure) : ""}</td>
+        </tr>`;
+      }).join("");
+    }
+    function openModal() {
+      modal.hidden = false;
+      render();
+      document.getElementById("presence-theme")?.focus();
+    }
+    function closeModal() {
+      modal.hidden = true;
+    }
+
+    document.querySelectorAll("[data-presence-modal-open]").forEach((button) => button.addEventListener("click", openModal));
+    document.querySelectorAll("[data-presence-modal-close]").forEach((button) => button.addEventListener("click", closeModal));
+    modal.addEventListener("click", (event) => { if (event.target === modal) closeModal(); });
+    document.getElementById("presence-session-validate")?.addEventListener("click", validateSession);
+    nameSearch?.addEventListener("input", render);
+    document.getElementById("presence-code-validate")?.addEventListener("click", () => {
+      if (!validateSession()) return;
+      const q = (codeSearch.value || "").trim().toLowerCase();
+      const learner = learners.find((item) => [item.code, item.numero, item.apprenant_id].some((value) => String(value || "").toLowerCase() === q));
+      if (!learner) {
+        alert("Aucun apprenant ne correspond exactement à ce code.");
+        return;
+      }
+      mark(learner, "C");
+      codeSearch.value = "";
+    });
+    tbody.addEventListener("click", (event) => {
+      const row = event.target.closest("tr[data-learner-id]");
+      if (!row || marks[row.dataset.learnerId]) return;
+      if (!validateSession()) return;
+      selectedLearnerId = row.dataset.learnerId;
+      const learner = byId.get(selectedLearnerId);
+      miniName.textContent = learner ? learner.nom : "";
+      mini.hidden = false;
+    });
+    document.querySelectorAll("[data-presence-manual]").forEach((button) => {
+      button.addEventListener("click", () => {
+        mark(byId.get(selectedLearnerId), button.dataset.presenceManual);
+        mini.hidden = true;
+      });
+    });
+    document.getElementById("presence-manual-cancel")?.addEventListener("click", () => { mini.hidden = true; });
+    form.addEventListener("submit", (event) => {
+      if (!validateSession()) event.preventDefault();
+      syncMarks();
+    });
+    syncMarks();
+    render();
+  })();
+</script>
+{% endif %}

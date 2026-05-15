@@ -1,3 +1,4 @@
+import json
 from datetime import date, time
 
 from django.contrib.auth import get_user_model
@@ -32,7 +33,9 @@ class PresenceControlTests(TestCase):
             duree_prevue_heures=24,
         )
         self.lieu = Lieu.objects.create(code="LIE001", nom_lieu="Salle A", ville="Yaounde")
-        self.inspecteur = Inspecteur.objects.create(code="INS001", nom_complet="Inspecteur Un")
+        self.inspecteur, _ = Inspecteur.objects.update_or_create(
+            code="INS001", defaults={"nom_complet": "Inspecteur Un"}
+        )
         self.classe = Classe.objects.create(
             code="CLA001",
             prestation=self.prestation,
@@ -91,6 +94,38 @@ class PresenceControlTests(TestCase):
         self.assertEqual(set(control.presences.values_list("presence", flat=True)), {"AB"})
         self.apprenant.refresh_from_db()
         self.assertEqual(self.apprenant.c1, "AB")
+
+    def test_create_control_applies_modal_presence_marks(self):
+        response = self.client.post(
+            reverse("presence_control_create", args=[self.classe.id]),
+            {
+                "inspecteur": self.inspecteur.id,
+                "theme": "Controle initial",
+                "date": "2026-05-11",
+                "heure_debut": "08:00",
+                "heure_fin": "10:00",
+                "conformite": "conforme",
+                "type_controle": "C1",
+                "duree_prevue_formation": "24",
+                "presence_marks_json": json.dumps(
+                    {
+                        str(self.apprenant.id): {"moyen": "C", "heure": "08:12"},
+                        str(self.second.id): {"moyen": "P", "heure": "08:20"},
+                    }
+                ),
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        control = PresenceControl.objects.get(type_controle="C1")
+        first_presence = Presence.objects.get(controle=control, apprenant=self.apprenant)
+        second_presence = Presence.objects.get(controle=control, apprenant=self.second)
+        self.assertEqual(first_presence.presence, "PR")
+        self.assertEqual(first_presence.moyen_enregistrement, "C")
+        self.assertEqual(first_presence.heure_presence, time(8, 12))
+        self.assertEqual(second_presence.presence, "PR")
+        self.assertEqual(second_presence.moyen_enregistrement, "P")
+        self.assertEqual(second_presence.heure_presence, time(8, 20))
 
     def test_exact_code_search_marks_present_with_code_moyen(self):
         control = self._create_control()

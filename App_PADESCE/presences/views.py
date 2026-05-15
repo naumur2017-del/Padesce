@@ -1,5 +1,7 @@
 import csv
+import json
 from datetime import date as date_cls
+from datetime import time as time_cls
 
 from django.contrib import messages
 from django.core.paginator import Paginator
@@ -145,7 +147,16 @@ def _seed_presence_rows(control: PresenceControl) -> int:
     return len(apprenants)
 
 
-def _mark_presence(control: PresenceControl, apprenant: Apprenant, moyen: str = "C") -> Presence:
+def _parse_presence_time(value: str):
+    try:
+        return time_cls.fromisoformat(str(value or "").strip()).replace(microsecond=0)
+    except ValueError:
+        return None
+
+
+def _mark_presence(
+    control: PresenceControl, apprenant: Apprenant, moyen: str = "C", heure_presence=None
+) -> Presence:
     presence, _created = Presence.objects.get_or_create(
         controle=control,
         apprenant=apprenant,
@@ -167,10 +178,37 @@ def _mark_presence(control: PresenceControl, apprenant: Apprenant, moyen: str = 
     presence.presence = "PR"
     presence.statut = "present"
     presence.moyen_enregistrement = moyen
-    presence.heure_presence = timezone.localtime().time().replace(microsecond=0)
+    presence.heure_presence = heure_presence or timezone.localtime().time().replace(microsecond=0)
     presence.save()
     _set_apprenant_control_marker(apprenant, control, "PR")
     return presence
+
+
+def _apply_creation_marks(control: PresenceControl, raw_marks: str) -> int:
+    try:
+        payload = json.loads(raw_marks or "{}")
+    except (TypeError, ValueError):
+        return 0
+    if not isinstance(payload, dict):
+        return 0
+
+    applied = 0
+    for apprenant_id, mark in payload.items():
+        if not isinstance(mark, dict):
+            continue
+        moyen = str(mark.get("moyen") or "").strip().upper()
+        if moyen not in {"C", "P", "R"}:
+            continue
+        apprenant = (
+            control.classe.apprenants.filter(pk=apprenant_id, actif=True)
+            .only("id", "classe_id")
+            .first()
+        )
+        if not apprenant:
+            continue
+        _mark_presence(control, apprenant, moyen, _parse_presence_time(mark.get("heure")))
+        applied += 1
+    return applied
 
 
 def _mark_absent(control: PresenceControl, apprenant: Apprenant) -> Presence:
@@ -244,9 +282,15 @@ def presence_control_create(request, classe_id: int):
                     control.enqueteur = request.user
                 control.save()
                 count = _seed_presence_rows(control)
+                applied = _apply_creation_marks(
+                    control, request.POST.get("presence_marks_json", "")
+                )
             messages.success(
                 request,
-                f"Contrôle {control.type_controle} créé avec {count} apprenant(s) en AB par défaut.",
+                (
+                    f"Contrôle {control.type_controle} créé avec {count} apprenant(s) en AB "
+                    f"par défaut et {applied} présence(s) validée(s)."
+                ),
             )
             return redirect("presence_control_detail", pk=control.pk)
     else:

@@ -475,6 +475,50 @@ def _class_channel_workbook_path() -> Path:
     return candidates[0]
 
 
+def _presence_control_apprenant_payload(classe: Classe) -> list[dict]:
+    if not getattr(classe, "pk", None):
+        return []
+    rows = []
+    for apprenant in classe.apprenants.filter(actif=True).order_by("nom_complet", "code"):
+        rows.append(
+            {
+                "id": apprenant.pk,
+                "code": apprenant.code or "",
+                "numero": apprenant.numero or "",
+                "apprenant_id": get_local_apprenant_identifier(apprenant),
+                "nom": apprenant.nom_complet or "",
+                "telephone": apprenant.telephone1 or "",
+                "genre": apprenant.genre or "",
+                "fonction": apprenant.fonction or "",
+                "qualification": apprenant.qualification or "",
+            }
+        )
+    return rows
+
+
+def _presence_control_modal_context(classe: Classe) -> dict:
+    enabled = bool(getattr(classe, "pk", None))
+    if enabled:
+        used = set(
+            PresenceControl.objects.filter(classe=classe).values_list("type_controle", flat=True)
+        )
+        choices = [f"C{index}" for index in range(1, 7) if f"C{index}" not in used]
+    else:
+        choices = []
+    return {
+        "presence_control_enabled": enabled,
+        "inspecteurs": Inspecteur.objects.filter(actif=True).order_by("code", "nom_complet"),
+        "presence_control_type_choices": choices,
+        "presence_next_type": choices[0] if choices else "",
+        "presence_default_date": date_cls.today(),
+        "presence_default_duration": getattr(
+            getattr(classe, "prestation", None), "duree_prevue_heures", ""
+        ),
+        "presence_default_formateur": getattr(classe, "formateur", None),
+        "presence_control_apprenants": _presence_control_apprenant_payload(classe),
+    }
+
+
 def _analysis_source_record_for_appel(source_bundle: dict | None, appel: Appel) -> dict:
     if not source_bundle:
         return {}
@@ -1099,13 +1143,7 @@ def class_detail(request, pk: int):
     from App_PADESCE.satisfaction_apprenants.sharepoint_csv_links import SHAREPOINT_CSV_LINKS
 
     sharepoint_csv_url = SHAREPOINT_CSV_LINKS.get(classe.code.upper(), "")
-    used_presence_controls = set(
-        PresenceControl.objects.filter(classe=classe).values_list("type_controle", flat=True)
-    )
-    presence_control_type_choices = [
-        f"C{index}" for index in range(1, 7) if f"C{index}" not in used_presence_controls
-    ]
-    presence_next_type = presence_control_type_choices[0] if presence_control_type_choices else ""
+    presence_modal_context = _presence_control_modal_context(classe)
 
     return render(
         request,
@@ -1116,12 +1154,7 @@ def class_detail(request, pk: int):
             "apprenants": apprenants,
             "channel_link": channel_link,
             "sharepoint_csv_url": sharepoint_csv_url,
-            "inspecteurs": Inspecteur.objects.filter(actif=True).order_by("nom_complet"),
-            "presence_control_type_choices": presence_control_type_choices,
-            "presence_next_type": presence_next_type,
-            "presence_default_date": date_cls.today(),
-            "presence_default_duration": classe.prestation.duree_prevue_heures,
-            "presence_default_formateur": classe.formateur,
+            **presence_modal_context,
         },
     )
 
@@ -1355,17 +1388,7 @@ def class_analysis_detail(request, code: str):
     from App_PADESCE.satisfaction_apprenants.sharepoint_csv_links import SHAREPOINT_CSV_LINKS
 
     sharepoint_csv_url = SHAREPOINT_CSV_LINKS.get(code.upper(), "")
-    presence_control_enabled = bool(getattr(classe, "pk", None))
-    if presence_control_enabled:
-        used_presence_controls = set(
-            PresenceControl.objects.filter(classe=classe).values_list("type_controle", flat=True)
-        )
-        presence_control_type_choices = [
-            f"C{index}" for index in range(1, 7) if f"C{index}" not in used_presence_controls
-        ]
-    else:
-        presence_control_type_choices = []
-    presence_next_type = presence_control_type_choices[0] if presence_control_type_choices else ""
+    presence_modal_context = _presence_control_modal_context(classe)
 
     return render(
         request,
@@ -1391,15 +1414,7 @@ def class_analysis_detail(request, code: str):
             "reference_warning": reference_warning,
             "channel_link": channel_link,
             "sharepoint_csv_url": sharepoint_csv_url,
-            "presence_control_enabled": presence_control_enabled,
-            "inspecteurs": Inspecteur.objects.filter(actif=True).order_by("nom_complet"),
-            "presence_control_type_choices": presence_control_type_choices,
-            "presence_next_type": presence_next_type,
-            "presence_default_date": date_cls.today(),
-            "presence_default_duration": getattr(
-                getattr(classe, "prestation", None), "duree_prevue_heures", ""
-            ),
-            "presence_default_formateur": getattr(classe, "formateur", None),
+            **presence_modal_context,
         },
     )
 
