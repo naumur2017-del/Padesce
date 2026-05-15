@@ -219,9 +219,9 @@ def _database_settings_from_env() -> dict:
         }
 
     sqlite_path = str(os.getenv("SQLITE_PATH", "") or os.getenv("SQLITE_NAME", "") or "").strip()
-    sqlite_name = Path(sqlite_path) if sqlite_path else BASE_DIR / "db.sqlite3"
+    sqlite_name = Path(sqlite_path) if sqlite_path else Path("c:/Users/LENOVO/Downloads/backup_20260511_114638.sqlite3")
     if not sqlite_name.is_absolute():
-        sqlite_name = BASE_DIR / sqlite_name
+        sqlite_name = Path(sqlite_path)
 
     return {
         "ENGINE": "django.db.backends.sqlite3",
