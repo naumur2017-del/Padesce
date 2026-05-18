@@ -606,7 +606,7 @@ def _presence_control_modal_context(classe: Classe, request=None) -> dict:
         choices = []
     can_create = _presence_control_can_create(request) if request is not None else True
     return {
-        "presence_control_enabled": enabled and can_create,
+        "presence_control_enabled": enabled,
         "presence_control_can_create": can_create,
         "presence_existing_controls": controls,
         "presence_latest_control": controls[-1] if controls else None,

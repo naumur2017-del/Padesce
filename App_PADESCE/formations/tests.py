@@ -9,6 +9,7 @@ from django.test import TestCase, override_settings
 from django.urls import reverse
 
 from App_PADESCE.appels.models import Appel, AppelAnswers, AppelFormateur
+from App_PADESCE.apprenants.models import Apprenant
 from App_PADESCE.formations.models import (
     Beneficiaire,
     Classe,
@@ -184,6 +185,30 @@ class AnalysisEntityDetailTests(TestCase):
             response,
             reverse("analysis_formateur_call_detail", args=[self.formateur_call.pk]),
         )
+
+    @override_settings(
+        STORAGES={
+            "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+            "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
+        }
+    )
+    def test_class_analysis_detail_renders_existing_presence_markers_without_control(self):
+        Apprenant.objects.create(
+            code="APP-MARKER-001",
+            numero="APP-MARKER-001",
+            classe=self.secondary_class,
+            formation=self.formation,
+            nom_complet="Apprenant Marque",
+            c1="PR",
+        )
+
+        response = self.client.get(
+            reverse("class_analysis_detail", args=[self.secondary_class.code])
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "C1 - données existantes")
+        self.assertContains(response, "Jumeler et ouvrir")
 
     def test_class_analysis_detail_renders_verified_presence_chapeau_calculations(self):
         second_call = Appel.objects.create(

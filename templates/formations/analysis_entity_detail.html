@@ -423,12 +423,14 @@
       <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 4px;">
         <h1 style="margin: 0;">{{ entity_title }}</h1>
         {% if presence_control_enabled %}
-          {% if presence_next_type %}
+          {% if presence_control_can_create and presence_next_type %}
             <button class="badge presence-action" type="button" data-presence-modal-open>Contrôle présence</button>
-          {% else %}
+          {% elif presence_control_can_create %}
             <span class="badge presence-action" aria-disabled="true">Contrôles C1-C6 créés</span>
+          {% else %}
+            <span class="badge presence-action" aria-disabled="true">Contrôles présence en lecture seule</span>
           {% endif %}
-          {% if presence_latest_control %}
+          {% if presence_latest_control and presence_latest_control.id %}
             <a href="{% url 'presence_control_detail' presence_latest_control.id %}" class="badge presence-action" style="text-decoration:none;">Gérer contrôles</a>
           {% endif %}
         {% endif %}
@@ -620,19 +622,33 @@
     <div class="panel-head">
       <div>
         <strong>Contrôles de présence</strong>
-        <div class="row-meta">Accès direct aux contrôles créés pour cette classe.</div>
+        <div class="row-meta">Accès direct aux contrôles créés ou aux données existantes de cette classe.</div>
       </div>
-      {% if presence_next_type %}
+      {% if presence_control_can_create and presence_next_type %}
         <button class="badge presence-action" type="button" data-presence-modal-open>Créer {{ presence_next_type }}</button>
       {% endif %}
     </div>
     <div class="presence-control-links">
       {% for control in presence_existing_controls %}
-        <a class="presence-control-card" href="{% url 'presence_control_detail' control.id %}">
-          <strong>{{ control.type_controle }} - {{ control.date|date:"d/m/Y" }}</strong>
-          <div class="row-meta">{{ control.presents|default:0 }}/{{ control.total|default:0 }} présent(s)</div>
-          <div>{{ control.theme|default:"-" }}</div>
-        </a>
+        {% if control.id %}
+          <a class="presence-control-card" href="{% url 'presence_control_detail' control.id %}">
+            <strong>{{ control.type_controle }} - {{ control.date|date:"d/m/Y" }}</strong>
+            <div class="row-meta">{{ control.presents|default:0 }}/{{ control.total|default:0 }} présent(s)</div>
+            <div>{{ control.theme|default:"-" }}</div>
+          </a>
+        {% else %}
+          <div class="presence-control-card">
+            <strong>{{ control.type_controle }} - données existantes</strong>
+            <div class="row-meta">{{ control.presents|default:0 }}/{{ control.total|default:0 }} présent(s)</div>
+            <div>{{ control.theme|default:"-" }}</div>
+            {% if presence_control_can_create %}
+              <form method="post" action="{% url 'presence_control_pair_existing' classe.id control.type_controle %}" style="margin-top:8px;">
+                {% csrf_token %}
+                <button class="badge presence-action" type="submit">Jumeler et ouvrir</button>
+              </form>
+            {% endif %}
+          </div>
+        {% endif %}
       {% empty %}
         <div class="row-meta">Aucun contrôle créé pour le moment.</div>
       {% endfor %}
