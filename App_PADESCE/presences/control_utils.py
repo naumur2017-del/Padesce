@@ -6,6 +6,7 @@ from typing import Iterable
 from django.conf import settings
 from django.core.cache import cache
 from django.db import OperationalError, ProgrammingError
+from django.db.models import Count, Q
 
 from App_PADESCE.apprenants.models import Apprenant
 
@@ -157,6 +158,42 @@ def _get_excel_controls(apprenant_id: str) -> dict:
 
 def _default_presence() -> dict:
     return _presence_from_controls({key: "" for key in CONTROL_KEYS})
+
+
+def get_class_marker_control_types(classe) -> set[str]:
+    """
+    Return C1-C6 controls already represented by apprenant marker fields.
+    """
+    if not getattr(classe, "pk", None):
+        return set()
+
+    existing: set[str] = set()
+    for control_key in CONTROL_KEYS:
+        try:
+            has_values = Apprenant.objects.filter(
+                classe=classe,
+                **{f"{control_key}__in": VALID_MARKERS},
+            ).exists()
+        except (OperationalError, ProgrammingError):
+            has_values = False
+        if has_values:
+            existing.add(control_key.upper())
+    return existing
+
+
+def get_class_marker_control_summary(classe, control_type: str) -> dict:
+    control_key = _normalize_control_type(control_type)
+    if not control_key:
+        return {"total": 0, "presents": 0, "absents": 0}
+
+    try:
+        return Apprenant.objects.filter(classe=classe).aggregate(
+            total=Count("id", filter=Q(**{f"{control_key}__in": VALID_MARKERS})),
+            presents=Count("id", filter=Q(**{control_key: "PR"})),
+            absents=Count("id", filter=Q(**{control_key: "AB"})),
+        )
+    except (OperationalError, ProgrammingError):
+        return {"total": 0, "presents": 0, "absents": 0}
 
 
 def _sync_controls_from_excel_to_db(force: bool = False) -> None:

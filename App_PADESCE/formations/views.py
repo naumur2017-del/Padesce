@@ -33,7 +33,12 @@ from App_PADESCE.core.presence_bulk_cache import get_bulk_presence_controls
 from App_PADESCE.environnement.models import EnqueteEnvironnement
 from App_PADESCE.formations.forms import ClasseCreateForm
 from App_PADESCE.formations.models import Classe, Inspecteur, Lieu, Prestation
-from App_PADESCE.presences.control_utils import CONTROL_KEYS, get_presence_controls
+from App_PADESCE.presences.control_utils import (
+    CONTROL_KEYS,
+    get_class_marker_control_summary,
+    get_class_marker_control_types,
+    get_presence_controls,
+)
 from App_PADESCE.presences.models import Presence, PresenceControl
 from App_PADESCE.reporting.network_excel import build_padesce_source_index, normalize_network_lookup
 from App_PADESCE.satisfaction_apprenants.models import SatisfactionApprenant
@@ -545,10 +550,24 @@ def _presence_control_apprenant_payload(classe: Classe) -> list[dict]:
     return rows
 
 
-def _presence_control_modal_context(classe: Classe) -> dict:
+def _presence_control_can_create(request) -> bool:
+    user = getattr(request, "user", None)
+    if not getattr(user, "is_authenticated", False):
+        return False
+    if getattr(user, "is_superuser", False) or getattr(user, "is_staff", False):
+        return True
+    from django.conf import settings
+
+    public_username = str(
+        getattr(settings, "PUBLIC_ANALYSIS_AUTO_LOGIN_USERNAME", "") or ""
+    ).strip()
+    return bool(not public_username or getattr(user, "username", "") != public_username)
+
+
+def _presence_control_modal_context(classe: Classe, request=None) -> dict:
     enabled = bool(getattr(classe, "pk", None))
     if enabled:
-        controls = list(
+        db_controls = list(
             PresenceControl.objects.filter(classe=classe)
             .annotate(
                 total=Count("presences", distinct=True),
@@ -556,20 +575,44 @@ def _presence_control_modal_context(classe: Classe) -> dict:
             )
             .order_by("type_controle", "-date")
         )
-        used = set(
-            control.type_controle for control in controls
+        db_control_types = {control.type_controle for control in db_controls}
+        marker_control_types = get_class_marker_control_types(classe)
+        virtual_controls = []
+        for control_type in sorted(marker_control_types - db_control_types):
+            summary = get_class_marker_control_summary(classe, control_type)
+            virtual_controls.append(
+                SimpleNamespace(
+                    id=None,
+                    is_virtual=True,
+                    type_controle=control_type,
+                    date=None,
+                    theme="Données de présence existantes",
+                    total=summary.get("total") or 0,
+                    presents=summary.get("presents") or 0,
+                    absents=summary.get("absents") or 0,
+                )
+            )
+        controls = sorted(
+            [*db_controls, *virtual_controls],
+            key=lambda control: (
+                str(control.type_controle or ""),
+                getattr(control, "date", None) or date_cls.min,
+            ),
         )
+        used = db_control_types | marker_control_types
         choices = [f"C{index}" for index in range(1, 7) if f"C{index}" not in used]
     else:
         controls = []
         choices = []
+    can_create = _presence_control_can_create(request) if request is not None else True
     return {
-        "presence_control_enabled": enabled,
+        "presence_control_enabled": enabled and can_create,
+        "presence_control_can_create": can_create,
         "presence_existing_controls": controls,
         "presence_latest_control": controls[-1] if controls else None,
         "inspecteurs": Inspecteur.objects.filter(actif=True).order_by("code", "nom_complet"),
         "presence_control_type_choices": choices,
-        "presence_next_type": choices[0] if choices else "",
+        "presence_next_type": choices[0] if can_create and choices else "",
         "presence_default_date": date_cls.today(),
         "presence_default_duration": getattr(
             getattr(classe, "prestation", None), "duree_prevue_heures", ""
@@ -1204,7 +1247,7 @@ def class_detail(request, pk: int):
     from App_PADESCE.satisfaction_apprenants.sharepoint_csv_links import SHAREPOINT_CSV_LINKS
 
     sharepoint_csv_url = SHAREPOINT_CSV_LINKS.get(classe.code.upper(), "")
-    presence_modal_context = _presence_control_modal_context(classe)
+    presence_modal_context = _presence_control_modal_context(classe, request)
 
     return render(
         request,
@@ -1449,7 +1492,7 @@ def class_analysis_detail(request, code: str):
     from App_PADESCE.satisfaction_apprenants.sharepoint_csv_links import SHAREPOINT_CSV_LINKS
 
     sharepoint_csv_url = SHAREPOINT_CSV_LINKS.get(code.upper(), "")
-    presence_modal_context = _presence_control_modal_context(classe)
+    presence_modal_context = _presence_control_modal_context(classe, request)
 
     return render(
         request,

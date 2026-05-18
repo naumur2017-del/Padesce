@@ -4,7 +4,9 @@ from datetime import date as date_cls
 from datetime import time as time_cls
 
 from django.contrib import messages
+from django.conf import settings
 from django.core.paginator import Paginator
+from django.core.exceptions import PermissionDenied
 from django.db import transaction
 from django.db.models import Case, Count, ExpressionWrapper, F, FloatField, Q, Value, When
 from django.http import HttpResponse
@@ -16,6 +18,7 @@ from App_PADESCE.apprenants.models import Apprenant
 from App_PADESCE.formations.models import Classe
 from App_PADESCE.presences.forms import PresenceControlForm, PresenceForm
 from App_PADESCE.presences.models import Presence, PresenceControl
+from App_PADESCE.presences.control_utils import get_class_marker_control_types
 from App_PADESCE.presences.services import (
     TeamsSendError,
     build_presence_control_csv_bytes,
@@ -40,6 +43,7 @@ def presence_list(request):
         presences_qs = presences_qs.filter(classe_id=filter_classe)
 
     if request.method == "POST":
+        _require_presence_write_access(request)
         form = PresenceForm(request.POST)
         if form.is_valid():
             presence = form.save(commit=False)
@@ -79,10 +83,29 @@ def _next_control_type(classe: Classe) -> str:
     used = set(
         PresenceControl.objects.filter(classe=classe).values_list("type_controle", flat=True)
     )
+    used.update(get_class_marker_control_types(classe))
     for control_type in CONTROL_TYPES:
         if control_type not in used:
             return control_type
-    return CONTROL_TYPES[-1]
+    return ""
+
+
+def _is_public_analysis_user(user) -> bool:
+    if not getattr(user, "is_authenticated", False):
+        return False
+    if getattr(user, "is_superuser", False) or getattr(user, "is_staff", False):
+        return False
+    public_username = str(
+        getattr(settings, "PUBLIC_ANALYSIS_AUTO_LOGIN_USERNAME", "") or ""
+    ).strip()
+    return bool(public_username and getattr(user, "username", "") == public_username)
+
+
+def _require_presence_write_access(request) -> None:
+    if _is_public_analysis_user(getattr(request, "user", None)):
+        raise PermissionDenied(
+            "Les comptes publics peuvent uniquement consulter les contrôles de présence."
+        )
 
 
 def _presence_control_initial(classe: Classe) -> dict:
@@ -95,6 +118,11 @@ def _presence_control_initial(classe: Classe) -> dict:
         "formateur1_nom": getattr(formateur, "nom_complet", "") if formateur else "",
         "formateur1_telephone": getattr(formateur, "telephone", "") if formateur else "",
     }
+
+
+def _normalize_control_type(value: str) -> str:
+    normalized = str(value or "").strip().upper()
+    return normalized if normalized in CONTROL_TYPES else ""
 
 
 def _control_marker_field(control: PresenceControl) -> str:
@@ -200,15 +228,59 @@ def _apply_creation_marks(control: PresenceControl, raw_marks: str) -> int:
         if moyen not in {"C", "P", "R"}:
             continue
         apprenant = (
-            control.classe.apprenants.filter(pk=apprenant_id)
-            .only("id", "classe_id")
-            .first()
+            control.classe.apprenants.filter(pk=apprenant_id).only("id", "classe_id").first()
         )
         if not apprenant:
             continue
         _mark_presence(control, apprenant, moyen, _parse_presence_time(mark.get("heure")))
         applied += 1
     return applied
+
+
+def _create_control_from_markers(
+    classe: Classe, control_type: str, request
+) -> tuple[PresenceControl, int]:
+    marker_field = control_type.lower()
+    formateur = getattr(classe, "formateur", None)
+    prestation = getattr(classe, "prestation", None)
+    control = PresenceControl.objects.create(
+        classe=classe,
+        enqueteur=request.user if getattr(request.user, "is_authenticated", False) else None,
+        theme="Données de présence existantes",
+        date=date_cls.today(),
+        heure_debut=time_cls(0, 0),
+        heure_fin=time_cls(0, 0),
+        conformite="",
+        type_controle=control_type,
+        duree_prevue_formation=getattr(prestation, "duree_prevue_heures", None),
+        formateur1_nom=getattr(formateur, "nom_complet", "") if formateur else "",
+        formateur1_telephone=getattr(formateur, "telephone", "") if formateur else "",
+    )
+    apprenants = list(
+        classe.apprenants.filter(**{f"{marker_field}__in": ["PR", "AB"]}).order_by(
+            "nom_complet", "code"
+        )
+    )
+    rows = []
+    for apprenant in apprenants:
+        marker = getattr(apprenant, marker_field)
+        rows.append(
+            Presence(
+                controle=control,
+                classe=classe,
+                apprenant=apprenant,
+                inspecteur=control.inspecteur,
+                enqueteur=control.enqueteur,
+                date=control.date,
+                heure_debut=control.heure_debut,
+                heure_fin=control.heure_fin,
+                presence=marker,
+                statut="present" if marker == "PR" else "absent",
+                moyen_enregistrement="",
+            )
+        )
+    Presence.objects.bulk_create(rows, batch_size=500, ignore_conflicts=True)
+    return control, len(rows)
 
 
 def _mark_absent(control: PresenceControl, apprenant: Apprenant) -> Presence:
@@ -268,6 +340,7 @@ def _exact_code_match(control: PresenceControl, query: str):
 
 
 def presence_control_create(request, classe_id: int):
+    _require_presence_write_access(request)
     classe = get_object_or_404(
         Classe.objects.select_related("prestation", "formation", "lieu", "formateur"),
         pk=classe_id,
@@ -303,6 +376,39 @@ def presence_control_create(request, classe_id: int):
     )
 
 
+def presence_control_pair_existing(request, classe_id: int, control_type: str):
+    _require_presence_write_access(request)
+    classe = get_object_or_404(
+        Classe.objects.select_related("prestation", "formation", "lieu", "formateur"),
+        pk=classe_id,
+    )
+    control_type = _normalize_control_type(control_type)
+    if request.method != "POST" or not control_type:
+        return redirect("class_detail", pk=classe.pk)
+
+    existing = PresenceControl.objects.filter(classe=classe, type_controle=control_type).first()
+    if existing:
+        messages.info(request, f"Le contrôle {control_type} est déjà jumelé.")
+        return redirect("presence_control_detail", pk=existing.pk)
+
+    marker_controls = get_class_marker_control_types(classe)
+    if control_type not in marker_controls:
+        messages.warning(
+            request,
+            f"Aucune donnée existante {control_type} à jumeler pour cette classe.",
+        )
+        return redirect("class_detail", pk=classe.pk)
+
+    with transaction.atomic():
+        control, row_count = _create_control_from_markers(classe, control_type, request)
+
+    messages.success(
+        request,
+        f"Contrôle {control_type} jumelé avec {row_count} présence(s) existante(s).",
+    )
+    return redirect("presence_control_detail", pk=control.pk)
+
+
 def presence_control_detail(request, pk: int):
     control = get_object_or_404(
         PresenceControl.objects.select_related(
@@ -314,6 +420,7 @@ def presence_control_detail(request, pk: int):
     query = ""
 
     if request.method == "POST":
+        _require_presence_write_access(request)
         action = request.POST.get("action", "")
         if action == "search":
             query = request.POST.get("q", "").strip()
@@ -393,6 +500,7 @@ def presence_control_export_xlsx(request, pk: int):
 
 
 def presence_control_send_teams(request, pk: int):
+    _require_presence_write_access(request)
     if request.method != "POST":
         return redirect("presence_control_detail", pk=pk)
     control = get_object_or_404(PresenceControl.objects.select_related("classe"), pk=pk)

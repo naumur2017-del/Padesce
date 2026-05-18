@@ -2,7 +2,8 @@ import json
 from datetime import date, time
 
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.core.exceptions import PermissionDenied
+from django.test import RequestFactory, TestCase
 from django.urls import reverse
 
 from App_PADESCE.apprenants.models import Apprenant
@@ -16,13 +17,16 @@ from App_PADESCE.formations.models import (
     Prestation,
 )
 from App_PADESCE.presences.models import Presence, PresenceControl
-from App_PADESCE.presences.views import _exact_code_match
+from App_PADESCE.presences.forms import PresenceControlForm
+from App_PADESCE.presences.views import _exact_code_match, presence_control_create
+from App_PADESCE.formations.views import _presence_control_modal_context
 
 
 class PresenceControlTests(TestCase):
     def setUp(self):
         self.user = get_user_model().objects.create_user(username="agent", password="pass")
         self.client.force_login(self.user)
+        self.request_factory = RequestFactory()
         self.formation = Formation.objects.create(code="FOR001", nom="Transformation")
         self.prestataire = Prestataire.objects.create(code="PREST01", raison_sociale="Prestataire")
         self.beneficiaire = Beneficiaire.objects.create(nom_structure="Beneficiaire")
@@ -97,6 +101,95 @@ class PresenceControlTests(TestCase):
         self.assertEqual(set(control.presences.values_list("presence", flat=True)), {"AB"})
         self.apprenant.refresh_from_db()
         self.assertEqual(self.apprenant.c1, "AB")
+
+    def test_public_user_cannot_create_presence_control(self):
+        public_user, _created = get_user_model().objects.update_or_create(
+            username="yanava",
+            defaults={"is_active": True, "is_staff": False, "is_superuser": False},
+        )
+        public_user.set_password("pass")
+        public_user.save(update_fields=["password", "is_active", "is_staff", "is_superuser"])
+        request = self.request_factory.post(
+            reverse("presence_control_create", args=[self.classe.id]),
+            {
+                "inspecteur": self.inspecteur.id,
+                "theme": "Controle public",
+                "date": "2026-05-11",
+                "heure_debut": "08:00",
+                "heure_fin": "10:00",
+                "conformite": "conforme",
+                "type_controle": "C1",
+                "duree_prevue_formation": "24",
+            },
+        )
+        request.user = public_user
+
+        with self.assertRaises(PermissionDenied):
+            presence_control_create(request, self.classe.id)
+        self.assertFalse(PresenceControl.objects.filter(type_controle="C1").exists())
+
+    def test_class_detail_shows_existing_marker_controls_and_skips_next_type(self):
+        self.apprenant.c1 = "PR"
+        self.second.c1 = "AB"
+        self.apprenant.save(update_fields=["c1", "updated_at"])
+        self.second.save(update_fields=["c1", "updated_at"])
+
+        request = self.request_factory.get(reverse("class_detail", args=[self.classe.id]))
+        request.user = self.user
+        context = _presence_control_modal_context(self.classe, request)
+
+        self.assertEqual(context["presence_next_type"], "C2")
+        self.assertEqual(len(context["presence_existing_controls"]), 1)
+        control = context["presence_existing_controls"][0]
+        self.assertEqual(control.type_controle, "C1")
+        self.assertEqual(control.theme, "Données de présence existantes")
+        self.assertEqual(control.presents, 1)
+        self.assertEqual(control.total, 2)
+
+    def test_existing_marker_control_type_cannot_be_created_again(self):
+        self.apprenant.c1 = "PR"
+        self.apprenant.save(update_fields=["c1", "updated_at"])
+
+        form = PresenceControlForm(
+            {
+                "inspecteur": self.inspecteur.id,
+                "theme": "Controle duplicate",
+                "date": "2026-05-11",
+                "heure_debut": "08:00",
+                "heure_fin": "10:00",
+                "conformite": "conforme",
+                "type_controle": "C1",
+                "duree_prevue_formation": "24",
+            },
+            classe=self.classe,
+        )
+
+        self.assertFalse(form.is_valid())
+        self.assertFalse(PresenceControl.objects.filter(type_controle="C1").exists())
+
+    def test_pair_existing_marker_control_creates_clickable_control(self):
+        self.apprenant.c1 = "PR"
+        self.second.c1 = "AB"
+        self.apprenant.save(update_fields=["c1", "updated_at"])
+        self.second.save(update_fields=["c1", "updated_at"])
+
+        response = self.client.post(
+            reverse("presence_control_pair_existing", args=[self.classe.id, "C1"])
+        )
+
+        control = PresenceControl.objects.get(classe=self.classe, type_controle="C1")
+        self.assertRedirects(
+            response,
+            reverse("presence_control_detail", args=[control.id]),
+            fetch_redirect_response=False,
+        )
+        self.assertEqual(control.theme, "Données de présence existantes")
+        first_presence = Presence.objects.get(controle=control, apprenant=self.apprenant)
+        second_presence = Presence.objects.get(controle=control, apprenant=self.second)
+        self.assertEqual(first_presence.presence, "PR")
+        self.assertEqual(first_presence.statut, "present")
+        self.assertEqual(second_presence.presence, "AB")
+        self.assertEqual(second_presence.statut, "absent")
 
     def test_create_control_includes_inactive_registered_learners(self):
         self.second.actif = False

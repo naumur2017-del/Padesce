@@ -80,10 +80,12 @@
       <a class="btn btn-outline" href="/satisfaction-formateurs/" id="btn-sat-form">Enquête satisfaction formateur</a>
       <a class="btn btn-outline" href="/satisfaction-apprenants/" id="btn-sat-appr">Enquête satisfaction apprenants</a>
       <a class="btn btn-outline" href="{% url 'environnement_index' %}?classe={{ classe.id }}#environnement-form" id="btn-env">Enquête environnement</a>
-      {% if presence_next_type %}
+      {% if presence_control_can_create and presence_next_type %}
         <button class="btn btn-outline" type="button" id="btn-pres" data-presence-modal-open>Contrôle présence</button>
-      {% else %}
+      {% elif presence_control_can_create %}
         <a class="btn btn-outline disabled" href="{% url 'presence_control_create' classe.id %}" id="btn-pres">Contrôles C1-C6 créés</a>
+      {% else %}
+        <a class="btn btn-outline disabled" href="#presence-controls" id="btn-pres">Contrôles présence en lecture seule</a>
       {% endif %}
       <a class="btn btn-outline" href="{% url 'class_reports' classe.id %}" id="btn-rapports">Rapports enquetes</a>
       {% if channel_link %}
@@ -149,15 +151,28 @@
     <div class="subtitle" style="margin-bottom:10px;">Gestion des contrôles déjà créés pour cette classe.</div>
     <div class="control-list">
       {% for control in presence_existing_controls %}
-        <a class="control-link" href="{% url 'presence_control_detail' control.id %}">
-          <strong>{{ control.type_controle }}</strong> - {{ control.date|date:"d/m/Y" }}
-          <div class="subtitle">{{ control.presents|default:0 }}/{{ control.total|default:0 }} présent(s) | {{ control.theme|default:"-" }}</div>
-        </a>
+        {% if control.id %}
+          <a class="control-link" href="{% url 'presence_control_detail' control.id %}">
+            <strong>{{ control.type_controle }}</strong> - {{ control.date|date:"d/m/Y" }}
+            <div class="subtitle">{{ control.presents|default:0 }}/{{ control.total|default:0 }} présent(s) | {{ control.theme|default:"-" }}</div>
+          </a>
+        {% else %}
+          <div class="control-link">
+            <strong>{{ control.type_controle }}</strong> - données existantes
+            <div class="subtitle">{{ control.presents|default:0 }}/{{ control.total|default:0 }} présent(s) | {{ control.theme|default:"-" }}</div>
+            {% if presence_control_can_create %}
+              <form method="post" action="{% url 'presence_control_pair_existing' classe.id control.type_controle %}" style="margin-top:8px;">
+                {% csrf_token %}
+                <button class="btn btn-soft" type="submit">Jumeler et ouvrir</button>
+              </form>
+            {% endif %}
+          </div>
+        {% endif %}
       {% empty %}
         <div class="subtitle">Aucun contrôle créé pour le moment.</div>
       {% endfor %}
     </div>
-    {% if presence_next_type %}
+    {% if presence_control_can_create and presence_next_type %}
       <button class="btn btn-soft" type="button" data-presence-modal-open style="margin-top:10px;">Créer {{ presence_next_type }}</button>
     {% endif %}
   </div>

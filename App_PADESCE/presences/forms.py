@@ -1,5 +1,6 @@
 from django import forms
 
+from App_PADESCE.presences.control_utils import get_class_marker_control_types
 from App_PADESCE.presences.models import Presence, PresenceControl
 
 
@@ -39,6 +40,7 @@ class PresenceControlForm(forms.ModelForm):
             if self.instance.pk:
                 used_qs = used_qs.exclude(pk=self.instance.pk)
             used = set(used_qs.values_list("type_controle", flat=True))
+            used.update(get_class_marker_control_types(classe))
             choices = [
                 choice
                 for choice in self.fields["type_controle"].choices
@@ -53,7 +55,7 @@ class PresenceControlForm(forms.ModelForm):
         exists = PresenceControl.objects.filter(classe=self.classe, type_controle=type_controle)
         if self.instance.pk:
             exists = exists.exclude(pk=self.instance.pk)
-        if exists.exists():
+        if exists.exists() or type_controle in get_class_marker_control_types(self.classe):
             raise forms.ValidationError(
                 f"{type_controle} existe déjà pour cette classe. Utilisez le contrôle suivant."
             )
