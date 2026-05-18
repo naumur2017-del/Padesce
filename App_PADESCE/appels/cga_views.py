@@ -10,7 +10,7 @@ from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
-from django.db.models import Q
+from django.db.models import Count, Q
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.crypto import constant_time_compare
@@ -52,6 +52,44 @@ CGA_IMPORT_FIELDS = (
     "telephone",
 )
 CGA_APPEND_UPDATE_FIELDS = [*CGA_IMPORT_FIELDS, "is_active"]
+ONECCA_SKIPPED_SHEETS = {"yaoude", "yaounde"}
+ONECCA_SECTION_LABELS = {
+    "Sec I - EC Libéraux": "EC liberaux",
+    "Sec II - Sociétés d'EC": "Societes d'EC",
+    "Sec III - EC Salariés": "EC salaries",
+    "Sec IV - EC Stagiaires": "EC stagiaires",
+}
+ONECCA_CITY_PATTERNS = (
+    ("Yaounde", ("yaounde", "yde")),
+    ("Douala", ("douala", "dla")),
+    ("Bamenda", ("bamenda", "bda")),
+    ("Buea", ("buea",)),
+    ("Limbe", ("limbe", "lbe")),
+    ("Garoua", ("garoua", "g'ra")),
+    ("Maroua", ("maroua",)),
+    ("Bafoussam", ("bafoussam",)),
+    ("Ngaoundere", ("ngaoundere", "n'dere", "ndere")),
+    ("Bertoua", ("bertoua",)),
+    ("Ebolowa", ("ebolowa",)),
+)
+
+
+def _normalize_cga_source(value):
+    source = str(value or "").strip().lower()
+    valid_sources = {choice[0] for choice in AppelCGA.SOURCE_CHOICES}
+    if source in valid_sources:
+        return source
+    return AppelCGA.SOURCE_ENTREPRISE
+
+
+def _get_active_cga_source(request):
+    if request.method == "POST":
+        return _normalize_cga_source(request.POST.get("source"))
+    return _normalize_cga_source(request.GET.get("source"))
+
+
+def _cga_source_label(source):
+    return dict(AppelCGA.SOURCE_CHOICES).get(source, "Entreprise")
 
 
 def _build_pagination_tokens(
@@ -103,6 +141,15 @@ def _as_text(value):
     return str(value).strip()
 
 
+def _truncate(value, max_length):
+    text = _as_text(value)
+    return text[:max_length]
+
+
+def _join_nonempty(*values, separator=" / "):
+    return separator.join(_as_text(value) for value in values if _as_text(value))
+
+
 def _iter_cga_excel_rows(file_obj):
     wb = openpyxl.load_workbook(file_obj, read_only=True, data_only=True)
     if "Sheet1" not in wb.sheetnames:
@@ -151,6 +198,97 @@ def _iter_cga_excel_rows(file_obj):
         }
 
 
+def _find_onecca_header_row(ws):
+    for row_index, row in enumerate(ws.iter_rows(values_only=True), start=1):
+        normalized = [_normalize_header(value) for value in row]
+        if any("noms" in value and "prenoms" in value for value in normalized):
+            return row_index, row
+    raise ValueError(f"Entete ONECCA introuvable dans l'onglet {ws.title}.")
+
+
+def _infer_onecca_city(*values):
+    text = _normalize_header(" ".join(_as_text(value) for value in values if _as_text(value)))
+    for city, patterns in ONECCA_CITY_PATTERNS:
+        if any(pattern in text for pattern in patterns):
+            return city
+    return ""
+
+
+def _onecca_source_code(inscription, sheet_title, row_index):
+    raw_code = _as_text(inscription)
+    if not raw_code:
+        raw_code = f"{slugify(sheet_title) or 'cabinet'}-{row_index}"
+    return _truncate(f"ONECCA-{raw_code}", 64)
+
+
+def _iter_onecca_excel_rows(file_obj):
+    wb = openpyxl.load_workbook(file_obj, read_only=True, data_only=True)
+    yielded = 0
+    for ws in wb.worksheets:
+        if _normalize_header(ws.title) in ONECCA_SKIPPED_SHEETS:
+            continue
+        header_row_index, header = _find_onecca_header_row(ws)
+        header_map = {_normalize_header(col): idx for idx, col in enumerate(header)}
+        section_label = ONECCA_SECTION_LABELS.get(ws.title, ws.title)
+
+        def get(row, *keys):
+            for key in keys:
+                idx = header_map.get(_normalize_header(key))
+                if idx is None or idx >= len(row):
+                    continue
+                return row[idx]
+            return None
+
+        for row_index, row in enumerate(
+            ws.iter_rows(min_row=header_row_index + 1, values_only=True),
+            start=header_row_index + 1,
+        ):
+            nom = _as_text(get(row, "Noms & Prénoms", "Noms & Prenoms"))
+            if not nom:
+                continue
+            numero = None
+            numero_raw = get(row, "N°", "No", "N")
+            try:
+                if numero_raw not in (None, ""):
+                    numero = int(float(numero_raw))
+            except Exception:
+                numero = None
+            inscription = _as_text(get(row, "Inscription N°", "Inscription No", "Inscription N"))
+            date_inscription = _as_text(get(row, "Inscription Date"))
+            adresse_postale = _as_text(get(row, "Adresse Postale"))
+            ligne_1 = _as_text(get(row, "Ligne 1"))
+            ligne_2 = _as_text(get(row, "Ligne 2"))
+            email = _as_text(get(row, "Adresse E-mail", "Adresse Email"))
+            site_cabinet = _as_text(get(row, "Site du Cabinet"))
+            yield {
+                "numero": numero,
+                "raison_sociale": _truncate(nom, 255),
+                "sigle": _truncate(inscription, 255),
+                "niu": _onecca_source_code(inscription, ws.title, row_index),
+                "activite_principale": _truncate(email, 255),
+                "regime": _truncate(section_label, 120),
+                "cri": _truncate(date_inscription, 120),
+                "centre_de_rattachement": _truncate(
+                    _join_nonempty(adresse_postale, site_cabinet, separator=" - "),
+                    255,
+                ),
+                "ville": _truncate(
+                    _infer_onecca_city(adresse_postale, site_cabinet),
+                    120,
+                ),
+                "telephone": _truncate(_join_nonempty(ligne_1, ligne_2), 120),
+            }
+            yielded += 1
+    if yielded == 0:
+        raise ValueError("Aucune ligne Cabinet lisible dans le fichier ONECCA.")
+
+
+def _iter_cga_source_rows(file_obj, source):
+    if source == AppelCGA.SOURCE_CABINET:
+        return _iter_onecca_excel_rows(file_obj)
+    return _iter_cga_excel_rows(file_obj)
+
+
 def _parse_bool_flag(value):
     if value is None:
         return None
@@ -159,9 +297,7 @@ def _parse_bool_flag(value):
 
 def _expected_cga_public_api_key() -> str:
     return str(
-        getattr(settings, "CGA_PUBLIC_API_KEY", "")
-        or getattr(settings, "EXPORT_API_KEY", "")
-        or ""
+        getattr(settings, "CGA_PUBLIC_API_KEY", "") or getattr(settings, "EXPORT_API_KEY", "") or ""
     ).strip()
 
 
@@ -203,6 +339,7 @@ def _parse_cga_public_page_size(raw_value):
 def _serialize_cga_public_row(row):
     return {
         "id": row.pk,
+        "source": row.source,
         "numero": row.numero,
         "niu": row.niu,
         "raison_sociale": row.raison_sociale,
@@ -226,7 +363,8 @@ def _serialize_cga_public_row(row):
 
 
 def _build_filtered_cga_queryset(request):
-    qs = AppelCGA.objects.filter(is_active=True).select_related("locked_by")
+    active_source = _get_active_cga_source(request)
+    qs = AppelCGA.objects.filter(is_active=True, source=active_source).select_related("locked_by")
     status_filter = (request.GET.get("status") or "").strip()
     resultat_filter = (request.GET.get("resultat") or "").strip()
     regime_filter = (request.GET.get("regime") or "").strip()
@@ -280,6 +418,7 @@ def _build_filtered_cga_queryset(request):
             pass
 
     filters = {
+        "source": active_source,
         "status": status_filter,
         "resultat": resultat_filter,
         "regime": regime_filter,
@@ -335,11 +474,11 @@ def _apply_cga_import_values(row, item):
         setattr(row, field, item[field])
 
 
-def _sync_cga_append_batch(batch_items):
+def _sync_cga_append_batch(batch_items, *, source=AppelCGA.SOURCE_ENTREPRISE):
     if not batch_items:
         return 0, 0
 
-    existing_by_niu = AppelCGA.objects.in_bulk(
+    existing_by_niu = AppelCGA.objects.filter(source=source).in_bulk(
         [item["niu"].strip() for item in batch_items], field_name="niu"
     )
     rows_to_create = []
@@ -349,7 +488,7 @@ def _sync_cga_append_batch(batch_items):
         niu = item["niu"].strip()
         row = existing_by_niu.get(niu)
         if row is None:
-            rows_to_create.append(AppelCGA(**item, is_active=True))
+            rows_to_create.append(AppelCGA(**item, source=source, is_active=True))
             continue
         _apply_cga_import_values(row, item)
         row.is_active = True
@@ -368,13 +507,13 @@ def _sync_cga_append_batch(batch_items):
 
 @login_required
 def cga_export_xlsx(request):
-    payload = build_cga_calls_report_workbook()
+    source = _get_active_cga_source(request)
+    payload = build_cga_calls_report_workbook(source=source)
     response = HttpResponse(
-        payload,
-        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        payload, content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
     response["Content-Disposition"] = (
-        f'attachment; filename="{get_cga_calls_report_filename()}"'
+        f'attachment; filename="{get_cga_calls_report_filename(source=source)}"'
     )
     return response
 
@@ -460,6 +599,7 @@ def cga_export_filtered_csv(request):
             "Indisponible",
             "Created at",
             "Updated at",
+            "Source",
         ]
     )
     for row in rows.iterator(chunk_size=2000):
@@ -484,6 +624,7 @@ def cga_export_filtered_csv(request):
                 row.indisponible,
                 row.created_at.isoformat() if getattr(row, "created_at", None) else "",
                 row.updated_at.isoformat() if getattr(row, "updated_at", None) else "",
+                row.get_source_display(),
             ]
         )
     return response
@@ -495,32 +636,34 @@ def cga_index(request):
         if not request.user.is_superuser:
             messages.error(request, "Seul un superadmin peut importer des fichiers CGA.")
             return redirect(request.path_info)
+        source = _get_active_cga_source(request)
+        source_label = _cga_source_label(source)
         mode = request.POST.get("update_mode", "replace")
         file_obj = io.BytesIO(request.FILES["file"].read())
         try:
             if mode == "replace":
-                AppelCGA.objects.all().delete()
+                AppelCGA.objects.filter(source=source).delete()
                 batch = []
                 seen = set()
                 created = 0
                 skipped = 0
-                for item in _iter_cga_excel_rows(file_obj):
+                for item in _iter_cga_source_rows(file_obj, source):
                     niu = item["niu"].strip()
                     if niu in seen:
                         skipped += 1
                         continue
                     seen.add(niu)
-                    batch.append(AppelCGA(**item, is_active=True))
+                    batch.append(AppelCGA(**item, source=source, is_active=True))
                     if len(batch) >= IMPORT_BATCH_SIZE:
                         created += _flush_cga_batch(batch)
                 created += _flush_cga_batch(batch)
                 deduped = _deactivate_duplicate_rows(
-                    AppelCGA.objects.filter(is_active=True), _cga_duplicate_key
+                    AppelCGA.objects.filter(is_active=True, source=source), _cga_duplicate_key
                 )
                 messages.success(
                     request,
                     (
-                        f"Import CGA termine. {created} ligne(s) chargee(s), "
+                        f"Import CGA {source_label} termine. {created} ligne(s) chargee(s), "
                         f"{skipped} doublon(s) ignores, {deduped} doublon(s) desactive(s)."
                     ),
                 )
@@ -530,7 +673,7 @@ def cga_index(request):
                 skipped = 0
                 updated = 0
                 batch = []
-                for item in _iter_cga_excel_rows(file_obj):
+                for item in _iter_cga_source_rows(file_obj, source):
                     niu = item["niu"].strip()
                     if niu in seen_file:
                         skipped += 1
@@ -538,21 +681,25 @@ def cga_index(request):
                     seen_file.add(niu)
                     batch.append(item)
                     if len(batch) >= IMPORT_BATCH_SIZE:
-                        batch_created, batch_updated = _sync_cga_append_batch(list(batch))
+                        batch_created, batch_updated = _sync_cga_append_batch(
+                            list(batch), source=source
+                        )
                         created += batch_created
                         updated += batch_updated
                         batch.clear()
                 if batch:
-                    batch_created, batch_updated = _sync_cga_append_batch(list(batch))
+                    batch_created, batch_updated = _sync_cga_append_batch(
+                        list(batch), source=source
+                    )
                     created += batch_created
                     updated += batch_updated
                 deduped = _deactivate_duplicate_rows(
-                    AppelCGA.objects.filter(is_active=True), _cga_duplicate_key
+                    AppelCGA.objects.filter(is_active=True, source=source), _cga_duplicate_key
                 )
                 messages.success(
                     request,
                     (
-                        f"Import CGA termine. {created} nouvelle(s) ligne(s), "
+                        f"Import CGA {source_label} termine. {created} nouvelle(s) ligne(s), "
                         f"{updated} mise(s) a jour, {skipped} doublon(s) dans le fichier, "
                         f"{deduped} doublon(s) desactive(s)."
                     ),
@@ -561,9 +708,11 @@ def cga_index(request):
                 messages.error(request, "Mode d'import CGA inconnu.")
         except Exception as exc:
             messages.error(request, f"Impossible de lire le fichier CGA : {exc}")
-        return redirect(request.path_info)
+        return redirect(f"{request.path_info}?source={source}")
 
     qs, filters = _build_filtered_cga_queryset(request)
+    active_source = filters["source"]
+    active_source_label = _cga_source_label(active_source)
     total_count = qs.count()
     stats = _build_progress_metrics(qs)
 
@@ -579,8 +728,39 @@ def cga_index(request):
     page_obj.object_list = rows
     pagination_tokens = _build_pagination_tokens(page_obj)
     params = request.GET.copy()
+    params["source"] = active_source
     params.pop("page", None)
     querystring_no_page = params.urlencode()
+    source_counts = {
+        row["source"]: row["total"]
+        for row in AppelCGA.objects.filter(is_active=True)
+        .values("source")
+        .annotate(total=Count("id"))
+    }
+    source_tabs = []
+    for source_value, source_label in AppelCGA.SOURCE_CHOICES:
+        tab_params = request.GET.copy()
+        tab_params["source"] = source_value
+        tab_params.pop("page", None)
+        source_tabs.append(
+            {
+                "value": source_value,
+                "label": source_label,
+                "active": source_value == active_source,
+                "count": source_counts.get(source_value, 0),
+                "url": f"?{tab_params.urlencode()}",
+            }
+        )
+    reset_query = "" if active_source == AppelCGA.SOURCE_ENTREPRISE else f"?source={active_source}"
+    export_query = f"?source={active_source}"
+    import_hint = (
+        "Importer le Tableau ONECCA 2023 pour charger les cabinets par section."
+        if active_source == AppelCGA.SOURCE_CABINET
+        else (
+            "Importer le fichier CGA (Feuil1) pour charger les colonnes N, raison sociale, "
+            "sigle, NIU, activite, regime, CRI, centre, ville et telephone."
+        )
+    )
 
     return render(
         request,
@@ -594,6 +774,12 @@ def cga_index(request):
             "pagination_tokens": pagination_tokens,
             "querystring_no_page": querystring_no_page,
             "stats": stats,
+            "active_source": active_source,
+            "active_source_label": active_source_label,
+            "source_tabs": source_tabs,
+            "reset_query": reset_query,
+            "export_query": export_query,
+            "import_hint": import_hint,
         },
     )
 

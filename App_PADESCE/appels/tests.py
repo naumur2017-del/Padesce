@@ -257,6 +257,74 @@ class CgaImportTests(TestCase):
             content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
 
+    def _build_onecca_upload(self):
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "Sec I - EC Libéraux"
+        headers = [
+            "N°",
+            "Noms & Prénoms",
+            "Inscription N°",
+            "Inscription Date",
+            "Adresse Postale",
+            "Ligne 1",
+            "Ligne 2",
+            "Adresse E-mail",
+            "Site du Cabinet",
+        ]
+        ws.append(headers)
+        ws.append(
+            [
+                "1",
+                "ABEGE Patrick AGI",
+                "182 ECP",
+                "31/07/2013",
+                "BP: 745 Bda",
+                "679 62 69 13",
+                "652 91 13 07",
+                "abegepat20@example.com",
+                "Commercial avenue Bamenda",
+            ]
+        )
+        yaoude = wb.create_sheet("YAOUDE")
+        yaoude.append(["SECTION DES EXPERTS-COMPTABLES LIBERAUX"])
+        yaoude.append(headers)
+        yaoude.append(
+            [
+                "1",
+                "ABEGE Patrick AGI",
+                "182 ECP",
+                "31/07/2013",
+                "BP: 745 Bda",
+                "679 62 69 13",
+                "",
+                "duplicate@example.com",
+                "Duplicate subset row",
+            ]
+        )
+        societes = wb.create_sheet("Sec II - Sociétés d'EC")
+        societes.append(headers)
+        societes.append(
+            [
+                "1",
+                "ACN & CO",
+                "48 SEC",
+                "04/05/2017",
+                "BP: 183 Buéa",
+                "676 54 87 77",
+                "",
+                "contact@example.com",
+                "MAHAN House Molyko - Buea",
+            ]
+        )
+        stream = io.BytesIO()
+        wb.save(stream)
+        return SimpleUploadedFile(
+            "tableau-onecca.xlsx",
+            stream.getvalue(),
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+
     def test_append_import_updates_existing_rows_and_creates_missing_ones(self):
         locked_at = timezone.now()
         existing = AppelCGA.objects.create(
@@ -338,11 +406,14 @@ class CgaImportTests(TestCase):
 
         created = AppelCGA.objects.get(niu="NIU-002")
         self.assertEqual(created.raison_sociale, "Entreprise B")
-        self.assertEqual(AppelCGA.objects.count(), 2)
+        self.assertEqual(
+            AppelCGA.objects.filter(source=AppelCGA.SOURCE_ENTREPRISE).count(),
+            2,
+        )
 
     @patch("App_PADESCE.appels.cga_views._sync_cga_append_batch")
     def test_append_import_splits_file_into_batches_of_2000(self, mock_sync_cga_append_batch):
-        mock_sync_cga_append_batch.side_effect = lambda batch: (len(batch), 0)
+        mock_sync_cga_append_batch.side_effect = lambda batch, **kwargs: (len(batch), 0)
 
         rows = [
             {
@@ -400,6 +471,90 @@ class CgaImportTests(TestCase):
         self.assertEqual(mock_sync_cga_append_batch.call_count, 2)
         self.assertEqual(len(mock_sync_cga_append_batch.call_args_list[0].args[0]), 2000)
         self.assertEqual(len(mock_sync_cga_append_batch.call_args_list[1].args[0]), 1)
+        self.assertEqual(
+            mock_sync_cga_append_batch.call_args_list[0].kwargs["source"],
+            AppelCGA.SOURCE_ENTREPRISE,
+        )
+
+    def test_onecca_import_loads_cabinet_source_and_skips_yaoude_subset(self):
+        response = self.client.post(
+            reverse("cga_index"),
+            {
+                "source": AppelCGA.SOURCE_CABINET,
+                "update_mode": "append",
+                "file": self._build_onecca_upload(),
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(
+            response.headers["Location"],
+            f"/cga/?source={AppelCGA.SOURCE_CABINET}",
+        )
+        cabinets = AppelCGA.objects.filter(source=AppelCGA.SOURCE_CABINET).order_by("niu")
+        self.assertEqual(cabinets.count(), 2)
+        first = AppelCGA.objects.get(source=AppelCGA.SOURCE_CABINET, niu="ONECCA-182 ECP")
+        self.assertEqual(first.raison_sociale, "ABEGE Patrick AGI")
+        self.assertEqual(first.sigle, "182 ECP")
+        self.assertEqual(first.regime, "EC liberaux")
+        self.assertEqual(first.ville, "Bamenda")
+        self.assertIn("679 62 69 13", first.telephone)
+
+    def test_replace_import_only_clears_selected_source(self):
+        AppelCGA.objects.create(
+            source=AppelCGA.SOURCE_ENTREPRISE,
+            raison_sociale="Entreprise conservee",
+            niu="NIU-KEEP",
+        )
+        AppelCGA.objects.create(
+            source=AppelCGA.SOURCE_CABINET,
+            raison_sociale="Ancien cabinet",
+            niu="ONECCA-OLD",
+        )
+
+        response = self.client.post(
+            reverse("cga_index"),
+            {
+                "source": AppelCGA.SOURCE_CABINET,
+                "update_mode": "replace",
+                "file": self._build_onecca_upload(),
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(AppelCGA.objects.filter(niu="NIU-KEEP").exists())
+        self.assertFalse(AppelCGA.objects.filter(niu="ONECCA-OLD").exists())
+        self.assertEqual(AppelCGA.objects.filter(source=AppelCGA.SOURCE_CABINET).count(), 2)
+
+    @override_settings(
+        STORAGES={
+            "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+            "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
+        }
+    )
+    def test_cga_index_switches_between_entreprise_and_cabinet_rows(self):
+        AppelCGA.objects.create(
+            source=AppelCGA.SOURCE_ENTREPRISE,
+            raison_sociale="Entreprise Alpha",
+            niu="NIU-ALPHA",
+        )
+        AppelCGA.objects.create(
+            source=AppelCGA.SOURCE_CABINET,
+            raison_sociale="Cabinet Beta",
+            niu="ONECCA-BETA",
+        )
+
+        entreprise_response = self.client.get(reverse("cga_index"))
+        cabinet_response = self.client.get(
+            reverse("cga_index"),
+            {"source": AppelCGA.SOURCE_CABINET},
+        )
+
+        self.assertContains(entreprise_response, "Entreprise Alpha")
+        self.assertNotContains(entreprise_response, "Cabinet Beta")
+        self.assertContains(cabinet_response, "Cabinet Beta")
+        self.assertNotContains(cabinet_response, "Entreprise Alpha")
+        self.assertEqual(cabinet_response.context["active_source"], AppelCGA.SOURCE_CABINET)
 
 
 class CgaPublicApiTests(TestCase):
@@ -710,6 +865,7 @@ class AppelsIndexFilterTests(TestCase):
         classe_progress = {item["classe"]: item for item in response.context["classe_progress"]}
         self.assertEqual(classe_progress["CLA001"]["total"], 2)
         self.assertTrue(classe_progress["CLA001"]["reached"])
+
     @patch("App_PADESCE.appels.views.build_padesce_source_index")
     def test_appels_index_uses_saved_forms_for_25_percent_threshold(self, mock_build_source_index):
         mock_build_source_index.return_value = {

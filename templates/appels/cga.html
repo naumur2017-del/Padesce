@@ -139,18 +139,37 @@
   .result-box label { display: flex; align-items: center; gap: 6px; cursor: pointer; user-select: none; line-height: 1.2; }
   .result-box label:hover { color: var(--accent-strong); }
   .result-box input[type="checkbox"] { cursor: pointer; width: 16px; height: 16px; margin: 0; flex-shrink: 0; }
+  .source-tabs {
+    display: inline-flex; gap: 4px; padding: 4px; margin: 4px 0 12px;
+    border: 1px solid var(--border); border-radius: 12px; background: #fff;
+  }
+  .source-tab {
+    display: inline-flex; align-items: center; gap: 8px; padding: 8px 12px;
+    border-radius: 8px; color: var(--accent-strong); text-decoration: none; font-weight: 700;
+  }
+  .source-tab.active { background: var(--accent); color: #fff; }
+  .source-tab .count { font-size: 0.82rem; opacity: .8; }
 </style>
 
 <h1 class="h4 mb-2">CGA</h1>
+<nav class="source-tabs" aria-label="Source des appels CGA">
+  {% for tab in source_tabs %}
+    <a class="source-tab {% if tab.active %}active{% endif %}" href="{{ tab.url }}">
+      <span>{{ tab.label }}</span>
+      <span class="count">{{ tab.count }}</span>
+    </a>
+  {% endfor %}
+</nav>
 {% if user.is_superuser %}
-  <p class="subtitle" style="color:var(--muted);">Importer le fichier CGA (Feuil1) pour charger les colonnes N, raison sociale, sigle, NIU, activite, regime, CRI, centre, ville et telephone.</p>
+  <p class="subtitle" style="color:var(--muted);">{{ import_hint }}</p>
   <div class="panel import-panel">
-    <div class="import-title">Importation CGA</div>
+    <div class="import-title">Importation CGA - {{ active_source_label }}</div>
     <form method="post" enctype="multipart/form-data" class="form-inline" style="gap:12px; flex-wrap:wrap;">
       {% csrf_token %}
+      <input type="hidden" name="source" value="{{ active_source }}">
       <input type="hidden" name="update_mode" value="append">
       <div class="input-file">
-        <span class="file-label">Choisir fichier (Feuil1)</span>
+        <span class="file-label">Choisir fichier</span>
         <div class="file-input-fr">
           <input type="file" id="cga-import-append" name="file" accept=".xlsx,.xlsm" required class="file-input-fr-native js-fr-file-input" />
           <label for="cga-import-append" class="file-input-fr-btn">Parcourir</label>
@@ -162,9 +181,10 @@
     <div class="import-divider"></div>
     <form method="post" enctype="multipart/form-data" class="form-inline" style="gap:12px; flex-wrap:wrap;">
       {% csrf_token %}
+      <input type="hidden" name="source" value="{{ active_source }}">
       <input type="hidden" name="update_mode" value="replace">
       <div class="input-file">
-        <span class="file-label">Choisir fichier (Feuil1)</span>
+        <span class="file-label">Choisir fichier</span>
         <div class="file-input-fr">
           <input type="file" id="cga-import-replace" name="file" accept=".xlsx,.xlsm" required class="file-input-fr-native js-fr-file-input" />
           <label for="cga-import-replace" class="file-input-fr-btn">Parcourir</label>
@@ -173,7 +193,7 @@
       </div>
       <button type="submit" class="btn btn-secondary btn-sm">Importer (écrase l'existant)</button>
     </form>
-    <p class="subtitle" style="color:var(--muted); margin:6px 0 0;">Le mode replace recharge tout. Le mode append traite le fichier par lots de 2000, ajoute les NIU absents et met a jour les NIU deja presents.</p>
+    <p class="subtitle" style="color:var(--muted); margin:6px 0 0;">Le mode replace recharge seulement la source {{ active_source_label }}. Le mode append traite le fichier par lots de 2000, ajoute les codes absents et met a jour les codes deja presents.</p>
   </div>
   <div class="panel">
     <p class="subtitle" style="color:var(--muted); margin-bottom:8px;">Nettoyage global des doublons de numéros sur toutes les tables d'appels. Les doublons détectés sont désactivés pour conserver l'historique.</p>
@@ -205,6 +225,7 @@
   </div>
 
   <form method="get" class="form-inline" style="gap:8px; margin-bottom:10px; flex-wrap:wrap;">
+    <input type="hidden" name="source" value="{{ active_source }}">
     <input type="text" name="q" class="input search-bar" placeholder="Recherche raison sociale / NIU / tel..." value="{{ filters.q }}">
     <input type="datetime-local" name="date_from" class="input" placeholder="Du" value="{{ filters.date_from }}">
     <input type="datetime-local" name="date_to" class="input" placeholder="Au" value="{{ filters.date_to }}">
@@ -261,17 +282,17 @@
       <option value="500" {% if page_size == 500 %}selected{% endif %}>500 / page</option>
     </select>
     <button type="submit" class="btn btn-primary btn-sm" style="padding:10px 14px;">Filtrer</button>
-    <a class="btn btn-ghost btn-sm" style="padding:10px 14px;" href="/cga/">Reset</a>
+    <a class="btn btn-ghost btn-sm" style="padding:10px 14px;" href="/cga/{{ reset_query }}">Reset</a>
   </form>
 
   <div class="selection-bar">
     <p class="subtitle" style="color:var(--muted); margin:0;">
-      Lignes CGA affichees : <strong>{{ rows_count }}</strong>
+      Lignes CGA {{ active_source_label }} affichees : <strong>{{ rows_count }}</strong>
       {% if page_obj %} | Page {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}{% endif %}
     </p>
     <div style="display:flex; gap:8px; flex-wrap:wrap;">
       <a class="btn btn-ghost btn-sm" href="{% url 'cga_export_filtered_csv' %}{% if request.GET.urlencode %}?{{ request.GET.urlencode }}{% endif %}">Exporter le tableau filtre (CSV)</a>
-      <a class="btn btn-ghost btn-sm" href="{% url 'cga_export_xlsx' %}">Exporter toutes les donnees (XLSX)</a>
+      <a class="btn btn-ghost btn-sm" href="{% url 'cga_export_xlsx' %}{{ export_query }}">Exporter toutes les donnees (XLSX)</a>
       <button type="button" id="js-download-audios" class="btn btn-primary btn-sm" disabled>
         Telecharger les audios selectionnes
       </button>
@@ -287,12 +308,12 @@
           </th>
           <th>N</th>
           <th>Raison sociale</th>
-          <th>Sigle</th>
-          <th>NIU</th>
-          <th>Activite principale</th>
-          <th>Regime</th>
-          <th>CRI</th>
-          <th>Centre de rattachement</th>
+          <th>{% if active_source == "cabinet" %}Inscription{% else %}Sigle{% endif %}</th>
+          <th>{% if active_source == "cabinet" %}Code ONECCA{% else %}NIU{% endif %}</th>
+          <th>{% if active_source == "cabinet" %}Email{% else %}Activite principale{% endif %}</th>
+          <th>{% if active_source == "cabinet" %}Section{% else %}Regime{% endif %}</th>
+          <th>{% if active_source == "cabinet" %}Inscription date{% else %}CRI{% endif %}</th>
+          <th>{% if active_source == "cabinet" %}Adresse / site{% else %}Centre de rattachement{% endif %}</th>
           <th>Ville</th>
           <th>Telephone</th>
           <th>Statut</th>

@@ -425,7 +425,19 @@ def sync_formateur_status(row: "AppelFormateur", *, save: bool = True) -> str:
 
 class AppelCGA(TimeStampedModel):
     STATUS_CHOICES = Appel.STATUS_CHOICES
+    SOURCE_ENTREPRISE = "entreprise"
+    SOURCE_CABINET = "cabinet"
+    SOURCE_CHOICES = [
+        (SOURCE_ENTREPRISE, "Entreprise"),
+        (SOURCE_CABINET, "Cabinet"),
+    ]
 
+    source = models.CharField(
+        max_length=20,
+        choices=SOURCE_CHOICES,
+        default=SOURCE_ENTREPRISE,
+        db_index=True,
+    )
     numero = models.PositiveIntegerField(null=True, blank=True)
     raison_sociale = models.CharField(max_length=255)
     sigle = models.CharField(max_length=255, blank=True)
@@ -435,7 +447,7 @@ class AppelCGA(TimeStampedModel):
     cri = models.CharField(max_length=120, blank=True)
     centre_de_rattachement = models.CharField(max_length=255, blank=True)
     ville = models.CharField(max_length=120, blank=True)
-    telephone = models.CharField(max_length=30, blank=True)
+    telephone = models.CharField(max_length=120, blank=True)
     is_active = models.BooleanField(default=True, db_index=True)
     status = models.CharField(
         max_length=25, choices=STATUS_CHOICES, default="en_attente", db_index=True
@@ -472,6 +484,9 @@ class AppelCGA(TimeStampedModel):
     class Meta:
         ordering = ["raison_sociale"]
         indexes = [
+            models.Index(
+                fields=["source", "is_active", "status"], name="appelcga_source_active_idx"
+            ),
             models.Index(fields=["raison_sociale"]),
             models.Index(fields=["regime"]),
             models.Index(fields=["cri"]),
