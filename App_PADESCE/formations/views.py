@@ -564,9 +564,37 @@ def _presence_control_can_create(request) -> bool:
     return bool(not public_username or getattr(user, "username", "") != public_username)
 
 
-def _presence_control_modal_context(classe: Classe, request=None) -> dict:
+def _presence_control_summaries_from_rows(rows: list[dict] | None) -> dict[str, dict[str, int]]:
+    summaries = {key.upper(): {"total": 0, "presents": 0, "absents": 0} for key in CONTROL_KEYS}
+    for row in rows or []:
+        for control_key in CONTROL_KEYS:
+            marker = str(row.get(control_key) or "").strip().upper()
+            if marker not in {"PR", "AB"}:
+                continue
+            summary = summaries[control_key.upper()]
+            summary["total"] += 1
+            if marker == "PR":
+                summary["presents"] += 1
+            else:
+                summary["absents"] += 1
+    return {
+        control_type: summary for control_type, summary in summaries.items() if summary["total"]
+    }
+
+
+def _merge_presence_summary(primary: dict, fallback: dict | None) -> dict:
+    fallback = fallback or {}
+    if int(fallback.get("total") or 0) > int(primary.get("total") or 0):
+        return fallback
+    return primary
+
+
+def _presence_control_modal_context(
+    classe: Classe, request=None, apprenant_rows: list[dict] | None = None
+) -> dict:
     enabled = bool(getattr(classe, "pk", None))
     if enabled:
+        row_summaries = _presence_control_summaries_from_rows(apprenant_rows)
         db_controls = list(
             PresenceControl.objects.filter(classe=classe)
             .annotate(
@@ -576,10 +604,32 @@ def _presence_control_modal_context(classe: Classe, request=None) -> dict:
             .order_by("type_controle", "-date")
         )
         db_control_types = {control.type_controle for control in db_controls}
-        marker_control_types = get_class_marker_control_types(classe)
+        marker_control_types = get_class_marker_control_types(classe) | set(row_summaries)
+        for control in db_controls:
+            row_summary = row_summaries.get(str(control.type_controle or "").upper())
+            if not row_summary:
+                continue
+            merged_summary = _merge_presence_summary(
+                {
+                    "total": getattr(control, "total", 0) or 0,
+                    "presents": getattr(control, "presents", 0) or 0,
+                    "absents": max(
+                        (getattr(control, "total", 0) or 0)
+                        - (getattr(control, "presents", 0) or 0),
+                        0,
+                    ),
+                },
+                row_summary,
+            )
+            control.total = merged_summary.get("total") or 0
+            control.presents = merged_summary.get("presents") or 0
+            control.absents = merged_summary.get("absents") or 0
         virtual_controls = []
         for control_type in sorted(marker_control_types - db_control_types):
-            summary = get_class_marker_control_summary(classe, control_type)
+            summary = _merge_presence_summary(
+                get_class_marker_control_summary(classe, control_type),
+                row_summaries.get(control_type),
+            )
             virtual_controls.append(
                 SimpleNamespace(
                     id=None,
@@ -1492,7 +1542,9 @@ def class_analysis_detail(request, code: str):
     from App_PADESCE.satisfaction_apprenants.sharepoint_csv_links import SHAREPOINT_CSV_LINKS
 
     sharepoint_csv_url = SHAREPOINT_CSV_LINKS.get(code.upper(), "")
-    presence_modal_context = _presence_control_modal_context(classe, request)
+    presence_modal_context = _presence_control_modal_context(
+        classe, request, apprenant_rows=apprenant_rows
+    )
 
     return render(
         request,

@@ -1,5 +1,6 @@
 import shutil
 import tempfile
+from datetime import date, time
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
@@ -23,6 +24,7 @@ from App_PADESCE.presences.control_utils import (
     PRESENCE_CONTROLS_CACHE_KEY,
     upsert_presence_controls,
 )
+from App_PADESCE.presences.models import Presence, PresenceControl
 
 
 @override_settings(ROOT_URLCONF="App_PADESCE.urls")
@@ -209,6 +211,85 @@ class AnalysisEntityDetailTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "C1 - données existantes")
         self.assertContains(response, "Jumeler et ouvrir")
+
+    @override_settings(
+        STORAGES={
+            "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+            "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
+        }
+    )
+    def test_class_analysis_detail_control_summary_matches_displayed_rows(self):
+        first = Apprenant.objects.create(
+            code="APP-MARKER-001",
+            numero="APP-MARKER-001",
+            classe=self.secondary_class,
+            formation=self.formation,
+            nom_complet="Apprenant Present",
+            telephone1="677000001",
+            c1="PR",
+        )
+        second = Apprenant.objects.create(
+            code="APP-MARKER-002",
+            numero="APP-MARKER-002",
+            classe=self.secondary_class,
+            formation=self.formation,
+            nom_complet="Apprenant Absent",
+            telephone1="677000002",
+            c1="AB",
+        )
+        for apprenant in (first, second):
+            appel = Appel.objects.create(
+                code=apprenant.code,
+                nom=apprenant.nom_complet,
+                classe=self.secondary_class,
+                classe_label=self.secondary_class.code,
+                prestataire=self.prestataire.raison_sociale,
+                beneficiaire=self.beneficiaire.nom_structure,
+                telephone1=apprenant.telephone1 or "677000000",
+                status="termine",
+                is_active=True,
+                locked_by=self.user,
+            )
+            AppelAnswers.objects.create(
+                appel=appel,
+                q1_clarte_exposes=4,
+                q2_interaction_formateur=5,
+                q3_maitrise_contenu=4,
+                q4_salle_adequate=4,
+                q5_materiel_disponible=4,
+                q6_organisation_temps=5,
+                q7_utilite_formation=5,
+                q8_adequation_besoins=4,
+                q9_satisfaction_globale=5,
+                modified_by=self.user,
+            )
+        control = PresenceControl.objects.create(
+            classe=self.secondary_class,
+            enqueteur=self.user,
+            theme="Contrôle partiel",
+            date=date(2026, 5, 18),
+            heure_debut=time(8, 0),
+            heure_fin=time(10, 0),
+            type_controle="C1",
+        )
+        Presence.objects.create(
+            controle=control,
+            classe=self.secondary_class,
+            apprenant=first,
+            enqueteur=self.user,
+            date=control.date,
+            heure_debut=control.heure_debut,
+            heure_fin=control.heure_fin,
+            presence="PR",
+            statut="present",
+        )
+
+        response = self.client.get(
+            reverse("class_analysis_detail", args=[self.secondary_class.code])
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "1/2 présent(s)")
 
     def test_class_analysis_detail_renders_verified_presence_chapeau_calculations(self):
         second_call = Appel.objects.create(
