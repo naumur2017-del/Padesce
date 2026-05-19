@@ -211,8 +211,9 @@
   <div class="scope-tabs" role="tablist" aria-label="Navigation des appels">
     <a class="scope-tab active" href="{% url 'appels_index' %}?phase_scope={{ filters.phase_scope|urlencode }}" aria-current="page">Appels apprenants</a>
     <a class="scope-tab" href="{% url 'formateurs_index' %}?phase_scope={{ filters.phase_scope|urlencode }}">Appels formateurs</a>
+    <a class="scope-tab" href="{% url 'pas_forme_index' %}?phase_scope={{ filters.phase_scope|urlencode }}">Appels Pas Forme</a>
   </div>
-  <div class="scope-note">Basculer entre les appels apprenants PADESCE et les appels formateurs.</div>
+  <div class="scope-note">Basculer entre les appels apprenants PADESCE, formateurs et Pas Forme.</div>
 </div>
 <div class="phase-switch-row">
   <div class="scope-tabs" role="tablist" aria-label="Choix du perimetre de phase">

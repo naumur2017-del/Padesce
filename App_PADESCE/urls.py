@@ -129,6 +129,7 @@ app_urlpatterns = [
     path("messages/", include("App_PADESCE.messaging.urls")),
     path("appels/", include("App_PADESCE.appels.urls")),
     path("appels-formateurs/", include("App_PADESCE.appels.formateurs_urls")),
+    path("appels-pas-forme/", include("App_PADESCE.appels.pas_forme_urls")),
     path("cga/", include("App_PADESCE.appels.cga_urls")),
     path("reporting/", include("App_PADESCE.reporting.urls")),
     path("beneficiaire/", include("App_PADESCE.beneficiaires.urls")),

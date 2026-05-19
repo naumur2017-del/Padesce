@@ -1418,7 +1418,7 @@ def _cleanup_stale_locks(timeout_minutes=3):
     - en_cours: 3 minutes max (dropped connections should release within 3min)
     - pause: 2 minutes max (paused calls should resume or terminate quickly)
     """
-    from App_PADESCE.appels.models import Appel, AppelCGA, AppelFormateur
+    from App_PADESCE.appels.models import Appel, AppelCGA, AppelFormateur, AppelPasForme
 
     # Cleanup for en_cours locks (3 min)
     cutoff_active = timezone.now() - datetime.timedelta(minutes=timeout_minutes)
@@ -1434,6 +1434,10 @@ def _cleanup_stale_locks(timeout_minutes=3):
         locked_by__isnull=False, locked_at__lt=cutoff_active, status="en_cours"
     ).update(locked_by=None, locked_at=None, status="pause")
 
+    AppelPasForme.objects.filter(
+        locked_by__isnull=False, locked_at__lt=cutoff_active, status="en_cours"
+    ).update(locked_by=None, locked_at=None, status="pause")
+
     # Cleanup for pause locks (2 min)
     cutoff_pause = timezone.now() - datetime.timedelta(minutes=2)
     Appel.objects.filter(
@@ -1445,6 +1449,10 @@ def _cleanup_stale_locks(timeout_minutes=3):
     ).update(locked_by=None, locked_at=None)
 
     AppelFormateur.objects.filter(
+        locked_by__isnull=False, locked_at__lt=cutoff_pause, status="pause"
+    ).update(locked_by=None, locked_at=None)
+
+    AppelPasForme.objects.filter(
         locked_by__isnull=False, locked_at__lt=cutoff_pause, status="pause"
     ).update(locked_by=None, locked_at=None)
 

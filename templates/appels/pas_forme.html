@@ -1,0 +1,307 @@
+{% extends "base.html" %}
+{% block title %}Appels Pas Forme{% endblock %}
+{% block content %}
+<style>
+  :root {
+    --bg:#fbf9ff; --panel:#fff; --text:#23153b; --muted:#78669d;
+    --accent:#7c3aed; --accent-strong:#4c1d95; --border:rgba(109,77,168,.18);
+  }
+  body { background:linear-gradient(180deg,#fdfcff 0%,var(--bg) 100%); color:var(--text); }
+  .shell { width:min(1480px, calc(100% - 32px)); margin:24px auto 48px; }
+  .panel { background:var(--panel); border:1px solid var(--border); border-radius:16px; padding:16px; margin-bottom:16px; box-shadow:0 18px 44px rgba(76,29,149,.08); }
+  .scope-switch { display:flex; justify-content:space-between; gap:14px; align-items:center; flex-wrap:wrap; margin-bottom:14px; }
+  .scope-tabs { display:inline-flex; background:#fff; border:1px solid var(--border); border-radius:999px; padding:4px; gap:4px; }
+  .scope-tab { display:inline-flex; align-items:center; justify-content:center; min-width:120px; padding:9px 18px; border-radius:999px; font-size:.85rem; font-weight:700; color:var(--muted); text-decoration:none; }
+  .scope-tab.active { background:var(--accent); color:#fff; box-shadow:0 8px 18px rgba(76,29,149,.18); }
+  .scope-note, .subtitle { color:var(--muted); font-size:.9rem; }
+  .btn, .btn-small { display:inline-flex; align-items:center; justify-content:center; gap:8px; padding:9px 12px; border-radius:12px; border:1px solid transparent; font-weight:700; cursor:pointer; text-decoration:none; }
+  .btn-sm, .btn-small { padding:7px 10px; font-size:.88rem; }
+  .btn-primary, .btn-small.primary { background:var(--accent); color:#fff; }
+  .btn-secondary { background:#fff; color:var(--accent-strong); border-color:rgba(111,60,195,.28); }
+  .btn-ghost, .btn-small.ghost { background:rgba(111,60,195,.08); color:var(--accent-strong); border-color:rgba(111,60,195,.18); }
+  .btn-danger { background:#fee2e2; color:#991b1b; border-color:#fecaca; }
+  .input { border:1px solid var(--border); border-radius:10px; padding:9px 10px; background:#fff; color:var(--text); min-height:38px; }
+  .form-inline { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .import-title { font-weight:800; margin-bottom:8px; }
+  .stats { display:grid; grid-template-columns:repeat(5, minmax(0,1fr)); gap:10px; }
+  .stat { border:1px solid var(--border); border-radius:12px; padding:12px; background:rgba(124,58,237,.04); }
+  .stat strong { display:block; font-size:1.35rem; }
+  .table-wrap { overflow:auto; }
+  table { width:100%; border-collapse:separate; border-spacing:0; min-width:1100px; }
+  th, td { padding:10px 12px; border-bottom:1px solid rgba(109,77,168,.12); text-align:left; vertical-align:top; font-size:.9rem; }
+  th { position:sticky; top:0; background:#f7f3ff; z-index:1; color:var(--accent-strong); }
+  tr:hover td { background:rgba(124,58,237,.035); }
+  .badge { display:inline-flex; border-radius:999px; padding:4px 8px; font-weight:800; font-size:.76rem; background:rgba(111,60,195,.1); color:var(--accent-strong); }
+  .actions { display:flex; gap:6px; flex-wrap:wrap; }
+  .modal-backdrop { position:fixed; inset:0; background:rgba(24,16,40,.45); display:flex; align-items:center; justify-content:center; padding:20px; z-index:2000; }
+  .modal-backdrop[hidden] { display:none; }
+  .modal-panel { background:#fff; width:min(620px,100%); max-height:92vh; overflow:auto; border-radius:18px; padding:18px; border:1px solid var(--border); box-shadow:0 24px 70px rgba(20,12,38,.28); }
+  .modal-detail { display:flex; gap:8px; margin:5px 0; color:var(--muted); }
+  .question { display:grid; grid-template-columns:1fr auto; gap:12px; align-items:center; padding:10px 0; border-bottom:1px solid rgba(109,77,168,.12); }
+  .choice { display:inline-flex; gap:10px; white-space:nowrap; }
+  .modal-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:14px; flex-wrap:wrap; }
+  @media (max-width:900px) { .stats { grid-template-columns:repeat(2,minmax(0,1fr)); } .question { grid-template-columns:1fr; } }
+</style>
+
+<main class="shell">
+  <div class="scope-switch">
+    <div class="scope-tabs" role="tablist" aria-label="Navigation des appels">
+      <a class="scope-tab" href="{% url 'appels_index' %}?phase_scope={{ filters.phase_scope|urlencode }}">Appels apprenants</a>
+      <a class="scope-tab" href="{% url 'formateurs_index' %}?phase_scope={{ filters.phase_scope|urlencode }}">Appels formateurs</a>
+      <a class="scope-tab active" href="{% url 'pas_forme_index' %}?phase_scope={{ filters.phase_scope|urlencode }}" aria-current="page">Appels Pas Forme</a>
+    </div>
+    <div class="scope-note">Basculer entre les listes d'appels PADESCE.</div>
+  </div>
+
+  {% if user.is_superuser %}
+    <div class="panel">
+      <div class="import-title">Importer la liste des apprenants non formes</div>
+      <form method="post" enctype="multipart/form-data" class="form-inline">
+        {% csrf_token %}
+        <input type="hidden" name="update_mode" value="replace">
+        <input type="file" name="file" accept=".xlsx,.xlsm" required class="input">
+        <button type="submit" class="btn btn-primary btn-sm">Importer et remplacer</button>
+      </form>
+      <p class="subtitle">Colonnes attendues : APPRENANT ABSENT CHEZ NAUMUR, NUMERO DE TELEPHONE, PRESTATION ID, NOM DU PRESTATAIRE, NOM DU BENEFICIAIRE.</p>
+    </div>
+  {% endif %}
+
+  <div class="stats">
+    <div class="stat"><span>Total</span><strong>{{ stats.total|default:0 }}</strong></div>
+    <div class="stat"><span>Appels tentes</span><strong>{{ stats.appels_tentes|default:0 }}</strong></div>
+    <div class="stat"><span>Appels reussis</span><strong>{{ stats.appels_reussis|default:0 }}</strong></div>
+    <div class="stat"><span>Formulaires</span><strong>{{ stats.completion_label }}</strong></div>
+    <div class="stat"><span>Audios</span><strong>{{ stats.audios|default:0 }}</strong></div>
+  </div>
+
+  <div class="panel">
+    <form method="get" class="form-inline">
+      <input type="hidden" name="phase_scope" value="{{ filters.phase_scope }}">
+      <input type="text" name="q" class="input" placeholder="Recherche nom, telephone..." value="{{ filters.q }}">
+      <select name="status" class="input">
+        <option value="">Statut</option>
+        <option value="en_attente" {% if filters.status == "en_attente" %}selected{% endif %}>En attente</option>
+        <option value="appel_tente" {% if filters.status == "appel_tente" %}selected{% endif %}>Appel tente</option>
+        <option value="appel_reussi" {% if filters.status == "appel_reussi" %}selected{% endif %}>Appel reussi</option>
+        <option value="formulaire_rempli" {% if filters.status == "formulaire_rempli" %}selected{% endif %}>Formulaire rempli</option>
+        <option value="formulaire_avec_audio" {% if filters.status == "formulaire_avec_audio" %}selected{% endif %}>Formulaire avec audio</option>
+        <option value="en_cours" {% if filters.status == "en_cours" %}selected{% endif %}>En cours</option>
+        <option value="pause" {% if filters.status == "pause" %}selected{% endif %}>Pause</option>
+        <option value="a_rappeler" {% if filters.status == "a_rappeler" %}selected{% endif %}>A rappeler</option>
+      </select>
+      <select name="prestation" class="input">
+        <option value="">Prestation</option>
+        {% for p in filters.prestations %}<option value="{{ p }}" {% if filters.prestation == p %}selected{% endif %}>{{ p }}</option>{% endfor %}
+      </select>
+      <select name="prestataire" class="input">
+        <option value="">Prestataire</option>
+        {% for p in filters.prestataires %}<option value="{{ p }}" {% if filters.prestataire == p %}selected{% endif %}>{{ p }}</option>{% endfor %}
+      </select>
+      <select name="beneficiaire" class="input">
+        <option value="">Beneficiaire</option>
+        {% for p in filters.beneficiaires %}<option value="{{ p }}" {% if filters.beneficiaire == p %}selected{% endif %}>{{ p }}</option>{% endfor %}
+      </select>
+      <button type="submit" class="btn btn-primary btn-sm">Filtrer</button>
+      <a class="btn btn-ghost btn-sm" href="{% url 'pas_forme_index' %}">Reset</a>
+      <a class="btn btn-secondary btn-sm" href="{% url 'pas_forme_export_filtered_csv' %}{% if request.GET.urlencode %}?{{ request.GET.urlencode }}{% endif %}">Exporter CSV</a>
+    </form>
+  </div>
+
+  <div class="panel table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Nom</th><th>Telephone</th><th>Prestation</th><th>Prestataire</th><th>Beneficiaire</th><th>Statut</th><th>Reponses</th><th>Audio</th><th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+          <tr data-id="{{ row.id }}" data-name="{{ row.nom|escapejs }}" data-phone="{{ row.telephone|default:'-' }}" data-status="{{ row.status }}" data-q1="{{ row.connait_structure }}" data-q2="{{ row.membre_structure }}" data-q3="{{ row.a_assiste_formation }}" data-q4="{{ row.connait_theme }}" data-q5="{{ row.nombre_seances|default:'' }}">
+            <td><strong>{{ row.nom }}</strong></td>
+            <td>{{ row.telephone|default:"-" }}</td>
+            <td>{{ row.prestation_id|default:"-" }}</td>
+            <td>{{ row.prestataire|default:"-" }}</td>
+            <td>{{ row.beneficiaire|default:"-" }}</td>
+            <td><span class="badge js-status">{{ row.get_status_display }}</span>{% if row.locked_by %}<br><small>{{ row.locked_by.username }}</small>{% endif %}</td>
+            <td>
+              {% if row.satisfaction_completed_at %}
+                Q1 {{ row.connait_structure|default:"-" }} | Q2 {{ row.membre_structure|default:"-" }} | Q3 {{ row.a_assiste_formation|default:"-" }} | Q4 {{ row.connait_theme|default:"-" }} | Seances {{ row.nombre_seances|default:"0" }}
+              {% else %}
+                <span class="subtitle">Non rempli</span>
+              {% endif %}
+            </td>
+            <td class="js-audio-cell">
+              {% if row.audio_file_url %}<a href="{{ row.audio_file_url }}" class="btn-small ghost" download>Audio</a>{% else %}<span class="subtitle">-</span>{% endif %}
+            </td>
+            <td>
+              <div class="actions">
+                <button class="btn-small primary js-action" data-action="start">Demarrer</button>
+                <button class="btn-small ghost js-action" data-action="pause">Pause</button>
+                <button class="btn-small ghost js-open-form">Formulaire</button>
+              </div>
+            </td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="9" style="text-align:center; color:var(--muted);">Aucune ligne Appels Pas Forme.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if page_obj.has_other_pages %}
+    <div class="panel form-inline" style="justify-content:center;">
+      {% if page_obj.has_previous %}<a class="btn btn-ghost btn-sm" href="?page={{ page_obj.previous_page_number }}&{{ request.GET.urlencode }}">Precedent</a>{% endif %}
+      <span class="subtitle">Page {{ page_obj.number }} / {{ paginator.num_pages }}</span>
+      {% if page_obj.has_next %}<a class="btn btn-ghost btn-sm" href="?page={{ page_obj.next_page_number }}&{{ request.GET.urlencode }}">Suivant</a>{% endif %}
+    </div>
+  {% endif %}
+</main>
+
+<div id="js-form-modal" class="modal-backdrop" hidden>
+  <div class="modal-panel">
+    <h2 style="margin-top:0;">Formulaire Appels Pas Forme</h2>
+    <div class="modal-detail"><strong id="js-modal-name">-</strong><span id="js-modal-phone">-</span></div>
+    <div class="question">
+      <label>1. Est-ce que vous connaissez cette structure ?</label>
+      <span class="choice"><label><input type="radio" name="q1" value="OUI"> Oui</label><label><input type="radio" name="q1" value="NON"> Non</label></span>
+    </div>
+    <div class="question">
+      <label>2. Etes-vous membre de cette structure ?</label>
+      <span class="choice"><label><input type="radio" name="q2" value="OUI"> Oui</label><label><input type="radio" name="q2" value="NON"> Non</label></span>
+    </div>
+    <div class="question">
+      <label>3. Avez-vous eu a assister a une formation PADESCE ?</label>
+      <span class="choice"><label><input type="radio" name="q3" value="OUI"> Oui</label><label><input type="radio" name="q3" value="NON"> Non</label></span>
+    </div>
+    <div class="question">
+      <label>4. Connaissez-vous le theme de cette formation ?</label>
+      <span class="choice"><label><input type="radio" name="q4" value="OUI"> Oui</label><label><input type="radio" name="q4" value="NON"> Non</label></span>
+    </div>
+    <label class="question">
+      <span>5. Vous avez assiste a combien de seances de formation ?</span>
+      <input id="js-q5" class="input" type="number" min="0" step="1" value="0">
+    </label>
+    <label class="question">
+      <span>A rappeler</span>
+      <span><input id="js-rappel" type="checkbox"> <input id="js-rappel-at" class="input" type="datetime-local" disabled></span>
+    </label>
+    <div class="modal-actions">
+      <button type="button" class="btn btn-ghost btn-sm" id="js-record-toggle">Enregistrer audio</button>
+      <button type="button" class="btn btn-ghost btn-sm" id="js-close-modal">Annuler</button>
+      <button type="button" class="btn btn-danger btn-sm" id="js-save-form">Terminer l'appel et sauvegarder</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function() {
+    const csrfToken = document.cookie.split("; ").find(row => row.startsWith("csrftoken="))?.split("=")[1] || "";
+    const modal = document.getElementById("js-form-modal");
+    const modalName = document.getElementById("js-modal-name");
+    const modalPhone = document.getElementById("js-modal-phone");
+    const q5 = document.getElementById("js-q5");
+    const rappel = document.getElementById("js-rappel");
+    const rappelAt = document.getElementById("js-rappel-at");
+    const recordToggle = document.getElementById("js-record-toggle");
+    let currentRow = null;
+    let recorder = null;
+    let chunks = [];
+    let audioBlob = null;
+
+    function statusLabel(status) {
+      return {
+        en_attente:"En attente", appel_tente:"Appel tente", appel_reussi:"Appel reussi",
+        formulaire_rempli:"Formulaire rempli", formulaire_avec_audio:"Formulaire avec Audio",
+        en_cours:"En cours", pause:"Pause", a_rappeler:"A rappeler"
+      }[status] || status || "";
+    }
+
+    async function post(url, data) {
+      const res = await fetch(url, { method:"POST", headers:{"X-CSRFToken": csrfToken}, body:data });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || json.ok === false) throw new Error(json.error || "Erreur reseau");
+      return json;
+    }
+
+    function updateRow(row, data) {
+      if (data.status) row.dataset.status = data.status;
+      row.querySelector(".js-status").textContent = data.status_label || statusLabel(data.status);
+      if (data.audio_url) row.querySelector(".js-audio-cell").innerHTML = `<a href="${data.audio_url}" class="btn-small ghost" download>Audio</a>`;
+    }
+
+    document.querySelectorAll(".js-action").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const row = btn.closest("tr");
+        const data = new FormData();
+        data.append("action", btn.dataset.action);
+        try { updateRow(row, await post(`/appels-pas-forme/${row.dataset.id}/action/`, data)); }
+        catch (err) { alert(err.message); }
+      });
+    });
+
+    document.querySelectorAll(".js-open-form").forEach(btn => {
+      btn.addEventListener("click", () => {
+        currentRow = btn.closest("tr");
+        modalName.textContent = currentRow.dataset.name || "-";
+        modalPhone.textContent = currentRow.dataset.phone || "-";
+        ["q1","q2","q3","q4"].forEach(name => {
+          document.querySelectorAll(`input[name="${name}"]`).forEach(input => {
+            input.checked = input.value === (currentRow.dataset[name] || "");
+          });
+        });
+        q5.value = currentRow.dataset.q5 || 0;
+        rappel.checked = false;
+        rappelAt.disabled = true;
+        audioBlob = null;
+        chunks = [];
+        recordToggle.textContent = "Enregistrer audio";
+        modal.hidden = false;
+      });
+    });
+
+    rappel.addEventListener("change", () => { rappelAt.disabled = !rappel.checked; });
+    document.getElementById("js-close-modal").addEventListener("click", () => { modal.hidden = true; });
+
+    recordToggle.addEventListener("click", async () => {
+      if (recorder && recorder.state === "recording") {
+        recorder.stop();
+        recordToggle.textContent = "Audio pret";
+        return;
+      }
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio:true });
+        chunks = [];
+        recorder = new MediaRecorder(stream);
+        recorder.ondataavailable = event => { if (event.data.size) chunks.push(event.data); };
+        recorder.onstop = () => {
+          audioBlob = new Blob(chunks, { type:"audio/webm" });
+          stream.getTracks().forEach(track => track.stop());
+        };
+        recorder.start();
+        recordToggle.textContent = "Arreter audio";
+      } catch (err) {
+        alert("Micro indisponible : " + err.message);
+      }
+    });
+
+    document.getElementById("js-save-form").addEventListener("click", async () => {
+      if (!currentRow) return;
+      const data = new FormData();
+      data.append("action", rappel.checked ? "rappeler" : "terminer");
+      if (rappel.checked) data.append("rappel_at", rappelAt.value || "");
+      ["q1","q2","q3","q4"].forEach(name => {
+        data.append(name, document.querySelector(`input[name="${name}"]:checked`)?.value || "");
+      });
+      data.append("q5", q5.value || "0");
+      if (audioBlob) data.append("audio", audioBlob, `pas-forme-${currentRow.dataset.id}.webm`);
+      try {
+        updateRow(currentRow, await post(`/appels-pas-forme/${currentRow.dataset.id}/finalize/`, data));
+        modal.hidden = true;
+        window.location.reload();
+      } catch (err) {
+        alert(err.message);
+      }
+    });
+  })();
+</script>
+{% endblock %}

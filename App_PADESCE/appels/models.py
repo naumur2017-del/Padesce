@@ -373,6 +373,19 @@ def appel_formateur_audio_upload(instance: "AppelFormateur", filename: str) -> s
     )
 
 
+def appel_pas_forme_audio_upload(instance: "AppelPasForme", filename: str) -> str:
+    now = timezone.now()
+    ts = now.strftime("%Y%m%d_%H%M%S")
+    nom_slug = _short_slug(instance.nom, "apprenant", max_len=28)
+    prestation_slug = _short_slug(instance.prestation_id, "prestation", max_len=18)
+    phone_slug = _short_slug(instance.telephone, "telephone", max_len=12)
+    ext = filename.split(".")[-1] if "." in filename else "mp3"
+    return (
+        f"pas-forme/{now:%Y}/{now:%m}/{now:%d}/"
+        f"{prestation_slug}-{phone_slug}-{nom_slug}-{ts}.{ext}"
+    )
+
+
 FORMATEUR_SCORE_FIELDS = (
     "q1_prerequis_apprenants",
     "q2_interaction_apprenants",
@@ -554,6 +567,58 @@ class AppelFormateur(TimeStampedModel):
     def __str__(self) -> str:
         label = self.telephone or self.source_contact or self.reference_code
         return f"Appel formateur {self.reference_code} - {label}"
+
+
+class AppelPasForme(TimeStampedModel):
+    STATUS_CHOICES = Appel.STATUS_CHOICES
+    BOOLEAN_CHOICES = [
+        ("OUI", "Oui"),
+        ("NON", "Non"),
+    ]
+
+    reference_code = models.CharField(max_length=120, unique=True)
+    numero = models.PositiveIntegerField(null=True, blank=True)
+    nom = models.CharField(max_length=255)
+    telephone = models.CharField(max_length=30, blank=True)
+    est_forme = models.CharField(max_length=80, blank=True)
+    prestation_id = models.CharField(max_length=80, blank=True, db_index=True)
+    prestataire = models.CharField(max_length=255, blank=True)
+    beneficiaire = models.CharField(max_length=255, blank=True)
+    is_active = models.BooleanField(default=True, db_index=True)
+    status = models.CharField(
+        max_length=25, choices=STATUS_CHOICES, default="en_attente", db_index=True
+    )
+    rappel_at = models.DateTimeField(null=True, blank=True)
+    audio_file = models.FileField(
+        upload_to=appel_pas_forme_audio_upload, null=True, blank=True, max_length=255
+    )
+    locked_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="appels_pas_forme_lock",
+    )
+    locked_at = models.DateTimeField(null=True, blank=True)
+    connait_structure = models.CharField(max_length=3, choices=BOOLEAN_CHOICES, blank=True)
+    membre_structure = models.CharField(max_length=3, choices=BOOLEAN_CHOICES, blank=True)
+    a_assiste_formation = models.CharField(max_length=3, choices=BOOLEAN_CHOICES, blank=True)
+    connait_theme = models.CharField(max_length=3, choices=BOOLEAN_CHOICES, blank=True)
+    nombre_seances = models.PositiveSmallIntegerField(null=True, blank=True)
+    satisfaction_completed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["nom"]
+        indexes = [
+            models.Index(fields=["nom"]),
+            models.Index(fields=["telephone"]),
+            models.Index(fields=["prestation_id"]),
+            models.Index(fields=["prestataire"]),
+            models.Index(fields=["beneficiaire"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"Appel pas forme {self.reference_code} - {self.nom}"
 
 
 class AppelAnswers(TimeStampedModel):

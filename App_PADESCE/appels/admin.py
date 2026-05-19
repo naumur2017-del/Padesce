@@ -1,6 +1,14 @@
 from django.contrib import admin
 
-from App_PADESCE.appels.models import CallAlert
+from App_PADESCE.appels.models import AppelPasForme, CallAlert
+
+
+@admin.register(AppelPasForme)
+class AppelPasFormeAdmin(admin.ModelAdmin):
+    list_display = ("id", "nom", "telephone", "prestation_id", "status", "is_active")
+    list_filter = ("status", "is_active", "prestation_id")
+    search_fields = ("nom", "telephone", "prestation_id", "prestataire", "beneficiaire")
+    readonly_fields = ("created_at", "updated_at")
 
 
 @admin.register(CallAlert)
