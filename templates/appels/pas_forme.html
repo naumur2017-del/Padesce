@@ -229,43 +229,60 @@
       if (data.audio_url) row.querySelector(".js-audio-cell").innerHTML = `<a href="${data.audio_url}" class="btn-small ghost" download>Audio</a>`;
     }
 
+    function openFormModal(row) {
+      currentRow = row;
+      modalName.textContent = currentRow.dataset.name || "-";
+      modalPhone.textContent = currentRow.dataset.phone || "-";
+      ["q1","q2","q3","q4"].forEach(name => {
+        document.querySelectorAll(`input[name="${name}"]`).forEach(input => {
+          input.checked = input.value === (currentRow.dataset[name] || "");
+        });
+      });
+      q5.value = currentRow.dataset.q5 || 0;
+      rappel.checked = false;
+      rappelAt.disabled = true;
+      audioBlob = null;
+      chunks = [];
+      recordToggle.textContent = "Enregistrer audio";
+      modal.hidden = false;
+    }
+
     document.querySelectorAll(".js-action").forEach(btn => {
       btn.addEventListener("click", async () => {
         const row = btn.closest("tr");
         const data = new FormData();
         data.append("action", btn.dataset.action);
-        try { updateRow(row, await post(`/appels-pas-forme/${row.dataset.id}/action/`, data)); }
+        try {
+          updateRow(row, await post(`/appels-pas-forme/${row.dataset.id}/action/`, data));
+          if (btn.dataset.action === "start" || btn.dataset.action === "resume") {
+            openFormModal(row);
+          }
+        }
         catch (err) { alert(err.message); }
       });
     });
 
     document.querySelectorAll(".js-open-form").forEach(btn => {
-      btn.addEventListener("click", () => {
-        currentRow = btn.closest("tr");
-        modalName.textContent = currentRow.dataset.name || "-";
-        modalPhone.textContent = currentRow.dataset.phone || "-";
-        ["q1","q2","q3","q4"].forEach(name => {
-          document.querySelectorAll(`input[name="${name}"]`).forEach(input => {
-            input.checked = input.value === (currentRow.dataset[name] || "");
-          });
-        });
-        q5.value = currentRow.dataset.q5 || 0;
-        rappel.checked = false;
-        rappelAt.disabled = true;
-        audioBlob = null;
-        chunks = [];
-        recordToggle.textContent = "Enregistrer audio";
-        modal.hidden = false;
-      });
+      btn.addEventListener("click", () => openFormModal(btn.closest("tr")));
     });
 
     rappel.addEventListener("change", () => { rappelAt.disabled = !rappel.checked; });
     document.getElementById("js-close-modal").addEventListener("click", () => { modal.hidden = true; });
 
+    function stopRecorder() {
+      if (recorder && recorder.state === "recording") {
+        return new Promise(resolve => {
+          recorder.addEventListener("stop", () => setTimeout(resolve, 0), { once:true });
+          recorder.stop();
+        });
+      }
+      return Promise.resolve();
+    }
+
     recordToggle.addEventListener("click", async () => {
       if (recorder && recorder.state === "recording") {
-        recorder.stop();
-        recordToggle.textContent = "Audio pret";
+        await stopRecorder();
+        recordToggle.textContent = audioBlob ? "Audio pret" : "Enregistrer audio";
         return;
       }
       try {
@@ -286,6 +303,7 @@
 
     document.getElementById("js-save-form").addEventListener("click", async () => {
       if (!currentRow) return;
+      await stopRecorder();
       const data = new FormData();
       data.append("action", rappel.checked ? "rappeler" : "terminer");
       if (rappel.checked) data.append("rappel_at", rappelAt.value || "");
