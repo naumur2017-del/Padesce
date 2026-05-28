@@ -160,6 +160,7 @@
     <a class="scope-tab" href="{% url 'appels_index' %}?phase_scope={{ filters.phase_scope|urlencode }}">Appels apprenants</a>
     <a class="scope-tab active" href="{% url 'formateurs_index' %}?phase_scope={{ filters.phase_scope|urlencode }}" aria-current="page">Appels formateurs</a>
     <a class="scope-tab" href="{% url 'pas_forme_index' %}?phase_scope={{ filters.phase_scope|urlencode }}">Appels Pas Forme</a>
+    <a class="scope-tab" href="{% url 'prestataire_demarrage_index' %}?phase_scope={{ filters.phase_scope|urlencode }}">Appels Prestataires Demarrage</a>
   </div>
   <div class="scope-note">Basculer entre les appels apprenants PADESCE, formateurs et Pas Forme.</div>
 </div>

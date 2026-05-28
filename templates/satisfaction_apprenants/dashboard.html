@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load filters %}
 {% load static %}
-{% block title %}Analyse Satisfaction Apprenants{% endblock %}
+{% block title %}Analyse Padesce Apprenants{% endblock %}
 {% block content %}
 <!-- Leaflet Assets -->
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -73,7 +73,7 @@
 
 <div class="dash-header">
   <div>
-    <h1>Analyses enquêtes apprenants</h1>
+    <h1>Analyse Padesce</h1>
   </div>
   <div class="filter-actions">
     <div class="actions-menu" id="js-actions-menu">
@@ -92,7 +92,7 @@
 </div>
 
 <div class="scope-switch">
-  <div class="scope-tabs" role="tablist" aria-label="Navigation des analyses de satisfaction">
+  <div class="scope-tabs" role="tablist" aria-label="Navigation des analyses Padesce">
     <a class="scope-tab active" href="{% url 'satisfaction_dashboard' %}" aria-current="page">Apprenant</a>
     <a class="scope-tab" href="{% url 'satisfaction_formateurs_dashboard' %}">Formateur</a>
   </div>
@@ -269,6 +269,51 @@
   <div class="kpi-card">
     <div class="kpi-value">{{ audios_enregistres_appels }}</div>
     <div class="kpi-label">Audios Enregistrés</div>
+  </div>
+</div>
+
+<div class="analysis-grid">
+  <div class="analysis-card" style="border-color:rgba(220,38,38,.22);background:rgba(255,241,242,.36);">
+    <h3>Appels apprenants non formés</h3>
+    <div class="count">{{ pas_forme_analysis.total|default:0 }}</div>
+    <div class="analysis-list">
+      <div class="analysis-item"><span>Appels tentés</span><strong>{{ pas_forme_analysis.tentes|default:0 }}</strong></div>
+      <div class="analysis-item"><span>Formulaires</span><strong>{{ pas_forme_analysis.formulaires|default:0 }}</strong></div>
+      <div class="analysis-item"><span>Audios</span><strong>{{ pas_forme_analysis.audios|default:0 }}</strong></div>
+      <div class="analysis-item"><span>Faux numéros</span><strong>{{ pas_forme_analysis.faux_numeros|default:0 }}</strong></div>
+      <div class="analysis-item"><span>Faux noms</span><strong>{{ pas_forme_analysis.faux_noms|default:0 }}</strong></div>
+    </div>
+  </div>
+  <div class="analysis-card" style="border-color:rgba(14,165,233,.22);background:rgba(240,249,255,.48);">
+    <h3>Prestataires sur démarrage</h3>
+    <div class="count">{{ prestataire_demarrage_analysis.total|default:0 }}</div>
+    <div class="analysis-list">
+      <div class="analysis-item"><span>Liés à la BD</span><strong>{{ prestataire_demarrage_analysis.lies_bd|default:0 }}</strong></div>
+      <div class="analysis-item"><span>Ont débuté</span><strong>{{ prestataire_demarrage_analysis.prestations_debutees|default:0 }}</strong></div>
+      <div class="analysis-item"><span>Non démarrés</span><strong>{{ prestataire_demarrage_analysis.prestations_non_debutees|default:0 }}</strong></div>
+      <div class="analysis-item"><span>Faux numéros</span><strong>{{ prestataire_demarrage_analysis.faux_numeros|default:0 }}</strong></div>
+      <div class="analysis-item"><span>Audios</span><strong>{{ prestataire_demarrage_analysis.audios|default:0 }}</strong></div>
+    </div>
+  </div>
+  <div class="analysis-card">
+    <h3>Top prestataires non formés</h3>
+    <div class="analysis-list">
+      {% for item in pas_forme_analysis.prestataires %}
+      <div class="analysis-item"><span>{{ item.label }}</span><strong>{{ item.nb }}</strong></div>
+      {% empty %}
+      <div class="analysis-item"><span>Aucune donnée</span><strong>0</strong></div>
+      {% endfor %}
+    </div>
+  </div>
+  <div class="analysis-card">
+    <h3>Motifs non démarrage</h3>
+    <div class="analysis-list">
+      {% for item in prestataire_demarrage_analysis.motifs %}
+      <div class="analysis-item"><span>{{ item.label }}</span><strong>{{ item.nb }}</strong></div>
+      {% empty %}
+      <div class="analysis-item"><span>Aucun motif renseigné</span><strong>0</strong></div>
+      {% endfor %}
+    </div>
   </div>
 </div>
 

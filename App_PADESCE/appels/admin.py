@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from App_PADESCE.appels.models import AppelPasForme, CallAlert
+from App_PADESCE.appels.models import AppelPasForme, AppelPrestataireDemarrage, CallAlert
 
 
 @admin.register(AppelPasForme)
@@ -8,6 +8,28 @@ class AppelPasFormeAdmin(admin.ModelAdmin):
     list_display = ("id", "nom", "telephone", "prestation_id", "status", "is_active")
     list_filter = ("status", "is_active", "prestation_id")
     search_fields = ("nom", "telephone", "prestation_id", "prestataire", "beneficiaire")
+    readonly_fields = ("created_at", "updated_at")
+
+
+@admin.register(AppelPrestataireDemarrage)
+class AppelPrestataireDemarrageAdmin(admin.ModelAdmin):
+    list_display = (
+        "id",
+        "prestataire_code",
+        "nom_prestataire",
+        "telephone",
+        "prestataire",
+        "status",
+        "is_active",
+    )
+    list_filter = ("status", "is_active", "match_method", "prestation_debutee")
+    search_fields = (
+        "prestataire_code",
+        "nom_prestataire",
+        "nom_simplifie",
+        "telephone",
+        "prestataire__raison_sociale",
+    )
     readonly_fields = ("created_at", "updated_at")
 
 

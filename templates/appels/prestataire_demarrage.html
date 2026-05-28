@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Appels Pas Forme{% endblock %}
+{% block title %}Appels Prestataires Demarrage{% endblock %}
 {% block content %}
 <style>
   :root {
@@ -10,7 +10,7 @@
   .shell { width:min(1480px, calc(100% - 32px)); margin:24px auto 48px; }
   .panel { background:var(--panel); border:1px solid var(--border); border-radius:16px; padding:16px; margin-bottom:16px; box-shadow:0 18px 44px rgba(76,29,149,.08); }
   .scope-switch { display:flex; justify-content:space-between; gap:14px; align-items:center; flex-wrap:wrap; margin-bottom:14px; }
-  .scope-tabs { display:inline-flex; background:#fff; border:1px solid var(--border); border-radius:999px; padding:4px; gap:4px; }
+  .scope-tabs { display:inline-flex; background:#fff; border:1px solid var(--border); border-radius:999px; padding:4px; gap:4px; flex-wrap:wrap; }
   .scope-tab { display:inline-flex; align-items:center; justify-content:center; min-width:120px; padding:9px 18px; border-radius:999px; font-size:.85rem; font-weight:700; color:var(--muted); text-decoration:none; }
   .scope-tab.active { background:var(--accent); color:#fff; box-shadow:0 8px 18px rgba(76,29,149,.18); }
   .scope-note, .subtitle { color:var(--muted); font-size:.9rem; }
@@ -23,22 +23,25 @@
   .input { border:1px solid var(--border); border-radius:10px; padding:9px 10px; background:#fff; color:var(--text); min-height:38px; }
   .form-inline { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
   .import-title { font-weight:800; margin-bottom:8px; }
-  .stats { display:grid; grid-template-columns:repeat(5, minmax(0,1fr)); gap:10px; }
+  .stats { display:grid; grid-template-columns:repeat(6, minmax(0,1fr)); gap:10px; margin-bottom:16px; }
   .stat { border:1px solid var(--border); border-radius:12px; padding:12px; background:rgba(124,58,237,.04); }
   .stat strong { display:block; font-size:1.35rem; }
   .table-wrap { overflow:auto; }
-  table { width:100%; border-collapse:separate; border-spacing:0; min-width:1100px; }
+  table { width:100%; border-collapse:separate; border-spacing:0; min-width:1180px; }
   th, td { padding:10px 12px; border-bottom:1px solid rgba(109,77,168,.12); text-align:left; vertical-align:top; font-size:.9rem; }
   th { position:sticky; top:0; background:#f7f3ff; z-index:1; color:var(--accent-strong); }
   tr:hover td { background:rgba(124,58,237,.035); }
   .badge { display:inline-flex; border-radius:999px; padding:4px 8px; font-weight:800; font-size:.76rem; background:rgba(111,60,195,.1); color:var(--accent-strong); }
+  .link-badge { display:inline-flex; border-radius:999px; padding:4px 8px; font-size:.75rem; font-weight:800; background:rgba(34,197,94,.1); color:#15803d; }
+  .link-badge.missing { background:rgba(234,179,8,.16); color:#92400e; }
   .actions { display:flex; gap:6px; flex-wrap:wrap; }
   .modal-backdrop { position:fixed; inset:0; background:rgba(24,16,40,.45); display:flex; align-items:center; justify-content:center; padding:20px; z-index:2000; }
-  .modal-backdrop[hidden] { display:none; }
-  .modal-panel { background:#fff; width:min(620px,100%); max-height:92vh; overflow:auto; border-radius:18px; padding:18px; border:1px solid var(--border); box-shadow:0 24px 70px rgba(20,12,38,.28); }
-  .modal-detail { display:flex; gap:8px; margin:5px 0; color:var(--muted); }
-  .question { display:grid; grid-template-columns:1fr auto; gap:12px; align-items:center; padding:10px 0; border-bottom:1px solid rgba(109,77,168,.12); }
-  .choice { display:inline-flex; gap:10px; white-space:nowrap; }
+  .modal-backdrop[hidden], .conditional[hidden] { display:none; }
+  .modal-panel { background:#fff; width:min(700px,100%); max-height:92vh; overflow:auto; border-radius:18px; padding:18px; border:1px solid var(--border); box-shadow:0 24px 70px rgba(20,12,38,.28); }
+  .modal-detail { display:flex; gap:8px; margin:5px 0; color:var(--muted); flex-wrap:wrap; }
+  .question { display:grid; grid-template-columns:1fr minmax(220px, auto); gap:12px; align-items:center; padding:10px 0; border-bottom:1px solid rgba(109,77,168,.12); }
+  .choice { display:inline-flex; gap:10px; white-space:nowrap; flex-wrap:wrap; }
+  .textarea { width:100%; min-height:86px; resize:vertical; }
   .modal-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:14px; flex-wrap:wrap; }
   @media (max-width:900px) { .stats { grid-template-columns:repeat(2,minmax(0,1fr)); } .question { grid-template-columns:1fr; } }
 </style>
@@ -48,27 +51,28 @@
     <div class="scope-tabs" role="tablist" aria-label="Navigation des appels">
       <a class="scope-tab" href="{% url 'appels_index' %}?phase_scope={{ filters.phase_scope|urlencode }}">Appels apprenants</a>
       <a class="scope-tab" href="{% url 'formateurs_index' %}?phase_scope={{ filters.phase_scope|urlencode }}">Appels formateurs</a>
-      <a class="scope-tab active" href="{% url 'pas_forme_index' %}?phase_scope={{ filters.phase_scope|urlencode }}" aria-current="page">Appels Pas Forme</a>
-      <a class="scope-tab" href="{% url 'prestataire_demarrage_index' %}?phase_scope={{ filters.phase_scope|urlencode }}">Appels Prestataires Demarrage</a>
+      <a class="scope-tab" href="{% url 'pas_forme_index' %}?phase_scope={{ filters.phase_scope|urlencode }}">Appels Pas Forme</a>
+      <a class="scope-tab active" href="{% url 'prestataire_demarrage_index' %}?phase_scope={{ filters.phase_scope|urlencode }}" aria-current="page">Appels Prestataires Demarrage</a>
     </div>
     <div class="scope-note">Basculer entre les listes d'appels PADESCE.</div>
   </div>
 
   {% if user.is_superuser %}
     <div class="panel">
-      <div class="import-title">Importer la liste des apprenants non formes</div>
+      <div class="import-title">Importer la liste des prestataires sur demarrage</div>
       <form method="post" enctype="multipart/form-data" class="form-inline">
         {% csrf_token %}
         <input type="hidden" name="update_mode" value="replace">
         <input type="file" name="file" accept=".xlsx,.xlsm" required class="input">
         <button type="submit" class="btn btn-primary btn-sm">Importer et remplacer</button>
       </form>
-      <p class="subtitle">Colonnes attendues : APPRENANT ABSENT CHEZ NAUMUR, NUMERO DE TELEPHONE, PRESTATION ID, NOM DU PRESTATAIRE, NOM DU BENEFICIAIRE.</p>
+      <p class="subtitle">Colonnes attendues : #, code PRESTxxx, Nom du prestataire, Nom simplifié, Numéro de téléphone. La liaison BD se fait par code puis par nom.</p>
     </div>
   {% endif %}
 
   <div class="stats">
     <div class="stat"><span>Total</span><strong>{{ stats.total|default:0 }}</strong></div>
+    <div class="stat"><span>Lies BD</span><strong>{{ stats.lies_bd|default:0 }}</strong></div>
     <div class="stat"><span>Appels tentes</span><strong>{{ stats.appels_tentes|default:0 }}</strong></div>
     <div class="stat"><span>Appels reussis</span><strong>{{ stats.appels_reussis|default:0 }}</strong></div>
     <div class="stat"><span>Formulaires</span><strong>{{ stats.completion_label }}</strong></div>
@@ -78,7 +82,7 @@
   <div class="panel">
     <form method="get" class="form-inline">
       <input type="hidden" name="phase_scope" value="{{ filters.phase_scope }}">
-      <input type="text" name="q" class="input" placeholder="Recherche nom, telephone..." value="{{ filters.q }}">
+      <input type="text" name="q" class="input" placeholder="Recherche code, prestataire, telephone..." value="{{ filters.q }}">
       <select name="status" class="input">
         <option value="">Statut</option>
         <option value="en_attente" {% if filters.status == "en_attente" %}selected{% endif %}>En attente</option>
@@ -90,21 +94,14 @@
         <option value="pause" {% if filters.status == "pause" %}selected{% endif %}>Pause</option>
         <option value="a_rappeler" {% if filters.status == "a_rappeler" %}selected{% endif %}>A rappeler</option>
       </select>
-      <select name="prestation" class="input">
-        <option value="">Prestation</option>
-        {% for p in filters.prestations %}<option value="{{ p }}" {% if filters.prestation == p %}selected{% endif %}>{{ p }}</option>{% endfor %}
-      </select>
-      <select name="prestataire" class="input">
-        <option value="">Prestataire</option>
-        {% for p in filters.prestataires %}<option value="{{ p }}" {% if filters.prestataire == p %}selected{% endif %}>{{ p }}</option>{% endfor %}
-      </select>
-      <select name="beneficiaire" class="input">
-        <option value="">Beneficiaire</option>
-        {% for p in filters.beneficiaires %}<option value="{{ p }}" {% if filters.beneficiaire == p %}selected{% endif %}>{{ p }}</option>{% endfor %}
+      <select name="linked" class="input">
+        <option value="">Liaison BD</option>
+        <option value="1" {% if filters.linked == "1" %}selected{% endif %}>Lies</option>
+        <option value="0" {% if filters.linked == "0" %}selected{% endif %}>Non lies</option>
       </select>
       <button type="submit" class="btn btn-primary btn-sm">Filtrer</button>
-      <a class="btn btn-ghost btn-sm" href="{% url 'pas_forme_index' %}">Reset</a>
-      <a class="btn btn-secondary btn-sm" href="{% url 'pas_forme_export_filtered_csv' %}{% if request.GET.urlencode %}?{{ request.GET.urlencode }}{% endif %}">Exporter CSV</a>
+      <a class="btn btn-ghost btn-sm" href="{% url 'prestataire_demarrage_index' %}">Reset</a>
+      <a class="btn btn-secondary btn-sm" href="{% url 'prestataire_demarrage_export_filtered_csv' %}{% if request.GET.urlencode %}?{{ request.GET.urlencode }}{% endif %}">Exporter CSV</a>
     </form>
   </div>
 
@@ -112,23 +109,30 @@
     <table>
       <thead>
         <tr>
-          <th>Nom</th><th>Telephone</th><th>Prestation</th><th>Prestataire</th><th>Beneficiaire</th><th>Statut</th><th>Reponses</th><th>Audio</th><th>Actions</th>
+          <th>Code</th><th>Prestataire</th><th>Nom simplifie</th><th>Telephone</th><th>Liaison BD</th><th>Statut</th><th>Reponse</th><th>Audio</th><th>Actions</th>
         </tr>
       </thead>
       <tbody>
         {% for row in rows %}
-          <tr data-id="{{ row.id }}" data-name="{{ row.nom|escapejs }}" data-phone="{{ row.telephone|default:'-' }}" data-status="{{ row.status }}" data-q1="{{ row.connait_structure }}" data-q2="{{ row.membre_structure }}" data-q3="{{ row.a_assiste_formation }}" data-q4="{{ row.connait_theme }}" data-q5="{{ row.nombre_seances|default:'' }}" data-faux-numero="{{ row.faux_numero }}" data-bon-numero="{{ row.bon_numero|default:'' }}" data-faux-nom="{{ row.faux_nom }}" data-vrai-nom="{{ row.vrai_nom|escapejs }}">
-            <td><strong>{{ row.nom }}</strong></td>
+          <tr data-id="{{ row.id }}" data-name="{{ row.nom_prestataire|escapejs }}" data-code="{{ row.prestataire_code|default:'' }}" data-phone="{{ row.telephone|default:'-' }}" data-status="{{ row.status }}" data-debutee="{{ row.prestation_debutee }}" data-date-debut="{{ row.date_debut_prestation|date:'Y-m-d' }}" data-motif="{{ row.motif_non_demarrage }}" data-commentaire="{{ row.commentaire|escapejs }}" data-faux-numero="{{ row.faux_numero }}" data-bon-numero="{{ row.bon_numero|default:'' }}">
+            <td><strong>{{ row.prestataire_code|default:"-" }}</strong></td>
+            <td>{{ row.nom_prestataire }}</td>
+            <td>{{ row.nom_simplifie|default:"-" }}</td>
             <td>{{ row.telephone|default:"-" }}</td>
-            <td>{{ row.prestation_id|default:"-" }}</td>
-            <td>{{ row.prestataire|default:"-" }}</td>
-            <td>{{ row.beneficiaire|default:"-" }}</td>
+            <td>
+              {% if row.prestataire %}
+                <span class="link-badge">{{ row.match_method|default:"lie" }}</span><br><small>{{ row.prestataire.raison_sociale }}</small>
+              {% else %}
+                <span class="link-badge missing">Non lie</span>
+              {% endif %}
+            </td>
             <td><span class="badge js-status">{{ row.get_status_display }}</span>{% if row.locked_by %}<br><small>{{ row.locked_by.username }}</small>{% endif %}</td>
             <td>
               {% if row.satisfaction_completed_at %}
-                Q1 {{ row.connait_structure|default:"-" }} | Q2 {{ row.membre_structure|default:"-" }} | Q3 {{ row.a_assiste_formation|default:"-" }} | Q4 {{ row.connait_theme|default:"-" }} | Seances {{ row.nombre_seances|default:"0" }}
+                {{ row.prestation_debutee|default:"-" }}
+                {% if row.date_debut_prestation %} | {{ row.date_debut_prestation|date:"d/m/Y" }}{% endif %}
+                {% if row.motif_non_demarrage %} | {{ row.get_motif_non_demarrage_display }}{% endif %}
                 {% if row.faux_numero == "OUI" %}<br><span class="subtitle">Faux numero: {{ row.bon_numero|default:"-" }}</span>{% endif %}
-                {% if row.faux_nom == "OUI" %}<br><span class="subtitle">Faux nom: {{ row.vrai_nom|default:"-" }}</span>{% endif %}
               {% else %}
                 <span class="subtitle">Non rempli</span>
               {% endif %}
@@ -145,7 +149,7 @@
             </td>
           </tr>
         {% empty %}
-          <tr><td colspan="9" style="text-align:center; color:var(--muted);">Aucune ligne Appels Pas Forme.</td></tr>
+          <tr><td colspan="9" style="text-align:center; color:var(--muted);">Aucune ligne Appels Prestataires Demarrage.</td></tr>
         {% endfor %}
       </tbody>
     </table>
@@ -162,43 +166,36 @@
 
 <div id="js-form-modal" class="modal-backdrop" hidden>
   <div class="modal-panel">
-    <h2 style="margin-top:0;">Formulaire Appels Pas Forme</h2>
+    <h2 style="margin-top:0;">Formulaire Appels Prestataires Demarrage</h2>
     <div class="modal-detail"><strong id="js-modal-name">-</strong><span id="js-modal-phone">-</span></div>
     <div class="question">
-      <label>1. Est-ce que vous connaissez cette structure ?</label>
-      <span class="choice"><label><input type="radio" name="q1" value="OUI"> Oui</label><label><input type="radio" name="q1" value="NON"> Non</label></span>
+      <label>La structure a-t-elle debute la prestation ?</label>
+      <span class="choice"><label><input type="radio" name="prestation_debutee" value="OUI"> Oui</label><label><input type="radio" name="prestation_debutee" value="NON"> Non</label></span>
     </div>
-    <div class="question">
-      <label>2. Etes-vous membre de cette structure ?</label>
-      <span class="choice"><label><input type="radio" name="q2" value="OUI"> Oui</label><label><input type="radio" name="q2" value="NON"> Non</label></span>
-    </div>
-    <div class="question">
-      <label>3. Avez-vous eu a assister a une formation PADESCE ?</label>
-      <span class="choice"><label><input type="radio" name="q3" value="OUI"> Oui</label><label><input type="radio" name="q3" value="NON"> Non</label></span>
-    </div>
-    <div class="question">
-      <label>4. Connaissez-vous le theme de cette formation ?</label>
-      <span class="choice"><label><input type="radio" name="q4" value="OUI"> Oui</label><label><input type="radio" name="q4" value="NON"> Non</label></span>
-    </div>
+    <label class="question conditional" id="js-date-block" hidden>
+      <span>Quand la prestation a-t-elle debute ?</span>
+      <input id="js-date-debut" class="input" type="date">
+    </label>
+    <label class="question conditional" id="js-motif-block" hidden>
+      <span>Motif du non-demarrage</span>
+      <select id="js-motif" class="input">
+        <option value="">Choisir une reponse</option>
+        {% for value,label in motif_choices %}
+          <option value="{{ value }}">{{ label }}</option>
+        {% endfor %}
+      </select>
+    </label>
     <label class="question">
-      <span>5. Vous avez assiste a combien de seances de formation ?</span>
-      <input id="js-q5" class="input" type="number" min="0" step="1" value="0">
+      <span>Commentaire</span>
+      <textarea id="js-commentaire" class="input textarea" placeholder="Commentaire libre"></textarea>
     </label>
     <div class="question">
       <label>Le numero appele est-il un faux numero ?</label>
       <span class="choice"><label><input type="radio" name="faux_numero" value="OUI"> Oui</label><label><input type="radio" name="faux_numero" value="NON"> Non</label></span>
     </div>
-    <label class="question" id="js-bon-numero-block" hidden>
+    <label class="question conditional" id="js-bon-numero-block" hidden>
       <span>Bon numero</span>
       <input id="js-bon-numero" class="input" type="tel" placeholder="Ex: 690000000">
-    </label>
-    <div class="question">
-      <label>Le nom de l'apprenant est-il faux ?</label>
-      <span class="choice"><label><input type="radio" name="faux_nom" value="OUI"> Oui</label><label><input type="radio" name="faux_nom" value="NON"> Non</label></span>
-    </div>
-    <label class="question" id="js-vrai-nom-block" hidden>
-      <span>Vrai nom de l'apprenant</span>
-      <input id="js-vrai-nom" class="input" type="text" placeholder="Nom correct">
     </label>
     <label class="question">
       <span>A rappeler</span>
@@ -218,11 +215,13 @@
     const modal = document.getElementById("js-form-modal");
     const modalName = document.getElementById("js-modal-name");
     const modalPhone = document.getElementById("js-modal-phone");
-    const q5 = document.getElementById("js-q5");
+    const dateBlock = document.getElementById("js-date-block");
+    const motifBlock = document.getElementById("js-motif-block");
+    const dateDebut = document.getElementById("js-date-debut");
+    const motif = document.getElementById("js-motif");
+    const commentaire = document.getElementById("js-commentaire");
     const bonNumeroBlock = document.getElementById("js-bon-numero-block");
     const bonNumero = document.getElementById("js-bon-numero");
-    const vraiNomBlock = document.getElementById("js-vrai-nom-block");
-    const vraiNom = document.getElementById("js-vrai-nom");
     const rappel = document.getElementById("js-rappel");
     const rappelAt = document.getElementById("js-rappel-at");
     const recordToggle = document.getElementById("js-record-toggle");
@@ -252,40 +251,42 @@
       if (data.audio_url) row.querySelector(".js-audio-cell").innerHTML = `<a href="${data.audio_url}" class="btn-small ghost" download>Audio</a>`;
     }
 
+    function syncConditionalFields() {
+      const selected = document.querySelector('input[name="prestation_debutee"]:checked')?.value || "";
+      dateBlock.hidden = selected !== "OUI";
+      motifBlock.hidden = selected !== "NON";
+      if (selected !== "OUI") dateDebut.value = "";
+      if (selected !== "NON") motif.value = "";
+    }
+
+    function syncNumeroBlock() {
+      const selected = document.querySelector('input[name="faux_numero"]:checked')?.value || "";
+      bonNumeroBlock.hidden = selected !== "OUI";
+      if (selected !== "OUI") bonNumero.value = "";
+    }
+
     function openFormModal(row) {
       currentRow = row;
-      modalName.textContent = currentRow.dataset.name || "-";
+      modalName.textContent = `${currentRow.dataset.code || "-"} ${currentRow.dataset.name || ""}`.trim();
       modalPhone.textContent = currentRow.dataset.phone || "-";
-      ["q1","q2","q3","q4"].forEach(name => {
-        document.querySelectorAll(`input[name="${name}"]`).forEach(input => {
-          input.checked = input.value === (currentRow.dataset[name] || "");
-        });
+      document.querySelectorAll('input[name="prestation_debutee"]').forEach(input => {
+        input.checked = input.value === (currentRow.dataset.debutee || "");
       });
-      q5.value = currentRow.dataset.q5 || 0;
+      dateDebut.value = currentRow.dataset.dateDebut || "";
+      motif.value = currentRow.dataset.motif || "";
+      commentaire.value = currentRow.dataset.commentaire || "";
       document.querySelectorAll('input[name="faux_numero"]').forEach(input => {
         input.checked = input.value === (currentRow.dataset.fauxNumero || "");
       });
       bonNumero.value = currentRow.dataset.bonNumero || "";
-      document.querySelectorAll('input[name="faux_nom"]').forEach(input => {
-        input.checked = input.value === (currentRow.dataset.fauxNom || "");
-      });
-      vraiNom.value = currentRow.dataset.vraiNom || "";
-      syncIdentityBlocks();
       rappel.checked = false;
       rappelAt.disabled = true;
       audioBlob = null;
       chunks = [];
       recordToggle.textContent = "Enregistrer audio";
+      syncConditionalFields();
+      syncNumeroBlock();
       modal.hidden = false;
-    }
-
-    function syncIdentityBlocks() {
-      const fauxNumero = document.querySelector('input[name="faux_numero"]:checked')?.value || "";
-      const fauxNom = document.querySelector('input[name="faux_nom"]:checked')?.value || "";
-      bonNumeroBlock.hidden = fauxNumero !== "OUI";
-      vraiNomBlock.hidden = fauxNom !== "OUI";
-      if (fauxNumero !== "OUI") bonNumero.value = "";
-      if (fauxNom !== "OUI") vraiNom.value = "";
     }
 
     document.querySelectorAll(".js-action").forEach(btn => {
@@ -294,12 +295,11 @@
         const data = new FormData();
         data.append("action", btn.dataset.action);
         try {
-          updateRow(row, await post(`/appels-pas-forme/${row.dataset.id}/action/`, data));
+          updateRow(row, await post(`/appels-prestataires-demarrage/${row.dataset.id}/action/`, data));
           if (btn.dataset.action === "start" || btn.dataset.action === "resume") {
             openFormModal(row);
           }
-        }
-        catch (err) { alert(err.message); }
+        } catch (err) { alert(err.message); }
       });
     });
 
@@ -307,10 +307,13 @@
       btn.addEventListener("click", () => openFormModal(btn.closest("tr")));
     });
 
-    rappel.addEventListener("change", () => { rappelAt.disabled = !rappel.checked; });
-    document.querySelectorAll('input[name="faux_numero"], input[name="faux_nom"]').forEach(input => {
-      input.addEventListener("change", syncIdentityBlocks);
+    document.querySelectorAll('input[name="prestation_debutee"]').forEach(input => {
+      input.addEventListener("change", syncConditionalFields);
     });
+    document.querySelectorAll('input[name="faux_numero"]').forEach(input => {
+      input.addEventListener("change", syncNumeroBlock);
+    });
+    rappel.addEventListener("change", () => { rappelAt.disabled = !rappel.checked; });
     document.getElementById("js-close-modal").addEventListener("click", () => { modal.hidden = true; });
 
     function stopRecorder() {
@@ -348,20 +351,35 @@
     document.getElementById("js-save-form").addEventListener("click", async () => {
       if (!currentRow) return;
       await stopRecorder();
+      const selected = document.querySelector('input[name="prestation_debutee"]:checked')?.value || "";
+      if (!rappel.checked && !selected) {
+        alert("Choisissez Oui ou Non avant de sauvegarder.");
+        return;
+      }
+      if (!rappel.checked && selected === "OUI" && !dateDebut.value) {
+        alert("Indiquez la date de debut de la prestation.");
+        return;
+      }
+      if (!rappel.checked && selected === "NON" && !motif.value) {
+        alert("Choisissez le motif du non-demarrage.");
+        return;
+      }
+      if (!rappel.checked && !audioBlob) {
+        alert("L'audio est obligatoire : cliquez sur Enregistrer audio puis arretez l'enregistrement avant de sauvegarder.");
+        return;
+      }
       const data = new FormData();
       data.append("action", rappel.checked ? "rappeler" : "terminer");
       if (rappel.checked) data.append("rappel_at", rappelAt.value || "");
-      ["q1","q2","q3","q4"].forEach(name => {
-        data.append(name, document.querySelector(`input[name="${name}"]:checked`)?.value || "");
-      });
-      data.append("q5", q5.value || "0");
+      data.append("prestation_debutee", selected);
+      data.append("date_debut_prestation", dateDebut.value || "");
+      data.append("motif_non_demarrage", motif.value || "");
+      data.append("commentaire", commentaire.value || "");
       data.append("faux_numero", document.querySelector('input[name="faux_numero"]:checked')?.value || "");
       data.append("bon_numero", bonNumero.value || "");
-      data.append("faux_nom", document.querySelector('input[name="faux_nom"]:checked')?.value || "");
-      data.append("vrai_nom", vraiNom.value || "");
-      if (audioBlob) data.append("audio", audioBlob, `pas-forme-${currentRow.dataset.id}.webm`);
+      if (audioBlob) audioBlob && data.append("audio", audioBlob, `prestataire-demarrage-${currentRow.dataset.id}.webm`);
       try {
-        updateRow(currentRow, await post(`/appels-pas-forme/${currentRow.dataset.id}/finalize/`, data));
+        updateRow(currentRow, await post(`/appels-prestataires-demarrage/${currentRow.dataset.id}/finalize/`, data));
         modal.hidden = true;
         window.location.reload();
       } catch (err) {

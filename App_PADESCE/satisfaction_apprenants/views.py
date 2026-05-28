@@ -45,6 +45,8 @@ from App_PADESCE.appels.models import (
     Appel,
     AppelAnswers,
     AppelFormateur,
+    AppelPasForme,
+    AppelPrestataireDemarrage,
     appel_answers_completed_q,
     appel_has_any_audio,
     appel_has_any_form_data,
@@ -174,7 +176,7 @@ SUPPORTED_AUDIO_FORMATS = {"wav", "mp3", "m4a", "ogg", "webm", "flac"}
 
 logger = logging.getLogger(__name__)
 ANALYSIS_CACHE_TIMEOUT = int(str(os.getenv("PADESCE_ANALYSIS_CACHE_TIMEOUT", "300") or "300"))
-ANALYSIS_DASHBOARD_CACHE_VERSION = "dashboard-v20260420-classes"
+ANALYSIS_DASHBOARD_CACHE_VERSION = "dashboard-v20260528-padesce-calls"
 
 
 def _analysis_cache_key(prefix: str, *parts) -> str:
@@ -1531,6 +1533,67 @@ def _build_appel_status_summary(
         raise
 
 
+def _count_status_rows(queryset):
+    return queryset.aggregate(
+        total=Count("id"),
+        tentes=Count("id", filter=~Q(status="en_attente")),
+        reussis=Count("id", filter=Q(status__in=CALL_SUCCESS_STATUSES)),
+        formulaires=Count("id", filter=Q(status__in=CALL_FORM_STATUSES)),
+        audios=Count("id", filter=Q(audio_file__isnull=False) & ~Q(audio_file="")),
+        faux_numeros=Count("id", filter=Q(faux_numero="OUI")),
+    )
+
+
+def _top_rows(queryset, field_name: str, *, label_name: str = "label", limit: int = 8):
+    rows = (
+        queryset.exclude(**{field_name: ""})
+        .values(field_name)
+        .annotate(nb=Count("id"))
+        .order_by("-nb", field_name)[:limit]
+    )
+    return [{label_name: row.get(field_name) or "Non renseigne", "nb": row["nb"]} for row in rows]
+
+
+def _build_extended_call_analysis_context() -> dict[str, object]:
+    pas_forme_qs = AppelPasForme.objects.filter(is_active=True)
+    demarrage_qs = AppelPrestataireDemarrage.objects.filter(is_active=True).select_related(
+        "prestataire"
+    )
+    pas_forme_stats = _count_status_rows(pas_forme_qs)
+    pas_forme_stats["faux_noms"] = pas_forme_qs.filter(faux_nom="OUI").count()
+    demarrage_stats = _count_status_rows(demarrage_qs)
+    demarrage_stats["lies_bd"] = demarrage_qs.filter(prestataire__isnull=False).count()
+    demarrage_stats["prestations_debutees"] = demarrage_qs.filter(prestation_debutee="OUI").count()
+    demarrage_stats["prestations_non_debutees"] = demarrage_qs.filter(
+        prestation_debutee="NON"
+    ).count()
+
+    motif_rows = []
+    motif_labels = dict(AppelPrestataireDemarrage.MOTIF_CHOICES)
+    for row in (
+        demarrage_qs.exclude(motif_non_demarrage="")
+        .values("motif_non_demarrage")
+        .annotate(nb=Count("id"))
+        .order_by("-nb", "motif_non_demarrage")
+    ):
+        motif = row["motif_non_demarrage"]
+        motif_rows.append({"label": motif_labels.get(motif, motif), "nb": row["nb"]})
+
+    return {
+        "pas_forme_analysis": {
+            **pas_forme_stats,
+            "prestataires": _top_rows(pas_forme_qs, "prestataire"),
+            "beneficiaires": _top_rows(pas_forme_qs, "beneficiaire"),
+            "prestations": _top_rows(pas_forme_qs, "prestation_id"),
+        },
+        "prestataire_demarrage_analysis": {
+            **demarrage_stats,
+            "prestataires": _top_rows(demarrage_qs, "nom_prestataire"),
+            "motifs": motif_rows,
+        },
+    }
+
+
 def _ordered_survey_rows(rows: list[dict]) -> list[dict]:
     return sorted(
         rows,
@@ -2811,6 +2874,8 @@ def _build_satisfaction_dashboard_data(request):
         _analysis_queryset_marker(Appel),
         _analysis_queryset_marker(AppelAnswers),
         _analysis_queryset_marker(SatisfactionApprenant),
+        _analysis_queryset_marker(AppelPasForme),
+        _analysis_queryset_marker(AppelPrestataireDemarrage),
     )
     cached_payload = cache.get(cache_key)
     if cached_payload is not None:
@@ -3400,6 +3465,7 @@ def _build_satisfaction_dashboard_data(request):
     ]
     context["formulaires_avec_audio_appels"] = _appel_stats["formulaires_avec_audio"]
     context["audios_enregistres_appels"] = _appel_stats["audios_enregistres"]
+    context.update(_build_extended_call_analysis_context())
     context["tab_details"] = _build_table_details_context(context, rows)
 
     # Add phase navigation tabs (like in formateurs dashboard)

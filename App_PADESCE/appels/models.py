@@ -7,7 +7,7 @@ from django.utils import timezone
 from django.utils.text import slugify
 
 from App_PADESCE.core.models import TimeStampedModel
-from App_PADESCE.formations.models import Classe
+from App_PADESCE.formations.models import Classe, Prestataire
 
 APPEL_ANSWER_QUESTION_FIELDS = (
     "q1_clarte_exposes",
@@ -386,6 +386,21 @@ def appel_pas_forme_audio_upload(instance: "AppelPasForme", filename: str) -> st
     )
 
 
+def appel_prestataire_demarrage_audio_upload(
+    instance: "AppelPrestataireDemarrage", filename: str
+) -> str:
+    now = timezone.now()
+    ts = now.strftime("%Y%m%d_%H%M%S")
+    code_slug = _short_slug(instance.prestataire_code, "prestataire", max_len=18)
+    nom_slug = _short_slug(instance.nom_prestataire, "prestataire", max_len=28)
+    phone_slug = _short_slug(instance.telephone, "telephone", max_len=12)
+    ext = filename.split(".")[-1] if "." in filename else "mp3"
+    return (
+        f"prestataires-demarrage/{now:%Y}/{now:%m}/{now:%d}/"
+        f"{code_slug}-{phone_slug}-{nom_slug}-{ts}.{ext}"
+    )
+
+
 FORMATEUR_SCORE_FIELDS = (
     "q1_prerequis_apprenants",
     "q2_interaction_apprenants",
@@ -605,6 +620,10 @@ class AppelPasForme(TimeStampedModel):
     a_assiste_formation = models.CharField(max_length=3, choices=BOOLEAN_CHOICES, blank=True)
     connait_theme = models.CharField(max_length=3, choices=BOOLEAN_CHOICES, blank=True)
     nombre_seances = models.PositiveSmallIntegerField(null=True, blank=True)
+    faux_numero = models.CharField(max_length=3, choices=BOOLEAN_CHOICES, blank=True)
+    bon_numero = models.CharField(max_length=30, blank=True)
+    faux_nom = models.CharField(max_length=3, choices=BOOLEAN_CHOICES, blank=True)
+    vrai_nom = models.CharField(max_length=255, blank=True)
     satisfaction_completed_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
@@ -619,6 +638,80 @@ class AppelPasForme(TimeStampedModel):
 
     def __str__(self) -> str:
         return f"Appel pas forme {self.reference_code} - {self.nom}"
+
+
+class AppelPrestataireDemarrage(TimeStampedModel):
+    STATUS_CHOICES = Appel.STATUS_CHOICES
+    BOOLEAN_CHOICES = [
+        ("OUI", "Oui"),
+        ("NON", "Non"),
+    ]
+    MOTIF_DOCUMENTS = "documents"
+    MOTIF_AUTORISATIONS = "autorisations"
+    MOTIF_LOGISTIQUE = "logistique"
+    MOTIF_STATUT_PRESTATAIRE = "statut_prestataire"
+    MOTIF_CHOICES = [
+        (
+            MOTIF_DOCUMENTS,
+            "Probleme de document (conventions, rapports, listes de beneficiaires, pieces requises)",
+        ),
+        (MOTIF_AUTORISATIONS, "Attente d'autorisations ou confirmation"),
+        (MOTIF_LOGISTIQUE, "Probleme de logistique et lieux de formation"),
+        (MOTIF_STATUT_PRESTATAIRE, "Statut du prestataire dans le programme"),
+    ]
+
+    reference_code = models.CharField(max_length=120, unique=True)
+    numero = models.PositiveIntegerField(null=True, blank=True)
+    prestataire_code = models.CharField(max_length=80, blank=True, db_index=True)
+    nom_prestataire = models.CharField(max_length=255)
+    nom_simplifie = models.CharField(max_length=120, blank=True)
+    telephone = models.CharField(max_length=30, blank=True)
+    prestataire = models.ForeignKey(
+        Prestataire,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="appels_demarrage",
+    )
+    match_method = models.CharField(max_length=80, blank=True)
+    is_active = models.BooleanField(default=True, db_index=True)
+    status = models.CharField(
+        max_length=25, choices=STATUS_CHOICES, default="en_attente", db_index=True
+    )
+    rappel_at = models.DateTimeField(null=True, blank=True)
+    audio_file = models.FileField(
+        upload_to=appel_prestataire_demarrage_audio_upload,
+        null=True,
+        blank=True,
+        max_length=255,
+    )
+    locked_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="appels_prestataires_demarrage_lock",
+    )
+    locked_at = models.DateTimeField(null=True, blank=True)
+    prestation_debutee = models.CharField(max_length=3, choices=BOOLEAN_CHOICES, blank=True)
+    date_debut_prestation = models.DateField(null=True, blank=True)
+    motif_non_demarrage = models.CharField(max_length=40, choices=MOTIF_CHOICES, blank=True)
+    commentaire = models.TextField(blank=True)
+    faux_numero = models.CharField(max_length=3, choices=BOOLEAN_CHOICES, blank=True)
+    bon_numero = models.CharField(max_length=30, blank=True)
+    satisfaction_completed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["nom_prestataire"]
+        indexes = [
+            models.Index(fields=["prestataire_code"]),
+            models.Index(fields=["nom_prestataire"]),
+            models.Index(fields=["telephone"]),
+            models.Index(fields=["status", "is_active"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"Appel prestataire demarrage {self.reference_code} - {self.nom_prestataire}"
 
 
 class AppelAnswers(TimeStampedModel):

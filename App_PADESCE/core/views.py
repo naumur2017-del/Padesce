@@ -32,6 +32,8 @@ from App_PADESCE.appels.models import (
     AppelAnswers,
     AppelCGA,
     AppelFormateur,
+    AppelPasForme,
+    AppelPrestataireDemarrage,
     appel_answers_completed_q,
     appel_answers_modified_completion_q,
     padesce_form_tracking_cutoff,
@@ -2286,6 +2288,23 @@ _TRACKING_SCOPE_LABELS = {
 }
 
 
+def _merge_tracking_stat_rows(target: dict[int, dict], rows, *, completed_key: str = "termines"):
+    for row in rows:
+        user_id = row.get("locked_by_id")
+        if not user_id:
+            continue
+        current = target.setdefault(user_id, {"locked_by_id": user_id})
+        for key, value in row.items():
+            if key == "locked_by_id":
+                continue
+            if key == completed_key:
+                current["extra_termines"] = int(current.get("extra_termines") or 0) + int(
+                    value or 0
+                )
+            else:
+                current[key] = int(current.get(key) or 0) + int(value or 0)
+
+
 def _start_of_current_local_day():
     return timezone.localtime().replace(hour=0, minute=0, second=0, microsecond=0)
 
@@ -2402,6 +2421,28 @@ def _compute_tracking_payload(
                 ),
             )
         }
+        for extra_model in (AppelPasForme, AppelPrestataireDemarrage):
+            extra_rows = (
+                extra_model.objects.filter(is_active=True, locked_by__isnull=False)
+                .values("locked_by_id")
+                .annotate(
+                    total_appels=Count("id"),
+                    appels_aujourdhui=Count("id", filter=Q(updated_at__gte=today_start)),
+                    a_rappeler=Count("id", filter=Q(status="a_rappeler")),
+                    appels_tentes=Count("id", filter=~Q(status="en_attente")),
+                    appels_reussis=Count("id", filter=Q(status__in=CALL_COMPLETED_STATUSES)),
+                    formulaires_remplis_status=Count(
+                        "id", filter=Q(status__in=["formulaire_rempli", "formulaire_avec_audio"])
+                    ),
+                    formulaires_avec_audio=Count("id", filter=Q(status="formulaire_avec_audio")),
+                    en_cours=Count("id", filter=Q(status="en_cours")),
+                    termines=Count("id", filter=Q(status__in=CALL_COMPLETED_STATUSES)),
+                    recent_24h=Count(
+                        "id", filter=Q(updated_at__gte=since_24h) & ~Q(status="en_attente")
+                    ),
+                )
+            )
+            _merge_tracking_stat_rows(call_stats, extra_rows)
         formulaires_remplis_by_user = _group_appel_ids_by_user(
             Appel.objects.filter(is_active=True, locked_by__isnull=False)
             .filter(completed_answers_filter)
@@ -2444,6 +2485,38 @@ def _compute_tracking_payload(
                     "code": appel.code,
                     "nom": appel.nom,
                     "url": f"{calls_index_url}?{query_params}",
+                }
+            )
+        pas_forme_index_url = reverse("pas_forme_index")
+        for appel in AppelPasForme.objects.filter(
+            is_active=True, status__in=CALL_TENTATIVE_STATUSES, locked_by__isnull=False
+        ).order_by("locked_by__username", "nom"):
+            query_params = urlencode(
+                {"agent": appel.locked_by.username, "status": appel.status, "q": appel.telephone}
+            )
+            current_calls_by_user.setdefault(appel.locked_by_id, []).append(
+                {
+                    "code": appel.reference_code,
+                    "nom": appel.nom,
+                    "url": f"{pas_forme_index_url}?{query_params}",
+                }
+            )
+        demarrage_index_url = reverse("prestataire_demarrage_index")
+        for appel in AppelPrestataireDemarrage.objects.filter(
+            is_active=True, status__in=CALL_TENTATIVE_STATUSES, locked_by__isnull=False
+        ).order_by("locked_by__username", "nom_prestataire"):
+            query_params = urlencode(
+                {
+                    "agent": appel.locked_by.username,
+                    "status": appel.status,
+                    "q": appel.prestataire_code or appel.telephone,
+                }
+            )
+            current_calls_by_user.setdefault(appel.locked_by_id, []).append(
+                {
+                    "code": appel.prestataire_code or appel.reference_code,
+                    "nom": appel.nom_prestataire,
+                    "url": f"{demarrage_index_url}?{query_params}",
                 }
             )
 
@@ -2508,7 +2581,7 @@ def _compute_tracking_payload(
             termines_ids.update(formulaires_remplis_ids)
             termines_ids.update(formulaires_modifies_ids)
             termines_ids.update(audio_termines_by_user.get(user.id, set()))
-            termines_total = len(termines_ids)
+            termines_total = len(termines_ids) + int(stats_row.get("extra_termines") or 0)
             cga_interesses = 0
             cga_pas_interesses = 0
             cga_indisponibles = 0

@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Analyse Satisfaction Formateurs{% endblock %}
+{% block title %}Analyse Padesce Formateurs{% endblock %}
 {% block content %}
 <style>
   .panel { background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:18px; box-shadow:var(--shadow); margin-bottom:16px; }
@@ -45,7 +45,7 @@
 
 <div class="dash-header">
   <div>
-    <h1 style="margin:0;font-size:1.3rem;">Analyses enquêtes formateurs</h1>
+    <h1 style="margin:0;font-size:1.3rem;">Analyse Padesce formateurs</h1>
     <p style="color:var(--muted);margin:4px 0 0;font-size:0.9rem;">Vue formateurs : statistiques Q1-Q3 et résumé qualitatif Q4-Q6 issus de la plateforme.</p>
   </div>
   <div style="display:flex;gap:8px;flex-wrap:wrap;">
@@ -64,7 +64,7 @@
 </div>
 
 <div class="scope-switch">
-  <div class="scope-tabs" role="tablist" aria-label="Navigation des analyses de satisfaction">
+  <div class="scope-tabs" role="tablist" aria-label="Navigation des analyses Padesce">
     <a class="scope-tab" href="{% url 'satisfaction_dashboard' %}">Apprenant</a>
     <a class="scope-tab active" href="{% url 'satisfaction_formateurs_dashboard' %}" aria-current="page">Formateur</a>
   </div>

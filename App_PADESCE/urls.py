@@ -1,4 +1,3 @@
-
 # Vue de debug du contexte
 from django.conf import settings
 from django.conf.urls.static import static
@@ -130,6 +129,10 @@ app_urlpatterns = [
     path("appels/", include("App_PADESCE.appels.urls")),
     path("appels-formateurs/", include("App_PADESCE.appels.formateurs_urls")),
     path("appels-pas-forme/", include("App_PADESCE.appels.pas_forme_urls")),
+    path(
+        "appels-prestataires-demarrage/",
+        include("App_PADESCE.appels.prestataire_demarrage_urls"),
+    ),
     path("cga/", include("App_PADESCE.appels.cga_urls")),
     path("reporting/", include("App_PADESCE.reporting.urls")),
     path("beneficiaire/", include("App_PADESCE.beneficiaires.urls")),
@@ -198,7 +201,6 @@ app_urlpatterns = [
         lazy_view("App_PADESCE.core.deployment_views.deployment_config_save"),
         name="deployment_config_save",
     ),
-
 ]
 
 root_only_urlpatterns = [

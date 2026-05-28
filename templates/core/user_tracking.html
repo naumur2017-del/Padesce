@@ -413,7 +413,10 @@
   <div class="panel-head">
     <div>
       <h2>Tableau principal</h2>
-      <div class="muted">Les agents en ligne remontent en premier, puis le classement se fait par volume de traitements termines.</div>
+      <div class="muted">
+        Les agents en ligne remontent en premier, puis le classement se fait par volume de traitements termines.
+        {% if call_scope == "padesce" %}PADESCE inclut les appels apprenants, apprenants non formes et prestataires sur demarrage.{% endif %}
+      </div>
       <div class="scope-tabs" role="tablist" aria-label="Source des appels" style="margin-top:12px;">
         {% for tab in tracking_scope_tabs %}
           <a class="scope-tab {% if tab.active %}active{% endif %}" href="{{ tab.url }}" role="tab" aria-selected="{% if tab.active %}true{% else %}false{% endif %}">

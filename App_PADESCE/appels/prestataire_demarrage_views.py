@@ -18,11 +18,12 @@ from django.views.decorators.http import require_POST
 from App_PADESCE.appels.models import (
     CALL_FORM_STATUSES,
     CALL_SUCCESS_STATUSES,
-    AppelPasForme,
+    AppelPrestataireDemarrage,
     infer_padesce_status,
 )
 from App_PADESCE.appels.views import _bind_audio_state, _cleanup_stale_locks, _safe_audio_url
 from App_PADESCE.core.phase_scope import PHASE_SCOPE_V1_COMBINED, normalize_phase_scope
+from App_PADESCE.formations.models import Prestataire
 
 
 def _normalize_header(value):
@@ -31,6 +32,11 @@ def _normalize_header(value):
     text = " ".join(str(value).strip().lower().split())
     normalized = unicodedata.normalize("NFKD", text)
     return "".join(ch for ch in normalized if not unicodedata.combining(ch))
+
+
+def _normalize_lookup(value):
+    text = re.sub(r"[^a-z0-9]+", " ", _normalize_header(value))
+    return " ".join(text.split())
 
 
 def _as_text(value):
@@ -51,13 +57,37 @@ def _normalize_phone(value):
 
 
 def _reference_for_item(item: dict) -> str:
+    code = item.get("prestataire_code") or ""
     phone = item.get("telephone") or "sans-tel"
-    prestation = item.get("prestation_id") or "sans-prestation"
-    nom_key = re.sub(r"[^a-z0-9]+", "-", _normalize_header(item.get("nom"))).strip("-")
-    return f"{prestation}-{phone}-{nom_key or 'apprenant'}"[:120]
+    name_key = re.sub(r"[^a-z0-9]+", "-", _normalize_lookup(item.get("nom_prestataire"))).strip("-")
+    return f"{code or name_key or 'prestataire'}-{phone}"[:120]
 
 
-def _parse_pas_forme_excel(file_obj):
+def _resolve_prestataire(item: dict) -> tuple[Prestataire | None, str]:
+    code = _as_text(item.get("prestataire_code"))
+    if code:
+        prestataire = Prestataire.objects.filter(code__iexact=code).first()
+        if prestataire:
+            return prestataire, "code"
+
+    name_key = _normalize_lookup(item.get("nom_prestataire"))
+    short_key = _normalize_lookup(item.get("nom_simplifie"))
+    if not name_key and not short_key:
+        return None, ""
+
+    for prestataire in Prestataire.objects.filter(actif=True).only("id", "raison_sociale", "code"):
+        db_name = _normalize_lookup(prestataire.raison_sociale)
+        db_code = _normalize_lookup(prestataire.code)
+        if name_key and name_key == db_name:
+            return prestataire, "nom_exact"
+        if short_key and short_key in {db_name, db_code}:
+            return prestataire, "nom_simplifie"
+        if name_key and db_name and (name_key in db_name or db_name in name_key):
+            return prestataire, "nom_partiel"
+    return None, ""
+
+
+def _parse_prestataire_demarrage_excel(file_obj):
     wb = openpyxl.load_workbook(file_obj, read_only=True, data_only=True)
     ws = wb[wb.sheetnames[0]]
     rows = ws.iter_rows(values_only=True)
@@ -75,51 +105,48 @@ def _parse_pas_forme_excel(file_obj):
 
     payload = []
     for row in rows:
-        nom = get(row, "APPRENANT ABSENT CHEZ NAUMUR", "APPRENANT", "NOM")
-        if not nom:
+        nom = get(row, "Nom du prestataire", "Prestataire", "Nom")
+        code = get(row, "", "Code", "Code prestataire")
+        if not nom and not code:
             continue
         item = {
-            "numero": get(row, "NUMERO"),
-            "nom": _as_text(nom),
-            "telephone": _normalize_phone(get(row, "NUMERO DE TELEPHONE", "TELEPHONE")),
-            "est_forme": _as_text(get(row, "EST FORME")),
-            "prestation_id": _as_text(get(row, "PRESTATION ID", "PRESTATION")),
-            "prestataire": _as_text(get(row, "NOM DU PRESTATAIRE", "PRESTATAIRE")),
-            "beneficiaire": _as_text(get(row, "NOM DU BENEFICIAIRE", "BENEFICIAIRE")),
+            "numero": get(row, "#", "Numero", "N"),
+            "prestataire_code": _as_text(code),
+            "nom_prestataire": _as_text(nom),
+            "nom_simplifie": _as_text(get(row, "Nom simplifié", "Nom simplifie", "Sigle")),
+            "telephone": _normalize_phone(get(row, "Numéro de téléphone", "Telephone")),
         }
         try:
             item["numero"] = int(str(item["numero"]).strip()) if item["numero"] != "" else None
         except (TypeError, ValueError):
             item["numero"] = None
         item["reference_code"] = _reference_for_item(item)
+        prestataire, match_method = _resolve_prestataire(item)
+        item["prestataire"] = prestataire
+        item["match_method"] = match_method
         payload.append(item)
     return payload
 
 
-def _has_form_data(row: AppelPasForme) -> bool:
+def _has_form_data(row: AppelPrestataireDemarrage) -> bool:
     return bool(
-        row.connait_structure
-        or row.membre_structure
-        or row.a_assiste_formation
-        or row.connait_theme
-        or row.nombre_seances is not None
+        row.prestation_debutee
+        or row.date_debut_prestation
+        or row.motif_non_demarrage
+        or row.commentaire
         or row.faux_numero
         or row.bon_numero
-        or row.faux_nom
-        or row.vrai_nom
         or row.satisfaction_completed_at
     )
 
 
-def _has_audio(row: AppelPasForme) -> bool:
+def _has_audio(row: AppelPrestataireDemarrage) -> bool:
     return bool(getattr(row.audio_file, "name", ""))
 
 
-def _sync_pas_forme_status(row: AppelPasForme, *, save=True) -> str:
+def _sync_status(row: AppelPrestataireDemarrage, *, save=True) -> str:
     new_status = infer_padesce_status(
-        row.status,
-        has_form=_has_form_data(row),
-        has_audio=_has_audio(row),
+        row.status, has_form=_has_form_data(row), has_audio=_has_audio(row)
     )
     if save and new_status != row.status:
         row.status = new_status
@@ -132,6 +159,7 @@ def _sync_pas_forme_status(row: AppelPasForme, *, save=True) -> str:
 def _build_stats(queryset):
     stats = queryset.aggregate(
         total=Count("id"),
+        lies_bd=Count("id", filter=Q(prestataire__isnull=False)),
         appels_tentes=Count("id", filter=~Q(status="en_attente")),
         appels_reussis=Count("id", filter=Q(status__in=CALL_SUCCESS_STATUSES)),
         formulaires_remplis=Count("id", filter=Q(status__in=CALL_FORM_STATUSES)),
@@ -145,73 +173,59 @@ def _build_stats(queryset):
 
 
 def _filtered_queryset(request):
-    qs = AppelPasForme.objects.filter(is_active=True)
+    qs = AppelPrestataireDemarrage.objects.filter(is_active=True).select_related("prestataire")
     status = request.GET.get("status", "")
-    prestataire = request.GET.get("prestataire", "")
-    beneficiaire = request.GET.get("beneficiaire", "")
-    prestation = request.GET.get("prestation", "")
+    linked = request.GET.get("linked", "")
     agent = request.GET.get("agent", "")
     q = request.GET.get("q", "").strip()
     if status:
         qs = qs.filter(status=status)
-    if prestataire:
-        qs = qs.filter(prestataire__icontains=prestataire)
-    if beneficiaire:
-        qs = qs.filter(beneficiaire__icontains=beneficiaire)
-    if prestation:
-        qs = qs.filter(prestation_id__icontains=prestation)
+    if linked == "1":
+        qs = qs.filter(prestataire__isnull=False)
+    elif linked == "0":
+        qs = qs.filter(prestataire__isnull=True)
     if agent:
         qs = qs.filter(locked_by__username__iexact=agent)
     if q:
         qs = qs.filter(
-            Q(nom__icontains=q)
+            Q(nom_prestataire__icontains=q)
+            | Q(nom_simplifie__icontains=q)
+            | Q(prestataire_code__icontains=q)
             | Q(telephone__icontains=q)
-            | Q(prestation_id__icontains=q)
-            | Q(prestataire__icontains=q)
-            | Q(beneficiaire__icontains=q)
+            | Q(prestataire__raison_sociale__icontains=q)
         )
-    dropdowns = qs.values("prestataire", "beneficiaire", "prestation_id").distinct()
     filters = {
         "phase_scope": normalize_phase_scope(
             request.GET.get("phase_scope"), default=PHASE_SCOPE_V1_COMBINED
         ),
         "status": status,
-        "prestataire": prestataire,
-        "beneficiaire": beneficiaire,
-        "prestation": prestation,
+        "linked": linked,
         "agent": agent,
         "q": q,
-        "prestataires": sorted({r["prestataire"].strip() for r in dropdowns if r["prestataire"]}),
-        "beneficiaires": sorted(
-            {r["beneficiaire"].strip() for r in dropdowns if r["beneficiaire"]}
-        ),
-        "prestations": sorted(
-            {r["prestation_id"].strip() for r in dropdowns if r["prestation_id"]}
-        ),
     }
     return qs, filters
 
 
 @login_required
 @transaction.atomic
-def pas_forme_index(request):
+def prestataire_demarrage_index(request):
     if request.method == "POST" and request.FILES.get("file"):
         if not request.user.is_superuser:
             messages.error(request, "Seul un superadmin peut importer des fichiers d'appels.")
             return redirect(request.path_info)
         mode = request.POST.get("update_mode", "replace")
         try:
-            payload = _parse_pas_forme_excel(io.BytesIO(request.FILES["file"].read()))
+            payload = _parse_prestataire_demarrage_excel(io.BytesIO(request.FILES["file"].read()))
         except Exception as exc:
             messages.error(request, f"Impossible de lire le fichier : {exc}")
             return redirect(request.path_info)
         if mode == "replace":
-            AppelPasForme.objects.update(is_active=False)
+            AppelPrestataireDemarrage.objects.update(is_active=False)
         created = 0
         updated = 0
         for item in payload:
             reference = item["reference_code"]
-            row = AppelPasForme.objects.filter(reference_code=reference).first()
+            row = AppelPrestataireDemarrage.objects.filter(reference_code=reference).first()
             if row:
                 for key, value in item.items():
                     setattr(row, key, value)
@@ -219,7 +233,7 @@ def pas_forme_index(request):
                 row.save()
                 updated += 1
             else:
-                AppelPasForme.objects.create(**item, is_active=True)
+                AppelPrestataireDemarrage.objects.create(**item, is_active=True)
                 created += 1
         messages.success(
             request,
@@ -229,14 +243,14 @@ def pas_forme_index(request):
 
     qs, filters = _filtered_queryset(request)
     stats = _build_stats(qs)
-    qs = qs.select_related("locked_by").order_by("status", "nom")
+    qs = qs.order_by("status", "nom_prestataire")
     paginator = Paginator(qs, 50)
     page_obj = paginator.get_page(request.GET.get("page", 1))
     rows = _bind_audio_state(list(page_obj.object_list))
     page_obj.object_list = rows
     return render(
         request,
-        "appels/pas_forme.html",
+        "appels/prestataire_demarrage.html",
         {
             "rows": rows,
             "page_obj": page_obj,
@@ -244,55 +258,52 @@ def pas_forme_index(request):
             "filters": filters,
             "stats": stats,
             "appels_count": qs.count(),
+            "motif_choices": AppelPrestataireDemarrage.MOTIF_CHOICES,
         },
     )
 
 
 @login_required
-def pas_forme_export_filtered_csv(request):
+def prestataire_demarrage_export_filtered_csv(request):
     qs, _filters = _filtered_queryset(request)
     response = HttpResponse(content_type="text/csv; charset=utf-8")
-    response["Content-Disposition"] = 'attachment; filename="appels-pas-forme.csv"'
+    response["Content-Disposition"] = 'attachment; filename="appels-prestataires-demarrage.csv"'
     response.write("\ufeff")
     writer = csv.writer(response)
     writer.writerow(
         [
-            "Nom",
+            "Code",
+            "Nom prestataire",
+            "Nom simplifie",
             "Telephone",
-            "Prestation",
-            "Prestataire",
-            "Beneficiaire",
+            "Prestataire BD",
+            "Methode liaison",
             "Statut",
-            "Connait structure",
-            "Membre structure",
-            "A assiste formation PADESCE",
-            "Connait theme",
-            "Nombre seances",
+            "Prestation debutee",
+            "Date debut",
+            "Motif non demarrage",
+            "Commentaire",
             "Faux numero",
             "Bon numero",
-            "Faux nom",
-            "Vrai nom",
             "Audio URL",
         ]
     )
-    for row in qs.order_by("nom"):
+    for row in qs.order_by("nom_prestataire"):
         writer.writerow(
             [
-                row.nom,
+                row.prestataire_code,
+                row.nom_prestataire,
+                row.nom_simplifie,
                 row.telephone,
-                row.prestation_id,
-                row.prestataire,
-                row.beneficiaire,
+                row.prestataire.raison_sociale if row.prestataire else "",
+                row.match_method,
                 row.get_status_display(),
-                row.connait_structure,
-                row.membre_structure,
-                row.a_assiste_formation,
-                row.connait_theme,
-                row.nombre_seances if row.nombre_seances is not None else "",
+                row.prestation_debutee,
+                row.date_debut_prestation.isoformat() if row.date_debut_prestation else "",
+                row.get_motif_non_demarrage_display() if row.motif_non_demarrage else "",
+                row.commentaire,
                 row.faux_numero,
                 row.bon_numero,
-                row.faux_nom,
-                row.vrai_nom,
                 _safe_audio_url(row),
             ]
         )
@@ -301,9 +312,9 @@ def pas_forme_export_filtered_csv(request):
 
 @login_required
 @require_POST
-def pas_forme_action(request, pk: int):
+def prestataire_demarrage_action(request, pk: int):
     _cleanup_stale_locks()
-    row = get_object_or_404(AppelPasForme, pk=pk)
+    row = get_object_or_404(AppelPrestataireDemarrage, pk=pk)
     action = request.POST.get("action", "")
     now = timezone.now()
     if action in {"start", "resume"}:
@@ -341,10 +352,20 @@ def _clean_yes_no(value):
     return value if value in {"OUI", "NON"} else ""
 
 
+def _parse_date(value):
+    value = str(value or "").strip()
+    if not value:
+        return None
+    try:
+        return datetime.date.fromisoformat(value)
+    except (TypeError, ValueError):
+        return None
+
+
 @login_required
 @require_POST
-def pas_forme_finalize(request, pk: int):
-    row = get_object_or_404(AppelPasForme, pk=pk)
+def prestataire_demarrage_finalize(request, pk: int):
+    row = get_object_or_404(AppelPrestataireDemarrage, pk=pk)
     action = request.POST.get("action", "terminer")
     if action == "rappeler":
         row.status = "a_rappeler"
@@ -359,26 +380,34 @@ def pas_forme_finalize(request, pk: int):
             {"ok": True, "status": row.status, "status_label": row.get_status_display()}
         )
 
-    row.connait_structure = _clean_yes_no(request.POST.get("q1"))
-    row.membre_structure = _clean_yes_no(request.POST.get("q2"))
-    row.a_assiste_formation = _clean_yes_no(request.POST.get("q3"))
-    row.connait_theme = _clean_yes_no(request.POST.get("q4"))
-    try:
-        row.nombre_seances = int(request.POST.get("q5") or 0)
-    except (TypeError, ValueError):
-        row.nombre_seances = None
+    row.prestation_debutee = _clean_yes_no(request.POST.get("prestation_debutee"))
+    if row.prestation_debutee == "OUI":
+        row.date_debut_prestation = _parse_date(request.POST.get("date_debut_prestation"))
+        row.motif_non_demarrage = ""
+    elif row.prestation_debutee == "NON":
+        row.date_debut_prestation = None
+        motif = str(request.POST.get("motif_non_demarrage") or "").strip()
+        valid_motifs = {key for key, _label in AppelPrestataireDemarrage.MOTIF_CHOICES}
+        row.motif_non_demarrage = motif if motif in valid_motifs else ""
+    else:
+        row.date_debut_prestation = None
+        row.motif_non_demarrage = ""
+    row.commentaire = str(request.POST.get("commentaire") or "").strip()
     row.faux_numero = _clean_yes_no(request.POST.get("faux_numero"))
     row.bon_numero = _normalize_phone(request.POST.get("bon_numero"))
-    row.faux_nom = _clean_yes_no(request.POST.get("faux_nom"))
-    row.vrai_nom = str(request.POST.get("vrai_nom") or "").strip()
     row.satisfaction_completed_at = timezone.now()
     file_obj = request.FILES.get("audio")
+    if not file_obj and not _has_audio(row):
+        return JsonResponse(
+            {"ok": False, "error": "L'audio est obligatoire pour finaliser cet appel."},
+            status=400,
+        )
     if file_obj:
         row.audio_file = file_obj
-    row.status = "formulaire_avec_audio" if file_obj else "formulaire_rempli"
+    row.status = "formulaire_avec_audio"
     row.rappel_at = None
     row.save()
-    _sync_pas_forme_status(row)
+    _sync_status(row)
     return JsonResponse(
         {
             "ok": True,
