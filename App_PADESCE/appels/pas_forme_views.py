@@ -23,6 +23,7 @@ from App_PADESCE.appels.models import (
 )
 from App_PADESCE.appels.views import _bind_audio_state, _cleanup_stale_locks, _safe_audio_url
 from App_PADESCE.core.phase_scope import PHASE_SCOPE_V1_COMBINED, normalize_phase_scope
+from App_PADESCE.formations.models import Beneficiaire, Prestataire
 
 
 def _normalize_header(value):
@@ -99,7 +100,9 @@ def _parse_pas_forme_excel(file_obj):
 def _has_form_data(row: AppelPasForme) -> bool:
     return bool(
         row.connait_structure
+        or row.beneficiaire_corrige
         or row.connait_prestataire
+        or row.prestataire_corrige
         or row.membre_structure
         or row.a_assiste_formation
         or row.connait_theme
@@ -245,6 +248,12 @@ def pas_forme_index(request):
             "filters": filters,
             "stats": stats,
             "appels_count": qs.count(),
+            "beneficiaire_options": Beneficiaire.objects.filter(actif=True).order_by(
+                "nom_structure"
+            ),
+            "prestataire_options": Prestataire.objects.filter(actif=True).order_by(
+                "raison_sociale"
+            ),
         },
     )
 
@@ -265,7 +274,9 @@ def pas_forme_export_filtered_csv(request):
             "Beneficiaire",
             "Statut",
             "Connait structure",
+            "Beneficiaire corrige",
             "Connait prestataire",
+            "Prestataire corrige",
             "Membre structure",
             "A assiste formation PADESCE",
             "Connait theme",
@@ -287,7 +298,9 @@ def pas_forme_export_filtered_csv(request):
                 row.beneficiaire,
                 row.get_status_display(),
                 row.connait_structure,
+                row.beneficiaire_corrige,
                 row.connait_prestataire,
+                row.prestataire_corrige,
                 row.membre_structure,
                 row.a_assiste_formation,
                 row.connait_theme,
@@ -363,7 +376,17 @@ def pas_forme_finalize(request, pk: int):
         )
 
     row.connait_structure = _clean_yes_no(request.POST.get("q1"))
+    row.beneficiaire_corrige = (
+        str(request.POST.get("beneficiaire_corrige") or "").strip()
+        if row.connait_structure == "NON"
+        else ""
+    )
     row.connait_prestataire = _clean_yes_no(request.POST.get("q_prestataire"))
+    row.prestataire_corrige = (
+        str(request.POST.get("prestataire_corrige") or "").strip()
+        if row.connait_prestataire == "NON"
+        else ""
+    )
     row.membre_structure = _clean_yes_no(request.POST.get("q2"))
     row.a_assiste_formation = _clean_yes_no(request.POST.get("q3"))
     row.connait_theme = _clean_yes_no(request.POST.get("q4"))

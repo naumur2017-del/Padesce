@@ -117,7 +117,7 @@
       </thead>
       <tbody>
         {% for row in rows %}
-          <tr data-id="{{ row.id }}" data-name="{{ row.nom|escapejs }}" data-phone="{{ row.telephone|default:'-' }}" data-beneficiaire="{{ row.beneficiaire|default:'-'|escapejs }}" data-prestataire="{{ row.prestataire|default:'-'|escapejs }}" data-status="{{ row.status }}" data-q1="{{ row.connait_structure }}" data-q-prestataire="{{ row.connait_prestataire }}" data-q2="{{ row.membre_structure }}" data-q3="{{ row.a_assiste_formation }}" data-q4="{{ row.connait_theme }}" data-q5="{{ row.nombre_seances|default:'' }}" data-faux-numero="{{ row.faux_numero }}" data-bon-numero="{{ row.bon_numero|default:'' }}" data-faux-nom="{{ row.faux_nom }}" data-vrai-nom="{{ row.vrai_nom|escapejs }}">
+          <tr data-id="{{ row.id }}" data-name="{{ row.nom|escapejs }}" data-phone="{{ row.telephone|default:'-' }}" data-beneficiaire="{{ row.beneficiaire|default:'-'|escapejs }}" data-prestataire="{{ row.prestataire|default:'-'|escapejs }}" data-status="{{ row.status }}" data-q1="{{ row.connait_structure }}" data-beneficiaire-corrige="{{ row.beneficiaire_corrige|default:''|escapejs }}" data-q-prestataire="{{ row.connait_prestataire }}" data-prestataire-corrige="{{ row.prestataire_corrige|default:''|escapejs }}" data-q2="{{ row.membre_structure }}" data-q3="{{ row.a_assiste_formation }}" data-q4="{{ row.connait_theme }}" data-q5="{{ row.nombre_seances|default:'' }}" data-faux-numero="{{ row.faux_numero }}" data-bon-numero="{{ row.bon_numero|default:'' }}" data-faux-nom="{{ row.faux_nom }}" data-vrai-nom="{{ row.vrai_nom|escapejs }}">
             <td><strong>{{ row.nom }}</strong></td>
             <td>{{ row.telephone|default:"-" }}</td>
             <td>{{ row.prestation_id|default:"-" }}</td>
@@ -127,6 +127,8 @@
             <td>
               {% if row.satisfaction_completed_at %}
                 Bénéficiaire {{ row.connait_structure|default:"-" }} | Prestataire {{ row.connait_prestataire|default:"-" }} | Membre {{ row.membre_structure|default:"-" }} | Formation {{ row.a_assiste_formation|default:"-" }} | Thème {{ row.connait_theme|default:"-" }} | Seances {{ row.nombre_seances|default:"0" }}
+                {% if row.beneficiaire_corrige %}<br><span class="subtitle">Bénéficiaire corrigé: {{ row.beneficiaire_corrige }}</span>{% endif %}
+                {% if row.prestataire_corrige %}<br><span class="subtitle">Prestataire corrigé: {{ row.prestataire_corrige }}</span>{% endif %}
                 {% if row.faux_numero == "OUI" %}<br><span class="subtitle">Faux numero: {{ row.bon_numero|default:"-" }}</span>{% endif %}
                 {% if row.faux_nom == "OUI" %}<br><span class="subtitle">Faux nom: {{ row.vrai_nom|default:"-" }}</span>{% endif %}
               {% else %}
@@ -168,10 +170,28 @@
       <label id="js-q1-label">1. Est-ce que vous connaissez ce bénéficiaire ?</label>
       <span class="choice"><label><input type="radio" name="q1" value="OUI"> Oui</label><label><input type="radio" name="q1" value="NON"> Non</label></span>
     </div>
+    <label class="question" id="js-beneficiaire-corrige-block" hidden>
+      <span>Choisir le bon bénéficiaire</span>
+      <select id="js-beneficiaire-corrige" class="input">
+        <option value="">Sélectionner un bénéficiaire</option>
+        {% for beneficiaire in beneficiaire_options %}
+          <option value="{{ beneficiaire.nom_structure }}">{{ beneficiaire.nom_structure }}</option>
+        {% endfor %}
+      </select>
+    </label>
     <div class="question">
       <label id="js-q-prestataire-label">2. Est-ce que vous connaissez ce prestataire ?</label>
       <span class="choice"><label><input type="radio" name="q_prestataire" value="OUI"> Oui</label><label><input type="radio" name="q_prestataire" value="NON"> Non</label></span>
     </div>
+    <label class="question" id="js-prestataire-corrige-block" hidden>
+      <span>Choisir le bon prestataire</span>
+      <select id="js-prestataire-corrige" class="input">
+        <option value="">Sélectionner un prestataire</option>
+        {% for prestataire in prestataire_options %}
+          <option value="{{ prestataire.raison_sociale }}">{{ prestataire.raison_sociale }}</option>
+        {% endfor %}
+      </select>
+    </label>
     <div class="question">
       <label id="js-q2-label">3. Etes-vous membre de ce bénéficiaire ?</label>
       <span class="choice"><label><input type="radio" name="q2" value="OUI"> Oui</label><label><input type="radio" name="q2" value="NON"> Non</label></span>
@@ -225,6 +245,10 @@
     const q1Label = document.getElementById("js-q1-label");
     const qPrestataireLabel = document.getElementById("js-q-prestataire-label");
     const q2Label = document.getElementById("js-q2-label");
+    const beneficiaireCorrigeBlock = document.getElementById("js-beneficiaire-corrige-block");
+    const beneficiaireCorrige = document.getElementById("js-beneficiaire-corrige");
+    const prestataireCorrigeBlock = document.getElementById("js-prestataire-corrige-block");
+    const prestataireCorrige = document.getElementById("js-prestataire-corrige");
     const q5 = document.getElementById("js-q5");
     const bonNumeroBlock = document.getElementById("js-bon-numero-block");
     const bonNumero = document.getElementById("js-bon-numero");
@@ -276,6 +300,8 @@
       document.querySelectorAll('input[name="q_prestataire"]').forEach(input => {
         input.checked = input.value === (currentRow.dataset.qPrestataire || "");
       });
+      beneficiaireCorrige.value = currentRow.dataset.beneficiaireCorrige || "";
+      prestataireCorrige.value = currentRow.dataset.prestataireCorrige || "";
       q5.value = currentRow.dataset.q5 || 0;
       document.querySelectorAll('input[name="faux_numero"]').forEach(input => {
         input.checked = input.value === (currentRow.dataset.fauxNumero || "");
@@ -285,6 +311,7 @@
         input.checked = input.value === (currentRow.dataset.fauxNom || "");
       });
       vraiNom.value = currentRow.dataset.vraiNom || "";
+      syncCorrectionBlocks();
       syncIdentityBlocks();
       rappel.checked = false;
       rappelAt.disabled = true;
@@ -301,6 +328,15 @@
       vraiNomBlock.hidden = fauxNom !== "OUI";
       if (fauxNumero !== "OUI") bonNumero.value = "";
       if (fauxNom !== "OUI") vraiNom.value = "";
+    }
+
+    function syncCorrectionBlocks() {
+      const connaitBeneficiaire = document.querySelector('input[name="q1"]:checked')?.value || "";
+      const connaitPrestataire = document.querySelector('input[name="q_prestataire"]:checked')?.value || "";
+      beneficiaireCorrigeBlock.hidden = connaitBeneficiaire !== "NON";
+      prestataireCorrigeBlock.hidden = connaitPrestataire !== "NON";
+      if (connaitBeneficiaire !== "NON") beneficiaireCorrige.value = "";
+      if (connaitPrestataire !== "NON") prestataireCorrige.value = "";
     }
 
     document.querySelectorAll(".js-action").forEach(btn => {
@@ -325,6 +361,9 @@
     rappel.addEventListener("change", () => { rappelAt.disabled = !rappel.checked; });
     document.querySelectorAll('input[name="faux_numero"], input[name="faux_nom"]').forEach(input => {
       input.addEventListener("change", syncIdentityBlocks);
+    });
+    document.querySelectorAll('input[name="q1"], input[name="q_prestataire"]').forEach(input => {
+      input.addEventListener("change", syncCorrectionBlocks);
     });
     document.getElementById("js-close-modal").addEventListener("click", () => { modal.hidden = true; });
 
@@ -370,6 +409,8 @@
         data.append(name, document.querySelector(`input[name="${name}"]:checked`)?.value || "");
       });
       data.append("q_prestataire", document.querySelector('input[name="q_prestataire"]:checked')?.value || "");
+      data.append("beneficiaire_corrige", beneficiaireCorrige.value || "");
+      data.append("prestataire_corrige", prestataireCorrige.value || "");
       data.append("q5", q5.value || "0");
       data.append("faux_numero", document.querySelector('input[name="faux_numero"]:checked')?.value || "");
       data.append("bon_numero", bonNumero.value || "");
