@@ -616,6 +616,7 @@ class AppelPasForme(TimeStampedModel):
     )
     locked_at = models.DateTimeField(null=True, blank=True)
     connait_structure = models.CharField(max_length=3, choices=BOOLEAN_CHOICES, blank=True)
+    connait_prestataire = models.CharField(max_length=3, choices=BOOLEAN_CHOICES, blank=True)
     membre_structure = models.CharField(max_length=3, choices=BOOLEAN_CHOICES, blank=True)
     a_assiste_formation = models.CharField(max_length=3, choices=BOOLEAN_CHOICES, blank=True)
     connait_theme = models.CharField(max_length=3, choices=BOOLEAN_CHOICES, blank=True)

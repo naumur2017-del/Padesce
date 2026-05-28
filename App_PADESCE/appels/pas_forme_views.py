@@ -99,6 +99,7 @@ def _parse_pas_forme_excel(file_obj):
 def _has_form_data(row: AppelPasForme) -> bool:
     return bool(
         row.connait_structure
+        or row.connait_prestataire
         or row.membre_structure
         or row.a_assiste_formation
         or row.connait_theme
@@ -264,6 +265,7 @@ def pas_forme_export_filtered_csv(request):
             "Beneficiaire",
             "Statut",
             "Connait structure",
+            "Connait prestataire",
             "Membre structure",
             "A assiste formation PADESCE",
             "Connait theme",
@@ -285,6 +287,7 @@ def pas_forme_export_filtered_csv(request):
                 row.beneficiaire,
                 row.get_status_display(),
                 row.connait_structure,
+                row.connait_prestataire,
                 row.membre_structure,
                 row.a_assiste_formation,
                 row.connait_theme,
@@ -360,6 +363,7 @@ def pas_forme_finalize(request, pk: int):
         )
 
     row.connait_structure = _clean_yes_no(request.POST.get("q1"))
+    row.connait_prestataire = _clean_yes_no(request.POST.get("q_prestataire"))
     row.membre_structure = _clean_yes_no(request.POST.get("q2"))
     row.a_assiste_formation = _clean_yes_no(request.POST.get("q3"))
     row.connait_theme = _clean_yes_no(request.POST.get("q4"))
