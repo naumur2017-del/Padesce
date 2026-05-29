@@ -159,13 +159,84 @@ jobs:
       - name: Collect static assets
         run: python manage.py collectstatic --noinput
 
+      - name: Mirror collected static assets to public static path
+        run: |
+          mkdir -p static
+          cp -a staticfiles/. static/
+
       - name: Verify collected static assets
         run: |
           test -f staticfiles/staticfiles.json
           test -f staticfiles/branding/logo.png
+          test -f staticfiles/core/chat_widget.css
+          test -f staticfiles/core/chat_widget.js
+          test -f staticfiles/core/call_alert_widget.js
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          manifest = json.loads(Path("staticfiles/staticfiles.json").read_text())
+          paths = manifest.get("paths", {})
+          required = [
+              "branding/logo.png",
+              "core/chat_widget.css",
+              "core/chat_widget.js",
+              "core/call_alert_widget.js",
+          ]
+          for source in required:
+              hashed = paths.get(source)
+              if not hashed:
+                  raise SystemExit(f"Missing static manifest entry: {source}")
+              if not (Path("static") / hashed).is_file():
+                  raise SystemExit(f"Missing mirrored static asset: static/{hashed}")
+          PY
 
       - name: Deploy application
         run: python manage.py gandi_deploy --mode deploy
+
+      - name: Verify public logo and chatbot assets
+        run: |
+          python - <<'PY'
+          import re
+          import sys
+          from urllib.parse import urljoin
+
+          import requests
+
+          base_url = "https://call.naumur.com"
+          login_url = urljoin(base_url, "/login/")
+          response = requests.get(login_url, timeout=30)
+          response.raise_for_status()
+
+          static_urls = sorted(
+              set(re.findall(r"""(?:src|href)=["']([^"']*/static/[^"']+)["']""", response.text))
+          )
+          required_markers = [
+              "branding/logo",
+              "core/chat_widget",
+          ]
+          checked = []
+          failures = []
+          for marker in required_markers:
+              matches = [url for url in static_urls if marker in url]
+              if not matches:
+                  failures.append(f"No public static URL found for {marker}")
+                  continue
+              for url in matches:
+                  full_url = urljoin(base_url, url)
+                  asset = requests.get(full_url, timeout=30)
+                  checked.append(full_url)
+                  if asset.status_code >= 400:
+                      failures.append(f"{asset.status_code} {full_url}")
+
+          if failures:
+              for failure in failures:
+                  print(f"::error::{failure}")
+              sys.exit(1)
+          print("Verified public static assets:")
+          for url in checked:
+              print(f"- {url}")
+          PY
 
       - name: Upload deployment logs
         if: always()
