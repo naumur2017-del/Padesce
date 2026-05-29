@@ -358,8 +358,7 @@ jobs:
           fi
 
           if [ "${{ steps.send_digest.outputs.digest_ok }}" != "true" ]; then
-            echo "::error::L'envoi du digest quotidien a echoue. ${{ steps.send_digest.outputs.digest_error }}"
-            failed=true
+            echo "::warning::L'envoi du digest quotidien a echoue. ${{ steps.send_digest.outputs.digest_error }}"
           fi
 
           if [ "$failed" = true ]; then
