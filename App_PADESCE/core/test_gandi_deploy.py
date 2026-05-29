@@ -10,6 +10,7 @@ from django.contrib.auth import get_user_model
 from django.test import SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 
+from App_PADESCE import settings as project_settings
 from App_PADESCE.core.deployment_live import LIVE_MARKER_FILENAME
 from App_PADESCE.core.gandi_deploy import (
     _app_env_values_from_env,
@@ -151,6 +152,35 @@ class GandiDeployHelpersTests(SimpleTestCase):
         self.assertIn("MICROSOFT_GRAPH_TENANT_ID=tenant-001", merged)
         self.assertIn("# keep comment", merged)
         self.assertIn("EMAIL_HOST=smtp.gmail.com", merged)
+
+    def test_env_local_overrides_deployment_synced_keys(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            dotenv = root / ".env"
+            env_local = root / ".env.local"
+            dotenv.write_text(
+                "BACKUP_TRIGGER_TOKEN=old-token\n"
+                "DJANGO_DEBUG=True\n"
+                "DJANGO_SECRET_KEY=keep-base-secret\n",
+                encoding="utf-8",
+            )
+            env_local.write_text(
+                "BACKUP_TRIGGER_TOKEN=new-token\n"
+                "DJANGO_DEBUG=False\n"
+                "DJANGO_SECRET_KEY=do-not-override\n",
+                encoding="utf-8",
+            )
+
+            with patch.dict(os.environ, {}, clear=True):
+                project_settings.load_env_file(dotenv)
+                project_settings.load_env_file(
+                    env_local,
+                    override_keys=project_settings.ENV_FILE_OVERRIDE_KEYS,
+                )
+
+                self.assertEqual(os.environ["BACKUP_TRIGGER_TOKEN"], "new-token")
+                self.assertEqual(os.environ["DJANGO_DEBUG"], "False")
+                self.assertEqual(os.environ["DJANGO_SECRET_KEY"], "keep-base-secret")
 
     def test_app_env_values_uses_export_key_as_cga_public_key_fallback(self) -> None:
         with patch.dict(

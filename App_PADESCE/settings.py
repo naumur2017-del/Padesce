@@ -17,15 +17,62 @@ from pathlib import Path
 from urllib.parse import unquote, urlparse
 
 
-ENV_FILE_OVERRIDE_KEYS = {"CGA_PUBLIC_API_KEY"}
+ENV_FILE_OVERRIDE_KEYS = {
+    "ANTHROPIC_API_KEY",
+    "BACKUP_RETENTION_DAYS",
+    "BACKUP_TRIGGER_TOKEN",
+    "CGA_PUBLIC_API_KEY",
+    "DEFAULT_FROM_EMAIL",
+    "DEPLOYMENT_REPORT_EMAIL_TO",
+    "DJANGO_ALLOWED_HOSTS",
+    "DJANGO_CSRF_TRUSTED_ORIGINS",
+    "DJANGO_DEBUG",
+    "EMAIL_BACKEND",
+    "EMAIL_HOST",
+    "EMAIL_HOST_PASSWORD",
+    "EMAIL_HOST_USER",
+    "EMAIL_PORT",
+    "EMAIL_TIMEOUT",
+    "EMAIL_USE_SSL",
+    "EMAIL_USE_TLS",
+    "EXPORT_API_KEY",
+    "HF_TOKEN",
+    "HUGGINGFACE_BACKUP_COMMIT_PREFIX",
+    "HUGGINGFACE_BACKUP_SOURCE_URL",
+    "HUGGINGFACE_BACKUP_SYNC_ENABLED",
+    "HUGGINGFACE_BACKUP_SYNC_REQUIRED",
+    "HUGGINGFACE_SPACE_DB_PATH",
+    "HUGGINGFACE_SPACE_META_PATH",
+    "HUGGINGFACE_SPACE_REPO_ID",
+    "HUGGINGFACE_SPACE_REPO_TYPE",
+    "HUGGINGFACE_SPACE_REVISION",
+    "HUGGINGFACE_SPACE_URL",
+    "HUGGINGFACE_TOKEN",
+    "MICROSOFT_GRAPH_CLIENT_ID",
+    "MICROSOFT_GRAPH_CLIENT_SECRET",
+    "MICROSOFT_GRAPH_PRIMARY_DOMAIN",
+    "MICROSOFT_GRAPH_REDIRECT_URI",
+    "MICROSOFT_GRAPH_TENANT_ID",
+    "MICROSOFT_TEAMS_DEFAULT_TEAM_ID",
+    "OPENAI_API_KEY",
+    "PADESCE_CHAT_API_TIMEOUT",
+    "PADESCE_CHAT_API_TOKEN",
+    "PADESCE_CHAT_API_URL",
+    "PADESCE_RAG_API_TIMEOUT",
+    "PADESCE_RAG_API_TOKEN",
+    "PADESCE_RAG_API_URL",
+    "REPORT_EMAIL_TO",
+    "REPORT_TRIGGER_TOKEN",
+}
 
 
-def load_env_file(env_path: Path) -> None:
+def load_env_file(env_path: Path, *, override_keys: set[str] | None = None) -> None:
     """
     Charge un fichier .env simple (clé=valeur, sans quotes) si présent.
     Ne remplace pas une variable déjà définie, sauf pour les clés explicitement
     gérées par le fichier synchronisé.
     """
+    override_keys = override_keys or set()
     if not env_path.exists():
         return
     for line in env_path.read_text(encoding="utf-8", errors="replace").splitlines():
@@ -44,7 +91,7 @@ def load_env_file(env_path: Path) -> None:
         value = value.strip()
         if not key or any(char.isspace() for char in key):
             continue
-        if key in ENV_FILE_OVERRIDE_KEYS:
+        if key in override_keys:
             os.environ[key] = value
         else:
             os.environ.setdefault(key, value)
@@ -64,7 +111,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Charger les variables d'environnement locales si presentes.
 load_env_file(BASE_DIR / ".env")
-load_env_file(BASE_DIR / ".env.local")
+load_env_file(BASE_DIR / ".env.local", override_keys=ENV_FILE_OVERRIDE_KEYS)
 
 
 # Quick-start development settings - unsuitable for production
@@ -219,7 +266,11 @@ def _database_settings_from_env() -> dict:
         }
 
     sqlite_path = str(os.getenv("SQLITE_PATH", "") or os.getenv("SQLITE_NAME", "") or "").strip()
-    sqlite_name = Path(sqlite_path) if sqlite_path else Path("c:/Users/LENOVO/Downloads/backup_20260511_114638.sqlite3")
+    sqlite_name = (
+        Path(sqlite_path)
+        if sqlite_path
+        else Path("c:/Users/LENOVO/Downloads/backup_20260511_114638.sqlite3")
+    )
     if not sqlite_name.is_absolute():
         sqlite_name = Path(sqlite_path)
 
@@ -255,9 +306,12 @@ HUGGINGFACE_BACKUP_SOURCE_URL = os.getenv(
     "HUGGINGFACE_BACKUP_SOURCE_URL",
     "https://call.naumur.com",
 )
-HUGGINGFACE_BACKUP_SYNC_ENABLED = os.getenv(
-    "HUGGINGFACE_BACKUP_SYNC_ENABLED", "False"
-).lower() in ("1", "true", "yes", "on")
+HUGGINGFACE_BACKUP_SYNC_ENABLED = os.getenv("HUGGINGFACE_BACKUP_SYNC_ENABLED", "False").lower() in (
+    "1",
+    "true",
+    "yes",
+    "on",
+)
 HUGGINGFACE_BACKUP_SYNC_REQUIRED = os.getenv(
     "HUGGINGFACE_BACKUP_SYNC_REQUIRED", "False"
 ).lower() in ("1", "true", "yes", "on")
@@ -375,9 +429,7 @@ def _cache_settings_from_env() -> dict:
 
     if backend_key in {"redis", "rediscache", "django-redis", "django_redis"}:
         if not HAS_DJANGO_REDIS:
-            raise RuntimeError(
-                "Le backend de cache Redis requiert la dependance django-redis."
-            )
+            raise RuntimeError("Le backend de cache Redis requiert la dependance django-redis.")
         redis_url = _redis_url_from_env("PADESCE_REDIS_URL", "REDIS_URL")
         if not redis_url:
             raise RuntimeError(
@@ -474,9 +526,7 @@ def _channel_layers_from_env() -> dict:
         return {}
     if backend_key == "redis":
         if not HAS_CHANNELS_REDIS:
-            raise RuntimeError(
-                "Le channel layer Redis requiert la dependance channels-redis."
-            )
+            raise RuntimeError("Le channel layer Redis requiert la dependance channels-redis.")
         redis_url = _redis_url_from_env(
             "PADESCE_CHANNELS_REDIS_URL",
             "PADESCE_REDIS_URL",
@@ -500,6 +550,7 @@ def _channel_layers_from_env() -> dict:
 
 if HAS_CHANNELS:
     CHANNEL_LAYERS = _channel_layers_from_env()
+
 
 # ---------------------------------------------------------------------------
 # Sessions :
