@@ -5,7 +5,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from django.core import mail
-from django.test import TestCase, override_settings
+from django.test import Client, SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
@@ -44,11 +44,31 @@ class DailyDigestEmailTests(TestCase):
             return {"path": str(path)}
 
         with (
-            patch("App_PADESCE.reporting.app_report.build_application_report", return_value=self._fake_report()),
-            patch("App_PADESCE.reporting.app_report.build_backup_status_summary", return_value={"status": "success", "label": "Succes", "detail": "Backup ok", "purged_backups": []}),
-            patch("App_PADESCE.reporting.app_report.export_application_report_word", return_value=b"docx-report"),
-            patch("App_PADESCE.reporting.app_report.build_padesce_calls_report", side_effect=_write_padesce_report),
-            patch("App_PADESCE.reporting.app_report.build_cga_calls_report_workbook", return_value=b"cga-report"),
+            patch(
+                "App_PADESCE.reporting.app_report.build_application_report",
+                return_value=self._fake_report(),
+            ),
+            patch(
+                "App_PADESCE.reporting.app_report.build_backup_status_summary",
+                return_value={
+                    "status": "success",
+                    "label": "Succes",
+                    "detail": "Backup ok",
+                    "purged_backups": [],
+                },
+            ),
+            patch(
+                "App_PADESCE.reporting.app_report.export_application_report_word",
+                return_value=b"docx-report",
+            ),
+            patch(
+                "App_PADESCE.reporting.app_report.build_padesce_calls_report",
+                side_effect=_write_padesce_report,
+            ),
+            patch(
+                "App_PADESCE.reporting.app_report.build_cga_calls_report_workbook",
+                return_value=b"cga-report",
+            ),
             patch("App_PADESCE.reporting.app_report._get_report_logo_path", return_value=None),
             patch.object(app_report, "HAS_DOCX", True),
         ):
@@ -57,12 +77,27 @@ class DailyDigestEmailTests(TestCase):
         self.assertTrue(result["ok"])
         self.assertEqual(len(mail.outbox), 1)
         attachment_names = [attachment[0] for attachment in mail.outbox[0].attachments]
-        self.assertTrue(any(name.startswith("rapport_application_") and name.endswith(".docx") for name in attachment_names))
-        self.assertTrue(any(name.startswith("rapport_appels_padesce_") and name.endswith(".xlsx") for name in attachment_names))
-        self.assertTrue(any(name.startswith("rapport_appels_cga_") and name.endswith(".xlsx") for name in attachment_names))
+        self.assertTrue(
+            any(
+                name.startswith("rapport_application_") and name.endswith(".docx")
+                for name in attachment_names
+            )
+        )
+        self.assertTrue(
+            any(
+                name.startswith("rapport_appels_padesce_") and name.endswith(".xlsx")
+                for name in attachment_names
+            )
+        )
+        self.assertTrue(
+            any(
+                name.startswith("rapport_appels_cga_") and name.endswith(".xlsx")
+                for name in attachment_names
+            )
+        )
 
 
-class DailyDigestTriggerViewTests(TestCase):
+class DailyDigestTriggerViewTests(SimpleTestCase):
     @override_settings(REPORT_TRIGGER_TOKEN="report-secret")
     def test_daily_digest_trigger_accepts_anonymous_requests(self) -> None:
         with patch(
@@ -85,3 +120,21 @@ class DailyDigestTriggerViewTests(TestCase):
 
         self.assertEqual(response.status_code, 403)
         self.assertEqual(response.json()["error"], "Token invalide ou manquant.")
+
+    @override_settings(REPORT_TRIGGER_TOKEN="report-secret")
+    def test_daily_digest_trigger_is_csrf_exempt_through_lazy_url(self) -> None:
+        client = Client(enforce_csrf_checks=True)
+
+        with patch(
+            "App_PADESCE.reporting.views.send_daily_digest_email",
+            return_value={"ok": True, "detail": "Digest envoye"},
+        ):
+            response = client.post(
+                reverse("reporting_daily_digest_trigger"),
+                {"recipients": "daily@example.com"},
+                HTTP_X_REPORT_TOKEN="report-secret",
+                HTTP_ACCEPT="application/json",
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["ok"], True)

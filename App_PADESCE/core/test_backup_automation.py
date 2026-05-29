@@ -7,7 +7,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
-from django.test import SimpleTestCase, override_settings
+from django.test import Client, SimpleTestCase, override_settings
 from django.urls import reverse
 
 from App_PADESCE.core import backup_manager, huggingface_sync
@@ -72,6 +72,23 @@ class BackupTriggerAutomationTests(SimpleTestCase):
         self.assertEqual(response.status_code, 403)
         self.assertEqual(response.json()["error"], "Token invalide ou manquant.")
         self.assertFalse(response.has_header("Location"))
+
+    def test_backup_trigger_is_csrf_exempt_through_lazy_url(self) -> None:
+        client = Client(enforce_csrf_checks=True)
+
+        with override_settings(BASE_DIR=self.temp_dir.name, BACKUP_TRIGGER_TOKEN="secret-token"):
+            with patch(
+                "App_PADESCE.core.backup_manager.start_backup",
+                return_value="job-csrf",
+            ):
+                response = client.post(
+                    reverse("backup_trigger"),
+                    HTTP_X_BACKUP_TOKEN="secret-token",
+                    HTTP_ACCEPT="application/json",
+                )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["job_id"], "job-csrf")
 
     def test_backup_trigger_status_reads_history_without_redirect(self) -> None:
         with override_settings(BASE_DIR=self.temp_dir.name, BACKUP_TRIGGER_TOKEN="secret-token"):

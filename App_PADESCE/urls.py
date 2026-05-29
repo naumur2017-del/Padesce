@@ -24,7 +24,11 @@ app_urlpatterns = [
         lazy_view("App_PADESCE.core.pwa_views.web_manifest"),
         name="web_manifest",
     ),
-    path("api/chat/", lazy_view("App_PADESCE.core.chat_views.chat_query"), name="chat_query"),
+    path(
+        "api/chat/",
+        lazy_view("App_PADESCE.core.chat_views.chat_query", csrf_exempt=True),
+        name="chat_query",
+    ),
     path(
         "api/chat/download/<str:filename>/",
         lazy_view("App_PADESCE.core.chat_views.download_export"),
@@ -153,7 +157,7 @@ app_urlpatterns = [
     ),
     path(
         "backup/api/trigger/",
-        lazy_view("App_PADESCE.core.backup_views.backup_trigger"),
+        lazy_view("App_PADESCE.core.backup_views.backup_trigger", csrf_exempt=True),
         name="backup_trigger",
     ),
     path(

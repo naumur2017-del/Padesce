@@ -11,7 +11,7 @@ def _resolve_view(dotted_path: str):
     return getattr(module, attr_name)
 
 
-def lazy_view(dotted_path: str):
+def lazy_view(dotted_path: str, *, csrf_exempt: bool = False):
     def _wrapped(request, *args, **kwargs):
         view = _resolve_view(dotted_path)
         return view(request, *args, **kwargs)
@@ -19,4 +19,6 @@ def lazy_view(dotted_path: str):
     _wrapped.__name__ = f"lazy_{dotted_path.rsplit('.', 1)[-1]}"
     _wrapped.__qualname__ = _wrapped.__name__
     _wrapped.__module__ = __name__
+    if csrf_exempt:
+        _wrapped.csrf_exempt = True
     return _wrapped

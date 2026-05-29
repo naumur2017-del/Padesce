@@ -53,7 +53,10 @@ urlpatterns = [
     ),
     path(
         "api/daily-digest/trigger/",
-        lazy_view("App_PADESCE.reporting.views.reporting_daily_digest_trigger_view"),
+        lazy_view(
+            "App_PADESCE.reporting.views.reporting_daily_digest_trigger_view",
+            csrf_exempt=True,
+        ),
         name="reporting_daily_digest_trigger",
     ),
     path(
