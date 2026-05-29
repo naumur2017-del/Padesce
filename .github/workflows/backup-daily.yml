@@ -173,6 +173,12 @@ jobs:
               print(f"Polling tentative {attempt} - HTTP {http_status}")
               print(body)
 
+              if http_status == 404:
+                  backup_status = "pending_remote_visibility"
+                  print("Le job n'est pas encore visible par ce worker, nouvelle tentative.")
+                  time.sleep(30)
+                  continue
+
               if http_status != 200:
                   backup_status = "error"
                   backup_failed = True
