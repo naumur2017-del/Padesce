@@ -108,99 +108,117 @@ jobs:
           TRIGGER_BACKUP_ERROR: ${{ steps.trigger_backup.outputs.backup_error }}
           BACKUP_TRIGGER_TOKEN_VALUE: ${{ secrets.BACKUP_TRIGGER_TOKEN }}
         run: |
-          write_output() {
-            local name="$1"
-            local value="${2:-}"
-            value="${value//$'\r'/ }"
-            value="${value//$'\n'/ }"
-            echo "$name=$value" >> "$GITHUB_OUTPUT"
-          }
-
-          backup_status="not_started"
-          backup_failed=false
-          backup_error="$TRIGGER_BACKUP_ERROR"
-          huggingface_status="not_started"
-          huggingface_message=""
-          job_id="$TRIGGER_JOB_ID"
-
-          if [ "$TRIGGER_OK" != "true" ] || [ -z "$job_id" ]; then
-            echo "Le backup n'a pas pu etre demarre, le polling est saute."
-            backup_failed=true
-          else
-            for attempt in $(seq 1 30); do
-              http_status=$(curl -sS \
-                -o /tmp/backup_status.json \
-                -w "%{http_code}" \
-                "$BACKUP_STATUS_URL_BASE/$job_id/" \
-                -H "X-Backup-Token: $BACKUP_TRIGGER_TOKEN_VALUE" \
-                -H "Accept: application/json" \
-                --max-time 30 \
-                --retry 2 \
-                --retry-delay 5)
-
-              echo "Polling tentative $attempt - HTTP $http_status"
-              cat /tmp/backup_status.json || true
-
-              if [ "$http_status" != "200" ]; then
-                backup_status="error"
-                backup_failed=true
-                backup_error="Impossible de lire le statut du backup (HTTP $http_status)."
-                break
-              fi
-
-              mapfile -t parsed_status < <(python3 - <<'PY'
+          python3 - <<'PY'
           import json
-          import pathlib
+          import os
+          import time
+          import urllib.error
+          import urllib.parse
+          import urllib.request
 
-          path = pathlib.Path("/tmp/backup_status.json")
-          raw = path.read_text(encoding="utf-8", errors="replace") if path.exists() else ""
-          data = json.loads(raw) if raw.strip().startswith("{") else {}
-          hf = data.get("huggingface") or {}
-          print(data.get("status", "unknown"))
-          print(data.get("message", "") or data.get("error", ""))
-          print(hf.get("status", "unknown"))
-          print(hf.get("message", "") or hf.get("error", ""))
-          PY
+
+          def write_output(name, value):
+              sanitized = str(value or "").replace("\r", " ").replace("\n", " ")
+              with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as handle:
+                  handle.write(f"{name}={sanitized}\n")
+
+
+          def env(name, default=""):
+              return os.getenv(name, default).strip()
+
+
+          backup_status = "not_started"
+          backup_failed = False
+          backup_error = env("TRIGGER_BACKUP_ERROR")
+          huggingface_status = "not_started"
+          huggingface_message = ""
+          trigger_ok = env("TRIGGER_OK").lower() == "true"
+          job_id = env("TRIGGER_JOB_ID")
+          token = env("BACKUP_TRIGGER_TOKEN_VALUE")
+          base_url = env("BACKUP_STATUS_URL_BASE").rstrip("/")
+
+          if not trigger_ok or not job_id:
+              print("Le backup n'a pas pu etre demarre, le polling est saute.")
+              backup_failed = True
+              write_output("backup_status", backup_status)
+              write_output("backup_failed", str(backup_failed).lower())
+              write_output("backup_error", backup_error)
+              write_output("huggingface_status", huggingface_status)
+              write_output("huggingface_message", huggingface_message)
+              raise SystemExit(0)
+
+          status_url = f"{base_url}/{urllib.parse.quote(job_id, safe='')}/"
+
+          for attempt in range(1, 31):
+              request = urllib.request.Request(
+                  status_url,
+                  headers={
+                      "X-Backup-Token": token,
+                      "Accept": "application/json",
+                  },
               )
-              backup_status="${parsed_status[0]:-unknown}"
-              message_value="${parsed_status[1]:-}"
-              huggingface_status="${parsed_status[2]:-unknown}"
-              huggingface_message="${parsed_status[3]:-}"
-              echo "Backup status: $backup_status"
-              echo "Hugging Face status: $huggingface_status"
 
-              if [ "$backup_status" = "success" ]; then
-                backup_failed=false
-                backup_error=""
-                break
-              fi
+              try:
+                  with urllib.request.urlopen(request, timeout=30) as response:
+                      http_status = response.status
+                      raw_body = response.read()
+              except urllib.error.HTTPError as exc:
+                  http_status = exc.code
+                  raw_body = exc.read()
+              except urllib.error.URLError as exc:
+                  http_status = "network_error"
+                  raw_body = str(exc.reason).encode("utf-8", errors="replace")
 
-              if [ "$backup_status" = "partial" ]; then
-                backup_failed=true
-                backup_error="${message_value:-Le backup s'est termine avec des erreurs partielles.}"
-                break
-              fi
+              body = raw_body.decode("utf-8", errors="replace")
+              print(f"Polling tentative {attempt} - HTTP {http_status}")
+              print(body)
 
-              if [ "$backup_status" = "error" ]; then
-                backup_failed=true
-                backup_error="${message_value:-Le backup a echoue.}"
-                break
-              fi
+              if http_status != 200:
+                  backup_status = "error"
+                  backup_failed = True
+                  backup_error = f"Impossible de lire le statut du backup (HTTP {http_status})."
+                  break
 
-              sleep 30
-            done
+              try:
+                  data = json.loads(body) if body.strip().startswith("{") else {}
+              except json.JSONDecodeError:
+                  data = {}
 
-            if [ "$backup_status" != "success" ] && [ "$backup_status" != "partial" ] && [ "$backup_status" != "error" ]; then
-              backup_failed=true
-              backup_error="${backup_error:-Le backup n'a pas termine dans la fenetre de surveillance.}"
-            fi
-          fi
+              hf = data.get("huggingface") or {}
+              backup_status = data.get("status", "unknown")
+              message_value = data.get("message", "") or data.get("error", "")
+              huggingface_status = hf.get("status", "unknown")
+              huggingface_message = hf.get("message", "") or hf.get("error", "")
+              print(f"Backup status: {backup_status}")
+              print(f"Hugging Face status: {huggingface_status}")
 
-          write_output "backup_status" "$backup_status"
-          write_output "backup_failed" "$backup_failed"
-          write_output "backup_error" "$backup_error"
-          write_output "huggingface_status" "$huggingface_status"
-          write_output "huggingface_message" "$huggingface_message"
+              if backup_status == "success":
+                  backup_failed = False
+                  backup_error = ""
+                  break
+
+              if backup_status == "partial":
+                  backup_failed = True
+                  backup_error = message_value or "Le backup s'est termine avec des erreurs partielles."
+                  break
+
+              if backup_status == "error":
+                  backup_failed = True
+                  backup_error = message_value or "Le backup a echoue."
+                  break
+
+              time.sleep(30)
+
+          if backup_status not in {"success", "partial", "error"}:
+              backup_failed = True
+              backup_error = backup_error or "Le backup n'a pas termine dans la fenetre de surveillance."
+
+          write_output("backup_status", backup_status)
+          write_output("backup_failed", str(backup_failed).lower())
+          write_output("backup_error", backup_error)
+          write_output("huggingface_status", huggingface_status)
+          write_output("huggingface_message", huggingface_message)
+          PY
 
       - name: Verify Hugging Face Space health
         id: verify_huggingface
