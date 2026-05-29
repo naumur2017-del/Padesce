@@ -239,6 +239,33 @@ BACKUP_TRIGGER_TOKEN = os.getenv("BACKUP_TRIGGER_TOKEN", "")
 REPORT_TRIGGER_TOKEN = os.getenv("REPORT_TRIGGER_TOKEN", BACKUP_TRIGGER_TOKEN)
 BACKUP_RETENTION_DAYS = os.getenv("BACKUP_RETENTION_DAYS", "30")
 
+# Publication du snapshot SQLite vers le Space Hugging Face du chatbot.
+HUGGINGFACE_TOKEN = os.getenv("HUGGINGFACE_TOKEN", os.getenv("HF_TOKEN", ""))
+HF_TOKEN = os.getenv("HF_TOKEN", HUGGINGFACE_TOKEN)
+HUGGINGFACE_SPACE_REPO_ID = os.getenv("HUGGINGFACE_SPACE_REPO_ID", "JackBrayan17/padesce-bot")
+HUGGINGFACE_SPACE_REPO_TYPE = os.getenv("HUGGINGFACE_SPACE_REPO_TYPE", "space")
+HUGGINGFACE_SPACE_REVISION = os.getenv("HUGGINGFACE_SPACE_REVISION", "main")
+HUGGINGFACE_SPACE_DB_PATH = os.getenv("HUGGINGFACE_SPACE_DB_PATH", "db.sqlite3")
+HUGGINGFACE_SPACE_META_PATH = os.getenv("HUGGINGFACE_SPACE_META_PATH", "db_metadata.json")
+HUGGINGFACE_SPACE_URL = os.getenv(
+    "HUGGINGFACE_SPACE_URL",
+    "https://jackbrayan17-padesce-bot.hf.space",
+)
+HUGGINGFACE_BACKUP_SOURCE_URL = os.getenv(
+    "HUGGINGFACE_BACKUP_SOURCE_URL",
+    "https://call.naumur.com",
+)
+HUGGINGFACE_BACKUP_SYNC_ENABLED = os.getenv(
+    "HUGGINGFACE_BACKUP_SYNC_ENABLED", "False"
+).lower() in ("1", "true", "yes", "on")
+HUGGINGFACE_BACKUP_SYNC_REQUIRED = os.getenv(
+    "HUGGINGFACE_BACKUP_SYNC_REQUIRED", "False"
+).lower() in ("1", "true", "yes", "on")
+HUGGINGFACE_BACKUP_COMMIT_PREFIX = os.getenv(
+    "HUGGINGFACE_BACKUP_COMMIT_PREFIX",
+    "Update PADESCE SQLite backup",
+)
+
 # Microsoft Graph / Teams
 MICROSOFT_GRAPH_TENANT_ID = str(os.getenv("MICROSOFT_GRAPH_TENANT_ID", "") or "").strip()
 MICROSOFT_GRAPH_CLIENT_ID = str(os.getenv("MICROSOFT_GRAPH_CLIENT_ID", "") or "").strip()

@@ -863,7 +863,12 @@ class BackupTriggerAccessTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["job_id"], "job-123")
-        mock_start_backup.assert_called_once_with(triggered_by="scheduled/github-actions")
+        mock_start_backup.assert_called_once_with(
+            triggered_by="scheduled/github-actions",
+            retention_days=30,
+            sync_huggingface=False,
+            require_huggingface=False,
+        )
 
     @override_settings(BACKUP_TRIGGER_TOKEN="expected-token")
     def test_backup_trigger_returns_403_for_invalid_token(self):

@@ -19,6 +19,8 @@ from typing import Any
 
 from django.conf import settings
 
+from App_PADESCE.core import huggingface_sync
+
 # ---------------------------------------------------------------------------
 # État en mémoire (jobs actifs / récents)
 # ---------------------------------------------------------------------------
@@ -157,9 +159,19 @@ def purge_old_backups(retention_days: Any = None) -> dict[str, Any]:
     }
 
 
-def start_backup(triggered_by: str = "manual", retention_days: int | None = None) -> str:
+def start_backup(
+    triggered_by: str = "manual",
+    retention_days: int | None = None,
+    sync_huggingface: bool | None = None,
+    require_huggingface: bool | None = None,
+) -> str:
     job_id = uuid.uuid4().hex
     resolved_retention_days = resolve_backup_retention_days(retention_days)
+    resolved_sync_huggingface = huggingface_sync.resolve_sync_enabled(sync_huggingface)
+    resolved_require_huggingface = huggingface_sync.resolve_sync_required(
+        require_huggingface,
+        enabled=resolved_sync_huggingface,
+    )
     with _lock:
         _jobs[job_id] = {
             "id": job_id,
@@ -173,6 +185,12 @@ def start_backup(triggered_by: str = "manual", retention_days: int | None = None
             "tables_count": None,
             "retention_days": resolved_retention_days,
             "purged_backups": [],
+            "sync_huggingface": resolved_sync_huggingface,
+            "require_huggingface": resolved_require_huggingface,
+            "huggingface": huggingface_sync.initial_status(
+                enabled=resolved_sync_huggingface,
+                required=resolved_require_huggingface,
+            ),
             "finished_at": None,
             "error": None,
         }
@@ -224,7 +242,6 @@ def _coerce(value: Any) -> Any:
 def _run_backup(job_id: str) -> None:
     backup_path: Path | None = None
     started_at = _jobs[job_id]["started_at"]
-    retention_days = _jobs[job_id]["retention_days"]
 
     try:
         _update(job_id, status="running", progress=5, message="Connexion à la base de données...")
@@ -345,46 +362,14 @@ def _run_backup(job_id: str) -> None:
         pg_cur.close()
         pg_conn.close()
 
-        file_size = backup_path.stat().st_size
-        finished_at = datetime.now().isoformat()
-        status = "success" if not errors else "partial"
-        purge_summary = purge_old_backups(retention_days)
-        purged_backups = purge_summary["deleted_files"]
-        msg = (
-            "Backup terminé avec succès."
-            if not errors
-            else f"Backup partiel ({len(errors)} erreur(s))."
-        )
-        if purged_backups:
-            msg += f" {len(purged_backups)} ancien(s) backup(s) supprimé(s)."
-
-        _update(
+        _finalize_backup(
             job_id,
-            status=status,
-            progress=100,
-            message=msg,
-            finished_at=finished_at,
-            backup_file=backup_path.name,
-            file_size=file_size,
+            started_at,
+            backup_path,
             tables_count=len(tables),
-            retention_days=purge_summary["retention_days"],
-            purged_backups=purged_backups,
-            error="; ".join(errors) if errors else None,
-        )
-        _append_history(
-            {
-                "id": job_id,
-                "status": status,
-                "started_at": started_at,
-                "finished_at": finished_at,
-                "triggered_by": _jobs[job_id]["triggered_by"],
-                "backup_file": backup_path.name,
-                "file_size": file_size,
-                "tables_count": len(tables),
-                "retention_days": purge_summary["retention_days"],
-                "purged_backups": purged_backups,
-                "error": "; ".join(errors) if errors else None,
-            }
+            errors=errors,
+            success_message="Backup terminé avec succès.",
+            partial_message=f"Backup partiel ({len(errors)} erreur(s)).",
         )
 
     except Exception as exc:
@@ -425,34 +410,133 @@ def _run_sqlite_copy(job_id: str, started_at: str) -> None:
     backup_path = _backup_dir() / f"backup_{ts}.sqlite3"
     shutil.copy2(str(source), str(backup_path))
 
+    _finalize_backup(
+        job_id,
+        started_at,
+        backup_path,
+        tables_count=None,
+        errors=[],
+        success_message="Copie SQLite terminée.",
+        partial_message="Copie SQLite partielle.",
+    )
+
+
+def _finalize_backup(
+    job_id: str,
+    started_at: str,
+    backup_path: Path,
+    *,
+    tables_count: int | None,
+    errors: list[str],
+    success_message: str,
+    partial_message: str,
+) -> None:
     file_size = backup_path.stat().st_size
-    finished_at = datetime.now().isoformat()
     purge_summary = purge_old_backups(_jobs[job_id]["retention_days"])
     purged_backups = purge_summary["deleted_files"]
-    message = "Copie SQLite terminée."
+    huggingface_status = _sync_huggingface(
+        job_id,
+        started_at,
+        backup_path,
+        tables_count,
+        file_size,
+        errors,
+    )
+    hf_error = (
+        str(huggingface_status.get("error") or "")
+        if huggingface_status.get("status") == "error"
+        else ""
+    )
+
+    status = "success" if not errors else "partial"
+    message = success_message if not errors else partial_message
+    final_errors = list(errors)
+
     if purged_backups:
         message += f" {len(purged_backups)} ancien(s) backup(s) supprimé(s)."
+
+    if huggingface_status.get("status") == "success":
+        message += " Hugging Face mis a jour."
+    elif hf_error:
+        if _jobs[job_id]["require_huggingface"]:
+            status = "partial"
+            final_errors.append(f"Hugging Face: {hf_error}")
+            message += f" Synchronisation Hugging Face echouee: {hf_error}"
+        else:
+            message += f" Avertissement Hugging Face: {hf_error}"
+    elif huggingface_status.get("status") == "skipped" and _jobs[job_id]["sync_huggingface"]:
+        message += f" Hugging Face ignore: {huggingface_status.get('message')}"
+
+    finished_at = datetime.now().isoformat()
+    error_text = "; ".join(final_errors) if final_errors else None
+    entry = {
+        "id": job_id,
+        "status": status,
+        "started_at": started_at,
+        "finished_at": finished_at,
+        "triggered_by": _jobs[job_id]["triggered_by"],
+        "backup_file": backup_path.name,
+        "file_size": file_size,
+        "tables_count": tables_count,
+        "retention_days": purge_summary["retention_days"],
+        "purged_backups": purged_backups,
+        "huggingface": huggingface_status,
+        "error": error_text,
+    }
+    if tables_count is None:
+        entry.pop("tables_count")
+
     _update(
         job_id,
-        status="success",
+        status=status,
         progress=100,
         message=message,
         finished_at=finished_at,
         backup_file=backup_path.name,
         file_size=file_size,
+        tables_count=tables_count,
         retention_days=purge_summary["retention_days"],
         purged_backups=purged_backups,
+        huggingface=huggingface_status,
+        error=error_text,
     )
-    _append_history(
-        {
-            "id": job_id,
-            "status": "success",
-            "started_at": started_at,
-            "finished_at": finished_at,
-            "triggered_by": _jobs[job_id]["triggered_by"],
-            "backup_file": backup_path.name,
-            "file_size": file_size,
-            "retention_days": purge_summary["retention_days"],
-            "purged_backups": purged_backups,
-        }
+    _append_history(entry)
+
+
+def _sync_huggingface(
+    job_id: str,
+    started_at: str,
+    backup_path: Path,
+    tables_count: int | None,
+    file_size: int,
+    errors: list[str],
+) -> dict[str, Any]:
+    huggingface_status = _jobs[job_id]["huggingface"]
+    if not _jobs[job_id]["sync_huggingface"]:
+        return huggingface_status
+
+    if errors:
+        return huggingface_sync.mark_skipped(
+            huggingface_status,
+            "Synchronisation ignoree car le backup est partiel.",
+        )
+
+    running_status = huggingface_sync.mark_running(huggingface_status)
+    _update(
+        job_id,
+        progress=94,
+        message="Synchronisation Hugging Face...",
+        huggingface=running_status,
     )
+    synced_status = huggingface_sync.sync_sqlite_backup_to_huggingface(
+        backup_path,
+        backup_file=backup_path.name,
+        job_id=job_id,
+        started_at=started_at,
+        triggered_by=_jobs[job_id]["triggered_by"],
+        tables_count=tables_count,
+        file_size=file_size,
+        status=running_status,
+    )
+    _update(job_id, progress=98, huggingface=synced_status)
+    return synced_status

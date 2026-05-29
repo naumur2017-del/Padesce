@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 CHAT_HISTORY_SESSION_KEY = "padesce_chat_history"
 CHAT_HISTORY_LIMIT = 24
-DEFAULT_CHAT_API_URL = "https://koulou-bddrequestor.hf.space"
+DEFAULT_CHAT_API_URL = "https://jackbrayan17-padesce-bot.hf.space"
 DEFAULT_CHAT_TIMEOUT_SECONDS = 300.0
 
 

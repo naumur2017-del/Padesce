@@ -44,6 +44,23 @@ jobs:
       BACKUP_TRIGGER_TOKEN: ${{ secrets.BACKUP_TRIGGER_TOKEN }}
       REPORT_TRIGGER_TOKEN: ${{ secrets.BACKUP_TRIGGER_TOKEN }}
       BACKUP_RETENTION_DAYS: "30"
+      HUGGINGFACE_TOKEN: ${{ secrets.HUGGINGFACE_TOKEN || secrets.HF_TOKEN }}
+      HF_TOKEN: ${{ secrets.HF_TOKEN || secrets.HUGGINGFACE_TOKEN }}
+      HUGGINGFACE_SPACE_REPO_ID: JackBrayan17/padesce-bot
+      HUGGINGFACE_SPACE_REPO_TYPE: space
+      HUGGINGFACE_SPACE_REVISION: main
+      HUGGINGFACE_SPACE_DB_PATH: db.sqlite3
+      HUGGINGFACE_SPACE_META_PATH: db_metadata.json
+      HUGGINGFACE_SPACE_URL: https://jackbrayan17-padesce-bot.hf.space
+      HUGGINGFACE_BACKUP_SOURCE_URL: https://call.naumur.com
+      HUGGINGFACE_BACKUP_SYNC_ENABLED: "True"
+      HUGGINGFACE_BACKUP_SYNC_REQUIRED: "True"
+      HUGGINGFACE_BACKUP_COMMIT_PREFIX: Update PADESCE SQLite backup
+      PADESCE_CHAT_API_URL: https://jackbrayan17-padesce-bot.hf.space
+      PADESCE_CHAT_API_TIMEOUT: "300"
+      PADESCE_CHAT_API_TOKEN: ${{ secrets.PADESCE_CHAT_API_TOKEN || secrets.HUGGINGFACE_TOKEN || secrets.HF_TOKEN }}
+      PADESCE_RAG_API_URL: https://jackbrayan17-padesce-bot.hf.space
+      PADESCE_RAG_API_TOKEN: ${{ secrets.PADESCE_RAG_API_TOKEN || secrets.PADESCE_CHAT_API_TOKEN || secrets.HUGGINGFACE_TOKEN || secrets.HF_TOKEN }}
       GANDI_SFTP_HOST: ${{ secrets.GANDI_SFTP_HOST }}
       GANDI_SFTP_PORT: ${{ secrets.GANDI_SFTP_PORT }}
       GANDI_SFTP_DOMAIN: call.naumur.com

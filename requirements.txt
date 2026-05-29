@@ -20,6 +20,7 @@ gunicorn
 uvicorn
 requests
 paramiko
+huggingface_hub
 python-docx
 # Core
 pandas

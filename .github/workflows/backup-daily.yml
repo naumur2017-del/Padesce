@@ -1,10 +1,10 @@
 name: Daily Backup And Digest
 
 # GitHub Actions utilise UTC.
-# Le 23 avril 2026, 15:00 UTC = 17:00 Paris et 15:30 UTC = 17:30 Paris.
+# Africa/Lagos est UTC+1: 16:00 UTC = 17:00 Lagos, 16:30 UTC = 17:30 Lagos.
 on:
   schedule:
-    - cron: "0 15 * * *"
+    - cron: "0 16 * * *"
   workflow_dispatch:
 
 permissions:
@@ -25,8 +25,12 @@ jobs:
       BACKUP_STATUS_URL_BASE: https://call.naumur.com/backup/api/trigger-status
       REPORT_DIGEST_TRIGGER_URL: https://call.naumur.com/reporting/api/daily-digest/trigger/
       BACKUP_RETENTION_DAYS: "30"
+      HUGGINGFACE_SYNC_REQUIRED: "1"
+      HUGGINGFACE_SPACE_URL: https://jackbrayan17-padesce-bot.hf.space
+      HUGGINGFACE_HEALTH_MAX_SECONDS: "120"
+      HUGGINGFACE_HEALTH_TOKEN: ${{ secrets.HUGGINGFACE_TOKEN || secrets.HF_TOKEN }}
       DAILY_DIGEST_RECIPIENTS: keunicetchoup@gmail.com,tanayves96@gmail.com,crepinkoulo@gmail.com,djonmarcel84@gmail.com,brayaneyoum@naumur.com
-      DIGEST_TRIGGER_UTC: "15:30"
+      DIGEST_TRIGGER_UTC: "16:30"
 
     steps:
       - name: Check required secrets
@@ -35,6 +39,11 @@ jobs:
           if [ -z "${{ secrets.BACKUP_TRIGGER_TOKEN }}" ]; then
             echo "::error::Le secret BACKUP_TRIGGER_TOKEN n'est pas configure dans l'environnement 'production'."
             echo "::notice::Ajoutez BACKUP_TRIGGER_TOKEN dans GitHub -> Settings -> Environments -> production -> Secrets."
+            exit 1
+          fi
+          if [ -z "$HUGGINGFACE_HEALTH_TOKEN" ]; then
+            echo "::error::Le secret HUGGINGFACE_TOKEN (ou HF_TOKEN) est requis pour verifier et synchroniser le Space prive."
+            echo "::notice::Ajoutez HUGGINGFACE_TOKEN dans GitHub -> Settings -> Environments -> production -> Secrets."
             exit 1
           fi
 
@@ -51,6 +60,8 @@ jobs:
             -X POST "$BACKUP_TRIGGER_URL" \
             -H "X-Backup-Token: ${{ secrets.BACKUP_TRIGGER_TOKEN }}" \
             -H "X-Backup-Retention-Days: $BACKUP_RETENTION_DAYS" \
+            -H "X-HuggingFace-Sync: 1" \
+            -H "X-HuggingFace-Required: $HUGGINGFACE_SYNC_REQUIRED" \
             -H "Accept: application/json" \
             --max-time 30 \
             --retry 2 \
@@ -95,6 +106,8 @@ jobs:
           backup_status="not_started"
           backup_failed=false
           backup_error="${{ steps.trigger_backup.outputs.backup_error }}"
+          huggingface_status="not_started"
+          huggingface_message=""
           job_id="${{ steps.trigger_backup.outputs.job_id }}"
 
           if [ "${{ steps.trigger_backup.outputs.trigger_ok }}" != "true" ] || [ -z "$job_id" ]; then
@@ -123,7 +136,10 @@ jobs:
 
               backup_status=$(python3 -c "import json, pathlib; path = pathlib.Path('/tmp/backup_status.json'); raw = path.read_text() if path.exists() else ''; data = json.loads(raw) if raw.strip() else {}; print(data.get('status', 'unknown'))")
               message_value=$(python3 -c "import json, pathlib; path = pathlib.Path('/tmp/backup_status.json'); raw = path.read_text() if path.exists() else ''; data = json.loads(raw) if raw.strip() else {}; print(data.get('message', '') or data.get('error', ''))")
+              huggingface_status=$(python3 -c "import json, pathlib; path = pathlib.Path('/tmp/backup_status.json'); raw = path.read_text() if path.exists() else ''; data = json.loads(raw) if raw.strip() else {}; hf = data.get('huggingface') or {}; print(hf.get('status', 'unknown'))")
+              huggingface_message=$(python3 -c "import json, pathlib; path = pathlib.Path('/tmp/backup_status.json'); raw = path.read_text() if path.exists() else ''; data = json.loads(raw) if raw.strip() else {}; hf = data.get('huggingface') or {}; print(hf.get('message', '') or hf.get('error', ''))")
               echo "Backup status: $backup_status"
+              echo "Hugging Face status: $huggingface_status"
 
               if [ "$backup_status" = "success" ]; then
                 backup_failed=false
@@ -155,6 +171,48 @@ jobs:
           echo "backup_status=$backup_status" >> "$GITHUB_OUTPUT"
           echo "backup_failed=$backup_failed" >> "$GITHUB_OUTPUT"
           echo "backup_error=$backup_error" >> "$GITHUB_OUTPUT"
+          echo "huggingface_status=$huggingface_status" >> "$GITHUB_OUTPUT"
+          echo "huggingface_message=$huggingface_message" >> "$GITHUB_OUTPUT"
+
+      - name: Verify Hugging Face Space health
+        id: verify_huggingface
+        if: always()
+        shell: bash
+        run: |
+          hf_ok=false
+          hf_error=""
+
+          if [ "${{ steps.poll_backup.outputs.backup_failed }}" = "true" ]; then
+            hf_error="Verification Hugging Face ignoree car le backup a echoue."
+          else
+            deadline=$((SECONDS + HUGGINGFACE_HEALTH_MAX_SECONDS))
+            attempt=1
+            auth_headers=(-H "Accept: application/json" -H "Authorization: Bearer $HUGGINGFACE_HEALTH_TOKEN")
+            while [ "$SECONDS" -lt "$deadline" ]; do
+              http_status=$(curl -sS \
+                -o /tmp/hf_health.json \
+                -w "%{http_code}" \
+                "$HUGGINGFACE_SPACE_URL/health" \
+                "${auth_headers[@]}" \
+                --max-time 20 || true)
+
+              echo "Hugging Face health tentative $attempt - HTTP $http_status"
+              cat /tmp/hf_health.json || true
+
+              if [ "$http_status" = "200" ]; then
+                hf_ok=true
+                hf_error=""
+                break
+              fi
+
+              hf_error="Le Space Hugging Face n'a pas retourne HTTP 200 dans la fenetre de ${HUGGINGFACE_HEALTH_MAX_SECONDS}s."
+              attempt=$((attempt + 1))
+              sleep 10
+            done
+          fi
+
+          echo "hf_ok=$hf_ok" >> "$GITHUB_OUTPUT"
+          echo "hf_error=$hf_error" >> "$GITHUB_OUTPUT"
 
       - name: Wait until digest time
         if: github.event_name == 'schedule'
@@ -227,6 +285,11 @@ jobs:
 
           if [ "${{ steps.poll_backup.outputs.backup_failed }}" = "true" ]; then
             echo "::error::Le backup quotidien s'est termine en erreur. ${{ steps.poll_backup.outputs.backup_error }}"
+            failed=true
+          fi
+
+          if [ "${{ steps.verify_huggingface.outputs.hf_ok }}" != "true" ]; then
+            echo "::error::Verification Hugging Face echouee. ${{ steps.verify_huggingface.outputs.hf_error }}"
             failed=true
           fi
 

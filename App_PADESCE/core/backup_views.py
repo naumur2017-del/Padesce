@@ -20,7 +20,7 @@ from django.shortcuts import render
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_POST
 
-from App_PADESCE.core import backup_manager
+from App_PADESCE.core import backup_manager, huggingface_sync
 from App_PADESCE.core.access import require_superadmin_access
 
 # Only allow safe filenames: letters, digits, underscores, hyphens, dots
@@ -46,8 +46,30 @@ def backup_dashboard(request):
 @require_POST
 def backup_start(request):
     triggered_by = getattr(request.user, "username", "admin")
-    job_id = backup_manager.start_backup(triggered_by=triggered_by)
-    return JsonResponse({"job_id": job_id})
+    sync_huggingface = _request_bool(
+        request,
+        "X-HuggingFace-Sync",
+        "sync_huggingface",
+        default=getattr(settings, "HUGGINGFACE_BACKUP_SYNC_ENABLED", False),
+    )
+    require_huggingface = _request_bool(
+        request,
+        "X-HuggingFace-Required",
+        "require_huggingface",
+        default=getattr(settings, "HUGGINGFACE_BACKUP_SYNC_REQUIRED", False),
+    )
+    job_id = backup_manager.start_backup(
+        triggered_by=triggered_by,
+        sync_huggingface=sync_huggingface,
+        require_huggingface=require_huggingface,
+    )
+    return JsonResponse(
+        {
+            "job_id": job_id,
+            "sync_huggingface": sync_huggingface,
+            "require_huggingface": require_huggingface,
+        }
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -81,15 +103,31 @@ def backup_trigger(request):
         "retention_days", ""
     )
     retention_days = backup_manager.resolve_backup_retention_days(raw_retention_days)
+    sync_huggingface = _request_bool(
+        request,
+        "X-HuggingFace-Sync",
+        "sync_huggingface",
+        default=getattr(settings, "HUGGINGFACE_BACKUP_SYNC_ENABLED", False),
+    )
+    require_huggingface = _request_bool(
+        request,
+        "X-HuggingFace-Required",
+        "require_huggingface",
+        default=getattr(settings, "HUGGINGFACE_BACKUP_SYNC_REQUIRED", False),
+    )
     job_id = backup_manager.start_backup(
         triggered_by="scheduled/github-actions",
         retention_days=retention_days,
+        sync_huggingface=sync_huggingface,
+        require_huggingface=require_huggingface,
     )
     return JsonResponse(
         {
             "job_id": job_id,
             "message": "Backup démarré.",
             "retention_days": retention_days,
+            "sync_huggingface": sync_huggingface,
+            "require_huggingface": require_huggingface,
         }
     )
 
@@ -106,6 +144,13 @@ def _validate_backup_trigger_token(request):
         return False, JsonResponse({"error": "Token invalide ou manquant."}, status=403)
 
     return True, None
+
+
+def _request_bool(request, header_name: str, field_name: str, *, default: bool) -> bool:
+    raw_value = request.headers.get(header_name, "")
+    if raw_value in (None, ""):
+        raw_value = request.POST.get(field_name, "")
+    return huggingface_sync.bool_from_value(raw_value, default)
 
 
 @require_GET

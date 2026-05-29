@@ -40,6 +40,60 @@
     align-items: center;
     gap: 8px;
   }
+  .section-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+  }
+  .section-heading .section-title {
+    margin-bottom: 0;
+  }
+  .hf-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    border: 1px solid rgba(17, 94, 89, 0.22);
+    background: rgba(15, 118, 110, 0.07);
+    color: #115e59;
+    border-radius: 999px;
+    padding: 7px 12px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .hf-toggle input {
+    width: 16px;
+    height: 16px;
+    accent-color: #0f766e;
+  }
+  .hf-col {
+    display: none;
+  }
+  .backup-shell.show-hf .hf-col {
+    display: table-cell;
+  }
+  .hf-cell {
+    display: grid;
+    gap: 5px;
+    min-width: 190px;
+  }
+  .hf-meta {
+    color: var(--muted);
+    font-size: 0.78rem;
+    line-height: 1.35;
+  }
+  .hf-link {
+    color: #0f766e;
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-decoration: none;
+  }
+  .hf-link:hover {
+    text-decoration: underline;
+  }
 
   /* Bouton backup */
   .btn-backup {
@@ -250,6 +304,7 @@
       <span class="info-chip">&#128197; Automatique : tous les jours à 17h00</span>
       <span class="info-chip">&#128190; Format : SQLite3</span>
       <span class="info-chip">&#128193; Stockage : dossier <code>backups/</code></span>
+      <span class="info-chip">Hugging Face : <code>db.sqlite3</code></span>
     </div>
   </div>
 
@@ -277,7 +332,13 @@
 
   <!-- Historique -->
   <div class="backup-card">
-    <h2 class="section-title">&#128203; Historique des backups</h2>
+    <div class="section-heading">
+      <h2 class="section-title">&#128203; Historique des backups</h2>
+      <label class="hf-toggle" for="toggle-hf-status">
+        <input type="checkbox" id="toggle-hf-status">
+        <span>Hugging Face</span>
+      </label>
+    </div>
 
     <div id="history-container">
       {% if history %}
@@ -285,6 +346,7 @@
         <thead>
           <tr>
             <th>Statuts</th>
+            <th class="hf-col">Hugging Face</th>
             <th>Fichiers</th>
             <th>Déclenché par</th>
             <th>Démarré le</th>
@@ -307,6 +369,39 @@
               {% else %}
                 <span class="status-badge badge-pending">{{ entry.status }}</span>
               {% endif %}
+            </td>
+            <td class="hf-col">
+              {% with hf=entry.huggingface %}
+                {% if hf %}
+                  <div class="hf-cell">
+                    {% if hf.status == "success" %}
+                      <span class="status-badge badge-success">&#10003; Synchronisé</span>
+                    {% elif hf.status == "error" %}
+                      <span class="status-badge badge-error">&#10007; Erreur</span>
+                    {% elif hf.status == "running" %}
+                      <span class="status-badge badge-running">En cours</span>
+                    {% elif hf.status == "skipped" %}
+                      <span class="status-badge badge-pending">Ignoré</span>
+                    {% else %}
+                      <span class="status-badge badge-pending">{{ hf.status|default:"—" }}</span>
+                    {% endif %}
+                    <div class="hf-meta">
+                      {{ hf.repo_id|default:"JackBrayan17/padesce-bot" }} / {{ hf.path_in_repo|default:"db.sqlite3" }}
+                      {% if hf.finished_at %}<br>{{ hf.finished_at|truncatechars:19 }}{% endif %}
+                    </div>
+                    {% if hf.commit_url %}
+                      <a class="hf-link" href="{{ hf.commit_url }}" target="_blank" rel="noopener">Voir le commit</a>
+                    {% endif %}
+                    {% if hf.error %}
+                      <div class="hf-meta" style="color:#9f1239">{{ hf.error|truncatechars:110 }}</div>
+                    {% elif hf.message %}
+                      <div class="hf-meta">{{ hf.message|truncatechars:110 }}</div>
+                    {% endif %}
+                  </div>
+                {% else %}
+                  <span class="status-badge badge-pending">Non suivi</span>
+                {% endif %}
+              {% endwith %}
             </td>
             <td>
               {% if entry.backup_file %}
@@ -381,6 +476,8 @@
 (function () {
   let pollTimer = null;
   let currentJobId = null;
+  const hfToggle = document.getElementById('toggle-hf-status');
+  const hfToggleStorageKey = 'padesce.backup.showHuggingFace';
 
   function getCsrf() {
     const m = document.cookie.match(/csrftoken=([^;]+)/);
@@ -394,8 +491,32 @@
     window.location.href = url.toString();
   };
 
+  function setHfVisible(show) {
+    document.querySelector('.backup-shell').classList.toggle('show-hf', Boolean(show));
+    if (hfToggle) hfToggle.checked = Boolean(show);
+  }
+
+  function escapeHtml(value) {
+    return String(value ?? '').replace(/[&<>"']/g, (char) => ({
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#39;',
+    })[char]);
+  }
+
   // Gérer les clics sur les éléments de pagination
   document.addEventListener('DOMContentLoaded', function() {
+    setHfVisible(localStorage.getItem(hfToggleStorageKey) === '1');
+    if (hfToggle) {
+      hfToggle.addEventListener('change', function () {
+        const show = hfToggle.checked;
+        localStorage.setItem(hfToggleStorageKey, show ? '1' : '0');
+        setHfVisible(show);
+      });
+    }
+
     // Gérer les boutons de pagination
     const paginationBtns = document.querySelectorAll('.pagination-btn');
     paginationBtns.forEach(btn => {
@@ -485,6 +606,41 @@
     box.style.display = 'block';
   }
 
+  function hfStatusCell(hf) {
+    if (!hf) {
+      return '<span class="status-badge badge-pending">Non suivi</span>';
+    }
+
+    const badges = {
+      success: '<span class="status-badge badge-success">&#10003; Synchronisé</span>',
+      error: '<span class="status-badge badge-error">&#10007; Erreur</span>',
+      running: '<span class="status-badge badge-running">En cours</span>',
+      skipped: '<span class="status-badge badge-pending">Ignoré</span>',
+      pending: '<span class="status-badge badge-pending">En attente</span>',
+    };
+    const status = escapeHtml(hf.status || '—');
+    const badge = badges[hf.status] || `<span class="status-badge badge-pending">${status}</span>`;
+    const repo = escapeHtml(hf.repo_id || 'JackBrayan17/padesce-bot');
+    const path = escapeHtml(hf.path_in_repo || 'db.sqlite3');
+    const finishedAt = hf.finished_at ? `<br>${escapeHtml(fmtDate(hf.finished_at))}` : '';
+    const message = hf.error || hf.message || '';
+    const tone = hf.error ? ' style="color:#9f1239"' : '';
+    const messageHtml = message
+      ? `<div class="hf-meta"${tone}>${escapeHtml(message).slice(0, 130)}</div>`
+      : '';
+    const commitHtml = hf.commit_url
+      ? `<a class="hf-link" href="${escapeHtml(hf.commit_url)}" target="_blank" rel="noopener">Voir le commit</a>`
+      : '';
+
+    return `
+      <div class="hf-cell">
+        ${badge}
+        <div class="hf-meta">${repo} / ${path}${finishedAt}</div>
+        ${commitHtml}
+        ${messageHtml}
+      </div>`;
+  }
+
   function prependHistoryRow(job) {
     // Retire le message "vide" si présent
     const empty = document.getElementById('empty-msg');
@@ -498,7 +654,7 @@
         <table class="history-table">
           <thead>
             <tr>
-              <th>Statut</th><th>Fichier</th><th>Déclenché par</th>
+              <th>Statut</th><th class="hf-col">Hugging Face</th><th>Fichier</th><th>Déclenché par</th>
               <th>Démarré le</th><th>Terminé le</th><th>Taille</th><th>Tables</th><th>Actions</th>
             </tr>
           </thead>
@@ -533,6 +689,7 @@
     tr.id = job.backup_file ? `row-${job.backup_file}` : '';
     tr.innerHTML = `
       <td>${badge}</td>
+      <td class="hf-col">${hfStatusCell(job.huggingface)}</td>
       <td>${fileCell}</td>
       <td>${job.triggered_by || '—'}</td>
       <td style="white-space:nowrap">${fmtDate(job.started_at)}</td>
@@ -541,6 +698,7 @@
       <td>${job.tables_count || '—'}</td>
       <td style="white-space:nowrap">${actionsCell}</td>`;
     tbody.insertBefore(tr, tbody.firstChild);
+    setHfVisible(hfToggle && hfToggle.checked);
   }
 
   function poll(jobId) {
