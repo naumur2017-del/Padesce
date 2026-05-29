@@ -102,23 +102,37 @@ jobs:
         id: poll_backup
         if: always()
         shell: bash
+        env:
+          TRIGGER_OK: ${{ steps.trigger_backup.outputs.trigger_ok }}
+          TRIGGER_JOB_ID: ${{ steps.trigger_backup.outputs.job_id }}
+          TRIGGER_BACKUP_ERROR: ${{ steps.trigger_backup.outputs.backup_error }}
+          BACKUP_TRIGGER_TOKEN_VALUE: ${{ secrets.BACKUP_TRIGGER_TOKEN }}
         run: |
+          write_output() {
+            local name="$1"
+            local value="${2:-}"
+            value="${value//$'\r'/ }"
+            value="${value//$'\n'/ }"
+            echo "$name=$value" >> "$GITHUB_OUTPUT"
+          }
+
           backup_status="not_started"
           backup_failed=false
-          backup_error="${{ steps.trigger_backup.outputs.backup_error }}"
+          backup_error="$TRIGGER_BACKUP_ERROR"
           huggingface_status="not_started"
           huggingface_message=""
-          job_id="${{ steps.trigger_backup.outputs.job_id }}"
+          job_id="$TRIGGER_JOB_ID"
 
-          if [ "${{ steps.trigger_backup.outputs.trigger_ok }}" != "true" ] || [ -z "$job_id" ]; then
+          if [ "$TRIGGER_OK" != "true" ] || [ -z "$job_id" ]; then
             echo "Le backup n'a pas pu etre demarre, le polling est saute."
+            backup_failed=true
           else
             for attempt in $(seq 1 30); do
               http_status=$(curl -sS \
                 -o /tmp/backup_status.json \
                 -w "%{http_code}" \
                 "$BACKUP_STATUS_URL_BASE/$job_id/" \
-                -H "X-Backup-Token: ${{ secrets.BACKUP_TRIGGER_TOKEN }}" \
+                -H "X-Backup-Token: $BACKUP_TRIGGER_TOKEN_VALUE" \
                 -H "Accept: application/json" \
                 --max-time 30 \
                 --retry 2 \
@@ -134,10 +148,24 @@ jobs:
                 break
               fi
 
-              backup_status=$(python3 -c "import json, pathlib; path = pathlib.Path('/tmp/backup_status.json'); raw = path.read_text() if path.exists() else ''; data = json.loads(raw) if raw.strip() else {}; print(data.get('status', 'unknown'))")
-              message_value=$(python3 -c "import json, pathlib; path = pathlib.Path('/tmp/backup_status.json'); raw = path.read_text() if path.exists() else ''; data = json.loads(raw) if raw.strip() else {}; print(data.get('message', '') or data.get('error', ''))")
-              huggingface_status=$(python3 -c "import json, pathlib; path = pathlib.Path('/tmp/backup_status.json'); raw = path.read_text() if path.exists() else ''; data = json.loads(raw) if raw.strip() else {}; hf = data.get('huggingface') or {}; print(hf.get('status', 'unknown'))")
-              huggingface_message=$(python3 -c "import json, pathlib; path = pathlib.Path('/tmp/backup_status.json'); raw = path.read_text() if path.exists() else ''; data = json.loads(raw) if raw.strip() else {}; hf = data.get('huggingface') or {}; print(hf.get('message', '') or hf.get('error', ''))")
+              mapfile -t parsed_status < <(python3 - <<'PY'
+          import json
+          import pathlib
+
+          path = pathlib.Path("/tmp/backup_status.json")
+          raw = path.read_text(encoding="utf-8", errors="replace") if path.exists() else ""
+          data = json.loads(raw) if raw.strip().startswith("{") else {}
+          hf = data.get("huggingface") or {}
+          print(data.get("status", "unknown"))
+          print(data.get("message", "") or data.get("error", ""))
+          print(hf.get("status", "unknown"))
+          print(hf.get("message", "") or hf.get("error", ""))
+          PY
+              )
+              backup_status="${parsed_status[0]:-unknown}"
+              message_value="${parsed_status[1]:-}"
+              huggingface_status="${parsed_status[2]:-unknown}"
+              huggingface_message="${parsed_status[3]:-}"
               echo "Backup status: $backup_status"
               echo "Hugging Face status: $huggingface_status"
 
@@ -168,11 +196,11 @@ jobs:
             fi
           fi
 
-          echo "backup_status=$backup_status" >> "$GITHUB_OUTPUT"
-          echo "backup_failed=$backup_failed" >> "$GITHUB_OUTPUT"
-          echo "backup_error=$backup_error" >> "$GITHUB_OUTPUT"
-          echo "huggingface_status=$huggingface_status" >> "$GITHUB_OUTPUT"
-          echo "huggingface_message=$huggingface_message" >> "$GITHUB_OUTPUT"
+          write_output "backup_status" "$backup_status"
+          write_output "backup_failed" "$backup_failed"
+          write_output "backup_error" "$backup_error"
+          write_output "huggingface_status" "$huggingface_status"
+          write_output "huggingface_message" "$huggingface_message"
 
       - name: Verify Hugging Face Space health
         id: verify_huggingface
@@ -265,7 +293,19 @@ jobs:
           if [ "$http_status" = "200" ]; then
             digest_ok=true
           else
-            detail=$(python3 -c "import json, pathlib; path = pathlib.Path('/tmp/digest_response.json'); raw = path.read_text() if path.exists() else ''; data = json.loads(raw) if raw.strip() else {}; print(data.get('detail', '') or data.get('error', ''))")
+            detail=$(python3 - <<'PY'
+          import json
+          import pathlib
+
+          path = pathlib.Path("/tmp/digest_response.json")
+          raw = path.read_text(encoding="utf-8", errors="replace") if path.exists() else ""
+          try:
+              data = json.loads(raw) if raw.strip().startswith("{") else {}
+          except json.JSONDecodeError:
+              data = {}
+          print(data.get("detail", "") or data.get("error", ""))
+          PY
+            )
             digest_error="${detail:-Le digest quotidien a echoue avec le statut HTTP $http_status.}"
           fi
 
