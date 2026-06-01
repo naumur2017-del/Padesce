@@ -5,16 +5,18 @@
   }
 
   const currentUser = root.dataset.user || "anonymous";
-  const storageKey = `padesce.chat.history.${currentUser}`;
-  const historyLimit = 40;
+  const storageKey = `padesce.chat.threads.${currentUser}`;
+  const legacyStorageKey = `padesce.chat.history.${currentUser}`;
+  const historyLimit = 60;
+  const conversationLimit = 18;
 
   function getCookie(name) {
     let cookieValue = null;
-    if (document.cookie && document.cookie !== '') {
-      const cookies = document.cookie.split(';');
+    if (document.cookie && document.cookie !== "") {
+      const cookies = document.cookie.split(";");
       for (let i = 0; i < cookies.length; i++) {
         const cookie = cookies[i].trim();
-        if (cookie.substring(0, name.length + 1) === (name + '=')) {
+        if (cookie.substring(0, name.length + 1) === `${name}=`) {
           cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
           break;
         }
@@ -27,6 +29,12 @@
   const win = document.getElementById("chatWindow");
   const closeBtn = document.getElementById("chatClose");
   const fullscreenBtn = document.getElementById("chatFullscreen");
+  const newConversationBtn = document.getElementById("chatNewConversation");
+  const sidebarNewBtn = document.getElementById("chatSidebarNew");
+  const sidebarToggle = document.getElementById("chatSidebarToggle");
+  const sidebar = document.getElementById("chatSidebar");
+  const sidebarList = document.getElementById("chatSidebarList");
+  const threadCount = document.getElementById("chatThreadCount");
   const input = document.getElementById("chatInput");
   const sendBtn = document.getElementById("chatSend");
   const msgContainer = document.getElementById("chatMessages");
@@ -40,9 +48,34 @@
   const state = {
     isOpen: false,
     isFullscreen: false,
-    messages: [],
+    sidebarOpen: true,
+    activeId: null,
+    conversations: [],
     toastTimer: null,
   };
+
+  function uid() {
+    return `chat-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  }
+
+  function makeConversation(messages) {
+    const now = new Date().toISOString();
+    return {
+      id: uid(),
+      title: deriveTitle(messages || []),
+      createdAt: now,
+      updatedAt: now,
+      messages: (messages || []).slice(-historyLimit),
+    };
+  }
+
+  function getActiveConversation() {
+    let conversation = state.conversations.find((item) => item.id === state.activeId);
+    if (!conversation) {
+      conversation = createConversation({ activate: true, save: false, render: false });
+    }
+    return conversation;
+  }
 
   function showToast(text, tone) {
     if (!syncToast || !syncToastText) {
@@ -104,9 +137,7 @@
             "<table><thead><tr>" +
             header.map((cell) => `<th>${cell}</th>`).join("") +
             "</tr></thead><tbody>" +
-            body
-              .map((row) => `<tr>${row.map((cell) => `<td>${cell}</td>`).join("")}</tr>`)
-              .join("") +
+            body.map((row) => `<tr>${row.map((cell) => `<td>${cell}</td>`).join("")}</tr>`).join("") +
             "</tbody></table>"
           );
         }
@@ -115,40 +146,130 @@
       .join("");
   }
 
-  function renderMarkdown(text) {
-    if (typeof window.marked !== "undefined") {
-      window.marked.setOptions({ breaks: true, gfm: true });
-      return window.marked.parse(text || "");
-    }
-    return renderFallbackMarkdown(text);
+  function decorateCodeBlocks(container) {
+    container.querySelectorAll("pre").forEach((pre) => {
+      const code = pre.querySelector("code");
+      const languageClass = code ? Array.from(code.classList).find((name) => name.startsWith("language-")) : "";
+      const language = languageClass ? languageClass.replace("language-", "").toUpperCase() : "SQL";
+      const wrap = document.createElement("div");
+      wrap.className = "chat-code-card";
+      const bar = document.createElement("div");
+      bar.className = "chat-code-head";
+      bar.innerHTML = `<span>${escapeHtml(language || "SQL")}</span><span>Requête générée</span>`;
+      pre.parentNode.insertBefore(wrap, pre);
+      wrap.appendChild(bar);
+      wrap.appendChild(pre);
+    });
   }
 
-  function parseHistory() {
+  function renderMarkdown(text) {
+    const wrapper = document.createElement("div");
+    if (typeof window.marked !== "undefined") {
+      window.marked.setOptions({ breaks: true, gfm: true });
+      wrapper.innerHTML = window.marked.parse(text || "");
+    } else {
+      wrapper.innerHTML = renderFallbackMarkdown(text);
+    }
+    decorateCodeBlocks(wrapper);
+    return wrapper.innerHTML;
+  }
+
+  function normalizeMessage(entry) {
+    return {
+      type: entry.type,
+      text: String(entry.text || ""),
+      markdown: Boolean(entry.markdown),
+      filename: entry.filename || null,
+      downloadUrl: entry.downloadUrl || entry.download_url || null,
+      at: entry.at || new Date().toISOString(),
+    };
+  }
+
+  function deriveTitle(messages) {
+    const userMessage = (messages || []).find((item) => item.type === "user" && item.text);
+    if (!userMessage) {
+      return "Nouvelle discussion";
+    }
+    const title = userMessage.text.replace(/\s+/g, " ").trim();
+    return title.length > 42 ? `${title.slice(0, 39)}...` : title;
+  }
+
+  function parseLegacyHistory() {
     try {
-      const raw = localStorage.getItem(storageKey);
+      const raw = localStorage.getItem(legacyStorageKey);
       const parsed = JSON.parse(raw || "[]");
       if (!Array.isArray(parsed)) {
         return [];
       }
       return parsed
         .filter((item) => item && (item.type === "user" || item.type === "bot") && item.text)
+        .map(normalizeMessage)
         .slice(-historyLimit);
     } catch (error) {
       return [];
     }
   }
 
-  function saveHistory() {
+  function parseConversations() {
     try {
-      localStorage.setItem(storageKey, JSON.stringify(state.messages.slice(-historyLimit)));
+      const raw = localStorage.getItem(storageKey);
+      const parsed = JSON.parse(raw || "{}");
+      if (!parsed || !Array.isArray(parsed.conversations)) {
+        const legacyMessages = parseLegacyHistory();
+        return {
+          activeId: null,
+          conversations: legacyMessages.length ? [makeConversation(legacyMessages)] : [],
+        };
+      }
+      return {
+        activeId: parsed.activeId || null,
+        conversations: parsed.conversations
+          .filter((item) => item && Array.isArray(item.messages))
+          .map((item) => ({
+            id: item.id || uid(),
+            title: item.title || deriveTitle(item.messages),
+            createdAt: item.createdAt || new Date().toISOString(),
+            updatedAt: item.updatedAt || item.createdAt || new Date().toISOString(),
+            messages: item.messages
+              .filter((message) => message && (message.type === "user" || message.type === "bot") && message.text)
+              .map(normalizeMessage)
+              .slice(-historyLimit),
+          }))
+          .slice(-conversationLimit),
+      };
+    } catch (error) {
+      return { activeId: null, conversations: [] };
+    }
+  }
+
+  function saveConversations() {
+    try {
+      localStorage.setItem(
+        storageKey,
+        JSON.stringify({
+          activeId: state.activeId,
+          conversations: state.conversations.slice(-conversationLimit),
+        })
+      );
     } catch (error) {
       // Ignore storage quota failures.
     }
   }
 
+  function formatTime(isoString) {
+    const parsed = isoString ? new Date(isoString) : new Date();
+    return parsed.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+  }
+
+  function formatThreadTime(isoString) {
+    const parsed = isoString ? new Date(isoString) : new Date();
+    return parsed.toLocaleDateString("fr-FR", { day: "2-digit", month: "short" });
+  }
+
   function syncPromptVisibility() {
-    const hasHistory = state.messages.length > 0;
-    const hasUserMessage = state.messages.some((item) => item.type === "user");
+    const conversation = getActiveConversation();
+    const hasHistory = conversation.messages.length > 0;
+    const hasUserMessage = conversation.messages.some((item) => item.type === "user");
     if (welcome) {
       welcome.hidden = hasHistory;
     }
@@ -161,22 +282,93 @@
     msgContainer.scrollTop = msgContainer.scrollHeight;
   }
 
-  function formatTime(isoString) {
-    const parsed = isoString ? new Date(isoString) : new Date();
-    return parsed.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+  function renderSidebar() {
+    if (!sidebarList) {
+      return;
+    }
+    const ordered = [...state.conversations].sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
+    sidebarList.innerHTML = "";
+    if (threadCount) {
+      threadCount.textContent = `${state.conversations.length} discussion${state.conversations.length > 1 ? "s" : ""}`;
+    }
+    if (!ordered.length) {
+      sidebarList.innerHTML = '<div class="chat-sidebar-empty">Aucune discussion pour le moment.</div>';
+      return;
+    }
+
+    ordered.forEach((conversation) => {
+      const last = conversation.messages[conversation.messages.length - 1];
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = `chat-thread${conversation.id === state.activeId ? " is-active" : ""}`;
+      button.dataset.threadId = conversation.id;
+      button.innerHTML = `
+        <span class="chat-thread-title">${escapeHtml(conversation.title || "Nouvelle discussion")}</span>
+        <span class="chat-thread-preview">${escapeHtml(last ? last.text : "Prête à démarrer")}</span>
+        <span class="chat-thread-meta">${escapeHtml(formatThreadTime(conversation.updatedAt))}</span>
+      `;
+      sidebarList.appendChild(button);
+    });
+  }
+
+  function renderConversation() {
+    const conversation = getActiveConversation();
+    msgContainer.innerHTML = "";
+    if (!conversation.messages.length) {
+      msgContainer.appendChild(welcome);
+      welcome.hidden = false;
+    }
+    conversation.messages.forEach((message) => appendMessage(message, { persist: false, scroll: false }));
+    syncPromptVisibility();
+    renderSidebar();
+    scrollMessages();
+  }
+
+  function createConversation(options = {}) {
+    const conversation = makeConversation([]);
+    state.conversations.push(conversation);
+    state.conversations = state.conversations.slice(-conversationLimit);
+    if (options.activate !== false) {
+      state.activeId = conversation.id;
+    }
+    if (options.save !== false) {
+      saveConversations();
+    }
+    if (options.render !== false) {
+      renderConversation();
+      input.focus();
+    }
+    return conversation;
+  }
+
+  function switchConversation(id) {
+    if (!id || id === state.activeId) {
+      return;
+    }
+    state.activeId = id;
+    saveConversations();
+    renderConversation();
+    if (window.matchMedia("(max-width: 720px)").matches) {
+      setSidebarOpen(false);
+    }
+  }
+
+  function updateConversationAfterMessage(conversation) {
+    conversation.updatedAt = new Date().toISOString();
+    conversation.title = deriveTitle(conversation.messages);
+    state.conversations = state.conversations
+      .filter((item) => item.id !== conversation.id)
+      .concat(conversation)
+      .slice(-conversationLimit);
+    state.activeId = conversation.id;
+    saveConversations();
+    renderSidebar();
   }
 
   function appendMessage(entry, options = {}) {
     const persist = options.persist !== false;
     const scroll = options.scroll !== false;
-    const message = {
-      type: entry.type,
-      text: String(entry.text || ""),
-      markdown: Boolean(entry.markdown),
-      filename: entry.filename || null,
-      downloadUrl: entry.downloadUrl || entry.download_url || null,
-      at: entry.at || new Date().toISOString(),
-    };
+    const message = normalizeMessage(entry);
 
     const msgDiv = document.createElement("div");
     msgDiv.className = `chat-msg ${message.type}`;
@@ -191,20 +383,28 @@
     }
 
     if (message.filename || message.downloadUrl) {
+      const fileBox = document.createElement("div");
+      fileBox.className = "chat-file-card";
+      const fileName = message.filename || "fichier généré";
+      fileBox.innerHTML = `
+        <div class="chat-file-icon"><i class="fa-solid fa-file-arrow-down" aria-hidden="true"></i></div>
+        <div class="chat-file-copy">
+          <strong>${escapeHtml(fileName)}</strong>
+          <span>Fichier généré par NAUMUR</span>
+        </div>
+      `;
       const downloadLink = document.createElement("a");
       downloadLink.className = "chat-download-btn";
-      downloadLink.href =
-        message.downloadUrl || `/api/chat/download/${encodeURIComponent(message.filename)}`;
-      downloadLink.textContent = message.filename
-        ? `Télécharger ${message.filename}`
-        : "Télécharger le fichier";
+      downloadLink.href = message.downloadUrl || `/api/chat/download/${encodeURIComponent(message.filename)}/`;
+      downloadLink.innerHTML = '<i class="fa-solid fa-download" aria-hidden="true"></i><span>Télécharger</span>';
       if (message.downloadUrl) {
         downloadLink.target = "_blank";
         downloadLink.rel = "noopener noreferrer";
       } else {
         downloadLink.download = message.filename;
       }
-      bubble.appendChild(downloadLink);
+      fileBox.appendChild(downloadLink);
+      bubble.appendChild(fileBox);
     }
 
     const time = document.createElement("div");
@@ -216,9 +416,10 @@
     msgContainer.appendChild(msgDiv);
 
     if (persist) {
-      state.messages.push(message);
-      state.messages = state.messages.slice(-historyLimit);
-      saveHistory();
+      const conversation = getActiveConversation();
+      conversation.messages.push(message);
+      conversation.messages = conversation.messages.slice(-historyLimit);
+      updateConversationAfterMessage(conversation);
     }
 
     syncPromptVisibility();
@@ -227,16 +428,14 @@
     }
   }
 
-  function restoreHistory() {
-    state.messages = parseHistory();
-    if (!state.messages.length) {
-      syncPromptVisibility();
-      return;
+  function restoreConversations() {
+    const parsed = parseConversations();
+    state.conversations = parsed.conversations;
+    state.activeId = parsed.activeId || (state.conversations[state.conversations.length - 1] || {}).id || null;
+    if (!state.activeId) {
+      createConversation({ activate: true, save: true, render: false });
     }
-    msgContainer.innerHTML = "";
-    state.messages.forEach((message) => appendMessage(message, { persist: false, scroll: false }));
-    syncPromptVisibility();
-    scrollMessages();
+    renderConversation();
   }
 
   function showTyping() {
@@ -255,6 +454,18 @@
     const typing = document.getElementById("typingIndicator");
     if (typing) {
       typing.remove();
+    }
+  }
+
+  function setSidebarOpen(nextState) {
+    state.sidebarOpen = nextState;
+    if (sidebar) {
+      sidebar.classList.toggle("is-collapsed", !nextState);
+    }
+    if (sidebarToggle) {
+      sidebarToggle.classList.toggle("is-active", nextState);
+      sidebarToggle.setAttribute("aria-label", nextState ? "Masquer les discussions" : "Afficher les discussions");
+      sidebarToggle.title = nextState ? "Masquer les discussions" : "Discussions";
     }
   }
 
@@ -314,7 +525,7 @@
         headers: {
           "Content-Type": "application/json",
           "Accept": "application/json",
-          "X-CSRFToken": getCookie("csrftoken") || ""
+          "X-CSRFToken": getCookie("csrftoken") || "",
         },
         body: JSON.stringify({ message: text }),
       });
@@ -358,6 +569,15 @@
   closeBtn.addEventListener("click", () => toggleChat(false));
   fullscreenBtn.addEventListener("click", () => toggleFullscreen());
   sendBtn.addEventListener("click", () => sendMessage());
+  newConversationBtn.addEventListener("click", () => createConversation());
+  sidebarNewBtn.addEventListener("click", () => createConversation());
+  sidebarToggle.addEventListener("click", () => setSidebarOpen(!state.sidebarOpen));
+  sidebarList.addEventListener("click", (event) => {
+    const button = event.target.closest(".chat-thread");
+    if (button) {
+      switchConversation(button.dataset.threadId);
+    }
+  });
 
   input.addEventListener("keydown", (event) => {
     if (event.key === "Enter" && !event.shiftKey) {
@@ -401,6 +621,7 @@
     showToast("Mode hors ligne. Les données déjà ouvertes restent disponibles.", "offline");
   });
 
-  restoreHistory();
+  restoreConversations();
+  setSidebarOpen(!window.matchMedia("(max-width: 720px)").matches);
   updateNetworkStatus();
 })();
