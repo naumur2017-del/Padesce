@@ -23,6 +23,14 @@
   .input { border:1px solid var(--border); border-radius:10px; padding:9px 10px; background:#fff; color:var(--text); min-height:38px; }
   .form-inline { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
   .import-title { font-weight:800; margin-bottom:8px; }
+  .import-panel { display:grid; gap:12px; }
+  .import-options { display:grid; grid-template-columns:repeat(2, minmax(260px, 1fr)); gap:12px; }
+  .import-box { border:1px solid var(--border); border-radius:12px; padding:12px; background:rgba(124,58,237,.035); }
+  .import-box strong { display:block; color:var(--accent-strong); margin-bottom:8px; }
+  .input-file { display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:10px 12px; border:1px dashed rgba(111,60,195,.32); border-radius:12px; background:#fff; }
+  .file-input-native { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
+  .file-input-btn { margin:0; padding:8px 12px; border-radius:10px; border:1px solid rgba(111,60,195,.3); background:rgba(111,60,195,.08); color:var(--accent-strong); font-weight:800; cursor:pointer; }
+  .file-input-name { color:var(--muted); font-size:.88rem; max-width:260px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .stats { display:grid; grid-template-columns:repeat(5, minmax(0,1fr)); gap:10px; }
   .stat { border:1px solid var(--border); border-radius:12px; padding:12px; background:rgba(124,58,237,.04); }
   .stat strong { display:block; font-size:1.35rem; }
@@ -40,7 +48,9 @@
   .question { display:grid; grid-template-columns:1fr auto; gap:12px; align-items:center; padding:10px 0; border-bottom:1px solid rgba(109,77,168,.12); }
   .choice { display:inline-flex; gap:10px; white-space:nowrap; }
   .modal-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:14px; flex-wrap:wrap; }
-  @media (max-width:900px) { .stats { grid-template-columns:repeat(2,minmax(0,1fr)); } .question { grid-template-columns:1fr; } }
+  .data-link { color:var(--accent-strong); font-weight:800; text-decoration:underline; text-underline-offset:2px; }
+  @media (max-width:900px) { .stats, .import-options { grid-template-columns:repeat(2,minmax(0,1fr)); } .question { grid-template-columns:1fr; } }
+  @media (max-width:640px) { .stats, .import-options { grid-template-columns:1fr; } }
 </style>
 
 <main class="shell">
@@ -55,15 +65,33 @@
   </div>
 
   {% if user.is_superuser %}
-    <div class="panel">
+    <div class="panel import-panel">
       <div class="import-title">Importer la liste des apprenants non formes</div>
-      <form method="post" enctype="multipart/form-data" class="form-inline">
-        {% csrf_token %}
-        <input type="hidden" name="update_mode" value="replace">
-        <input type="file" name="file" accept=".xlsx,.xlsm" required class="input">
-        <button type="submit" class="btn btn-primary btn-sm">Importer et remplacer</button>
-      </form>
-      <p class="subtitle">Colonnes attendues : APPRENANT ABSENT CHEZ NAUMUR, NUMERO DE TELEPHONE, PRESTATION ID, NOM DU PRESTATAIRE, NOM DU BENEFICIAIRE.</p>
+      <div class="import-options">
+        <form method="post" enctype="multipart/form-data" class="import-box">
+          {% csrf_token %}
+          <input type="hidden" name="update_mode" value="append">
+          <strong>Ajouter sans doublons</strong>
+          <div class="input-file">
+            <input type="file" id="pas-forme-import-append" name="file" accept=".xlsx,.xlsm" required class="file-input-native js-file-input">
+            <label for="pas-forme-import-append" class="file-input-btn">Choisir fichier</label>
+            <span class="file-input-name js-file-name">Aucun fichier selectionne</span>
+          </div>
+          <button type="submit" class="btn btn-primary btn-sm">Importer pour ajouter</button>
+        </form>
+        <form method="post" enctype="multipart/form-data" class="import-box">
+          {% csrf_token %}
+          <input type="hidden" name="update_mode" value="replace">
+          <strong>Remplacer la liste</strong>
+          <div class="input-file">
+            <input type="file" id="pas-forme-import-replace" name="file" accept=".xlsx,.xlsm" required class="file-input-native js-file-input">
+            <label for="pas-forme-import-replace" class="file-input-btn">Choisir fichier</label>
+            <span class="file-input-name js-file-name">Aucun fichier selectionne</span>
+          </div>
+          <button type="submit" class="btn btn-secondary btn-sm">Importer pour remplacer</button>
+        </form>
+      </div>
+      <p class="subtitle">Colonnes attendues : APPRENANT ABSENT CHEZ NAUMUR, NUMERO DE TELEPHONE, PRESTATION ID, NOM DU PRESTATAIRE, NOM DU BENEFICIAIRE. Les lignes sans telephone sont ignorees.</p>
     </div>
   {% endif %}
 
@@ -120,7 +148,13 @@
           <tr data-id="{{ row.id }}" data-name="{{ row.nom|escapejs }}" data-phone="{{ row.telephone|default:'-' }}" data-beneficiaire="{{ row.beneficiaire|default:'-'|escapejs }}" data-prestataire="{{ row.prestataire|default:'-'|escapejs }}" data-status="{{ row.status }}" data-q1="{{ row.connait_structure }}" data-beneficiaire-corrige="{{ row.beneficiaire_corrige|default:''|escapejs }}" data-q-prestataire="{{ row.connait_prestataire }}" data-prestataire-corrige="{{ row.prestataire_corrige|default:''|escapejs }}" data-q2="{{ row.membre_structure }}" data-q3="{{ row.a_assiste_formation }}" data-q4="{{ row.connait_theme }}" data-q5="{{ row.nombre_seances|default:'' }}" data-faux-numero="{{ row.faux_numero }}" data-bon-numero="{{ row.bon_numero|default:'' }}" data-faux-nom="{{ row.faux_nom }}" data-vrai-nom="{{ row.vrai_nom|escapejs }}">
             <td><strong>{{ row.nom }}</strong></td>
             <td>{{ row.telephone|default:"-" }}</td>
-            <td>{{ row.prestation_id|default:"-" }}</td>
+            <td>
+              {% if row.prestation_id %}
+                <a class="data-link" href="{% url 'prestation_analysis_detail' row.prestation_id %}">{{ row.prestation_id }}</a>
+              {% else %}
+                -
+              {% endif %}
+            </td>
             <td>{{ row.prestataire|default:"-" }}</td>
             <td>{{ row.beneficiaire|default:"-" }}</td>
             <td><span class="badge js-status">{{ row.get_status_display }}</span>{% if row.locked_by %}<br><small>{{ row.locked_by.username }}</small>{% endif %}</td>
@@ -155,9 +189,23 @@
 
   {% if page_obj.has_other_pages %}
     <div class="panel form-inline" style="justify-content:center;">
-      {% if page_obj.has_previous %}<a class="btn btn-ghost btn-sm" href="?page={{ page_obj.previous_page_number }}&{{ request.GET.urlencode }}">Precedent</a>{% endif %}
-      <span class="subtitle">Page {{ page_obj.number }} / {{ paginator.num_pages }}</span>
-      {% if page_obj.has_next %}<a class="btn btn-ghost btn-sm" href="?page={{ page_obj.next_page_number }}&{{ request.GET.urlencode }}">Suivant</a>{% endif %}
+      {% if page_obj.has_previous %}
+        <a class="btn btn-ghost btn-sm" href="?{% if querystring_no_page %}{{ querystring_no_page }}&{% endif %}page={{ page_obj.previous_page_number }}">Precedent</a>
+      {% endif %}
+      {% for token in pagination_tokens %}
+        {% if token %}
+          {% if token == page_obj.number %}
+            <span class="btn btn-primary btn-sm">{{ token }}</span>
+          {% else %}
+            <a class="btn btn-ghost btn-sm" href="?{% if querystring_no_page %}{{ querystring_no_page }}&{% endif %}page={{ token }}">{{ token }}</a>
+          {% endif %}
+        {% else %}
+          <span class="subtitle" style="padding:0 4px;">...</span>
+        {% endif %}
+      {% endfor %}
+      {% if page_obj.has_next %}
+        <a class="btn btn-ghost btn-sm" href="?{% if querystring_no_page %}{{ querystring_no_page }}&{% endif %}page={{ page_obj.next_page_number }}">Suivant</a>
+      {% endif %}
     </div>
   {% endif %}
 </main>
@@ -261,6 +309,14 @@
     let recorder = null;
     let chunks = [];
     let audioBlob = null;
+
+    document.querySelectorAll(".js-file-input").forEach(input => {
+      input.addEventListener("change", () => {
+        const nameEl = input.closest(".input-file")?.querySelector(".js-file-name");
+        if (!nameEl) return;
+        nameEl.textContent = input.files.length ? Array.from(input.files).map(file => file.name).join(", ") : "Aucun fichier selectionne";
+      });
+    });
 
     function statusLabel(status) {
       return {

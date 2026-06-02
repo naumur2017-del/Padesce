@@ -32,6 +32,7 @@ from App_PADESCE.appels.models import (
     derive_padesce_status,
     padesce_form_tracking_cutoff,
 )
+from App_PADESCE.appels.pagination import build_pagination_tokens
 from App_PADESCE.apprenants.models import Apprenant
 from App_PADESCE.core.analysis_rules import (
     ANALYSIS_THRESHOLD_PERCENT,
@@ -1289,6 +1290,8 @@ def appels_index(request):
 
     appels = _bind_audio_state(list(page_obj.object_list))
     page_obj.object_list = appels
+    params = request.GET.copy()
+    params.pop("page", None)
 
     # ── per-class threshold enrichment ──
     classe_progress = optimization_snapshot["classe_progress"]
@@ -1328,6 +1331,8 @@ def appels_index(request):
             "appels": appels,
             "page_obj": page_obj,
             "paginator": paginator,
+            "pagination_tokens": build_pagination_tokens(page_obj),
+            "querystring_no_page": params.urlencode(),
             "filters": filters,
             "appels_count": appels_count,
             "stats": stats,

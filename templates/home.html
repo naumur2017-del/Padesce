@@ -40,6 +40,46 @@
     font-size: 1.35rem;
     font-weight: 700;
   }
+  .summary-value {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin: 10px 0 4px;
+  }
+  .summary-value strong {
+    color: var(--accent-strong);
+    font-size: clamp(1.8rem, 2.2vw, 2.5rem);
+    line-height: 1;
+  }
+  .summary-value span {
+    color: var(--muted);
+    font-weight: 700;
+  }
+  .metric-list {
+    display: grid;
+    gap: 8px;
+    margin-top: 12px;
+  }
+  .metric-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: #faf7ff;
+  }
+  .metric-row span {
+    color: var(--muted);
+    font-weight: 700;
+  }
+  .metric-row strong {
+    color: var(--accent-strong);
+    font-size: 1.05rem;
+    white-space: nowrap;
+  }
   .card .muted {
     color: var(--muted);
     font-size: 0.95rem;
@@ -165,25 +205,33 @@
   {% if can_view_call_cards %}
   <article class="card" style="border-top: 4px solid var(--accent);">
     <h2>Appels PADESCE</h2>
-    <div style="display:flex;margin-top:10px;gap: 10px;">
-      <div style="display: flex; flex-direction: column;">
-      <div class="big">{{ padesce_effectues }} / {{ padesce_total }} appels tentés</div>
-      <div class="muted">Apprenants = hors "En attente".</div>
-      </div>
-      <div style="display: flex; flex-direction: column;">
-      <div class="big">{{ formateurs_effectues }} / {{ formateurs_total }} appels tentés</div>
-      <div class="muted">Formateurs = hors "En attente".</div>
-      </div>
+    <div class="summary-value">
+      <strong>{{ padesce_combined_effectues }} / {{ padesce_combined_total }}</strong>
+      <span>appels tentes</span>
+    </div>
+    <div class="metric-list">
+      <div class="metric-row"><span>Apprenants</span><strong>{{ padesce_effectues }} / {{ padesce_total }}</strong></div>
+      <div class="metric-row"><span>Formateurs</span><strong>{{ formateurs_effectues }} / {{ formateurs_total }}</strong></div>
+      <div class="metric-row"><span>Appels Pas Forme</span><strong>{{ pas_forme_effectues }} / {{ pas_forme_total }}</strong></div>
+      <div class="metric-row"><span>Prestataires Demarrage</span><strong>{{ demarrage_effectues }} / {{ demarrage_total }}</strong></div>
     </div>
     <div style="display:flex; gap:10px; margin-top:10px;">
       <a class="btn" href="{% url 'appels_index' %}">Ouvrir les appels PADESCE</a>
-      <a class="btn" href="{% url 'satisfaction_dashboard' %}">Ouvrir Analyse Padesce</a>
+      <a class="btn" href="{% url 'satisfaction_dashboard' %}">Ouvrir Analyse PADESCE</a>
     </div>
   </article>
   <article class="card">
     <h2>CGA</h2>
-    <div class="big">{{ cga_effectues }} / {{ cga_total }} appels effectués</div>
-    <div class="muted">Statut effectué = hors "En attente".</div>
+    <div class="summary-value">
+      <strong>{{ cga_effectues }} / {{ cga_total }}</strong>
+      <span>appels effectues</span>
+    </div>
+    <div class="metric-list">
+      <div class="metric-row"><span>Interesses</span><strong>{{ cga_interesses }}</strong></div>
+      <div class="metric-row"><span>Pas interesses</span><strong>{{ cga_pas_interesses }}</strong></div>
+      <div class="metric-row"><span>Indisponibles</span><strong>{{ cga_indisponibles }}</strong></div>
+      <div class="metric-row"><span>Faux numeros</span><strong>{{ cga_faux_numeros }}</strong></div>
+    </div>
     <a class="btn" href="{% url 'cga_index' %}">Ouvrir CGA</a>
   </article>
   {% endif %}

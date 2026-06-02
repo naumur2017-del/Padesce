@@ -25,6 +25,7 @@ from App_PADESCE.appels.cga_report import (
     get_cga_calls_report_filename,
 )
 from App_PADESCE.appels.models import CALL_COMPLETED_STATUSES, AppelCGA
+from App_PADESCE.appels.pagination import build_pagination_tokens
 from App_PADESCE.appels.views import (
     _bind_audio_state,
     _build_progress_metrics,
@@ -73,6 +74,8 @@ ONECCA_CITY_PATTERNS = (
     ("Ebolowa", ("ebolowa",)),
 )
 
+_build_pagination_tokens = build_pagination_tokens
+
 
 def _normalize_cga_source(value):
     source = str(value or "").strip().lower()
@@ -90,39 +93,6 @@ def _get_active_cga_source(request):
 
 def _cga_source_label(source):
     return dict(AppelCGA.SOURCE_CHOICES).get(source, "Entreprise")
-
-
-def _build_pagination_tokens(
-    page_obj,
-    *,
-    leading_count: int = 3,
-    trailing_count: int = 1,
-    around_count: int = 1,
-):
-    if not page_obj or page_obj.paginator.num_pages <= 1:
-        return []
-
-    total_pages = page_obj.paginator.num_pages
-    current_page = page_obj.number
-    pages = set()
-
-    pages.update(range(1, min(total_pages, leading_count) + 1))
-    pages.update(
-        range(
-            max(1, current_page - around_count),
-            min(total_pages, current_page + around_count) + 1,
-        )
-    )
-    pages.update(range(max(1, total_pages - trailing_count + 1), total_pages + 1))
-
-    tokens = []
-    previous_page = None
-    for page_number in sorted(pages):
-        if previous_page is not None and page_number - previous_page > 1:
-            tokens.append(None)
-        tokens.append(page_number)
-        previous_page = page_number
-    return tokens
 
 
 def _normalize_header(value):
@@ -726,7 +696,7 @@ def cga_index(request):
     page_obj = paginator.get_page(request.GET.get("page"))
     rows = _bind_audio_state(list(page_obj.object_list))
     page_obj.object_list = rows
-    pagination_tokens = _build_pagination_tokens(page_obj)
+    pagination_tokens = build_pagination_tokens(page_obj)
     params = request.GET.copy()
     params["source"] = active_source
     params.pop("page", None)

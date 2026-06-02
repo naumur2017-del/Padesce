@@ -28,6 +28,7 @@ from App_PADESCE.appels.models import (
     _short_slug,
     sync_formateur_status,
 )
+from App_PADESCE.appels.pagination import build_pagination_tokens
 from App_PADESCE.appels.views import (
     _bind_audio_state,
     _cleanup_stale_locks,
@@ -1110,6 +1111,7 @@ def formateurs_index(request):
             "page_obj": page_obj,
             "page_size": page_size,
             "querystring_no_page": querystring_no_page,
+            "pagination_tokens": build_pagination_tokens(page_obj),
             "stats": stats,
             "satisfaction_header_metrics": satisfaction_header_metrics,
         },

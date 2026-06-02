@@ -576,12 +576,21 @@ def home(request):
 
         # AppelCGA counts
         cga_stats = AppelCGA.objects.filter(is_active=True).aggregate(
-            total=Count("id"), not_waiting=Count("id", filter=~Q(status="en_attente"))
+            total=Count("id"),
+            not_waiting=Count("id", filter=~Q(status="en_attente")),
+            interesses=Count("id", filter=Q(interet="OUI")),
+            pas_interesses=Count("id", filter=Q(interet="NON")),
+            indisponibles=Count("id", filter=Q(indisponible="OUI")),
+            faux_numeros=Count("id", filter=Q(mauvais_numero="OUI")),
         )
         counts.update(
             {
                 "cga_total": cga_stats["total"],
                 "cga_effectues": cga_stats["not_waiting"],
+                "cga_interesses": cga_stats["interesses"],
+                "cga_pas_interesses": cga_stats["pas_interesses"],
+                "cga_indisponibles": cga_stats["indisponibles"],
+                "cga_faux_numeros": cga_stats["faux_numeros"],
             }
         )
 
@@ -596,6 +605,26 @@ def home(request):
             }
         )
 
+        pas_forme_stats = AppelPasForme.objects.filter(is_active=True).aggregate(
+            total=Count("id"), not_waiting=Count("id", filter=~Q(status="en_attente"))
+        )
+        counts.update(
+            {
+                "pas_forme_total": pas_forme_stats["total"],
+                "pas_forme_effectues": pas_forme_stats["not_waiting"],
+            }
+        )
+
+        demarrage_stats = AppelPrestataireDemarrage.objects.filter(is_active=True).aggregate(
+            total=Count("id"), not_waiting=Count("id", filter=~Q(status="en_attente"))
+        )
+        counts.update(
+            {
+                "demarrage_total": demarrage_stats["total"],
+                "demarrage_effectues": demarrage_stats["not_waiting"],
+            }
+        )
+
         cache.set(cache_key, counts, 300)  # 5 minutes
         cached_counts = counts
 
@@ -605,6 +634,10 @@ def home(request):
     cga_effectues = cached_counts["cga_effectues"]
     formateurs_total = cached_counts["formateurs_total"]
     formateurs_effectues = cached_counts["formateurs_effectues"]
+    pas_forme_total = cached_counts.get("pas_forme_total", 0)
+    pas_forme_effectues = cached_counts.get("pas_forme_effectues", 0)
+    demarrage_total = cached_counts.get("demarrage_total", 0)
+    demarrage_effectues = cached_counts.get("demarrage_effectues", 0)
     nb_appels_termine = cached_counts["nb_appels_termine"]
 
     # Get prestataire appels (already single query with annotate)
@@ -650,6 +683,26 @@ def home(request):
         "cga_effectues": cga_effectues,
         "formateurs_total": formateurs_total,
         "formateurs_effectues": formateurs_effectues,
+        "pas_forme_total": pas_forme_total,
+        "pas_forme_effectues": pas_forme_effectues,
+        "demarrage_total": demarrage_total,
+        "demarrage_effectues": demarrage_effectues,
+        "padesce_combined_total": (
+            int(padesce_total or 0)
+            + int(formateurs_total or 0)
+            + int(pas_forme_total or 0)
+            + int(demarrage_total or 0)
+        ),
+        "padesce_combined_effectues": (
+            int(padesce_effectues or 0)
+            + int(formateurs_effectues or 0)
+            + int(pas_forme_effectues or 0)
+            + int(demarrage_effectues or 0)
+        ),
+        "cga_interesses": cached_counts.get("cga_interesses", 0),
+        "cga_pas_interesses": cached_counts.get("cga_pas_interesses", 0),
+        "cga_indisponibles": cached_counts.get("cga_indisponibles", 0),
+        "cga_faux_numeros": cached_counts.get("cga_faux_numeros", 0),
         "progress_pct": progress_pct,
         "countdown_days": countdown_days,
         "deadline_iso": end_date.isoformat(),

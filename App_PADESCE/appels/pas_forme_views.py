@@ -21,6 +21,7 @@ from App_PADESCE.appels.models import (
     AppelPasForme,
     infer_padesce_status,
 )
+from App_PADESCE.appels.pagination import build_pagination_tokens
 from App_PADESCE.appels.views import _bind_audio_state, _cleanup_stale_locks, _safe_audio_url
 from App_PADESCE.core.phase_scope import PHASE_SCOPE_V1_COMBINED, normalize_phase_scope
 from App_PADESCE.formations.models import Beneficiaire, Prestataire
@@ -88,6 +89,8 @@ def _parse_pas_forme_excel(file_obj):
             "prestataire": _as_text(get(row, "NOM DU PRESTATAIRE", "PRESTATAIRE")),
             "beneficiaire": _as_text(get(row, "NOM DU BENEFICIAIRE", "BENEFICIAIRE")),
         }
+        if not item["telephone"]:
+            continue
         try:
             item["numero"] = int(str(item["numero"]).strip()) if item["numero"] != "" else None
         except (TypeError, ValueError):
@@ -213,10 +216,19 @@ def pas_forme_index(request):
             AppelPasForme.objects.update(is_active=False)
         created = 0
         updated = 0
+        skipped_duplicates = 0
+        seen_references = set()
         for item in payload:
             reference = item["reference_code"]
+            if reference in seen_references:
+                skipped_duplicates += 1
+                continue
+            seen_references.add(reference)
             row = AppelPasForme.objects.filter(reference_code=reference).first()
             if row:
+                if mode != "replace":
+                    skipped_duplicates += 1
+                    continue
                 for key, value in item.items():
                     setattr(row, key, value)
                 row.is_active = True
@@ -227,7 +239,11 @@ def pas_forme_index(request):
                 created += 1
         messages.success(
             request,
-            f"Fichier importe. {created} nouveau(x) appel(s), {updated} appel(s) mis a jour.",
+            (
+                f"Fichier importe. {created} nouveau(x) appel(s), "
+                f"{updated} appel(s) mis a jour, {skipped_duplicates} doublon(s) ignore(s). "
+                "Les lignes sans numero de telephone ne sont pas importees."
+            ),
         )
         return redirect(request.path_info)
 
@@ -238,6 +254,8 @@ def pas_forme_index(request):
     page_obj = paginator.get_page(request.GET.get("page", 1))
     rows = _bind_audio_state(list(page_obj.object_list))
     page_obj.object_list = rows
+    params = request.GET.copy()
+    params.pop("page", None)
     return render(
         request,
         "appels/pas_forme.html",
@@ -245,6 +263,8 @@ def pas_forme_index(request):
             "rows": rows,
             "page_obj": page_obj,
             "paginator": paginator,
+            "pagination_tokens": build_pagination_tokens(page_obj),
+            "querystring_no_page": params.urlencode(),
             "filters": filters,
             "stats": stats,
             "appels_count": qs.count(),

@@ -510,7 +510,13 @@
           <td>{{ a.prestataire }}</td>
           <td>{{ a.beneficiaire }}</td>
           <td>{{ a.lieu }}</td>
-          <td>{{ a.classe_label }}</td>
+          <td>
+            {% if a.classe_label %}
+              <a href="{% url 'class_analysis_detail' a.classe_label %}" class="drill-link">{{ a.classe_label }}</a>
+            {% else %}
+              -
+            {% endif %}
+          </td>
           <td>{{ a.fenetre|default:"-" }}</td>
           <td>{{ a.type_formation_declaree|default:"-" }}</td>
           <td>{{ a.formation_padesce|default:"-" }}</td>
@@ -574,32 +580,26 @@
       </tbody>
     </table>
     
-    <!-- ── Pagination ── -->
     {% if paginator.num_pages > 1 %}
     <div style="display: flex; justify-content: center; align-items: center; gap: 8px; margin-top: 16px; flex-wrap: wrap;">
-      <!-- Bouton Précédent -->
       {% if page_obj.has_previous %}
-        <a href="?page=1{% for k, v in request.GET.items %}{% if k != 'page' %}&{{ k }}={{ v }}{% endif %}{% endfor %}" class="btn btn-ghost btn-sm" title="Première page">«</a>
-        <a href="?page={{ page_obj.previous_page_number }}{% for k, v in request.GET.items %}{% if k != 'page' %}&{{ k }}={{ v }}{% endif %}{% endfor %}" class="btn btn-ghost btn-sm" title="Page précédente">‹</a>
-      {% else %}
-        <span class="btn btn-ghost btn-sm" style="opacity: 0.5; cursor: not-allowed;">«</span>
-        <span class="btn btn-ghost btn-sm" style="opacity: 0.5; cursor: not-allowed;">‹</span>
+        <a href="?{% if querystring_no_page %}{{ querystring_no_page }}&{% endif %}page={{ page_obj.previous_page_number }}" class="btn btn-ghost btn-sm">Precedent</a>
       {% endif %}
-      
-      <!-- Numéros de pages -->
-      <span style="color: var(--muted); font-size: 0.9rem; margin: 0 8px;">
-        Page <strong>{{ page_obj.number }}</strong> sur <strong>{{ paginator.num_pages }}</strong>
-        ({{ appels_count }} appels au total)
-      </span>
-      
-      <!-- Bouton Suivant -->
+      {% for token in pagination_tokens %}
+        {% if token %}
+          {% if token == page_obj.number %}
+            <span class="btn btn-primary btn-sm">{{ token }}</span>
+          {% else %}
+            <a class="btn btn-ghost btn-sm" href="?{% if querystring_no_page %}{{ querystring_no_page }}&{% endif %}page={{ token }}">{{ token }}</a>
+          {% endif %}
+        {% else %}
+          <span style="color: var(--muted); padding: 0 4px;">...</span>
+        {% endif %}
+      {% endfor %}
       {% if page_obj.has_next %}
-        <a href="?page={{ page_obj.next_page_number }}{% for k, v in request.GET.items %}{% if k != 'page' %}&{{ k }}={{ v }}{% endif %}{% endfor %}" class="btn btn-ghost btn-sm" title="Page suivante">›</a>
-        <a href="?page={{ paginator.num_pages }}{% for k, v in request.GET.items %}{% if k != 'page' %}&{{ k }}={{ v }}{% endif %}{% endfor %}" class="btn btn-ghost btn-sm" title="Dernière page">»</a>
-      {% else %}
-        <span class="btn btn-ghost btn-sm" style="opacity: 0.5; cursor: not-allowed;">›</span>
-        <span class="btn btn-ghost btn-sm" style="opacity: 0.5; cursor: not-allowed;">»</span>
+        <a href="?{% if querystring_no_page %}{{ querystring_no_page }}&{% endif %}page={{ page_obj.next_page_number }}" class="btn btn-ghost btn-sm">Suivant</a>
       {% endif %}
+      <span style="color: var(--muted); font-size: 0.9rem; margin: 0 8px;">{{ appels_count }} appels au total</span>
     </div>
     {% endif %}
   </div>
