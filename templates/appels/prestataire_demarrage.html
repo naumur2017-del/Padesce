@@ -51,6 +51,7 @@
   .choice { display:inline-flex; gap:10px; white-space:nowrap; flex-wrap:wrap; }
   .textarea { width:100%; min-height:86px; resize:vertical; }
   .modal-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:14px; flex-wrap:wrap; }
+  .help-dot { display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px; border-radius:999px; border:1px solid rgba(111,60,195,.3); color:var(--accent-strong); background:rgba(111,60,195,.08); font-size:.74rem; font-weight:900; cursor:help; margin-left:6px; vertical-align:middle; }
   @media (max-width:900px) { .stats, .import-options { grid-template-columns:repeat(2,minmax(0,1fr)); } .question { grid-template-columns:1fr; } }
   @media (max-width:640px) { .stats, .import-options { grid-template-columns:1fr; } }
 </style>
@@ -68,7 +69,7 @@
 
   {% if user.is_superuser %}
     <div class="panel import-panel">
-      <div class="import-title">Importer la liste des prestataires sur demarrage</div>
+      <div class="import-title">Importer la liste des prestataires sur demarrage <span class="help-dot" title="Ajouter conserve les prestataires deja affiches et ignore les doublons; remplacer recharge la liste active. Les lignes sans telephone sont ignorees.">?</span></div>
       <div class="import-options">
         <form method="post" enctype="multipart/form-data" class="import-box">
           {% csrf_token %}
@@ -98,12 +99,12 @@
   {% endif %}
 
   <div class="stats">
-    <div class="stat"><span>Total</span><strong>{{ stats.total|default:0 }}</strong></div>
-    <div class="stat"><span>Lies BD</span><strong>{{ stats.lies_bd|default:0 }}</strong></div>
-    <div class="stat"><span>Appels tentes</span><strong>{{ stats.appels_tentes|default:0 }}</strong></div>
-    <div class="stat"><span>Appels reussis</span><strong>{{ stats.appels_reussis|default:0 }}</strong></div>
-    <div class="stat"><span>Formulaires</span><strong>{{ stats.completion_label }}</strong></div>
-    <div class="stat"><span>Audios</span><strong>{{ stats.audios|default:0 }}</strong></div>
+    <div class="stat"><span>Total <span class="help-dot" title="Nombre de lignes actives dans ce call center.">?</span></span><strong>{{ stats.total|default:0 }}</strong></div>
+    <div class="stat"><span>Lies BD <span class="help-dot" title="Prestataires rapproches avec le referentiel interne par code ou par nom.">?</span></span><strong>{{ stats.lies_bd|default:0 }}</strong></div>
+    <div class="stat"><span>Appels tentes <span class="help-dot" title="Toutes les lignes qui ne sont plus en attente.">?</span></span><strong>{{ stats.appels_tentes|default:0 }}</strong></div>
+    <div class="stat"><span>Appels reussis <span class="help-dot" title="Appels avec statut reussi, formulaire rempli, formulaire avec audio ou termine.">?</span></span><strong>{{ stats.appels_reussis|default:0 }}</strong></div>
+    <div class="stat"><span>Formulaires <span class="help-dot" title="Progression des formulaires completes sur le seuil attendu.">?</span></span><strong>{{ stats.completion_label }}</strong></div>
+    <div class="stat"><span>Audios <span class="help-dot" title="Nombre d'enregistrements audio associes aux appels.">?</span></span><strong>{{ stats.audios|default:0 }}</strong></div>
   </div>
 
   <div class="panel">
@@ -136,7 +137,7 @@
     <table>
       <thead>
         <tr>
-          <th>Code</th><th>Prestataire</th><th>Nom simplifie</th><th>Telephone</th><th>Liaison BD</th><th>Statut</th><th>Reponse</th><th>Audio</th><th>Actions</th>
+          <th>Code</th><th>Prestataire</th><th>Nom simplifie</th><th>Telephone</th><th>Liaison BD <span class="help-dot" title="Indique si la ligne est reliee au prestataire existant dans la base.">?</span></th><th>Statut</th><th>Reponse <span class="help-dot" title="Resume le demarrage de prestation, les motifs de non demarrage et les corrections de numero.">?</span></th><th>Audio</th><th>Actions</th>
         </tr>
       </thead>
       <tbody>

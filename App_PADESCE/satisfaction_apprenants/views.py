@@ -18,6 +18,7 @@ import zipfile
 from collections import Counter, defaultdict
 from datetime import date as date_cls
 from types import SimpleNamespace
+from urllib.parse import urlencode
 
 import openpyxl
 import requests
@@ -44,6 +45,7 @@ from App_PADESCE.appels.models import (
     CALL_SUCCESS_STATUSES,
     Appel,
     AppelAnswers,
+    AppelCGA,
     AppelFormateur,
     AppelPasForme,
     AppelPrestataireDemarrage,
@@ -1554,6 +1556,181 @@ def _top_rows(queryset, field_name: str, *, label_name: str = "label", limit: in
     return [{label_name: row.get(field_name) or "Non renseigne", "nb": row["nb"]} for row in rows]
 
 
+def _call_center_search_url(route_name: str, query: str) -> str:
+    base_url = reverse(route_name)
+    query = str(query or "").strip()
+    if not query:
+        return base_url
+    return f"{base_url}?{urlencode({'q': query})}"
+
+
+def _build_call_center_anomaly_rows(limit: int | None = 250) -> list[dict[str, object]]:
+    rows: list[dict[str, object]] = []
+
+    def add_row(
+        *,
+        call_center: str,
+        anomaly_type: str,
+        reference: str,
+        nom: str,
+        telephone: str,
+        info_fausse: str,
+        correction: str = "",
+        detail: str = "",
+        url: str = "",
+        updated_at=None,
+    ) -> None:
+        rows.append(
+            {
+                "call_center": call_center,
+                "type": anomaly_type,
+                "reference": reference or "-",
+                "nom": nom or "-",
+                "telephone": telephone or "-",
+                "info_fausse": info_fausse or "-",
+                "correction": correction or "-",
+                "detail": detail or "-",
+                "url": url,
+                "updated_at": updated_at,
+            }
+        )
+
+    for row in (
+        Appel.objects.filter(is_active=True)
+        .filter(Q(flag_faux_nom=True) | Q(flag_numero_double=True) | Q(flag_pas_forme=True))
+        .order_by("-updated_at")
+    ):
+        phone = row.telephone1 or row.telephone2
+        search_key = row.code or row.nom or phone
+        url = _call_center_search_url("appels_index", search_key)
+        if row.flag_faux_nom:
+            add_row(
+                call_center="Appels apprenants",
+                anomaly_type="Faux nom",
+                reference=row.code,
+                nom=row.nom,
+                telephone=phone,
+                info_fausse=row.nom,
+                correction=row.flag_vrai_nom,
+                detail="Nom signale comme incorrect pendant l'appel.",
+                url=url,
+                updated_at=row.updated_at,
+            )
+        if row.flag_numero_double:
+            add_row(
+                call_center="Appels apprenants",
+                anomaly_type="Numero double",
+                reference=row.code,
+                nom=row.nom,
+                telephone=phone,
+                info_fausse=phone,
+                detail="Numero signale comme double dans la liste d'appels.",
+                url=url,
+                updated_at=row.updated_at,
+            )
+        if row.flag_pas_forme:
+            add_row(
+                call_center="Appels apprenants",
+                anomaly_type="Formation incoherente",
+                reference=row.code,
+                nom=row.nom,
+                telephone=phone,
+                info_fausse=row.formation_padesce or row.type_formation_declaree,
+                detail="Apprenant signale comme pas forme dans le call center PADESCE.",
+                url=url,
+                updated_at=row.updated_at,
+            )
+
+    for row in (
+        AppelPasForme.objects.filter(is_active=True)
+        .filter(
+            Q(faux_nom="OUI")
+            | Q(faux_numero="OUI")
+            | (Q(membre_structure="NON") & Q(a_assiste_formation="OUI"))
+        )
+        .order_by("-updated_at")
+    ):
+        url = _call_center_search_url("pas_forme_index", row.reference_code or row.nom or row.telephone)
+        if row.faux_nom == "OUI":
+            add_row(
+                call_center="Appels Pas Forme",
+                anomaly_type="Faux nom",
+                reference=row.reference_code,
+                nom=row.nom,
+                telephone=row.telephone,
+                info_fausse=row.nom,
+                correction=row.vrai_nom,
+                detail="Nom corrige dans le formulaire Pas Forme.",
+                url=url,
+                updated_at=row.updated_at,
+            )
+        if row.faux_numero == "OUI":
+            add_row(
+                call_center="Appels Pas Forme",
+                anomaly_type="Faux numero",
+                reference=row.reference_code,
+                nom=row.nom,
+                telephone=row.telephone,
+                info_fausse=row.telephone,
+                correction=row.bon_numero,
+                detail="Numero corrige dans le formulaire Pas Forme.",
+                url=url,
+                updated_at=row.updated_at,
+            )
+        if row.membre_structure == "NON" and row.a_assiste_formation == "OUI":
+            add_row(
+                call_center="Appels Pas Forme",
+                anomaly_type="Beneficiaire incoherent",
+                reference=row.reference_code,
+                nom=row.nom,
+                telephone=row.telephone,
+                info_fausse=row.beneficiaire,
+                detail="Pas membre du beneficiaire, mais declare avoir suivi une formation.",
+                url=url,
+                updated_at=row.updated_at,
+            )
+
+    for row in (
+        AppelPrestataireDemarrage.objects.filter(is_active=True, faux_numero="OUI")
+        .select_related("prestataire")
+        .order_by("-updated_at")
+    ):
+        add_row(
+            call_center="Prestataires Demarrage",
+            anomaly_type="Faux numero",
+            reference=row.prestataire_code or row.reference_code,
+            nom=row.nom_prestataire,
+            telephone=row.telephone,
+            info_fausse=row.telephone,
+            correction=row.bon_numero,
+            detail="Numero prestataire corrige pendant l'appel de demarrage.",
+            url=_call_center_search_url(
+                "prestataire_demarrage_index",
+                row.prestataire_code or row.nom_prestataire or row.telephone,
+            ),
+            updated_at=row.updated_at,
+        )
+
+    for row in AppelCGA.objects.filter(is_active=True, mauvais_numero="OUI").order_by("-updated_at"):
+        add_row(
+            call_center="CGA",
+            anomaly_type="Mauvais numero",
+            reference=row.niu,
+            nom=row.raison_sociale,
+            telephone=row.telephone,
+            info_fausse=row.telephone,
+            detail="Numero CGA signale comme mauvais.",
+            url=_call_center_search_url("cga_index", row.niu or row.raison_sociale or row.telephone),
+            updated_at=row.updated_at,
+        )
+
+    rows.sort(
+        key=lambda row: row["updated_at"].timestamp() if row.get("updated_at") else 0,
+        reverse=True,
+    )
+    return rows if limit is None else rows[:limit]
+
+
 def _build_extended_call_analysis_context() -> dict[str, object]:
     pas_forme_qs = AppelPasForme.objects.filter(is_active=True)
     demarrage_qs = AppelPrestataireDemarrage.objects.filter(is_active=True).select_related(
@@ -1579,6 +1756,7 @@ def _build_extended_call_analysis_context() -> dict[str, object]:
         motif = row["motif_non_demarrage"]
         motif_rows.append({"label": motif_labels.get(motif, motif), "nb": row["nb"]})
 
+    anomaly_rows = _build_call_center_anomaly_rows()
     return {
         "pas_forme_analysis": {
             **pas_forme_stats,
@@ -1591,6 +1769,8 @@ def _build_extended_call_analysis_context() -> dict[str, object]:
             "prestataires": _top_rows(demarrage_qs, "nom_prestataire"),
             "motifs": motif_rows,
         },
+        "anomaly_rows": anomaly_rows,
+        "anomaly_count": len(anomaly_rows),
     }
 
 
@@ -5567,6 +5747,43 @@ def satisfaction_dashboard_export_csv(request):
     writer.writerow(headers)
     for export_row in export_rows:
         writer.writerow(export_row)
+    return response
+
+
+@require_analysis_access
+def satisfaction_dashboard_export_anomalies_csv(request):
+    rows = _build_call_center_anomaly_rows(limit=None)
+    response = HttpResponse(content_type="text/csv; charset=utf-8")
+    response["Content-Disposition"] = 'attachment; filename="anomalies-call-center.csv"'
+    response.write("\ufeff")
+    writer = csv.writer(response)
+    writer.writerow(
+        [
+            "Call center",
+            "Type anomalie",
+            "Reference",
+            "Nom",
+            "Telephone",
+            "Fausse information",
+            "Correction",
+            "Detail",
+            "Lien",
+        ]
+    )
+    for row in rows:
+        writer.writerow(
+            [
+                row.get("call_center", ""),
+                row.get("type", ""),
+                row.get("reference", ""),
+                row.get("nom", ""),
+                row.get("telephone", ""),
+                row.get("info_fausse", ""),
+                row.get("correction", ""),
+                row.get("detail", ""),
+                row.get("url", ""),
+            ]
+        )
     return response
 
 

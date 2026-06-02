@@ -23,7 +23,7 @@ PAGE_TITLE_BY_PREFIX: tuple[tuple[str, str], ...] = (
     ("/guide-operateur/", "Guide opérateur"),
     ("/messages/support/", "Support"),
     ("/admin/", "Admin"),
-    ("/dashboard/", "Dashboard"),
+    ("/dashboard/", "Call Center"),
 )
 
 
@@ -82,7 +82,7 @@ def _build_menu_items(user, path: str, consultant_only: bool) -> list[dict[str, 
             }
         )
 
-    add_item("Dashboard", _safe_reverse("home"), "/dashboard/")
+    add_item("Call Center", _safe_reverse("home"), "/dashboard/")
 
     if superadmin_access:
         add_item("Backup", _safe_reverse("backup_dashboard"), "/backup/")
@@ -102,14 +102,8 @@ def _build_menu_items(user, path: str, consultant_only: bool) -> list[dict[str, 
         )
         add_item("Analyses CGA", _safe_reverse("cga_analysis_dashboard"), "/analyses-cga/")
 
-        add_item(
-            "Excel Source", _safe_reverse("reporting_network_excel"), "/reporting/excel-reseau/"
-        )
-
     if superadmin_access:
         add_item("Suivi utilisateurs", _safe_reverse("user_tracking"), "/suivi-utilisateurs/")
-
-    add_item("CGA", _safe_reverse("cga_index"), "/cga/")
 
     if staff_access:
         add_item("Admin", _safe_reverse("admin:index"), "/admin/")

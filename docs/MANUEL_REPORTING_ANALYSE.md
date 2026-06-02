@@ -115,18 +115,22 @@ Cette distinction est essentielle : un appel peut exister en base sans etre **re
 
 # 3. Architecture des pages
 
-## 3.1 Dashboard global - `/dashboard/`
+## 3.1 Call Center global - `/dashboard/`
 
 ### Role
 
-Page de pilotage transversal. Elle donne une vue immediate de l'activite globale PADESCE, CGA et Formateurs, ainsi qu'un acces rapide aux espaces d'analyse.
+Page de pilotage transversal, libellee **Call Center** dans la navigation. Elle donne une vue immediate de l'activite globale des appels PADESCE et CGA, ainsi qu'un acces rapide aux espaces d'analyse.
 
 ### KPI affiches
 
 - **Progression calendrier** de la campagne entre le **26/09/2025** et le **26/08/2026**.
 - **Nombre total de classes**, **apprenants**, **presences**, **satisfactions apprenants**, **satisfactions formateurs**, **enquetes environnement**.
 - **Nombre d'appels termines**.
-- Pour **PADESCE**, **CGA** et **Formateurs** :
+- Pour **PADESCE** :
+  - total consolide des appels tentes sur les appels apprenants, formateurs, appels Pas Forme et prestataires demarrage ;
+  - liens directs vers chaque call center depuis les lignes du card PADESCE ;
+  - bouton **Analyse PADESCE** affiche sur toute la largeur du card.
+- Pour **CGA** :
   - total d'enregistrements actifs ;
   - nombre d'appels effectues.
 - Pour PADESCE sur les **24 dernieres heures** :
@@ -141,6 +145,8 @@ Page de pilotage transversal. Elle donne une vue immediate de l'activite globale
 
 - **`Appel`** pour PADESCE.
 - **`AppelFormateur`** pour les appels formateurs.
+- **`AppelPasForme`** pour les apprenants declares non formes.
+- **`AppelPrestataireDemarrage`** pour les prestataires sur demarrage.
 - **`AppelCGA`** pour le bloc CGA.
 - **`Classe`**, **`Apprenant`**, **`Presence`**, **`SatisfactionApprenant`**, **`SatisfactionFormateur`**, **`EnqueteEnvironnement`** pour les compteurs de volumetrie.
 
@@ -250,6 +256,7 @@ C'est la page analytique principale du dispositif apprenants. Elle calcule les m
 - **Fenetres analysees**
 - **Nombre d'audios**
 - **Indicateurs de présence** (Chapeau) : Taux global, Participation, Personnes formees
+- **Anomalies call center** : faux noms, faux numeros et incoherences de beneficiaire detectees dans les appels.
 - Moyennes globales et par **classe**, **prestation**, **fenetre**, **ville**, **utilisateur**, **cohorte**, **prestataire**, **beneficiaire**
 
 ### Origine des donnees
@@ -257,6 +264,7 @@ C'est la page analytique principale du dispositif apprenants. Elle calcule les m
 - **`Appel`**
 - **`AppelAnswers`**
 - **`SatisfactionApprenant`**
+- **`AppelPasForme`**, **`AppelPrestataireDemarrage`** et **`AppelCGA`** pour le modal d'anomalies inter-call-center.
 - **Source Excel reseau** `main` ou `cutoff`
 
 ### Particularites
@@ -264,6 +272,15 @@ C'est la page analytique principale du dispositif apprenants. Elle calcule les m
 - Seules les **fenetres 2 et 3** sont eligibles.
 - Une classe n'est visible sans filtre manuel que si son **seuil de 25 %** est atteint.
 - Les apprenants sans numero exploitable, non formes ou exclus manuellement sont sortis du perimetre d'analyse.
+- Le bouton **Anomalies** ouvre un modal listant le call center concerne, la reference, le nom, le numero, la fausse information, la correction et le lien de retour vers la liste d'appel.
+- L'export **Anomalies CSV** reprend les memes colonnes pour controle externe.
+
+### Documentation operationnelle des call centers
+
+- Les pages **Appels apprenants**, **Appels formateurs**, **Appels Pas Forme**, **Prestataires Demarrage** et **CGA** affichent des bulles `?` sur les zones critiques.
+- Les bulles de l'import precisent la difference entre **ajouter** et **remplacer**, le dedoublonnage et l'exclusion des lignes sans telephone.
+- Les bulles des compteurs expliquent les totaux, appels tentes, finalises, audios, seuils et liaisons BD.
+- Les bulles des colonnes signalent les liens analytiques, les champs de correction et les resultats d'appel.
 
 ## 3.6 Vue generale apprenants - `/satisfaction-apprenants/analyse/general/`
 

@@ -65,6 +65,16 @@
   .scope-tab:hover { background:rgba(111,60,195,0.08); color:var(--accent-strong); }
   .scope-tab.active { background:var(--accent); color:#fff; box-shadow:0 8px 18px rgba(76,29,149,0.18); }
   .scope-note { font-size:0.85rem; color:var(--muted); }
+  .modal-backdrop { position:fixed; inset:0; z-index:1200; display:flex; align-items:center; justify-content:center; padding:18px; background:rgba(18,12,32,.5); }
+  .modal-backdrop[hidden] { display:none; }
+  .modal-panel { width:min(1180px, 100%); max-height:90vh; overflow:auto; border-radius:16px; border:1px solid var(--border); background:var(--panel); box-shadow:0 24px 70px rgba(18,12,32,.28); padding:18px; }
+  .modal-head { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; margin-bottom:12px; }
+  .modal-head h2 { margin:0; font-size:1.1rem; color:var(--accent-strong); }
+  .modal-head p { margin:4px 0 0; color:var(--muted); font-size:.86rem; }
+  .modal-actions { display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
+  .anomaly-table th, .anomaly-table td { vertical-align:top; }
+  .anomaly-detail { max-width:280px; color:var(--muted); }
+  .anomaly-link { color:var(--accent-strong); font-weight:700; text-decoration:underline; text-underline-offset:2px; }
   @media (max-width:720px) {
     .filter-bar { flex-direction:column; align-items:stretch; }
     .kpi-row { grid-template-columns: repeat(2, 1fr); }
@@ -76,6 +86,9 @@
     <h1>Analyse Padesce</h1>
   </div>
   <div class="filter-actions">
+    <button type="button" class="btn btn-ghost btn-sm" id="js-open-anomalies">
+      Anomalies ({{ anomaly_count|default:0 }})
+    </button>
     <div class="actions-menu" id="js-actions-menu">
       <button type="button" class="btn btn-ghost btn-sm actions-menu-toggle" id="js-actions-menu-toggle" aria-expanded="false" aria-haspopup="true" aria-label="Ouvrir les actions">
         <span class="gear-icon">&#9881;</span>
@@ -108,6 +121,57 @@
 
 {% include "includes/fast_stats_modal.html" %}
 
+<div class="modal-backdrop" id="js-anomalies-modal" hidden>
+  <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="anomalies-title">
+    <div class="modal-head">
+      <div>
+        <h2 id="anomalies-title">Anomalies call center</h2>
+        <p>Faux noms, faux numeros et incoherences de beneficiaire detectes dans les listes d'appels.</p>
+      </div>
+      <div class="modal-actions">
+        <a class="btn btn-ghost btn-sm" href="{% url 'satisfaction_dashboard_export_anomalies_csv' %}">Exporter CSV</a>
+        <button type="button" class="btn btn-ghost btn-sm" id="js-close-anomalies">Fermer</button>
+      </div>
+    </div>
+    <div class="table-scroll" style="max-height:62vh;">
+      <table class="anomaly-table">
+        <thead>
+          <tr>
+            <th>Call center</th>
+            <th>Anomalie</th>
+            <th>Reference</th>
+            <th>Nom</th>
+            <th>Telephone</th>
+            <th>Fausse info</th>
+            <th>Correction</th>
+            <th>Detail</th>
+            <th>Lien</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in anomaly_rows %}
+          <tr>
+            <td>{{ row.call_center }}</td>
+            <td><span class="source-pill source-pill-danger">{{ row.type }}</span></td>
+            <td>{{ row.reference }}</td>
+            <td>{{ row.nom }}</td>
+            <td>{{ row.telephone }}</td>
+            <td>{{ row.info_fausse }}</td>
+            <td>{{ row.correction }}</td>
+            <td class="anomaly-detail">{{ row.detail }}</td>
+            <td>{% if row.url %}<a class="anomaly-link" href="{{ row.url }}">Ouvrir</a>{% else %}-{% endif %}</td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="9" style="text-align:center;color:var(--muted);">Aucune anomalie detectee.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
 <script>
 (function() {
   const menu = document.getElementById('js-actions-menu');
@@ -135,6 +199,29 @@
 
   document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') setOpenState(false);
+  });
+})();
+</script>
+
+<script>
+(function() {
+  const modal = document.getElementById('js-anomalies-modal');
+  const openBtn = document.getElementById('js-open-anomalies');
+  const closeBtn = document.getElementById('js-close-anomalies');
+  if (!modal || !openBtn || !closeBtn) return;
+
+  function setOpen(isOpen) {
+    modal.hidden = !isOpen;
+    document.body.style.overflow = isOpen ? 'hidden' : '';
+  }
+
+  openBtn.addEventListener('click', () => setOpen(true));
+  closeBtn.addEventListener('click', () => setOpen(false));
+  modal.addEventListener('click', (event) => {
+    if (event.target === modal) setOpen(false);
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && !modal.hidden) setOpen(false);
   });
 })();
 </script>

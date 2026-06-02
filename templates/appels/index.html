@@ -162,6 +162,7 @@
   .flag-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; border-top: 1px solid var(--border); padding-top: 10px; }
   .btn-danger { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
   .btn-danger:hover { background: #fecaca; }
+  .help-dot { display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px; border-radius:999px; border:1px solid rgba(111,60,195,.3); color:var(--accent-strong); background:rgba(111,60,195,.08); font-size:.74rem; font-weight:900; cursor:help; margin-left:6px; vertical-align:middle; }
   .ops-summary { display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:10px; margin-bottom:14px; }
   .ops-tile { border:1px solid var(--border); border-radius:14px; background:linear-gradient(180deg, rgba(111,60,195,0.08), rgba(255,255,255,0.96)); padding:14px; }
   .ops-tile strong { display:block; font-size:1.15rem; color:var(--accent-strong); margin-top:6px; }
@@ -241,7 +242,7 @@
 {% if user.is_superuser %}
   <p class="subtitle" style="color:var(--muted);">Importer un fichier xlsx/xlsm (Feuil1) pour charger les contacts (Noms et Prénoms, Bénéficiaires, Prestataires, Lieux, Classes, Téléphones).</p>
   <div class="panel import-panel">
-    <div class="import-title">Importer des contacts</div>
+    <div class="import-title">Importer des contacts <span class="help-dot" title="Ajouter conserve les contacts deja affiches et ignore les doublons; remplacer recharge la liste active. Les lignes sans telephone sont ignorees.">?</span></div>
     <form method="post" enctype="multipart/form-data" class="form-inline" style="gap:12px; flex-wrap:wrap;">
       {% csrf_token %}
       <input type="hidden" name="update_mode" value="append">
@@ -326,7 +327,7 @@
   </div>
 {% endif %}
 
-<div class="panel panel-info">
+  <div class="panel panel-info">
   <form method="get" class="form-inline" style="gap:8px; margin-bottom:10px; flex-wrap:wrap;">
     <input type="hidden" name="phase_scope" value="{{ filters.phase_scope }}">
     <input type="text" name="q" class="input search-bar" placeholder="Recherche nom..." value="{{ filters.q }}">
@@ -387,13 +388,13 @@
         <option value="{{ p }}" {% if filters.modified_by == p %}selected{% endif %}>{{ p }}</option>
       {% endfor %}
     </select>
-    <button type="submit" class="btn btn-primary btn-sm" style="padding:10px 14px;">Filtrer</button>
+    <button type="submit" class="btn btn-primary btn-sm" style="padding:10px 14px;">Filtrer <span class="help-dot" title="Les filtres reduisent le tableau affiche et les exports du tableau filtre.">?</span></button>
     <a class="btn btn-ghost btn-sm" style="padding:10px 14px;" href="/appels/">Réinitialiser</a>
   </form>
 
   <div class="selection-bar">
     <p class="subtitle" style="color:var(--muted); margin:0;">
-      Apprenants affichés : <strong>{{ appels_count }}</strong>
+      Apprenants affichés : <strong>{{ appels_count }}</strong> <span class="help-dot" title="Nombre d'apprenants visibles apres filtres et exclusions operationnelles.">?</span>
     </p>
     <div style="display:flex; gap:8px; flex-wrap:wrap;">
       <a class="btn btn-ghost btn-sm" href="{% url 'appels_export_filtered_csv' %}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}">Exporter le tableau filtré (CSV)</a>
@@ -490,7 +491,7 @@
           <th class="checkbox-cell">
             <input type="checkbox" id="js-select-all" aria-label="Sélectionner tous les audios">
           </th>
-          <th>Nom</th><th>Apprenant ID</th><th>Prestataire</th><th>Bénéficiaire</th><th>Lieu</th><th>Classe</th><th>Fenêtre</th><th>Type formation déclarée</th><th>Formation Padesce</th><th>Tél</th><th>Taux présence</th><th>Statut</th><th>Action</th><th>Audio</th>
+          <th>Nom</th><th>Apprenant ID</th><th>Prestataire</th><th>Bénéficiaire</th><th>Lieu</th><th>Classe <span class="help-dot" title="Cliquez sur le code classe pour ouvrir la page d'analyse de cette classe.">?</span></th><th>Fenêtre</th><th>Type formation déclarée</th><th>Formation Padesce</th><th>Tél <span class="help-dot" title="Les lignes sans numero exploitable ne doivent pas etre importees dans les listes d'appel.">?</span></th><th>Taux présence</th><th>Statut</th><th>Action</th><th>Audio</th>
         </tr>
       </thead>
       <tbody>

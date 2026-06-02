@@ -145,6 +145,7 @@
   .survey-open { width:100%; min-height:88px; border:1px solid var(--border); border-radius:10px; padding:8px 10px; background:#fff; }
   .survey-side { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
   @media (max-width: 720px) { .survey-side { grid-template-columns:1fr; } }
+  .help-dot { display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px; border-radius:999px; border:1px solid rgba(111,60,195,.3); color:var(--accent-strong); background:rgba(111,60,195,.08); font-size:.74rem; font-weight:900; cursor:help; margin-left:6px; vertical-align:middle; }
   .scope-switch { display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:12px; }
   .scope-tabs { display:inline-flex; align-items:center; gap:6px; padding:6px; border-radius:999px; border:1px solid var(--border); background:rgba(111,60,195,0.05); }
   .scope-tab { display:inline-flex; align-items:center; justify-content:center; min-width:120px; padding:9px 18px; border-radius:999px; font-size:0.85rem; font-weight:700; color:var(--muted); text-decoration:none; transition:background .15s, color .15s, box-shadow .15s; }
@@ -175,7 +176,7 @@
 {% if user.is_superuser %}
   <p class="subtitle" style="margin-bottom:8px;">Importer un ou plusieurs fichiers Excel avec la feuille <strong>Calendrier</strong>. Chaque numero de <strong>CONTACT DU FORMATEUR</strong> est nettoye, dedoublonne et insere comme une ligne d'appel distincte.</p>
   <div class="panel import-panel">
-    <div class="import-title">Importer des contacts</div>
+    <div class="import-title">Importer des contacts <span class="help-dot" title="Ajouter conserve les formateurs deja affiches et ignore les doublons; remplacer recharge la liste active. Les lignes sans telephone peuvent etre supprimees depuis les actions.">?</span></div>
     <form method="post" enctype="multipart/form-data" class="form-inline" style="margin-bottom:10px;">
       {% csrf_token %}
       <input type="hidden" name="update_mode" value="append">
@@ -232,10 +233,10 @@
 
 <div class="panel">
   <div class="stats-grid">
-    <div class="stat">Total filtré<strong>{{ stats.total|default:0 }}</strong></div>
-    <div class="stat">Appels finalisés<strong>{{ stats.completion_label|default:"0 / 0" }}</strong></div>
-    <div class="stat">A rappeler<strong>{{ stats.rappels|default:0 }}</strong></div>
-    <div class="stat">Audios disponibles<strong>{{ stats.audios|default:0 }}</strong></div>
+    <div class="stat">Total filtré <span class="help-dot" title="Nombre de lignes visibles apres filtres.">?</span><strong>{{ stats.total|default:0 }}</strong></div>
+    <div class="stat">Appels finalisés <span class="help-dot" title="Appels ayant atteint un statut final ou un formulaire exploitable.">?</span><strong>{{ stats.completion_label|default:"0 / 0" }}</strong></div>
+    <div class="stat">A rappeler <span class="help-dot" title="Appels planifies pour un rappel.">?</span><strong>{{ stats.rappels|default:0 }}</strong></div>
+    <div class="stat">Audios disponibles <span class="help-dot" title="Enregistrements audio presents et telechargeables.">?</span><strong>{{ stats.audios|default:0 }}</strong></div>
     <div class="stat {% if stats.threshold_reached %}ok{% endif %}">
       Seuil {{ stats.threshold_target }} appels
       <strong>{% if stats.threshold_reached %}Atteint{% else %}{{ stats.completion_rate|default:0 }}%{% endif %}</strong>
@@ -350,13 +351,13 @@
           <th>Nom formateur</th>
           <th>Prestataire</th>
           <th>Beneficiaire</th>
-          <th>Formation</th>
+          <th>Formation <span class="help-dot" title="Formation issue de la feuille Calendrier du formateur.">?</span></th>
           <th>Lieu</th>
           <th>Telephone</th>
           <th>Cohorte</th>
           <th>Date</th>
           <th>Heure</th>
-          <th>Statut</th>
+          <th>Statut <span class="help-dot" title="Etat operationnel de l'appel: attente, en cours, pause, rappel ou finalise.">?</span></th>
           <th>Action</th>
           <th>Audio</th>
         </tr>

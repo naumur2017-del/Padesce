@@ -149,9 +149,10 @@
   }
   .source-tab.active { background: var(--accent); color: #fff; }
   .source-tab .count { font-size: 0.82rem; opacity: .8; }
+  .help-dot { display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px; border-radius:999px; border:1px solid rgba(111,60,195,.3); color:var(--accent-strong); background:rgba(111,60,195,.08); font-size:.74rem; font-weight:900; cursor:help; margin-left:6px; vertical-align:middle; }
 </style>
 
-<h1 class="h4 mb-2">CGA</h1>
+<h1 class="h4 mb-2">CGA <span class="help-dot" title="Call center CGA avec sources Entreprise et Cabinet, filtres, resultats et exports.">?</span></h1>
 <nav class="source-tabs" aria-label="Source des appels CGA">
   {% for tab in source_tabs %}
     <a class="source-tab {% if tab.active %}active{% endif %}" href="{{ tab.url }}">
@@ -163,7 +164,7 @@
 {% if user.is_superuser %}
   <p class="subtitle" style="color:var(--muted);">{{ import_hint }}</p>
   <div class="panel import-panel">
-    <div class="import-title">Importation CGA - {{ active_source_label }}</div>
+    <div class="import-title">Importation CGA - {{ active_source_label }} <span class="help-dot" title="Ajouter combine avec la source active; remplacer recharge seulement cette source. Les doublons sont rapproches par NIU/code.">?</span></div>
     <form method="post" enctype="multipart/form-data" class="form-inline" style="gap:12px; flex-wrap:wrap;">
       {% csrf_token %}
       <input type="hidden" name="source" value="{{ active_source }}">
@@ -207,15 +208,15 @@
 <div class="panel">
   <div class="stats-grid">
     <div class="stat">
-      Total filtre<strong>{{ stats.total|default:0 }}</strong>
+      Total filtre <span class="help-dot" title="Nombre de lignes CGA visibles apres filtres.">?</span><strong>{{ stats.total|default:0 }}</strong>
       <small>Base courante après filtres</small>
     </div>
     <div class="stat">
-      Appels terminés<strong>{{ stats.completion_label|default:"0 / 0" }}</strong>
+      Appels terminés <span class="help-dot" title="Progression des appels finalises sur la cible CGA.">?</span><strong>{{ stats.completion_label|default:"0 / 0" }}</strong>
       <small>{{ stats.completion_rate|default:0 }}% terminés</small>
     </div>
     <div class="stat">
-      Restants<strong>{{ stats.remaining|default:0 }}</strong>
+      Restants <span class="help-dot" title="Lignes encore a traiter dans le call center CGA.">?</span><strong>{{ stats.remaining|default:0 }}</strong>
       <small>Appels encore à finaliser</small>
     </div>
     <div class="stat {% if stats.threshold_reached %}ok{% else %}warn{% endif %}">
@@ -309,7 +310,7 @@
           <th>N</th>
           <th>Raison sociale</th>
           <th>{% if active_source == "cabinet" %}Inscription{% else %}Sigle{% endif %}</th>
-          <th>{% if active_source == "cabinet" %}Code ONECCA{% else %}NIU{% endif %}</th>
+          <th>{% if active_source == "cabinet" %}Code ONECCA{% else %}NIU{% endif %} <span class="help-dot" title="Identifiant utilise pour rapprocher et eviter les doublons CGA.">?</span></th>
           <th>{% if active_source == "cabinet" %}Email{% else %}Activite principale{% endif %}</th>
           <th>{% if active_source == "cabinet" %}Section{% else %}Regime{% endif %}</th>
           <th>{% if active_source == "cabinet" %}Inscription date{% else %}CRI{% endif %}</th>
@@ -319,7 +320,7 @@
           <th>Statut</th>
           <th>Action</th>
           <th>Audio</th>
-          <th>Résultat</th>
+          <th>Résultat <span class="help-dot" title="Cochez Interesse, Pas interesse, Mauvais numero ou Indisponible pendant l'appel.">?</span></th>
         </tr>
       </thead>
       <tbody>

@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Dashboard NAUMUR CALL APP{% endblock %}
+{% block title %}Call Center NAUMUR{% endblock %}
 {% block content %}
 <style>
   .dashboard-header {
@@ -70,7 +70,10 @@
     border: 1px solid var(--border);
     border-radius: 10px;
     background: #faf7ff;
+    color: inherit;
+    text-decoration: none;
   }
+  a.metric-row:hover { border-color: var(--accent); box-shadow: 0 8px 18px rgba(76,29,149,0.10); }
   .metric-row span {
     color: var(--muted);
     font-weight: 700;
@@ -195,10 +198,13 @@
   .progress-label { font-weight:700; color: var(--text); }
   .progress-track { height:10px; border-radius:999px; overflow:hidden; background: rgba(15,139,141,0.12); border:1px solid rgba(15,139,141,0.2); }
   .progress-bar { height:100%; width:0%; background: linear-gradient(90deg, #18b0ac, #f6c453); transition: width .2s ease; }
+  .card-actions { display:grid; grid-template-columns:1fr; gap:10px; margin-top:12px; }
+  .card-actions-split { grid-template-columns:repeat(2, minmax(0, 1fr)); }
+  @media (max-width: 720px) { .card-actions-split { grid-template-columns:1fr; } }
 </style>
 
 <section class="dashboard-header">
-  <h1 class="dashboard-title">Dashboard NAUMUR CALL APP</h1>
+  <h1 class="dashboard-title">Call Center NAUMUR</h1>
 </section>
 
 <section class="cards-grid">
@@ -210,14 +216,17 @@
       <span>appels tentes</span>
     </div>
     <div class="metric-list">
-      <div class="metric-row"><span>Apprenants</span><strong>{{ padesce_effectues }} / {{ padesce_total }}</strong></div>
-      <div class="metric-row"><span>Formateurs</span><strong>{{ formateurs_effectues }} / {{ formateurs_total }}</strong></div>
-      <div class="metric-row"><span>Appels Pas Forme</span><strong>{{ pas_forme_effectues }} / {{ pas_forme_total }}</strong></div>
-      <div class="metric-row"><span>Prestataires Demarrage</span><strong>{{ demarrage_effectues }} / {{ demarrage_total }}</strong></div>
+      <a class="metric-row" href="{% url 'appels_index' %}"><span>Apprenants</span><strong>{{ padesce_effectues }} / {{ padesce_total }}</strong></a>
+      <a class="metric-row" href="{% url 'formateurs_index' %}"><span>Formateurs</span><strong>{{ formateurs_effectues }} / {{ formateurs_total }}</strong></a>
+      <a class="metric-row" href="{% url 'pas_forme_index' %}"><span>Appels Pas Forme</span><strong>{{ pas_forme_effectues }} / {{ pas_forme_total }}</strong></a>
+      <a class="metric-row" href="{% url 'prestataire_demarrage_index' %}"><span>Prestataires Demarrage</span><strong>{{ demarrage_effectues }} / {{ demarrage_total }}</strong></a>
     </div>
-    <div style="display:flex; gap:10px; margin-top:10px;">
-      <a class="btn" href="{% url 'appels_index' %}">Ouvrir les appels PADESCE</a>
+    <div class="card-actions">
       <a class="btn" href="{% url 'satisfaction_dashboard' %}">Ouvrir Analyse PADESCE</a>
+    </div>
+    <div class="card-actions card-actions-split">
+      <a class="btn" href="{% url 'appels_index' %}">Appels apprenants</a>
+      <a class="btn" href="{% url 'formateurs_index' %}">Appels formateurs</a>
     </div>
   </article>
   <article class="card">

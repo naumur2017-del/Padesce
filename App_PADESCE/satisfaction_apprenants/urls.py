@@ -65,6 +65,13 @@ urlpatterns = [
         name="satisfaction_dashboard_export_csv",
     ),
     path(
+        "analyse/export/anomalies/csv/",
+        lazy_view(
+            "App_PADESCE.satisfaction_apprenants.views.satisfaction_dashboard_export_anomalies_csv"
+        ),
+        name="satisfaction_dashboard_export_anomalies_csv",
+    ),
+    path(
         "analyse/export/classes-zip/",
         lazy_view(
             (
