@@ -226,7 +226,7 @@ def pas_forme_index(request):
             seen_references.add(reference)
             row = AppelPasForme.objects.filter(reference_code=reference).first()
             if row:
-                if mode != "replace":
+                if mode != "replace" and row.is_active:
                     skipped_duplicates += 1
                     continue
                 for key, value in item.items():
