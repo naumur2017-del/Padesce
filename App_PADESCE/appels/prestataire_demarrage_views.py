@@ -177,7 +177,18 @@ def _build_stats(queryset):
 
 
 def _filtered_queryset(request):
-    qs = AppelPrestataireDemarrage.objects.filter(is_active=True).select_related("prestataire")
+    active_state = "active"
+    if request.user.is_superuser:
+        requested_state = str(request.GET.get("active_state") or "active").strip()
+        if requested_state in {"active", "inactive", "all"}:
+            active_state = requested_state
+    qs = AppelPrestataireDemarrage.objects.select_related("prestataire")
+    if active_state == "inactive":
+        qs = qs.filter(is_active=False)
+    elif active_state == "all":
+        pass
+    else:
+        qs = qs.filter(is_active=True)
     status = request.GET.get("status", "")
     linked = request.GET.get("linked", "")
     agent = request.GET.get("agent", "")
@@ -206,6 +217,7 @@ def _filtered_queryset(request):
         "linked": linked,
         "agent": agent,
         "q": q,
+        "active_state": active_state,
     }
     return qs, filters
 
@@ -362,6 +374,29 @@ def prestataire_demarrage_bulk_deactivate(request):
         updated_at=timezone.now(),
     )
     messages.success(request, f"{updated} ligne(s) prestataire demarrage desactivee(s).")
+    return _safe_redirect_after_bulk(request)
+
+
+@login_required
+@require_POST
+def prestataire_demarrage_bulk_reactivate(request):
+    if not request.user.is_superuser:
+        messages.error(request, "Seul un superadmin peut reactiver des lignes.")
+        return _safe_redirect_after_bulk(request)
+
+    selected_ids = [value for value in request.POST.getlist("selected_ids") if str(value).isdigit()]
+    if not selected_ids:
+        messages.warning(request, "Selectionnez au moins une ligne a reactiver.")
+        return _safe_redirect_after_bulk(request)
+
+    updated = AppelPrestataireDemarrage.objects.filter(
+        pk__in=selected_ids,
+        is_active=False,
+    ).update(
+        is_active=True,
+        updated_at=timezone.now(),
+    )
+    messages.success(request, f"{updated} ligne(s) prestataire demarrage reactivee(s).")
     return _safe_redirect_after_bulk(request)
 
 

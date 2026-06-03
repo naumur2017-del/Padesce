@@ -1506,6 +1506,20 @@ class PrestataireDemarrageBulkDeactivateTests(TestCase):
         self.assertFalse(self.row_a.is_active)
         self.assertTrue(self.row_b.is_active)
 
+    def test_superadmin_can_reactivate_selected_rows(self):
+        self.row_a.is_active = False
+        self.row_a.save(update_fields=["is_active", "updated_at"])
+        self.client.force_login(self.superadmin)
+
+        response = self.client.post(
+            reverse("prestataire_demarrage_bulk_reactivate"),
+            {"selected_ids": [str(self.row_a.pk)]},
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.row_a.refresh_from_db()
+        self.assertTrue(self.row_a.is_active)
+
     def test_operator_cannot_deactivate_selected_rows(self):
         self.client.force_login(self.operator)
 
@@ -1518,6 +1532,20 @@ class PrestataireDemarrageBulkDeactivateTests(TestCase):
         self.row_a.refresh_from_db()
         self.assertTrue(self.row_a.is_active)
 
+    def test_operator_cannot_reactivate_selected_rows(self):
+        self.row_a.is_active = False
+        self.row_a.save(update_fields=["is_active", "updated_at"])
+        self.client.force_login(self.operator)
+
+        response = self.client.post(
+            reverse("prestataire_demarrage_bulk_reactivate"),
+            {"selected_ids": [str(self.row_a.pk)]},
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.row_a.refresh_from_db()
+        self.assertFalse(self.row_a.is_active)
+
     @override_settings(
         STORAGES={
             "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
@@ -1529,11 +1557,36 @@ class PrestataireDemarrageBulkDeactivateTests(TestCase):
         self.row_a.save(update_fields=["is_active", "updated_at"])
         self.client.force_login(self.operator)
 
-        response = self.client.get(reverse("prestataire_demarrage_index"))
+        response = self.client.get(
+            reverse("prestataire_demarrage_index"),
+            {"active_state": "inactive"},
+        )
 
         self.assertEqual(response.status_code, 200)
         self.assertNotContains(response, "Prestataire A")
         self.assertContains(response, "Prestataire B")
+
+    @override_settings(
+        STORAGES={
+            "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+            "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
+        }
+    )
+    def test_superadmin_can_view_deactivated_rows(self):
+        self.row_a.is_active = False
+        self.row_a.save(update_fields=["is_active", "updated_at"])
+        self.client.force_login(self.superadmin)
+
+        response = self.client.get(
+            reverse("prestataire_demarrage_index"),
+            {"active_state": "inactive"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Prestataire A")
+        self.assertContains(response, "Desactivee")
+        self.assertContains(response, "Reactiver la selection")
+        self.assertNotContains(response, "Prestataire B")
 
     def test_inactive_row_rejects_direct_call_actions(self):
         self.row_a.is_active = False

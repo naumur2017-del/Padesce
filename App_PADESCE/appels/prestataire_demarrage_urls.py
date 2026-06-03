@@ -25,6 +25,14 @@ urlpatterns = [
         name="prestataire_demarrage_bulk_deactivate",
     ),
     path(
+        "bulk/reactivate/",
+        lazy_view(
+            "App_PADESCE.appels.prestataire_demarrage_views."
+            "prestataire_demarrage_bulk_reactivate"
+        ),
+        name="prestataire_demarrage_bulk_reactivate",
+    ),
+    path(
         "<int:pk>/action/",
         lazy_view("App_PADESCE.appels.prestataire_demarrage_views.prestataire_demarrage_action"),
         name="prestataire_demarrage_action",

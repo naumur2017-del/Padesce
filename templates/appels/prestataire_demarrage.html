@@ -42,6 +42,7 @@
   .badge { display:inline-flex; border-radius:999px; padding:4px 8px; font-weight:800; font-size:.76rem; background:rgba(111,60,195,.1); color:var(--accent-strong); }
   .link-badge { display:inline-flex; border-radius:999px; padding:4px 8px; font-size:.75rem; font-weight:800; background:rgba(34,197,94,.1); color:#15803d; }
   .link-badge.missing { background:rgba(234,179,8,.16); color:#92400e; }
+  .inactive-badge { display:inline-flex; border-radius:999px; padding:4px 8px; font-size:.75rem; font-weight:900; background:#fee2e2; color:#991b1b; margin-top:6px; }
   .actions { display:flex; gap:6px; flex-wrap:wrap; }
   .bulk-toolbar { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:12px; padding:10px 12px; border:1px solid rgba(153,27,27,.16); border-radius:12px; background:#fff7f7; }
   .bulk-copy { color:#7f1d1d; font-size:.9rem; }
@@ -131,6 +132,13 @@
         <option value="1" {% if filters.linked == "1" %}selected{% endif %}>Lies</option>
         <option value="0" {% if filters.linked == "0" %}selected{% endif %}>Non lies</option>
       </select>
+      {% if user.is_superuser %}
+        <select name="active_state" class="input">
+          <option value="active" {% if filters.active_state == "active" %}selected{% endif %}>Lignes actives</option>
+          <option value="inactive" {% if filters.active_state == "inactive" %}selected{% endif %}>Lignes desactivees</option>
+          <option value="all" {% if filters.active_state == "all" %}selected{% endif %}>Toutes les lignes</option>
+        </select>
+      {% endif %}
       <button type="submit" class="btn btn-primary btn-sm">Filtrer</button>
       <a class="btn btn-ghost btn-sm" href="{% url 'prestataire_demarrage_index' %}">Reset</a>
       <a class="btn btn-secondary btn-sm" href="{% url 'prestataire_demarrage_export_filtered_csv' %}{% if request.GET.urlencode %}?{{ request.GET.urlencode }}{% endif %}">Exporter CSV</a>
@@ -139,15 +147,19 @@
 
   <div class="panel table-wrap">
     {% if user.is_superuser %}
-      <form id="bulk-deactivate-form" method="post" action="{% url 'prestataire_demarrage_bulk_deactivate' %}" class="bulk-toolbar">
+      <form id="bulk-action-form" method="post" action="{% if filters.active_state == 'inactive' %}{% url 'prestataire_demarrage_bulk_reactivate' %}{% else %}{% url 'prestataire_demarrage_bulk_deactivate' %}{% endif %}" class="bulk-toolbar" data-action-label="{% if filters.active_state == 'inactive' %}reactiver{% else %}desactiver{% endif %}">
         {% csrf_token %}
         <input type="hidden" name="next" value="{{ request.get_full_path }}">
         <span class="bulk-copy">
           <strong id="selected-count">0</strong> ligne(s) selectionnee(s)
-          <span class="help-dot" title="Les lignes desactivees restent dans la base mais ne sont plus visibles par les operatrices.">?</span>
+          <span class="help-dot" title="Les lignes desactivees restent dans la base mais ne sont plus visibles par les operatrices. Le filtre Lignes desactivees permet de les reactiver.">?</span>
         </span>
         <span id="bulk-selected-inputs"></span>
-        <button type="submit" class="btn btn-danger btn-sm" id="bulk-deactivate-btn" disabled>Desactiver la selection</button>
+        {% if filters.active_state == "inactive" %}
+          <button type="submit" class="btn btn-primary btn-sm" id="bulk-action-btn" disabled>Reactiver la selection</button>
+        {% else %}
+          <button type="submit" class="btn btn-danger btn-sm" id="bulk-action-btn" disabled>Desactiver la selection</button>
+        {% endif %}
       </form>
     {% endif %}
     <table>
@@ -162,7 +174,7 @@
           <tr data-id="{{ row.id }}" data-name="{{ row.nom_prestataire|escapejs }}" data-code="{{ row.prestataire_code|default:'' }}" data-phone="{{ row.telephone|default:'-' }}" data-status="{{ row.status }}" data-debutee="{{ row.prestation_debutee }}" data-date-debut="{{ row.date_debut_prestation|date:'Y-m-d' }}" data-motif="{{ row.motif_non_demarrage }}" data-commentaire="{{ row.commentaire|escapejs }}" data-faux-numero="{{ row.faux_numero }}" data-bon-numero="{{ row.bon_numero|default:'' }}">
             {% if user.is_superuser %}<td class="select-cell"><input type="checkbox" class="row-select" value="{{ row.id }}" aria-label="Selectionner {{ row.nom_prestataire }}"></td>{% endif %}
             <td><strong>{{ row.prestataire_code|default:"-" }}</strong></td>
-            <td>{{ row.nom_prestataire }}</td>
+            <td>{{ row.nom_prestataire }}{% if not row.is_active %}<br><span class="inactive-badge">Desactivee</span>{% endif %}</td>
             <td>{{ row.nom_simplifie|default:"-" }}</td>
             <td>{{ row.telephone|default:"-" }}</td>
             <td>
@@ -187,11 +199,15 @@
               {% if row.audio_file_url %}<a href="{{ row.audio_file_url }}" class="btn-small ghost" download>Audio</a>{% else %}<span class="subtitle">-</span>{% endif %}
             </td>
             <td>
-              <div class="actions">
-                <button class="btn-small primary js-action" data-action="start">Demarrer</button>
-                <button class="btn-small ghost js-action" data-action="pause">Pause</button>
-                <button class="btn-small ghost js-open-form">Formulaire</button>
-              </div>
+              {% if row.is_active %}
+                <div class="actions">
+                  <button class="btn-small primary js-action" data-action="start">Demarrer</button>
+                  <button class="btn-small ghost js-action" data-action="pause">Pause</button>
+                  <button class="btn-small ghost js-open-form">Formulaire</button>
+                </div>
+              {% else %}
+                <span class="subtitle">Ligne desactivee</span>
+              {% endif %}
             </td>
           </tr>
         {% empty %}
@@ -299,10 +315,10 @@
     });
 
     const selectAll = document.getElementById("select-all-rows");
-    const bulkForm = document.getElementById("bulk-deactivate-form");
+    const bulkForm = document.getElementById("bulk-action-form");
     const selectedCount = document.getElementById("selected-count");
     const bulkInputs = document.getElementById("bulk-selected-inputs");
-    const bulkButton = document.getElementById("bulk-deactivate-btn");
+    const bulkButton = document.getElementById("bulk-action-btn");
 
     function selectedRows() {
       return Array.from(document.querySelectorAll(".row-select:checked"));
@@ -333,7 +349,11 @@
     if (bulkForm) {
       bulkForm.addEventListener("submit", event => {
         const count = selectedRows().length;
-        if (!count || !confirm(`Desactiver ${count} ligne(s) selectionnee(s) ? Les operatrices ne les verront plus.`)) {
+        const actionLabel = bulkForm.dataset.actionLabel || "traiter";
+        const detail = actionLabel === "reactiver"
+          ? "Elles redeviendront visibles pour les operatrices."
+          : "Les operatrices ne les verront plus.";
+        if (!count || !confirm(`${actionLabel.charAt(0).toUpperCase() + actionLabel.slice(1)} ${count} ligne(s) selectionnee(s) ? ${detail}`)) {
           event.preventDefault();
         }
       });
