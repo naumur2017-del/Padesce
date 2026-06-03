@@ -385,6 +385,12 @@ class UserActivityMiddleware:
     def __call__(self, request: HttpRequest):
         if not _activity_tracking_enabled():
             return self.get_response(request)
+        path = strip_path_prefix(
+            str(getattr(request, "path_info", "") or getattr(request, "path", "") or "")
+        )
+        if path.startswith("/admin/"):
+            return self.get_response(request)
+
         user = getattr(request, "user", None)
         if user and user.is_authenticated:
             try:

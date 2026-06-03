@@ -115,6 +115,9 @@ def navbar(request):
     path = strip_path_prefix(
         str(getattr(request, "path_info", "") or getattr(request, "path", "") or "")
     )
+    if path.startswith("/admin/"):
+        return {}
+
     user = getattr(request, "user", None)
     is_authenticated = bool(user and getattr(user, "is_authenticated", False))
     consultant_only = _is_consultant_only(user)

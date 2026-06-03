@@ -3,6 +3,8 @@ from django.contrib.auth.models import Group
 from django.test import TestCase
 from django.urls import reverse
 
+from App_PADESCE.core.models import UserActivity
+
 
 class AdminPanelUserManagementTests(TestCase):
     def setUp(self):
@@ -42,6 +44,7 @@ class AdminPanelUserManagementTests(TestCase):
         self.assertEqual(response.status_code, 302)
         created = User.objects.get(username="admin-created-user")
         self.assertTrue(created.check_password("NewUserStrongPass123!"))
+        self.assertIsNone(created.last_login)
 
         response = self.client.post(
             reverse("admin:auth_user_password_change", args=[created.pk]),
@@ -60,3 +63,5 @@ class AdminPanelUserManagementTests(TestCase):
         )
         self.assertEqual(response.status_code, 302)
         self.assertTrue(Group.objects.filter(name="module-admin-test").exists())
+
+        self.assertFalse(UserActivity.objects.filter(user=self.admin_user).exists())

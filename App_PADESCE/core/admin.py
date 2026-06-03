@@ -1,7 +1,6 @@
 from django.contrib import admin
 from django.contrib.auth.admin import GroupAdmin, UserAdmin
 from django.contrib.auth.models import Group, User
-from django.utils import timezone
 
 from App_PADESCE.core.models import AuditLog, UserActivity, UserActivityEvent, UserLoginLog
 
@@ -22,11 +21,6 @@ class SafeUserAdmin(UserAdmin):
     list_display = ("username", "email", "first_name", "last_name", "is_staff", "is_active")
     list_filter = ("is_staff", "is_superuser", "is_active", "groups")
     search_fields = ("username", "first_name", "last_name", "email")
-
-    def save_model(self, request, obj, form, change):
-        if obj.last_login is None:
-            obj.last_login = timezone.now()
-        super().save_model(request, obj, form, change)
 
 
 @admin.register(Group)
