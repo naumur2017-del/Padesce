@@ -1532,6 +1532,23 @@ class PrestataireDemarrageBulkDeactivateTests(TestCase):
         self.assertEqual(row.nom_simplifie, "Prestataire Manuel")
         self.assertEqual(row.match_method, "manuel")
 
+    @override_settings(
+        STORAGES={
+            "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+            "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
+        }
+    )
+    def test_manual_prestataire_dropdown_uses_platform_prestataires(self):
+        self.client.force_login(self.superadmin)
+
+        response = self.client.get(reverse("prestataire_demarrage_index"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Referentiel plateforme")
+        self.assertContains(response, "Prestataire Manuel")
+        self.assertContains(response, 'data-code="PREST-MAN"')
+        self.assertContains(response, "690000777")
+
     def test_manual_prestataire_demarrage_add_reactivates_existing_row(self):
         row = AppelPrestataireDemarrage.objects.create(
             reference_code="PREST-MAN-690000777",

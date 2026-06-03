@@ -52,8 +52,22 @@
   .modal-backdrop { position:fixed; inset:0; background:rgba(24,16,40,.45); display:flex; align-items:center; justify-content:center; padding:20px; z-index:2000; }
   .modal-backdrop[hidden], .conditional[hidden] { display:none; }
   .modal-panel { background:#fff; width:min(700px,100%); max-height:92vh; overflow:auto; border-radius:18px; padding:18px; border:1px solid var(--border); box-shadow:0 24px 70px rgba(20,12,38,.28); }
-  .manual-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .manual-modal { width:min(780px,100%); padding:0; overflow:hidden; }
+  .manual-head { padding:18px 20px; border-bottom:1px solid var(--border); background:linear-gradient(180deg,#fbf8ff 0%,#fff 100%); }
+  .manual-kicker { display:inline-flex; align-items:center; padding:4px 8px; border-radius:999px; background:rgba(124,58,237,.09); color:var(--accent-strong); font-size:.72rem; font-weight:900; text-transform:uppercase; letter-spacing:.04em; }
+  .manual-title { margin:8px 0 4px; font-size:1.25rem; color:var(--text); }
+  .manual-copy { margin:0; color:var(--muted); font-size:.9rem; }
+  .manual-body { padding:18px 20px; }
+  .manual-grid { display:grid; grid-template-columns:1.3fr .7fr; gap:12px; }
   .manual-field { display:grid; gap:6px; font-weight:800; color:var(--accent-strong); }
+  .manual-field.full { grid-column:1 / -1; }
+  .manual-search { position:relative; }
+  .manual-search input { width:100%; padding-left:34px; }
+  .manual-search::before { content:""; position:absolute; left:12px; top:50%; width:10px; height:10px; border:2px solid var(--muted); border-radius:999px; transform:translateY(-55%); opacity:.72; }
+  .manual-search::after { content:""; position:absolute; left:23px; top:24px; width:7px; height:2px; background:var(--muted); border-radius:999px; transform:rotate(45deg); opacity:.72; }
+  .manual-preview { grid-column:1 / -1; border:1px solid rgba(111,60,195,.18); border-radius:12px; padding:12px; background:rgba(124,58,237,.04); display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; }
+  .manual-preview span { display:block; color:var(--muted); font-size:.72rem; font-weight:800; text-transform:uppercase; }
+  .manual-preview strong { display:block; color:var(--text); margin-top:3px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .modal-detail { display:flex; gap:8px; margin:5px 0; color:var(--muted); flex-wrap:wrap; }
   .question { display:grid; grid-template-columns:1fr minmax(220px, auto); gap:12px; align-items:center; padding:10px 0; border-bottom:1px solid rgba(109,77,168,.12); }
   .choice { display:inline-flex; gap:10px; white-space:nowrap; flex-wrap:wrap; }
@@ -61,7 +75,7 @@
   .modal-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:14px; flex-wrap:wrap; }
   .help-dot { display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px; border-radius:999px; border:1px solid rgba(111,60,195,.3); color:var(--accent-strong); background:rgba(111,60,195,.08); font-size:.74rem; font-weight:900; cursor:help; margin-left:6px; vertical-align:middle; }
   @media (max-width:900px) { .stats, .import-options { grid-template-columns:repeat(2,minmax(0,1fr)); } .question { grid-template-columns:1fr; } }
-  @media (max-width:640px) { .stats, .import-options, .manual-grid { grid-template-columns:1fr; } }
+  @media (max-width:640px) { .stats, .import-options, .manual-grid, .manual-preview { grid-template-columns:1fr; } .manual-field.full, .manual-preview { grid-column:auto; } }
 </style>
 
 <main class="shell">
@@ -248,36 +262,51 @@
 
 {% if user.is_superuser %}
   <div id="js-manual-add-modal" class="modal-backdrop" hidden>
-    <div class="modal-panel">
-      <h2 style="margin-top:0;">Ajouter un prestataire sur demarrage</h2>
+    <div class="modal-panel manual-modal">
       <form method="post" action="{% url 'prestataire_demarrage_manual_add' %}">
         {% csrf_token %}
-        <div class="manual-grid">
-          <label class="manual-field">
-            <span>Prestataire</span>
-            <select id="manual-prestataire" name="prestataire_id" class="input" required>
-              <option value="">Selectionner un prestataire</option>
-              {% for prestataire in prestataire_options %}
-                <option value="{{ prestataire.pk }}" data-code="{{ prestataire.code }}" data-name="{{ prestataire.raison_sociale }}" data-short="{{ prestataire.raison_sociale|truncatechars:120 }}" data-phone="{{ prestataire.telephone }}">{{ prestataire.code }} - {{ prestataire.raison_sociale }}</option>
-              {% endfor %}
-            </select>
-          </label>
-          <label class="manual-field">
-            <span>Code</span>
-            <input id="manual-code" class="input" type="text" readonly placeholder="Auto">
-          </label>
-          <label class="manual-field">
-            <span>Nom simplifie</span>
-            <input id="manual-short-name" class="input" type="text" readonly placeholder="Auto">
-          </label>
-          <label class="manual-field">
-            <span>Numero de telephone</span>
-            <input id="manual-phone" name="telephone" class="input" type="tel" required placeholder="Ex: 690000000">
-          </label>
+        <div class="manual-head">
+          <span class="manual-kicker">Referentiel plateforme</span>
+          <h2 class="manual-title">Ajouter un prestataire sur demarrage</h2>
+          <p class="manual-copy">La liste ci-dessous vient de tous les prestataires actifs enregistres dans la plateforme, pas seulement des lignes visibles dans ce call center.</p>
         </div>
-        <div class="modal-actions">
-          <button type="button" class="btn btn-ghost btn-sm" id="js-close-manual-add">Annuler</button>
-          <button type="submit" class="btn btn-primary btn-sm">Ajouter la ligne</button>
+        <div class="manual-body">
+          <div class="manual-grid">
+            <label class="manual-field full">
+              <span>Rechercher dans les prestataires plateforme</span>
+              <span class="manual-search"><input id="manual-prestataire-search" class="input" type="search" placeholder="Code, nom ou telephone..."></span>
+            </label>
+            <label class="manual-field full">
+              <span>Prestataire</span>
+              <select id="manual-prestataire" name="prestataire_id" class="input" required>
+                <option value="">Selectionner un prestataire ({{ prestataire_options|length }} disponibles)</option>
+                {% for prestataire in prestataire_options %}
+                  <option value="{{ prestataire.pk }}" data-code="{{ prestataire.code }}" data-name="{{ prestataire.raison_sociale }}" data-short="{{ prestataire.raison_sociale|truncatechars:120 }}" data-phone="{{ prestataire.telephone }}" data-search="{{ prestataire.code|lower }} {{ prestataire.raison_sociale|lower }} {{ prestataire.telephone }}">{{ prestataire.code }} - {{ prestataire.raison_sociale }}</option>
+                {% endfor %}
+              </select>
+            </label>
+            <div class="manual-preview" aria-live="polite">
+              <div><span>Code</span><strong id="manual-preview-code">-</strong></div>
+              <div><span>Nom simplifie</span><strong id="manual-preview-short">-</strong></div>
+              <div><span>Telephone referentiel</span><strong id="manual-preview-phone">-</strong></div>
+            </div>
+            <label class="manual-field">
+              <span>Code</span>
+              <input id="manual-code" class="input" type="text" readonly placeholder="Auto">
+            </label>
+            <label class="manual-field">
+              <span>Nom simplifie</span>
+              <input id="manual-short-name" class="input" type="text" readonly placeholder="Auto">
+            </label>
+            <label class="manual-field full">
+              <span>Numero de telephone a appeler</span>
+              <input id="manual-phone" name="telephone" class="input" type="tel" required placeholder="Ex: 690000000">
+            </label>
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn btn-ghost btn-sm" id="js-close-manual-add">Annuler</button>
+            <button type="submit" class="btn btn-primary btn-sm">Ajouter la ligne</button>
+          </div>
         </div>
       </form>
     </div>
@@ -336,9 +365,13 @@
     const openManualAdd = document.getElementById("js-open-manual-add");
     const closeManualAdd = document.getElementById("js-close-manual-add");
     const manualPrestataire = document.getElementById("manual-prestataire");
+    const manualPrestataireSearch = document.getElementById("manual-prestataire-search");
     const manualCode = document.getElementById("manual-code");
     const manualShortName = document.getElementById("manual-short-name");
     const manualPhone = document.getElementById("manual-phone");
+    const manualPreviewCode = document.getElementById("manual-preview-code");
+    const manualPreviewShort = document.getElementById("manual-preview-short");
+    const manualPreviewPhone = document.getElementById("manual-preview-phone");
     const modal = document.getElementById("js-form-modal");
     const modalName = document.getElementById("js-modal-name");
     const modalPhone = document.getElementById("js-modal-phone");
@@ -365,14 +398,38 @@
       });
     });
 
-    if (openManualAdd && manualModal) openManualAdd.addEventListener("click", () => { manualModal.hidden = false; });
+    if (openManualAdd && manualModal) openManualAdd.addEventListener("click", () => {
+      manualModal.hidden = false;
+      manualPrestataireSearch?.focus();
+    });
     if (closeManualAdd && manualModal) closeManualAdd.addEventListener("click", () => { manualModal.hidden = true; });
-    if (manualPrestataire) {
-      manualPrestataire.addEventListener("change", () => {
-        const option = manualPrestataire.selectedOptions[0];
-        manualCode.value = option?.dataset.code || "";
-        manualShortName.value = option?.dataset.short || option?.dataset.name || "";
-        if (!manualPhone.value) manualPhone.value = option?.dataset.phone || "";
+
+    function syncManualPrestataire() {
+      if (!manualPrestataire) return;
+      const option = manualPrestataire.selectedOptions[0];
+      const code = option?.dataset.code || "";
+      const shortName = option?.dataset.short || option?.dataset.name || "";
+      const phone = option?.dataset.phone || "";
+      if (manualCode) manualCode.value = code;
+      if (manualShortName) manualShortName.value = shortName;
+      if (manualPreviewCode) manualPreviewCode.textContent = code || "-";
+      if (manualPreviewShort) manualPreviewShort.textContent = shortName || "-";
+      if (manualPreviewPhone) manualPreviewPhone.textContent = phone || "-";
+      if (manualPhone && !manualPhone.value) manualPhone.value = phone;
+    }
+
+    if (manualPrestataire) manualPrestataire.addEventListener("change", syncManualPrestataire);
+    if (manualPrestataireSearch && manualPrestataire) {
+      manualPrestataireSearch.addEventListener("input", () => {
+        const query = manualPrestataireSearch.value.trim().toLowerCase();
+        Array.from(manualPrestataire.options).forEach((option, index) => {
+          if (index === 0) return;
+          option.hidden = Boolean(query) && !(option.dataset.search || "").includes(query);
+        });
+        if (manualPrestataire.selectedOptions[0]?.hidden) {
+          manualPrestataire.value = "";
+          syncManualPrestataire();
+        }
       });
     }
 

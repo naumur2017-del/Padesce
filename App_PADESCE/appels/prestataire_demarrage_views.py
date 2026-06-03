@@ -296,9 +296,9 @@ def prestataire_demarrage_index(request):
             "stats": stats,
             "appels_count": qs.count(),
             "motif_choices": AppelPrestataireDemarrage.MOTIF_CHOICES,
-            "prestataire_options": Prestataire.objects.filter(actif=True).order_by(
-                "raison_sociale"
-            ),
+            "prestataire_options": Prestataire.objects.filter(actif=True)
+            .only("id", "code", "raison_sociale", "telephone")
+            .order_by("raison_sociale"),
         },
     )
 
