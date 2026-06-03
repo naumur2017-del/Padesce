@@ -120,6 +120,7 @@ class Migration(migrations.Migration):
 
     dependencies = [
         ("apprenants", "0009_data_presence_controls"),
+        ("appels", "0010_appelformateur"),
         ("formations", "0009_phase_and_phase_fk"),
     ]
 
