@@ -43,9 +43,9 @@ from App_PADESCE.reporting.app_report import (
     get_report_email_recipients,
     normalize_report_call_scope,
     parse_report_dates,
-    send_daily_digest_email,
     send_report_by_email,
 )
+from App_PADESCE.reporting import daily_digest_jobs
 from App_PADESCE.reporting.forms import ConsolidationUploadForm
 from App_PADESCE.reporting.manuals import (
     get_reporting_manual_path,
@@ -2016,6 +2016,31 @@ def application_report_send_mail_view(request):
 @csrf_exempt
 @require_POST
 def reporting_daily_digest_trigger_view(request):
+    token_error = _validate_reporting_trigger_token(request)
+    if token_error:
+        return token_error
+
+    start_date, end_date = parse_report_dates(request.POST.get("start"), request.POST.get("end"))
+    job_id = daily_digest_jobs.start_daily_digest(
+        start_date,
+        end_date,
+        backup_job_id=request.POST.get("job_id", ""),
+        backup_error=request.POST.get("backup_error", ""),
+        recipients=request.POST.get("recipients") or None,
+    )
+    return JsonResponse(
+        {
+            "job_id": job_id,
+            "status": "pending",
+            "message": "Digest quotidien demarre.",
+            "start_date": start_date.isoformat(),
+            "end_date": end_date.isoformat(),
+        },
+        status=202,
+    )
+
+
+def _validate_reporting_trigger_token(request):
     expected_token = str(
         getattr(settings, "REPORT_TRIGGER_TOKEN", "")
         or getattr(settings, "BACKUP_TRIGGER_TOKEN", "")
@@ -2032,17 +2057,18 @@ def reporting_daily_digest_trigger_view(request):
     provided_token = str(provided_token or "").strip()
     if not provided_token or provided_token != expected_token:
         return JsonResponse({"error": "Token invalide ou manquant."}, status=403)
+    return None
 
-    start_date, end_date = parse_report_dates(request.POST.get("start"), request.POST.get("end"))
-    result = send_daily_digest_email(
-        start_date,
-        end_date,
-        backup_job_id=request.POST.get("job_id", ""),
-        backup_error=request.POST.get("backup_error", ""),
-        recipients=request.POST.get("recipients") or None,
-    )
-    status_code = 200 if result.get("ok") else 500
-    return JsonResponse(result, status=status_code)
+
+def reporting_daily_digest_status_view(request, job_id):
+    token_error = _validate_reporting_trigger_token(request)
+    if token_error:
+        return token_error
+
+    job = daily_digest_jobs.get_job(job_id)
+    if not job:
+        return JsonResponse({"error": "Job introuvable."}, status=404)
+    return JsonResponse(job)
 
 
 @require_analysis_access

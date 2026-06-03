@@ -9,7 +9,7 @@ from django.test import Client, SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
-from App_PADESCE.reporting import app_report
+from App_PADESCE.reporting import app_report, daily_digest_jobs
 
 
 class DailyDigestEmailTests(TestCase):
@@ -101,18 +101,19 @@ class DailyDigestTriggerViewTests(SimpleTestCase):
     @override_settings(REPORT_TRIGGER_TOKEN="report-secret")
     def test_daily_digest_trigger_accepts_anonymous_requests(self) -> None:
         with patch(
-            "App_PADESCE.reporting.views.send_daily_digest_email",
-            return_value={"ok": True, "detail": "Digest envoye"},
-        ) as mock_send:
+            "App_PADESCE.reporting.views.daily_digest_jobs.start_daily_digest",
+            return_value="digest-job-1",
+        ) as mock_start:
             response = self.client.post(
                 reverse("reporting_daily_digest_trigger"),
                 {"recipients": "daily@example.com"},
                 HTTP_X_REPORT_TOKEN="report-secret",
             )
 
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json()["ok"], True)
-        mock_send.assert_called_once()
+        self.assertEqual(response.status_code, 202)
+        self.assertEqual(response.json()["job_id"], "digest-job-1")
+        self.assertEqual(response.json()["status"], "pending")
+        mock_start.assert_called_once()
 
     @override_settings(REPORT_TRIGGER_TOKEN="report-secret")
     def test_daily_digest_trigger_rejects_invalid_token(self) -> None:
@@ -126,8 +127,8 @@ class DailyDigestTriggerViewTests(SimpleTestCase):
         client = Client(enforce_csrf_checks=True)
 
         with patch(
-            "App_PADESCE.reporting.views.send_daily_digest_email",
-            return_value={"ok": True, "detail": "Digest envoye"},
+            "App_PADESCE.reporting.views.daily_digest_jobs.start_daily_digest",
+            return_value="digest-job-2",
         ):
             response = client.post(
                 reverse("reporting_daily_digest_trigger"),
@@ -136,5 +137,33 @@ class DailyDigestTriggerViewTests(SimpleTestCase):
                 HTTP_ACCEPT="application/json",
             )
 
+        self.assertEqual(response.status_code, 202)
+        self.assertEqual(response.json()["job_id"], "digest-job-2")
+
+    @override_settings(REPORT_TRIGGER_TOKEN="report-secret")
+    def test_daily_digest_status_returns_job(self) -> None:
+        daily_digest_jobs._jobs["digest-job-3"] = {
+            "id": "digest-job-3",
+            "status": "success",
+            "message": "Digest envoye.",
+        }
+        try:
+            response = self.client.get(
+                reverse("reporting_daily_digest_status", args=["digest-job-3"]),
+                HTTP_X_REPORT_TOKEN="report-secret",
+            )
+        finally:
+            daily_digest_jobs._jobs.pop("digest-job-3", None)
+
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json()["ok"], True)
+        self.assertEqual(response.json()["status"], "success")
+
+    @override_settings(REPORT_TRIGGER_TOKEN="report-secret")
+    def test_daily_digest_status_rejects_missing_job(self) -> None:
+        response = self.client.get(
+            reverse("reporting_daily_digest_status", args=["missing"]),
+            HTTP_X_REPORT_TOKEN="report-secret",
+        )
+
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.json()["error"], "Job introuvable.")

@@ -60,6 +60,14 @@ urlpatterns = [
         name="reporting_daily_digest_trigger",
     ),
     path(
+        "api/daily-digest/status/<str:job_id>/",
+        lazy_view(
+            "App_PADESCE.reporting.views.reporting_daily_digest_status_view",
+            csrf_exempt=True,
+        ),
+        name="reporting_daily_digest_status",
+    ),
+    path(
         "excel-reseau/",
         lazy_view("App_PADESCE.reporting.network_excel.network_excel_view"),
         name="reporting_network_excel",

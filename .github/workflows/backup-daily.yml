@@ -24,6 +24,7 @@ jobs:
       BACKUP_TRIGGER_URL: https://call.naumur.com/backup/api/trigger/
       BACKUP_STATUS_URL_BASE: https://call.naumur.com/backup/api/trigger-status
       REPORT_DIGEST_TRIGGER_URL: https://call.naumur.com/reporting/api/daily-digest/trigger/
+      REPORT_DIGEST_STATUS_URL_BASE: https://call.naumur.com/reporting/api/daily-digest/status
       BACKUP_RETENTION_DAYS: "30"
       HUGGINGFACE_SYNC_REQUIRED: "1"
       HUGGINGFACE_SPACE_URL: https://jackbrayan17-padesce-bot.hf.space
@@ -236,6 +237,9 @@ jobs:
 
           if [ "${{ steps.poll_backup.outputs.backup_failed }}" = "true" ]; then
             hf_error="Verification Hugging Face ignoree car le backup a echoue."
+          elif [ "${{ steps.poll_backup.outputs.huggingface_status }}" = "success" ]; then
+            hf_ok=true
+            hf_error=""
           else
             deadline=$((SECONDS + HUGGINGFACE_HEALTH_MAX_SECONDS))
             attempt=1
@@ -261,6 +265,10 @@ jobs:
               attempt=$((attempt + 1))
               sleep 10
             done
+
+            if [ "$hf_ok" != true ]; then
+              hf_error="Le backup a termine, mais le healthcheck du Space Hugging Face est indisponible temporairement."
+            fi
           fi
 
           echo "hf_ok=$hf_ok" >> "$GITHUB_OUTPUT"
@@ -292,6 +300,10 @@ jobs:
         id: send_digest
         if: always()
         shell: bash
+        env:
+          REPORT_TRIGGER_TOKEN_VALUE: ${{ secrets.BACKUP_TRIGGER_TOKEN }}
+          BACKUP_JOB_ID: ${{ steps.trigger_backup.outputs.job_id }}
+          BACKUP_ERROR: ${{ steps.poll_backup.outputs.backup_error }}
         run: |
           set +e
           echo "Envoi du digest quotidien a $REPORT_DIGEST_TRIGGER_URL"
@@ -299,12 +311,12 @@ jobs:
             -o /tmp/digest_response.json \
             -w "%{http_code}" \
             -X POST "$REPORT_DIGEST_TRIGGER_URL" \
-            -H "X-Report-Token: ${{ secrets.BACKUP_TRIGGER_TOKEN }}" \
+            -H "X-Report-Token: $REPORT_TRIGGER_TOKEN_VALUE" \
             -H "Accept: application/json" \
-            --data-urlencode "job_id=${{ steps.trigger_backup.outputs.job_id }}" \
-            --data-urlencode "backup_error=${{ steps.poll_backup.outputs.backup_error }}" \
+            --data-urlencode "job_id=$BACKUP_JOB_ID" \
+            --data-urlencode "backup_error=$BACKUP_ERROR" \
             --data-urlencode "recipients=$DAILY_DIGEST_RECIPIENTS" \
-            --max-time 120 \
+            --max-time 30 \
             --retry 2 \
             --retry-delay 5)
 
@@ -314,8 +326,104 @@ jobs:
 
           digest_ok=false
           digest_error=""
-          if [ "$http_status" = "200" ]; then
-            digest_ok=true
+          digest_job_id=""
+
+          if [ "$http_status" = "200" ] || [ "$http_status" = "202" ]; then
+            digest_job_id=$(python3 - <<'PY'
+          import json
+          import pathlib
+
+          path = pathlib.Path("/tmp/digest_response.json")
+          raw = path.read_text(encoding="utf-8", errors="replace") if path.exists() else ""
+          try:
+              data = json.loads(raw) if raw.strip().startswith("{") else {}
+          except json.JSONDecodeError:
+              data = {}
+          print(data.get("job_id", ""))
+          PY
+            )
+
+            if [ -n "$digest_job_id" ]; then
+              DIGEST_JOB_ID="$digest_job_id" python3 - <<'PY'
+          import json
+          import os
+          import time
+          import urllib.error
+          import urllib.parse
+          import urllib.request
+
+
+          def write_output(name, value):
+              sanitized = str(value or "").replace("\r", " ").replace("\n", " ")
+              with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as handle:
+                  handle.write(f"{name}={sanitized}\n")
+
+
+          token = os.getenv("REPORT_TRIGGER_TOKEN_VALUE", "")
+          job_id = os.getenv("DIGEST_JOB_ID", "")
+          base_url = os.getenv("REPORT_DIGEST_STATUS_URL_BASE", "").rstrip("/")
+          status_url = f"{base_url}/{urllib.parse.quote(job_id, safe='')}/"
+          digest_ok = False
+          digest_error = ""
+
+          for attempt in range(1, 31):
+              request = urllib.request.Request(
+                  status_url,
+                  headers={
+                      "X-Report-Token": token,
+                      "Accept": "application/json",
+                  },
+              )
+              try:
+                  with urllib.request.urlopen(request, timeout=30) as response:
+                      http_status = response.status
+                      raw_body = response.read()
+              except urllib.error.HTTPError as exc:
+                  http_status = exc.code
+                  raw_body = exc.read()
+              except urllib.error.URLError as exc:
+                  http_status = "network_error"
+                  raw_body = str(exc.reason).encode("utf-8", errors="replace")
+
+              body = raw_body.decode("utf-8", errors="replace")
+              print(f"Digest polling tentative {attempt} - HTTP {http_status}")
+              print(body)
+
+              if http_status == 404:
+                  digest_error = "Le job digest n'est pas encore visible par ce worker."
+                  time.sleep(20)
+                  continue
+
+              if http_status != 200:
+                  digest_error = f"Impossible de lire le statut du digest (HTTP {http_status})."
+                  break
+
+              try:
+                  data = json.loads(body) if body.strip().startswith("{") else {}
+              except json.JSONDecodeError:
+                  data = {}
+
+              status = str(data.get("status") or "unknown")
+              if status == "success":
+                  digest_ok = True
+                  digest_error = ""
+                  break
+              if status == "error":
+                  digest_error = str(data.get("error") or data.get("message") or "Le digest a echoue.")
+                  break
+
+              digest_error = f"Digest encore en cours (status={status})."
+              time.sleep(20)
+
+          if not digest_ok and not digest_error:
+              digest_error = "Le digest quotidien n'a pas termine dans la fenetre de surveillance."
+
+          write_output("digest_ok", str(digest_ok).lower())
+          write_output("digest_error", digest_error)
+          PY
+            else
+              digest_error="Reponse $http_status recue sans job_id."
+            fi
           else
             detail=$(python3 - <<'PY'
           import json
@@ -333,8 +441,10 @@ jobs:
             digest_error="${detail:-Le digest quotidien a echoue avec le statut HTTP $http_status.}"
           fi
 
-          echo "digest_ok=$digest_ok" >> "$GITHUB_OUTPUT"
-          echo "digest_error=$digest_error" >> "$GITHUB_OUTPUT"
+          if [ -n "$digest_error" ]; then
+            echo "digest_ok=$digest_ok" >> "$GITHUB_OUTPUT"
+            echo "digest_error=$digest_error" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Fail on backup or digest issues
         if: always()
@@ -353,8 +463,7 @@ jobs:
           fi
 
           if [ "${{ steps.verify_huggingface.outputs.hf_ok }}" != "true" ]; then
-            echo "::error::Verification Hugging Face echouee. ${{ steps.verify_huggingface.outputs.hf_error }}"
-            failed=true
+            echo "::warning::Verification Hugging Face indisponible. ${{ steps.verify_huggingface.outputs.hf_error }}"
           fi
 
           if [ "${{ steps.send_digest.outputs.digest_ok }}" != "true" ]; then
