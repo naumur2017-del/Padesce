@@ -24,7 +24,7 @@ from App_PADESCE.appels.models import (
 from App_PADESCE.appels.pagination import build_pagination_tokens
 from App_PADESCE.appels.views import _bind_audio_state, _cleanup_stale_locks, _safe_audio_url
 from App_PADESCE.core.phase_scope import PHASE_SCOPE_V1_COMBINED, normalize_phase_scope
-from App_PADESCE.formations.models import Beneficiaire, Prestataire
+from App_PADESCE.formations.models import Beneficiaire, Prestataire, Prestation
 
 
 def _normalize_header(value):
@@ -274,6 +274,9 @@ def pas_forme_index(request):
             "prestataire_options": Prestataire.objects.filter(actif=True).order_by(
                 "raison_sociale"
             ),
+            "prestation_options": Prestation.objects.filter(actif=True)
+            .select_related("prestataire", "beneficiaire")
+            .order_by("code"),
         },
     )
 
@@ -333,6 +336,53 @@ def pas_forme_export_filtered_csv(request):
             ]
         )
     return response
+
+
+@login_required
+@require_POST
+@transaction.atomic
+def pas_forme_manual_add(request):
+    if not request.user.is_superuser:
+        messages.error(request, "Seul un superadmin peut ajouter une ligne manuellement.")
+        return redirect("pas_forme_index")
+
+    nom = _as_text(request.POST.get("nom"))
+    telephone = _normalize_phone(request.POST.get("telephone"))
+    prestation_id = str(request.POST.get("prestation_id") or "").strip()
+    if not nom or not telephone or not prestation_id:
+        messages.error(request, "Renseignez le nom, le telephone et la prestation.")
+        return redirect("pas_forme_index")
+
+    prestation = (
+        Prestation.objects.filter(pk=prestation_id, actif=True)
+        .select_related("prestataire", "beneficiaire")
+        .first()
+    )
+    if not prestation:
+        messages.error(request, "Prestation introuvable ou inactive.")
+        return redirect("pas_forme_index")
+
+    item = {
+        "numero": None,
+        "nom": nom,
+        "telephone": telephone,
+        "est_forme": "",
+        "prestation_id": prestation.code,
+        "prestataire": prestation.prestataire.raison_sociale if prestation.prestataire else "",
+        "beneficiaire": prestation.beneficiaire.nom_structure if prestation.beneficiaire else "",
+    }
+    item["reference_code"] = _reference_for_item(item)
+    row = AppelPasForme.objects.filter(reference_code=item["reference_code"]).first()
+    if row:
+        for key, value in item.items():
+            setattr(row, key, value)
+        row.is_active = True
+        row.save()
+        messages.success(request, "Ligne existante mise a jour et reactivee.")
+    else:
+        AppelPasForme.objects.create(**item, is_active=True)
+        messages.success(request, "Ligne ajoutee dans Appels Pas Forme.")
+    return redirect("pas_forme_index")
 
 
 @login_required

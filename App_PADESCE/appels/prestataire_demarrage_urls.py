@@ -17,6 +17,14 @@ urlpatterns = [
         name="prestataire_demarrage_export_filtered_csv",
     ),
     path(
+        "manual/add/",
+        lazy_view(
+            "App_PADESCE.appels.prestataire_demarrage_views."
+            "prestataire_demarrage_manual_add"
+        ),
+        name="prestataire_demarrage_manual_add",
+    ),
+    path(
         "bulk/deactivate/",
         lazy_view(
             "App_PADESCE.appels.prestataire_demarrage_views."

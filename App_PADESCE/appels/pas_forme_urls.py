@@ -14,6 +14,11 @@ urlpatterns = [
         name="pas_forme_export_filtered_csv",
     ),
     path(
+        "manual/add/",
+        lazy_view("App_PADESCE.appels.pas_forme_views.pas_forme_manual_add"),
+        name="pas_forme_manual_add",
+    ),
+    path(
         "<int:pk>/action/",
         lazy_view("App_PADESCE.appels.pas_forme_views.pas_forme_action"),
         name="pas_forme_action",

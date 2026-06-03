@@ -23,6 +23,7 @@
   .input { border:1px solid var(--border); border-radius:10px; padding:9px 10px; background:#fff; color:var(--text); min-height:38px; }
   .form-inline { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
   .import-title { font-weight:800; margin-bottom:8px; }
+  .panel-heading { display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:10px; }
   .import-panel { display:grid; gap:12px; }
   .import-options { display:grid; grid-template-columns:repeat(2, minmax(260px, 1fr)); gap:12px; }
   .import-box { border:1px solid var(--border); border-radius:12px; padding:12px; background:rgba(124,58,237,.035); }
@@ -51,6 +52,8 @@
   .modal-backdrop { position:fixed; inset:0; background:rgba(24,16,40,.45); display:flex; align-items:center; justify-content:center; padding:20px; z-index:2000; }
   .modal-backdrop[hidden], .conditional[hidden] { display:none; }
   .modal-panel { background:#fff; width:min(700px,100%); max-height:92vh; overflow:auto; border-radius:18px; padding:18px; border:1px solid var(--border); box-shadow:0 24px 70px rgba(20,12,38,.28); }
+  .manual-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .manual-field { display:grid; gap:6px; font-weight:800; color:var(--accent-strong); }
   .modal-detail { display:flex; gap:8px; margin:5px 0; color:var(--muted); flex-wrap:wrap; }
   .question { display:grid; grid-template-columns:1fr minmax(220px, auto); gap:12px; align-items:center; padding:10px 0; border-bottom:1px solid rgba(109,77,168,.12); }
   .choice { display:inline-flex; gap:10px; white-space:nowrap; flex-wrap:wrap; }
@@ -58,7 +61,7 @@
   .modal-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:14px; flex-wrap:wrap; }
   .help-dot { display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px; border-radius:999px; border:1px solid rgba(111,60,195,.3); color:var(--accent-strong); background:rgba(111,60,195,.08); font-size:.74rem; font-weight:900; cursor:help; margin-left:6px; vertical-align:middle; }
   @media (max-width:900px) { .stats, .import-options { grid-template-columns:repeat(2,minmax(0,1fr)); } .question { grid-template-columns:1fr; } }
-  @media (max-width:640px) { .stats, .import-options { grid-template-columns:1fr; } }
+  @media (max-width:640px) { .stats, .import-options, .manual-grid { grid-template-columns:1fr; } }
 </style>
 
 <main class="shell">
@@ -74,7 +77,10 @@
 
   {% if user.is_superuser %}
     <div class="panel import-panel">
-      <div class="import-title">Importer la liste des prestataires sur demarrage <span class="help-dot" title="Ajouter conserve les prestataires deja affiches et ignore les doublons; remplacer recharge la liste active. Les lignes sans telephone sont ignorees.">?</span></div>
+      <div class="panel-heading">
+        <div class="import-title">Importer la liste des prestataires sur demarrage <span class="help-dot" title="Ajouter conserve les prestataires deja affiches et ignore les doublons; remplacer recharge la liste active. Les lignes sans telephone sont ignorees.">?</span></div>
+        <button type="button" class="btn btn-primary btn-sm" id="js-open-manual-add">Ajouter une ligne</button>
+      </div>
       <div class="import-options">
         <form method="post" enctype="multipart/form-data" class="import-box">
           {% csrf_token %}
@@ -240,6 +246,44 @@
   {% endif %}
 </main>
 
+{% if user.is_superuser %}
+  <div id="js-manual-add-modal" class="modal-backdrop" hidden>
+    <div class="modal-panel">
+      <h2 style="margin-top:0;">Ajouter un prestataire sur demarrage</h2>
+      <form method="post" action="{% url 'prestataire_demarrage_manual_add' %}">
+        {% csrf_token %}
+        <div class="manual-grid">
+          <label class="manual-field">
+            <span>Prestataire</span>
+            <select id="manual-prestataire" name="prestataire_id" class="input" required>
+              <option value="">Selectionner un prestataire</option>
+              {% for prestataire in prestataire_options %}
+                <option value="{{ prestataire.pk }}" data-code="{{ prestataire.code }}" data-name="{{ prestataire.raison_sociale }}" data-short="{{ prestataire.raison_sociale|truncatechars:120 }}" data-phone="{{ prestataire.telephone }}">{{ prestataire.code }} - {{ prestataire.raison_sociale }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label class="manual-field">
+            <span>Code</span>
+            <input id="manual-code" class="input" type="text" readonly placeholder="Auto">
+          </label>
+          <label class="manual-field">
+            <span>Nom simplifie</span>
+            <input id="manual-short-name" class="input" type="text" readonly placeholder="Auto">
+          </label>
+          <label class="manual-field">
+            <span>Numero de telephone</span>
+            <input id="manual-phone" name="telephone" class="input" type="tel" required placeholder="Ex: 690000000">
+          </label>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost btn-sm" id="js-close-manual-add">Annuler</button>
+          <button type="submit" class="btn btn-primary btn-sm">Ajouter la ligne</button>
+        </div>
+      </form>
+    </div>
+  </div>
+{% endif %}
+
 <div id="js-form-modal" class="modal-backdrop" hidden>
   <div class="modal-panel">
     <h2 style="margin-top:0;">Formulaire Appels Prestataires Demarrage</h2>
@@ -288,6 +332,13 @@
 <script>
   (function() {
     const csrfToken = document.cookie.split("; ").find(row => row.startsWith("csrftoken="))?.split("=")[1] || "";
+    const manualModal = document.getElementById("js-manual-add-modal");
+    const openManualAdd = document.getElementById("js-open-manual-add");
+    const closeManualAdd = document.getElementById("js-close-manual-add");
+    const manualPrestataire = document.getElementById("manual-prestataire");
+    const manualCode = document.getElementById("manual-code");
+    const manualShortName = document.getElementById("manual-short-name");
+    const manualPhone = document.getElementById("manual-phone");
     const modal = document.getElementById("js-form-modal");
     const modalName = document.getElementById("js-modal-name");
     const modalPhone = document.getElementById("js-modal-phone");
@@ -313,6 +364,17 @@
         nameEl.textContent = input.files.length ? Array.from(input.files).map(file => file.name).join(", ") : "Aucun fichier selectionne";
       });
     });
+
+    if (openManualAdd && manualModal) openManualAdd.addEventListener("click", () => { manualModal.hidden = false; });
+    if (closeManualAdd && manualModal) closeManualAdd.addEventListener("click", () => { manualModal.hidden = true; });
+    if (manualPrestataire) {
+      manualPrestataire.addEventListener("change", () => {
+        const option = manualPrestataire.selectedOptions[0];
+        manualCode.value = option?.dataset.code || "";
+        manualShortName.value = option?.dataset.short || option?.dataset.name || "";
+        if (!manualPhone.value) manualPhone.value = option?.dataset.phone || "";
+      });
+    }
 
     const selectAll = document.getElementById("select-all-rows");
     const bulkForm = document.getElementById("bulk-action-form");

@@ -65,6 +65,10 @@ def _reference_for_item(item: dict) -> str:
     return f"{code or name_key or 'prestataire'}-{phone}"[:120]
 
 
+def _short_prestataire_name(prestataire: Prestataire) -> str:
+    return (prestataire.raison_sociale or prestataire.code or "").strip()[:120]
+
+
 def _resolve_prestataire(item: dict) -> tuple[Prestataire | None, str]:
     code = _as_text(item.get("prestataire_code"))
     if code:
@@ -292,6 +296,9 @@ def prestataire_demarrage_index(request):
             "stats": stats,
             "appels_count": qs.count(),
             "motif_choices": AppelPrestataireDemarrage.MOTIF_CHOICES,
+            "prestataire_options": Prestataire.objects.filter(actif=True).order_by(
+                "raison_sociale"
+            ),
         },
     )
 
@@ -341,6 +348,48 @@ def prestataire_demarrage_export_filtered_csv(request):
             ]
         )
     return response
+
+
+@login_required
+@require_POST
+@transaction.atomic
+def prestataire_demarrage_manual_add(request):
+    if not request.user.is_superuser:
+        messages.error(request, "Seul un superadmin peut ajouter une ligne manuellement.")
+        return redirect("prestataire_demarrage_index")
+
+    prestataire_id = str(request.POST.get("prestataire_id") or "").strip()
+    telephone = _normalize_phone(request.POST.get("telephone"))
+    if not prestataire_id or not telephone:
+        messages.error(request, "Selectionnez un prestataire et renseignez un numero de telephone.")
+        return redirect("prestataire_demarrage_index")
+
+    prestataire = Prestataire.objects.filter(pk=prestataire_id, actif=True).first()
+    if not prestataire:
+        messages.error(request, "Prestataire introuvable ou inactif.")
+        return redirect("prestataire_demarrage_index")
+
+    item = {
+        "numero": None,
+        "prestataire_code": prestataire.code,
+        "nom_prestataire": prestataire.raison_sociale,
+        "nom_simplifie": _short_prestataire_name(prestataire),
+        "telephone": telephone,
+        "prestataire": prestataire,
+        "match_method": "manuel",
+    }
+    item["reference_code"] = _reference_for_item(item)
+    row = AppelPrestataireDemarrage.objects.filter(reference_code=item["reference_code"]).first()
+    if row:
+        for key, value in item.items():
+            setattr(row, key, value)
+        row.is_active = True
+        row.save()
+        messages.success(request, "Ligne existante mise a jour et reactivee.")
+    else:
+        AppelPrestataireDemarrage.objects.create(**item, is_active=True)
+        messages.success(request, "Ligne ajoutee dans Appels Prestataires Demarrage.")
+    return redirect("prestataire_demarrage_index")
 
 
 def _safe_redirect_after_bulk(request):

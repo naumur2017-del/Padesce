@@ -26,8 +26,10 @@ from App_PADESCE.appels.models import (
     AppelAnswers,
     AppelCGA,
     AppelImportArchive,
+    AppelPasForme,
     AppelPrestataireDemarrage,
 )
+from App_PADESCE.formations.models import Beneficiaire, Formation, Prestataire, Prestation
 from App_PADESCE.satisfaction_apprenants.models import SatisfactionApprenant
 
 
@@ -1491,6 +1493,151 @@ class PrestataireDemarrageBulkDeactivateTests(TestCase):
             nom_prestataire="Prestataire B",
             telephone="690000002",
         )
+        self.prestataire = Prestataire.objects.create(
+            code="PREST-MAN",
+            raison_sociale="Prestataire Manuel",
+            telephone="690000777",
+            actif=True,
+        )
+        self.beneficiaire = Beneficiaire.objects.create(
+            nom_structure="Beneficiaire Manuel",
+            actif=True,
+        )
+        self.formation = Formation.objects.create(
+            code="FOR-MAN",
+            nom="Formation manuelle",
+            actif=True,
+        )
+        self.prestation = Prestation.objects.create(
+            code="PRES-MAN",
+            prestataire=self.prestataire,
+            beneficiaire=self.beneficiaire,
+            formation=self.formation,
+            actif=True,
+        )
+
+    def test_superadmin_can_add_manual_prestataire_demarrage_row(self):
+        self.client.force_login(self.superadmin)
+
+        response = self.client.post(
+            reverse("prestataire_demarrage_manual_add"),
+            {"prestataire_id": str(self.prestataire.pk), "telephone": "237 690 000 777"},
+        )
+
+        self.assertEqual(response.status_code, 302)
+        row = AppelPrestataireDemarrage.objects.get(reference_code="PREST-MAN-690000777")
+        self.assertTrue(row.is_active)
+        self.assertEqual(row.prestataire, self.prestataire)
+        self.assertEqual(row.nom_prestataire, "Prestataire Manuel")
+        self.assertEqual(row.nom_simplifie, "Prestataire Manuel")
+        self.assertEqual(row.match_method, "manuel")
+
+    def test_manual_prestataire_demarrage_add_reactivates_existing_row(self):
+        row = AppelPrestataireDemarrage.objects.create(
+            reference_code="PREST-MAN-690000777",
+            prestataire_code="OLD",
+            nom_prestataire="Ancien",
+            telephone="690000777",
+            is_active=False,
+        )
+        self.client.force_login(self.superadmin)
+
+        response = self.client.post(
+            reverse("prestataire_demarrage_manual_add"),
+            {"prestataire_id": str(self.prestataire.pk), "telephone": "690000777"},
+        )
+
+        self.assertEqual(response.status_code, 302)
+        row.refresh_from_db()
+        self.assertTrue(row.is_active)
+        self.assertEqual(row.prestataire_code, "PREST-MAN")
+        self.assertEqual(AppelPrestataireDemarrage.objects.filter(telephone="690000777").count(), 1)
+
+    def test_operator_cannot_add_manual_prestataire_demarrage_row(self):
+        self.client.force_login(self.operator)
+
+        response = self.client.post(
+            reverse("prestataire_demarrage_manual_add"),
+            {"prestataire_id": str(self.prestataire.pk), "telephone": "690000778"},
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(AppelPrestataireDemarrage.objects.filter(telephone="690000778").exists())
+
+    def test_superadmin_can_add_manual_pas_forme_row(self):
+        self.client.force_login(self.superadmin)
+
+        response = self.client.post(
+            reverse("pas_forme_manual_add"),
+            {
+                "nom": "Apprenant Manuel",
+                "telephone": "690 000 888",
+                "prestation_id": str(self.prestation.pk),
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        row = AppelPasForme.objects.get(reference_code="PRES-MAN-690000888-apprenant-manuel")
+        self.assertTrue(row.is_active)
+        self.assertEqual(row.prestation_id, "PRES-MAN")
+        self.assertEqual(row.prestataire, "Prestataire Manuel")
+        self.assertEqual(row.beneficiaire, "Beneficiaire Manuel")
+
+    @override_settings(
+        STORAGES={
+            "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+            "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
+        }
+    )
+    def test_superadmin_pas_forme_page_shows_manual_add_button(self):
+        self.client.force_login(self.superadmin)
+
+        response = self.client.get(reverse("pas_forme_index"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Ajouter un appel pas forme")
+        self.assertContains(response, "Ajouter une ligne")
+        self.assertContains(response, "PRES-MAN")
+
+    def test_manual_pas_forme_add_reactivates_existing_row(self):
+        row = AppelPasForme.objects.create(
+            reference_code="PRES-MAN-690000888-apprenant-manuel",
+            nom="Ancien",
+            telephone="690000888",
+            prestation_id="OLD",
+            is_active=False,
+        )
+        self.client.force_login(self.superadmin)
+
+        response = self.client.post(
+            reverse("pas_forme_manual_add"),
+            {
+                "nom": "Apprenant Manuel",
+                "telephone": "690000888",
+                "prestation_id": str(self.prestation.pk),
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        row.refresh_from_db()
+        self.assertTrue(row.is_active)
+        self.assertEqual(row.prestation_id, "PRES-MAN")
+        self.assertEqual(AppelPasForme.objects.filter(telephone="690000888").count(), 1)
+
+    def test_operator_cannot_add_manual_pas_forme_row(self):
+        self.client.force_login(self.operator)
+
+        response = self.client.post(
+            reverse("pas_forme_manual_add"),
+            {
+                "nom": "Apprenant Refuse",
+                "telephone": "690000889",
+                "prestation_id": str(self.prestation.pk),
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(AppelPasForme.objects.filter(telephone="690000889").exists())
 
     def test_superadmin_can_deactivate_selected_rows(self):
         self.client.force_login(self.superadmin)
