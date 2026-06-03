@@ -3,6 +3,7 @@ import datetime
 import io
 import re
 import unicodedata
+from urllib.parse import urlparse
 
 import openpyxl
 from django.contrib import messages
@@ -11,7 +12,7 @@ from django.core.paginator import Paginator
 from django.db import transaction
 from django.db.models import Count, Q
 from django.http import HttpResponse, JsonResponse
-from django.shortcuts import get_object_or_404, redirect, render
+from django.shortcuts import redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
@@ -330,11 +331,47 @@ def prestataire_demarrage_export_filtered_csv(request):
     return response
 
 
+def _safe_redirect_after_bulk(request):
+    next_url = str(request.POST.get("next") or "").strip()
+    if next_url:
+        parsed = urlparse(next_url)
+        if not parsed.netloc and next_url.startswith("/"):
+            return redirect(next_url)
+    return redirect("prestataire_demarrage_index")
+
+
+@login_required
+@require_POST
+def prestataire_demarrage_bulk_deactivate(request):
+    if not request.user.is_superuser:
+        messages.error(request, "Seul un superadmin peut desactiver des lignes.")
+        return _safe_redirect_after_bulk(request)
+
+    selected_ids = [value for value in request.POST.getlist("selected_ids") if str(value).isdigit()]
+    if not selected_ids:
+        messages.warning(request, "Selectionnez au moins une ligne a desactiver.")
+        return _safe_redirect_after_bulk(request)
+
+    updated = AppelPrestataireDemarrage.objects.filter(
+        pk__in=selected_ids,
+        is_active=True,
+    ).update(
+        is_active=False,
+        locked_by=None,
+        locked_at=None,
+        updated_at=timezone.now(),
+    )
+    messages.success(request, f"{updated} ligne(s) prestataire demarrage desactivee(s).")
+    return _safe_redirect_after_bulk(request)
+
+
 @login_required
 @require_POST
 def prestataire_demarrage_action(request, pk: int):
     _cleanup_stale_locks()
-    row = get_object_or_404(AppelPrestataireDemarrage, pk=pk)
+    row = AppelPrestataireDemarrage.objects.filter(pk=pk, is_active=True).first()
+    if not row:
+        return JsonResponse({"ok": False, "error": "Ligne inactive ou introuvable."}, status=404)
     action = request.POST.get("action", "")
     now = timezone.now()
     if action in {"start", "resume"}:
@@ -385,7 +422,9 @@ def _parse_date(value):
 @login_required
 @require_POST
 def prestataire_demarrage_finalize(request, pk: int):
-    row = get_object_or_404(AppelPrestataireDemarrage, pk=pk)
+    row = AppelPrestataireDemarrage.objects.filter(pk=pk, is_active=True).first()
+    if not row:
+        return JsonResponse({"ok": False, "error": "Ligne inactive ou introuvable."}, status=404)
     action = request.POST.get("action", "terminer")
     if action == "rappeler":
         row.status = "a_rappeler"

@@ -43,6 +43,10 @@
   .link-badge { display:inline-flex; border-radius:999px; padding:4px 8px; font-size:.75rem; font-weight:800; background:rgba(34,197,94,.1); color:#15803d; }
   .link-badge.missing { background:rgba(234,179,8,.16); color:#92400e; }
   .actions { display:flex; gap:6px; flex-wrap:wrap; }
+  .bulk-toolbar { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:12px; padding:10px 12px; border:1px solid rgba(153,27,27,.16); border-radius:12px; background:#fff7f7; }
+  .bulk-copy { color:#7f1d1d; font-size:.9rem; }
+  .select-cell { width:44px; text-align:center; }
+  .row-select, .select-all { width:18px; height:18px; accent-color:var(--accent); cursor:pointer; }
   .modal-backdrop { position:fixed; inset:0; background:rgba(24,16,40,.45); display:flex; align-items:center; justify-content:center; padding:20px; z-index:2000; }
   .modal-backdrop[hidden], .conditional[hidden] { display:none; }
   .modal-panel { background:#fff; width:min(700px,100%); max-height:92vh; overflow:auto; border-radius:18px; padding:18px; border:1px solid var(--border); box-shadow:0 24px 70px rgba(20,12,38,.28); }
@@ -134,15 +138,29 @@
   </div>
 
   <div class="panel table-wrap">
+    {% if user.is_superuser %}
+      <form id="bulk-deactivate-form" method="post" action="{% url 'prestataire_demarrage_bulk_deactivate' %}" class="bulk-toolbar">
+        {% csrf_token %}
+        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+        <span class="bulk-copy">
+          <strong id="selected-count">0</strong> ligne(s) selectionnee(s)
+          <span class="help-dot" title="Les lignes desactivees restent dans la base mais ne sont plus visibles par les operatrices.">?</span>
+        </span>
+        <span id="bulk-selected-inputs"></span>
+        <button type="submit" class="btn btn-danger btn-sm" id="bulk-deactivate-btn" disabled>Desactiver la selection</button>
+      </form>
+    {% endif %}
     <table>
       <thead>
         <tr>
+          {% if user.is_superuser %}<th class="select-cell"><input type="checkbox" class="select-all" id="select-all-rows" title="Tout selectionner"></th>{% endif %}
           <th>Code</th><th>Prestataire</th><th>Nom simplifie</th><th>Telephone</th><th>Liaison BD <span class="help-dot" title="Indique si la ligne est reliee au prestataire existant dans la base.">?</span></th><th>Statut</th><th>Reponse <span class="help-dot" title="Resume le demarrage de prestation, les motifs de non demarrage et les corrections de numero.">?</span></th><th>Audio</th><th>Actions</th>
         </tr>
       </thead>
       <tbody>
         {% for row in rows %}
           <tr data-id="{{ row.id }}" data-name="{{ row.nom_prestataire|escapejs }}" data-code="{{ row.prestataire_code|default:'' }}" data-phone="{{ row.telephone|default:'-' }}" data-status="{{ row.status }}" data-debutee="{{ row.prestation_debutee }}" data-date-debut="{{ row.date_debut_prestation|date:'Y-m-d' }}" data-motif="{{ row.motif_non_demarrage }}" data-commentaire="{{ row.commentaire|escapejs }}" data-faux-numero="{{ row.faux_numero }}" data-bon-numero="{{ row.bon_numero|default:'' }}">
+            {% if user.is_superuser %}<td class="select-cell"><input type="checkbox" class="row-select" value="{{ row.id }}" aria-label="Selectionner {{ row.nom_prestataire }}"></td>{% endif %}
             <td><strong>{{ row.prestataire_code|default:"-" }}</strong></td>
             <td>{{ row.nom_prestataire }}</td>
             <td>{{ row.nom_simplifie|default:"-" }}</td>
@@ -177,7 +195,7 @@
             </td>
           </tr>
         {% empty %}
-          <tr><td colspan="9" style="text-align:center; color:var(--muted);">Aucune ligne Appels Prestataires Demarrage.</td></tr>
+          <tr><td colspan="{% if user.is_superuser %}10{% else %}9{% endif %}" style="text-align:center; color:var(--muted);">Aucune ligne Appels Prestataires Demarrage.</td></tr>
         {% endfor %}
       </tbody>
     </table>
@@ -279,6 +297,48 @@
         nameEl.textContent = input.files.length ? Array.from(input.files).map(file => file.name).join(", ") : "Aucun fichier selectionne";
       });
     });
+
+    const selectAll = document.getElementById("select-all-rows");
+    const bulkForm = document.getElementById("bulk-deactivate-form");
+    const selectedCount = document.getElementById("selected-count");
+    const bulkInputs = document.getElementById("bulk-selected-inputs");
+    const bulkButton = document.getElementById("bulk-deactivate-btn");
+
+    function selectedRows() {
+      return Array.from(document.querySelectorAll(".row-select:checked"));
+    }
+
+    function syncBulkSelection() {
+      if (!bulkForm) return;
+      const checked = selectedRows();
+      selectedCount.textContent = checked.length;
+      bulkButton.disabled = checked.length === 0;
+      bulkInputs.innerHTML = checked.map(input => `<input type="hidden" name="selected_ids" value="${input.value}">`).join("");
+      const allRows = Array.from(document.querySelectorAll(".row-select"));
+      if (selectAll) {
+        selectAll.checked = allRows.length > 0 && checked.length === allRows.length;
+        selectAll.indeterminate = checked.length > 0 && checked.length < allRows.length;
+      }
+    }
+
+    document.querySelectorAll(".row-select").forEach(input => {
+      input.addEventListener("change", syncBulkSelection);
+    });
+    if (selectAll) {
+      selectAll.addEventListener("change", () => {
+        document.querySelectorAll(".row-select").forEach(input => { input.checked = selectAll.checked; });
+        syncBulkSelection();
+      });
+    }
+    if (bulkForm) {
+      bulkForm.addEventListener("submit", event => {
+        const count = selectedRows().length;
+        if (!count || !confirm(`Desactiver ${count} ligne(s) selectionnee(s) ? Les operatrices ne les verront plus.`)) {
+          event.preventDefault();
+        }
+      });
+      syncBulkSelection();
+    }
 
     function statusLabel(status) {
       return {

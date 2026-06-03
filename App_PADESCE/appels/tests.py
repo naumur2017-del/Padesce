@@ -21,7 +21,13 @@ from App_PADESCE.appels.consolidation_views import (
     _filtered_candidates,
     consolidation_pending_appels,
 )
-from App_PADESCE.appels.models import Appel, AppelAnswers, AppelCGA, AppelImportArchive
+from App_PADESCE.appels.models import (
+    Appel,
+    AppelAnswers,
+    AppelCGA,
+    AppelImportArchive,
+    AppelPrestataireDemarrage,
+)
 from App_PADESCE.satisfaction_apprenants.models import SatisfactionApprenant
 
 
@@ -1461,3 +1467,83 @@ class CgaAudioAndTemplateTests(TestCase):
                 self.assertTrue(second_response.json()["audio_url"])
         finally:
             shutil.rmtree(temp_media_root, ignore_errors=True)
+
+
+class PrestataireDemarrageBulkDeactivateTests(TestCase):
+    def setUp(self):
+        User = get_user_model()
+        self.superadmin = User.objects.create_superuser(
+            username="demarrage-superadmin",
+            email="demarrage-superadmin@example.com",
+            password="test-pass-123",
+        )
+        self.operator = User.objects.create_user(
+            username="demarrage-operatrice",
+            password="test-pass-123",
+        )
+        self.row_a = AppelPrestataireDemarrage.objects.create(
+            reference_code="PREST-A-690000001",
+            nom_prestataire="Prestataire A",
+            telephone="690000001",
+        )
+        self.row_b = AppelPrestataireDemarrage.objects.create(
+            reference_code="PREST-B-690000002",
+            nom_prestataire="Prestataire B",
+            telephone="690000002",
+        )
+
+    def test_superadmin_can_deactivate_selected_rows(self):
+        self.client.force_login(self.superadmin)
+
+        response = self.client.post(
+            reverse("prestataire_demarrage_bulk_deactivate"),
+            {"selected_ids": [str(self.row_a.pk)]},
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.row_a.refresh_from_db()
+        self.row_b.refresh_from_db()
+        self.assertFalse(self.row_a.is_active)
+        self.assertTrue(self.row_b.is_active)
+
+    def test_operator_cannot_deactivate_selected_rows(self):
+        self.client.force_login(self.operator)
+
+        response = self.client.post(
+            reverse("prestataire_demarrage_bulk_deactivate"),
+            {"selected_ids": [str(self.row_a.pk)]},
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.row_a.refresh_from_db()
+        self.assertTrue(self.row_a.is_active)
+
+    @override_settings(
+        STORAGES={
+            "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+            "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
+        }
+    )
+    def test_operator_list_hides_deactivated_rows(self):
+        self.row_a.is_active = False
+        self.row_a.save(update_fields=["is_active", "updated_at"])
+        self.client.force_login(self.operator)
+
+        response = self.client.get(reverse("prestataire_demarrage_index"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "Prestataire A")
+        self.assertContains(response, "Prestataire B")
+
+    def test_inactive_row_rejects_direct_call_actions(self):
+        self.row_a.is_active = False
+        self.row_a.save(update_fields=["is_active", "updated_at"])
+        self.client.force_login(self.operator)
+
+        response = self.client.post(
+            reverse("prestataire_demarrage_action", args=[self.row_a.pk]),
+            {"action": "start"},
+            HTTP_ACCEPT="application/json",
+        )
+
+        self.assertEqual(response.status_code, 404)
