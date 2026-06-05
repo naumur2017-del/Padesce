@@ -224,6 +224,11 @@
     <div class="card-actions">
       <a class="btn" href="{% url 'satisfaction_dashboard' %}">Ouvrir Analyse PADESCE</a>
     </div>
+    {% if user.is_superuser %}
+    <div class="card-actions">
+      <a class="btn" href="{% url 'class_list' %}">Classes, apprenants et liens Teams</a>
+    </div>
+    {% endif %}
     <div class="card-actions card-actions-split">
       <a class="btn" href="{% url 'appels_index' %}">Appels apprenants</a>
       <a class="btn" href="{% url 'formateurs_index' %}">Appels formateurs</a>

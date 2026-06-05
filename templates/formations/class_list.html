@@ -14,6 +14,23 @@
   }
   .hero h1 { margin: 0 0 6px 0; }
   .hero p { margin: 0; color: var(--muted); }
+  .hero-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+  .sync-panel {
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: #fff;
+    padding: 14px;
+    box-shadow: var(--shadow);
+    margin-bottom: 18px;
+  }
+  .sync-form { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .sync-form input[type="file"] {
+    max-width: 360px;
+    padding: 9px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: #fff;
+  }
   .btn {
     display: inline-flex; align-items: center; justify-content: center;
     padding: 10px 14px; border-radius: 12px; font-weight: 700; border: none; cursor: pointer;
@@ -57,15 +74,30 @@
     color: var(--muted); text-align: center;
   }
   .card-link { display: block; color: inherit; text-decoration: none; }
+  .count { font-size: 1.3rem; font-weight: 800; color: var(--accent); }
 </style>
 
 <div class="hero">
   <div>
-    <h1>Classes</h1>
-    <p>Vue synthetique des classes : prestation, lieu, cohorte et statut.</p>
+    <h1>Classes du systeme</h1>
+    <p>Vue synthetique des classes : apprenants, prestation, lieu, presence et canal Teams.</p>
   </div>
-  <a class="btn" href="{% url 'class_create' %}">Creer une classe</a>
+  <div class="hero-actions">
+    <a class="btn btn-ghost" href="{% url 'appels_index' %}">Retour call center</a>
+    <a class="btn" href="{% url 'class_create' %}">Creer une classe</a>
+  </div>
 </div>
+
+{% if user.is_superuser %}
+<div class="sync-panel">
+  <form method="post" enctype="multipart/form-data" class="sync-form">
+    {% csrf_token %}
+    <strong>Synchroniser le fichier consolide</strong>
+    <input type="file" name="file" accept=".xlsx,.xlsm" required>
+    <button class="btn" type="submit">Ajouter / mettre a jour classes et apprenants</button>
+  </form>
+</div>
+{% endif %}
 
 {% if classes %}
 <div class="grid">
@@ -78,6 +110,7 @@
           <div class="meta">{{ classe.formation }}</div>
         </div>
         <div class="badges">
+          <span class="pill"><span class="count">{{ classe.apprenants_count }}</span> apprenant(s)</span>
           <span class="pill">{{ classe.get_statut_display }}</span>
           {% if classe.fenetre %}<span class="pill">Fenetre {{ classe.fenetre }}</span>{% endif %}
         </div>
@@ -89,6 +122,12 @@
     </a>
     <div class="card-actions">
       <a class="link" href="{% url 'class_detail' classe.id %}#presence-controls">Contrôles présence{% if classe.presence_controls_count %} ({{ classe.presence_controls_count }}){% endif %}</a>
+      <a class="link" href="{% url 'class_analysis_detail' classe.code %}">Analyse</a>
+      {% if classe.teams_link %}
+        <a class="link" href="{{ classe.teams_link }}" target="_blank" rel="noopener">Teams</a>
+      {% else %}
+        <span class="link" aria-disabled="true">Teams indisponible</span>
+      {% endif %}
       <form action="{% url 'class_delete' classe.id %}" method="post" onsubmit="return confirm('Supprimer {{ classe.code }} ?');">
         {% csrf_token %}
         <button type="submit" class="link danger">&#128465; Supprimer</button>

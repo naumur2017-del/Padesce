@@ -32,6 +32,7 @@ from App_PADESCE.core.apprenant_lookup import (
 from App_PADESCE.core.presence_bulk_cache import get_bulk_presence_controls
 from App_PADESCE.environnement.models import EnqueteEnvironnement
 from App_PADESCE.formations.forms import ClasseCreateForm
+from App_PADESCE.formations.imports import import_reference_workbook
 from App_PADESCE.formations.models import Classe, Inspecteur, Lieu, Prestation
 from App_PADESCE.presences.control_utils import (
     CONTROL_KEYS,
@@ -478,6 +479,30 @@ def _class_channel_workbook_path() -> Path:
         if candidate.exists():
             return candidate
     return candidates[0]
+
+
+def _class_channel_links_by_code() -> dict[str, str]:
+    links: dict[str, str] = {}
+    try:
+        import openpyxl
+
+        workbook = openpyxl.load_workbook(
+            _class_channel_workbook_path(), read_only=True, data_only=True
+        )
+        sheet = workbook.active
+        for row in sheet.iter_rows(values_only=True):
+            if not row or len(row) < 2:
+                continue
+            link = str(row[0] or "").strip()
+            code = str(row[1] or "").strip().upper()
+            if link.startswith("http") and code:
+                links[code] = link
+    except Exception:
+        logger.exception(
+            "Unable to read class channel workbook: %s",
+            _class_channel_workbook_path(),
+        )
+    return links
 
 
 def _presence_control_apprenant_payload(classe: Classe) -> list[dict]:
@@ -1253,12 +1278,30 @@ def generate_code(model_cls, prefix: str, padding: int = 3) -> str:
 
 
 def class_list(request):
+    if request.method == "POST" and request.FILES.get("file"):
+        if not (request.user.is_authenticated and request.user.is_superuser):
+            messages.error(request, "Import reserve aux administrateurs.")
+            return redirect(reverse("class_list"))
+        try:
+            result = import_reference_workbook(request.FILES["file"])
+        except Exception as exc:
+            messages.error(request, f"Import impossible: {exc}")
+        else:
+            messages.success(request, f"Referentiel synchronise. {result.summary}")
+        return redirect(reverse("class_list"))
+
+    teams_links = _class_channel_links_by_code()
     classes = (
         Classe.objects.select_related("prestation", "formation", "lieu", "formateur")
-        .annotate(presence_controls_count=Count("presence_controls", distinct=True))
+        .annotate(
+            presence_controls_count=Count("presence_controls", distinct=True),
+            apprenants_count=Count("apprenants", distinct=True),
+        )
         .all()
         .order_by("code")
     )
+    for classe in classes:
+        classe.teams_link = teams_links.get(str(classe.code or "").upper(), "")
     return render(request, "formations/class_list.html", {"classes": classes})
 
 
