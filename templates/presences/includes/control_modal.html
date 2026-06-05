@@ -44,6 +44,7 @@
 </style>
 
 {{ presence_control_apprenants|json_script:"presence-control-apprenants" }}
+<script id="presence-code-check-url" type="application/json">"{% url 'presence_apprenant_code_check' classe.id %}"</script>
 <div class="pc-modal" id="presence-modal" hidden>
   <div class="pc-dialog" role="dialog" aria-modal="true" aria-labelledby="presence-modal-title">
     <h3 id="presence-modal-title" style="margin:0;">Contrôle de présence - {{ classe.code }}</h3>
@@ -178,6 +179,7 @@
     const modal = document.getElementById("presence-modal");
     if (!modal) return;
     const learners = JSON.parse(document.getElementById("presence-control-apprenants")?.textContent || "[]");
+    const codeCheckUrl = JSON.parse(document.getElementById("presence-code-check-url")?.textContent || "\"\"");
     const byId = new Map(learners.map((learner) => [String(learner.id), learner]));
     const marks = {};
     let selectedLearnerId = "";
@@ -316,6 +318,10 @@
     }
     function mark(learner, moyen) {
       if (!learner) return;
+      if (!byId.has(String(learner.id))) {
+        learners.push(learner);
+        byId.set(String(learner.id), learner);
+      }
       marks[String(learner.id)] = { moyen, heure: nowTime() };
       syncMarks();
       render();
@@ -377,17 +383,34 @@
       field.addEventListener("change", () => { if (tableSection.open) render(); });
     });
     nameSearch?.addEventListener("input", render);
-    document.getElementById("presence-code-validate")?.addEventListener("click", () => {
+    document.getElementById("presence-code-validate")?.addEventListener("click", async () => {
       if (!validateSession()) return;
       const q = (codeSearch.value || "").trim().toLowerCase();
       if (!q) return;
       const learner = learners.find((item) => String(item.code || "").toLowerCase() === q);
-      if (!learner) {
-        alert("Aucun apprenant ne correspond exactement à ce code apprenant.");
+      if (learner) {
+        mark(learner, "C");
+        codeSearch.value = "";
         return;
       }
-      mark(learner, "C");
-      codeSearch.value = "";
+      try {
+        const res = await fetch(`${codeCheckUrl}?q=${encodeURIComponent(q)}`);
+        const data = await res.json();
+        if (!data.found) {
+          alert("Aucun apprenant ne correspond exactement à ce code apprenant.");
+          return;
+        }
+        if (!data.same_class) {
+          const source = data.source_classe?.code || "-";
+          const name = data.apprenant?.nom_complet || data.apprenant?.nom || "";
+          const ok = confirm(`Ce code appartient à ${name}, classe ${source}. Voulez-vous l'ajouter à ce contrôle et marquer cette classe comme mélange de cohorte ?`);
+          if (!ok) return;
+        }
+        mark(data.apprenant, "C");
+        codeSearch.value = "";
+      } catch (err) {
+        alert("Impossible de vérifier ce code apprenant.");
+      }
     });
     tbody.addEventListener("click", (event) => {
       const row = event.target.closest("tr[data-learner-id]");

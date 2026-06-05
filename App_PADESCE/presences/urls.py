@@ -10,6 +10,11 @@ urlpatterns = [
         name="presence_control_create",
     ),
     path(
+        "classes/<int:classe_id>/apprenant-code/",
+        lazy_view("App_PADESCE.presences.views.api_check_apprenant_code"),
+        name="presence_apprenant_code_check",
+    ),
+    path(
         "classes/<int:classe_id>/controle/<str:control_type>/jumeler/",
         lazy_view("App_PADESCE.presences.views.presence_control_pair_existing"),
         name="presence_control_pair_existing",

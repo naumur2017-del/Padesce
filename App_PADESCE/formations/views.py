@@ -1287,7 +1287,12 @@ def class_list(request):
             messages.error(request, "Choisissez une vague existante avant l'import.")
             return redirect(reverse("class_list"))
         try:
-            result = import_reference_workbook(request.FILES["file"], phase=phase)
+            update_codes_only = request.POST.get("update_codes_only") == "1"
+            result = import_reference_workbook(
+                request.FILES["file"],
+                phase=phase,
+                update_codes_only=update_codes_only,
+            )
         except Exception as exc:
             messages.error(request, f"Import impossible: {exc}")
         else:
@@ -1438,7 +1443,23 @@ def class_delete(request, pk: int):
 @require_POST
 def class_toggle_status(request, pk: int):
     classe = get_object_or_404(Classe.objects.select_related("prestation"), pk=pk)
-    new_statut = "en_cours" if classe.statut == "termine" else "termine"
+    requested_status = str(request.POST.get("statut") or "").strip()
+    if requested_status in {"en_cours", "termine"}:
+        new_statut = requested_status
+    else:
+        new_statut = "en_cours" if classe.statut == "termine" else "termine"
+    if classe.statut == "en_cours" and new_statut != "termine":
+        messages.error(request, "Une classe en cours peut seulement passer a Termine.")
+        next_url = request.POST.get("next")
+        if next_url:
+            return redirect(next_url)
+        return JsonResponse({"ok": False, "error": "transition_interdite"}, status=400)
+    if classe.statut == "termine" and requested_status:
+        messages.info(request, f"Classe {classe.code} deja terminee.")
+        next_url = request.POST.get("next")
+        if next_url:
+            return redirect(next_url)
+        return JsonResponse({"ok": True, "statut": classe.statut})
     classe.statut = new_statut
     classe.save(update_fields=["statut"])
 

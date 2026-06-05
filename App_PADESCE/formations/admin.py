@@ -96,7 +96,8 @@ class ClasseAdmin(admin.ModelAdmin):
         "fenetre",
         "cohorte",
         "statut",
+        "melange_cohorte",
         "actif",
     )
     search_fields = ("code", "intitule_formation")
-    list_filter = ("formation", "prestation", "fenetre", "statut", "actif")
+    list_filter = ("formation", "prestation", "fenetre", "statut", "melange_cohorte", "actif")

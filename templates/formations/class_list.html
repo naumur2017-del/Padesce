@@ -38,6 +38,7 @@
     border-radius: 10px;
     background: #fff;
   }
+  .sync-check { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; color: var(--muted); }
   .btn {
     display: inline-flex; align-items: center; justify-content: center;
     padding: 10px 14px; border-radius: 12px; font-weight: 700; border: none; cursor: pointer;
@@ -107,6 +108,10 @@
       {% endfor %}
     </select>
     <input type="file" name="file" accept=".xlsx,.xlsm" required>
+    <label class="sync-check">
+      <input type="checkbox" name="update_codes_only" value="1">
+      Mettre a jour uniquement les codes apprenants
+    </label>
     <button class="btn" type="submit">Ajouter / mettre a jour classes et apprenants</button>
   </form>
 </div>
@@ -125,6 +130,7 @@
         <div class="badges">
           <span class="pill"><span class="count">{{ classe.apprenants_count }}</span> apprenant(s)</span>
           <span class="pill">{{ classe.get_statut_display }}</span>
+          {% if classe.melange_cohorte %}<span class="pill">Melange cohorte</span>{% endif %}
           {% if classe.fenetre %}<span class="pill">Fenetre {{ classe.fenetre }}</span>{% endif %}
         </div>
       </div>
@@ -141,10 +147,19 @@
       {% else %}
         <span class="link" aria-disabled="true">Teams indisponible</span>
       {% endif %}
+      {% if classe.statut == "non_demarre" %}
+      <form action="{% url 'class_toggle_status' classe.id %}" method="post">
+        {% csrf_token %}
+        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+        <input type="hidden" name="statut" value="en_cours">
+        <button type="submit" class="link">Mettre en cours</button>
+      </form>
+      {% endif %}
       {% if classe.statut != "termine" %}
       <form action="{% url 'class_toggle_status' classe.id %}" method="post" onsubmit="return confirm('Marquer {{ classe.code }} comme terminee ?');">
         {% csrf_token %}
         <input type="hidden" name="next" value="{{ request.get_full_path }}">
+        <input type="hidden" name="statut" value="termine">
         <button type="submit" class="link">Marquer termine</button>
       </form>
       {% endif %}

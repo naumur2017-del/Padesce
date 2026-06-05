@@ -188,6 +188,7 @@ class Classe(TimeStampedModel):
     cohorte = models.PositiveIntegerField(default=1)
     statut = models.CharField(max_length=20, choices=STATUT_CHOICES, default="non_demarre")
     actif = models.BooleanField(default=True)
+    melange_cohorte = models.BooleanField(default=False)
     phase = models.ForeignKey(
         "Phase", on_delete=models.SET_NULL, related_name="classes", null=True, blank=True
     )

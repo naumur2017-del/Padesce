@@ -62,6 +62,11 @@
   .pc-inline { display: inline-flex; gap: 5px; align-items: center; margin: 0; }
   .pc-inline select { min-height: 34px; border: 1px solid var(--border); border-radius: 8px; background: white; }
   .pc-section-head { display: flex; justify-content: space-between; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+  .pc-modal {
+    position: fixed; inset: 0; z-index: 80; display: flex; align-items: center; justify-content: center;
+    background: rgba(0,0,0,.38); padding: 16px;
+  }
+  .pc-dialog { width: min(520px, 100%); background: var(--panel); border: 1px solid var(--border); border-radius: 8px; box-shadow: var(--shadow); padding: 16px; }
 </style>
 
 <div class="pc-page">
@@ -150,6 +155,29 @@
         </table>
       </div>
     </section>
+  {% endif %}
+
+  {% if external_match %}
+    <div class="pc-modal" role="dialog" aria-modal="true" aria-labelledby="external-code-title">
+      <div class="pc-dialog">
+        <h3 id="external-code-title" style="margin:0 0 8px;">Apprenant trouve dans une autre classe</h3>
+        <p class="pc-muted">
+          Le code <strong>{{ external_match.code }}</strong> correspond a
+          <strong>{{ external_match.nom_complet }}</strong>, classe
+          <strong>{{ external_match.classe.code }}</strong>.
+        </p>
+        <p>Voulez-vous l'ajouter comme present dans {{ classe.code }} et marquer cette classe comme melange de cohorte ?</p>
+        <div class="pc-actions">
+          <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="mark_present_external">
+            <input type="hidden" name="apprenant_id" value="{{ external_match.id }}">
+            <button class="pc-btn primary" type="submit">Oui, ajouter</button>
+          </form>
+          <a class="pc-btn" href="{% url 'presence_control_detail' control.id %}">Non, annuler</a>
+        </div>
+      </div>
+    </div>
   {% endif %}
 
   <section class="pc-panel">

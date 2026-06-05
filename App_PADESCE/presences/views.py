@@ -3,22 +3,22 @@ import json
 from datetime import date as date_cls
 from datetime import time as time_cls
 
-from django.contrib import messages
 from django.conf import settings
-from django.core.paginator import Paginator
+from django.contrib import messages
 from django.core.exceptions import PermissionDenied
+from django.core.paginator import Paginator
 from django.db import transaction
 from django.db.models import Case, Count, ExpressionWrapper, F, FloatField, Q, Value, When
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 
 from App_PADESCE.apprenants.models import Apprenant
 from App_PADESCE.formations.models import Classe
+from App_PADESCE.presences.control_utils import get_class_marker_control_types
 from App_PADESCE.presences.forms import PresenceControlForm, PresenceForm
 from App_PADESCE.presences.models import Presence, PresenceControl
-from App_PADESCE.presences.control_utils import get_class_marker_control_types
 from App_PADESCE.presences.services import (
     TeamsSendError,
     build_presence_control_csv_bytes,
@@ -141,6 +141,15 @@ def _set_apprenant_control_marker(
     apprenant.save(update_fields=[field, "updated_at"])
 
 
+def _mark_class_mixed_if_needed(control: PresenceControl, apprenant: Apprenant) -> None:
+    if apprenant.classe_id == control.classe_id:
+        return
+    if getattr(control.classe, "melange_cohorte", False):
+        return
+    control.classe.melange_cohorte = True
+    control.classe.save(update_fields=["melange_cohorte", "updated_at"])
+
+
 def _seed_presence_rows(control: PresenceControl) -> int:
     apprenants = list(control.classe.apprenants.all().order_by("nom_complet", "code"))
     rows = [
@@ -208,6 +217,7 @@ def _mark_presence(
     presence.moyen_enregistrement = moyen
     presence.heure_presence = heure_presence or timezone.localtime().time().replace(microsecond=0)
     presence.save()
+    _mark_class_mixed_if_needed(control, apprenant)
     _set_apprenant_control_marker(apprenant, control, "PR")
     return presence
 
@@ -227,9 +237,7 @@ def _apply_creation_marks(control: PresenceControl, raw_marks: str) -> int:
         moyen = str(mark.get("moyen") or "").strip().upper()
         if moyen not in {"C", "P", "R"}:
             continue
-        apprenant = (
-            control.classe.apprenants.filter(pk=apprenant_id).only("id", "classe_id").first()
-        )
+        apprenant = Apprenant.objects.filter(pk=apprenant_id).only("id", "classe_id").first()
         if not apprenant:
             continue
         _mark_presence(control, apprenant, moyen, _parse_presence_time(mark.get("heure")))
@@ -339,6 +347,61 @@ def _exact_code_match(control: PresenceControl, query: str):
     return matches[0] if len(matches) == 1 else None
 
 
+def _exact_code_match_any_class(query: str):
+    clean_query = str(query or "").strip()
+    if not clean_query:
+        return None
+    matches = list(
+        Apprenant.objects.select_related("classe")
+        .filter(code__iexact=clean_query)
+        .order_by("classe__code", "nom_complet", "code")[:2]
+    )
+    return matches[0] if len(matches) == 1 else None
+
+
+def api_check_apprenant_code(request, classe_id: int):
+    classe = get_object_or_404(Classe, pk=classe_id)
+    query = request.GET.get("q", "")
+    apprenant = _exact_code_match_any_class(query)
+    if not apprenant:
+        return JsonResponse({"found": False})
+    source_classe = getattr(apprenant, "classe", None)
+    return JsonResponse(
+        {
+            "found": True,
+            "same_class": apprenant.classe_id == classe.id,
+            "apprenant": {
+                "id": apprenant.id,
+                "code": apprenant.code,
+                "apprenant_id": apprenant.code,
+                "nom_complet": apprenant.nom_complet,
+                "nom": apprenant.nom_complet,
+                "telephone": apprenant.telephone1 or apprenant.telephone2 or "",
+                "genre": apprenant.genre or "",
+                "age": apprenant.age or "",
+                "fonction": apprenant.fonction or "",
+                "qualification": apprenant.qualification or "",
+                "experience": apprenant.nb_annees_experience,
+                "prestataire": apprenant.prestataire or "",
+                "beneficiaire": apprenant.beneficiaire or "",
+                "classe": getattr(source_classe, "code", ""),
+                "classe_origine": getattr(source_classe, "code", ""),
+                "cohorte": apprenant.cohorte or "",
+                "fenetre": apprenant.fenetre or "",
+                "ville": apprenant.ville_residence or apprenant.ville_formation or "",
+                "lieu": apprenant.lieu_formation or "",
+                "statut_appr": "Actif" if apprenant.actif else "Inactif",
+            },
+            "source_classe": {
+                "id": getattr(source_classe, "id", None),
+                "code": getattr(source_classe, "code", ""),
+                "intitule": getattr(source_classe, "intitule_formation", ""),
+            },
+            "target_classe": {"id": classe.id, "code": classe.code},
+        }
+    )
+
+
 def presence_control_create(request, classe_id: int):
     _require_presence_write_access(request)
     classe = get_object_or_404(
@@ -417,6 +480,7 @@ def presence_control_detail(request, pk: int):
         pk=pk,
     )
     search_results = []
+    external_match = None
     query = ""
 
     if request.method == "POST":
@@ -429,9 +493,32 @@ def presence_control_detail(request, pk: int):
                 _mark_presence(control, exact, "C")
                 messages.success(request, f"{exact.nom_complet} marqué présent par code.")
                 return redirect("presence_control_detail", pk=control.pk)
-            search_results = list(_search_control_apprenants(control, query))
-            if not search_results:
-                messages.warning(request, "Aucun apprenant trouvé pour cette recherche.")
+            external = _exact_code_match_any_class(query)
+            if external is not None and external.classe_id != control.classe_id:
+                external_match = external
+                messages.warning(
+                    request,
+                    (
+                        f"Le code {query} appartient a {external.nom_complet}, "
+                        f"classe {external.classe.code}."
+                    ),
+                )
+            else:
+                search_results = list(_search_control_apprenants(control, query))
+                if not search_results:
+                    messages.warning(request, "Aucun apprenant trouvé pour cette recherche.")
+        elif action == "mark_present_external":
+            apprenant = get_object_or_404(Apprenant, pk=request.POST.get("apprenant_id"))
+            _mark_presence(control, apprenant, "C")
+            messages.success(
+                request,
+                (
+                    f"{apprenant.nom_complet} marque present depuis la classe "
+                    f"{apprenant.classe.code}. Classe {control.classe.code} marquee "
+                    "comme melange de cohorte."
+                ),
+            )
+            return redirect("presence_control_detail", pk=control.pk)
         elif action == "mark_present":
             apprenant = get_object_or_404(
                 Apprenant, pk=request.POST.get("apprenant_id"), classe=control.classe
@@ -470,6 +557,7 @@ def presence_control_detail(request, pk: int):
             "presences": presences,
             "stats": stats,
             "search_results": search_results,
+            "external_match": external_match,
             "query": query,
             "manual_moyens": MANUAL_MOYENS,
             "csv_filename": presence_control_export_filename(control, "csv"),
