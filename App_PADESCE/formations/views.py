@@ -1451,6 +1451,10 @@ def class_toggle_status(request, pk: int):
         and classes_terminees == total_classes
         and total_apprenants >= prestation.effectif_a_former
     )
+    next_url = request.POST.get("next")
+    if next_url:
+        messages.success(request, f"Classe {classe.code} marquee {classe.get_statut_display()}.")
+        return redirect(next_url)
 
     return JsonResponse(
         {
