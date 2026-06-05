@@ -33,7 +33,7 @@ from App_PADESCE.core.presence_bulk_cache import get_bulk_presence_controls
 from App_PADESCE.environnement.models import EnqueteEnvironnement
 from App_PADESCE.formations.forms import ClasseCreateForm
 from App_PADESCE.formations.imports import import_reference_workbook
-from App_PADESCE.formations.models import Classe, Inspecteur, Lieu, Prestation
+from App_PADESCE.formations.models import Classe, Inspecteur, Lieu, Phase, Prestation
 from App_PADESCE.presences.control_utils import (
     CONTROL_KEYS,
     get_class_marker_control_summary,
@@ -1282,14 +1282,22 @@ def class_list(request):
         if not (request.user.is_authenticated and request.user.is_superuser):
             messages.error(request, "Import reserve aux administrateurs.")
             return redirect(reverse("class_list"))
+        phase = Phase.objects.filter(pk=request.POST.get("phase")).first()
+        if phase is None:
+            messages.error(request, "Choisissez une vague existante avant l'import.")
+            return redirect(reverse("class_list"))
         try:
-            result = import_reference_workbook(request.FILES["file"])
+            result = import_reference_workbook(request.FILES["file"], phase=phase)
         except Exception as exc:
             messages.error(request, f"Import impossible: {exc}")
         else:
-            messages.success(request, f"Referentiel synchronise. {result.summary}")
+            messages.success(
+                request,
+                f"Referentiel synchronise dans {phase.nom}. {result.summary}",
+            )
         return redirect(reverse("class_list"))
 
+    phases = Phase.objects.all().order_by("vague", "id_phase")
     teams_links = _class_channel_links_by_code()
     classes = (
         Classe.objects.select_related("prestation", "formation", "lieu", "formateur")
@@ -1302,7 +1310,7 @@ def class_list(request):
     )
     for classe in classes:
         classe.teams_link = teams_links.get(str(classe.code or "").upper(), "")
-    return render(request, "formations/class_list.html", {"classes": classes})
+    return render(request, "formations/class_list.html", {"classes": classes, "phases": phases})
 
 
 def class_detail(request, pk: int):

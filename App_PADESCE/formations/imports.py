@@ -12,6 +12,7 @@ from App_PADESCE.formations.models import (
     Classe,
     Formation,
     Lieu,
+    Phase,
     Prestataire,
     Prestation,
 )
@@ -241,7 +242,7 @@ def _load_lieux(workbook, result):
         )
 
 
-def _load_prestations(workbook, result):
+def _load_prestations(workbook, result, phase: Phase | None = None):
     for row, get in _rows_by_header(workbook, "Prestations"):
         code = _clean(get(row, "ID Prestation"))
         prestataire_code = _clean(get(row, "ID Prestataire"))
@@ -275,6 +276,7 @@ def _load_prestations(workbook, result):
                 "montant_mcdc_ttc": _as_decimal(get(row, "Montant Total Subvention MCDC TTC")),
                 "ville": _clean(get(row, "Region")),
                 "actif": "annul" not in _normalize_header(get(row, "Statut de la prestation")),
+                "phase": phase,
             },
             created_attr="prestations_created",
             updated_attr="prestations_updated",
@@ -296,7 +298,7 @@ def _lieu_for_class(name: str, ville: str = ""):
     )[0]
 
 
-def _load_classes(workbook, result):
+def _load_classes(workbook, result, phase: Phase | None = None):
     for row, get in _rows_by_header(workbook, "Classes"):
         code = _clean(get(row, "Classe ID"))
         prestation = Prestation.objects.filter(code=_clean(get(row, "Prestation ID"))).first()
@@ -314,6 +316,7 @@ def _load_classes(workbook, result):
                 "cohorte": _as_int(get(row, "Cohorte"), 1) or 1,
                 "statut": _status(get(row, "Statut de la prestation")),
                 "actif": "annul" not in _normalize_header(get(row, "Statut de la prestation")),
+                "phase": phase,
             },
             created_attr="classes_created",
             updated_attr="classes_updated",
@@ -321,7 +324,7 @@ def _load_classes(workbook, result):
         )
 
 
-def _load_apprenants(workbook, result):
+def _load_apprenants(workbook, result, phase: Phase | None = None):
     for row, get in _rows_by_header(workbook, "Apprenants"):
         code = _clean(get(row, "ApprenantID"))
         name = _clean(get(row, "Nom_Individu"))
@@ -343,6 +346,7 @@ def _load_apprenants(workbook, result):
             "ville_formation": getattr(classe.lieu, "ville", "") if classe.lieu else "",
             "lieu_formation": getattr(classe.lieu, "nom_lieu", "") if classe.lieu else "",
             "actif": _normalize_header(get(row, "Statut Apprenant")) != "inactif",
+            "phase": phase,
         }
         try:
             obj, created = Apprenant.objects.update_or_create(code=code, defaults=defaults)
@@ -365,8 +369,11 @@ def _load_apprenants(workbook, result):
 
 
 @transaction.atomic
-def import_reference_workbook(file_obj) -> ReferenceImportResult:
+def import_reference_workbook(file_obj, *, phase: Phase) -> ReferenceImportResult:
     import openpyxl
+
+    if phase is None:
+        raise ValueError("Choisissez une vague avant de lancer l'import.")
 
     workbook = openpyxl.load_workbook(file_obj, read_only=True, data_only=True)
     result = ReferenceImportResult()
@@ -374,7 +381,7 @@ def import_reference_workbook(file_obj) -> ReferenceImportResult:
     _load_prestataires(workbook, result)
     _load_beneficiaires(workbook, result)
     _load_lieux(workbook, result)
-    _load_prestations(workbook, result)
-    _load_classes(workbook, result)
-    _load_apprenants(workbook, result)
+    _load_prestations(workbook, result, phase)
+    _load_classes(workbook, result, phase)
+    _load_apprenants(workbook, result, phase)
     return result

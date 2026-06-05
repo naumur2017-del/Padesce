@@ -31,6 +31,13 @@
     border-radius: 10px;
     background: #fff;
   }
+  .sync-form select {
+    min-width: 220px;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: #fff;
+  }
   .btn {
     display: inline-flex; align-items: center; justify-content: center;
     padding: 10px 14px; border-radius: 12px; font-weight: 700; border: none; cursor: pointer;
@@ -93,6 +100,12 @@
   <form method="post" enctype="multipart/form-data" class="sync-form">
     {% csrf_token %}
     <strong>Synchroniser le fichier consolide</strong>
+    <select name="phase" required>
+      <option value="">Choisir une vague</option>
+      {% for phase in phases %}
+        <option value="{{ phase.pk }}">{{ phase.nom }} - Vague {{ phase.vague }}</option>
+      {% endfor %}
+    </select>
     <input type="file" name="file" accept=".xlsx,.xlsm" required>
     <button class="btn" type="submit">Ajouter / mettre a jour classes et apprenants</button>
   </form>
