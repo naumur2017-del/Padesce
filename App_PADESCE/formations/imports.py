@@ -4,7 +4,7 @@ import unicodedata
 from dataclasses import dataclass
 from decimal import Decimal
 
-from django.db import IntegrityError, transaction
+from django.db import IntegrityError, connection, transaction
 
 from App_PADESCE.apprenants.models import Apprenant
 from App_PADESCE.formations.models import (
@@ -129,6 +129,33 @@ def _update_or_create(
 ):
     obj, created = model.objects.update_or_create(**lookup, defaults=defaults)
     return _save_counter(obj, created, created_attr, updated_attr, result)
+
+
+def _sync_auto_id_sequences():
+    models = (Formation, Prestataire, Beneficiaire, Lieu, Prestation, Classe, Apprenant)
+    vendor = connection.vendor
+    with connection.cursor() as cursor:
+        for model in models:
+            table = model._meta.db_table
+            pk_column = model._meta.pk.column
+            quoted_table = connection.ops.quote_name(table)
+            quoted_pk = connection.ops.quote_name(pk_column)
+            if vendor == "postgresql":
+                cursor.execute(
+                    "SELECT setval(pg_get_serial_sequence(%s, %s), "
+                    f"COALESCE((SELECT MAX({quoted_pk}) FROM {quoted_table}), 1), "
+                    f"(SELECT COUNT({quoted_pk}) > 0 FROM {quoted_table}))",
+                    [table, pk_column],
+                )
+            elif vendor == "sqlite":
+                cursor.execute(
+                    f"SELECT COALESCE(MAX({quoted_pk}), 0) FROM {quoted_table}",
+                )
+                max_id = cursor.fetchone()[0] or 0
+                cursor.execute(
+                    "UPDATE sqlite_sequence SET seq = %s WHERE name = %s",
+                    [max_id, table],
+                )
 
 
 def _load_formations(workbook, result):
@@ -377,9 +404,11 @@ def import_reference_workbook(file_obj, *, phase: Phase) -> ReferenceImportResul
 
     workbook = openpyxl.load_workbook(file_obj, read_only=True, data_only=True)
     result = ReferenceImportResult()
+    _sync_auto_id_sequences()
     _load_formations(workbook, result)
     _load_prestataires(workbook, result)
     _load_beneficiaires(workbook, result)
+    _sync_auto_id_sequences()
     _load_lieux(workbook, result)
     _load_prestations(workbook, result, phase)
     _load_classes(workbook, result, phase)
