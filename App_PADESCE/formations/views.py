@@ -1288,11 +1288,13 @@ def class_list(request):
             messages.error(request, "Choisissez une vague existante avant l'import.")
             return redirect(reverse("class_list"))
         try:
-            update_codes_only = request.POST.get("update_codes_only") == "1"
+            update_apprenant_ids_only = request.POST.get("update_apprenant_ids_only") == "1"
+            update_sms_codes_only = request.POST.get("update_sms_codes_only") == "1"
             result = import_reference_workbook(
                 request.FILES["file"],
                 phase=phase,
-                update_codes_only=update_codes_only,
+                update_apprenant_ids_only=update_apprenant_ids_only,
+                update_sms_codes_only=update_sms_codes_only,
             )
         except Exception as exc:
             messages.error(request, f"Import impossible: {exc}")

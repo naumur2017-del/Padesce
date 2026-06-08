@@ -109,8 +109,12 @@
     </select>
     <input type="file" name="file" accept=".xlsx,.xlsm" required>
     <label class="sync-check">
-      <input type="checkbox" name="update_codes_only" value="1">
-      Mettre a jour uniquement les codes apprenants
+      <input type="checkbox" name="update_apprenant_ids_only" value="1">
+      Mettre a jour uniquement les ApprenantID
+    </label>
+    <label class="sync-check">
+      <input type="checkbox" name="update_sms_codes_only" value="1">
+      Mettre a jour uniquement les codes SMS
     </label>
     <button class="btn" type="submit">Ajouter / mettre a jour classes et apprenants</button>
   </form>

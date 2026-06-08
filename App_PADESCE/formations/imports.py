@@ -35,7 +35,8 @@ class ReferenceImportResult:
     apprenants_created: int = 0
     apprenants_updated: int = 0
     apprenants_skipped: int = 0
-    codes_updated: int = 0
+    apprenant_ids_updated: int = 0
+    sms_codes_updated: int = 0
     codes_skipped: int = 0
 
     @property
@@ -44,7 +45,8 @@ class ReferenceImportResult:
             f"Classes: {self.classes_created} creee(s), {self.classes_updated} mise(s) a jour. "
             f"Apprenants: {self.apprenants_created} cree(s), "
             f"{self.apprenants_updated} mis a jour, {self.apprenants_skipped} ignore(s). "
-            f"Codes: {self.codes_updated} mis a jour, {self.codes_skipped} ignore(s)."
+            f"ApprenantID: {self.apprenant_ids_updated} mis a jour. "
+            f"Codes SMS: {self.sms_codes_updated} mis a jour, {self.codes_skipped} ignore(s)."
         )
 
 
@@ -394,7 +396,13 @@ def _code_is_available(code: str, apprenant: Apprenant | None = None) -> bool:
     return not queryset.exists()
 
 
-def _load_apprenant_codes(workbook, result) -> None:
+def _load_apprenant_codes(
+    workbook,
+    result,
+    *,
+    update_apprenant_ids: bool,
+    update_sms_codes: bool,
+) -> None:
     sms_lookup = _consolidation_sms_code_lookup(workbook)
     for row, get in _rows_by_header(workbook, "Apprenants"):
         apprenant_id = _clean(get(row, "ApprenantID"))
@@ -406,19 +414,23 @@ def _load_apprenant_codes(workbook, result) -> None:
             result.codes_skipped += 1
             continue
         apprenant = _find_apprenant_for_import(apprenant_id, sms_code, classe, name)
-        if not apprenant or not _code_is_available(apprenant_id, apprenant):
+        if not apprenant:
+            result.codes_skipped += 1
+            continue
+        if update_apprenant_ids and not _code_is_available(apprenant_id, apprenant):
             result.codes_skipped += 1
             continue
         changed_fields = []
-        if apprenant.code != apprenant_id:
+        if update_apprenant_ids and apprenant.code != apprenant_id:
             apprenant.code = apprenant_id
             changed_fields.append("code")
-        if sms_code and getattr(apprenant, "code_sms", "") != sms_code:
+            result.apprenant_ids_updated += 1
+        if update_sms_codes and sms_code and getattr(apprenant, "code_sms", "") != sms_code:
             apprenant.code_sms = sms_code
             changed_fields.append("code_sms")
+            result.sms_codes_updated += 1
         if changed_fields:
             apprenant.save(update_fields=[*changed_fields, "updated_at"])
-            result.codes_updated += 1
 
 
 def _load_apprenants(workbook, result, phase: Phase | None = None):
@@ -491,7 +503,12 @@ def _load_apprenants(workbook, result, phase: Phase | None = None):
 
 @transaction.atomic
 def import_reference_workbook(
-    file_obj, *, phase: Phase, update_codes_only: bool = False
+    file_obj,
+    *,
+    phase: Phase,
+    update_codes_only: bool = False,
+    update_apprenant_ids_only: bool = False,
+    update_sms_codes_only: bool = False,
 ) -> ReferenceImportResult:
     import openpyxl
 
@@ -500,8 +517,15 @@ def import_reference_workbook(
 
     workbook = openpyxl.load_workbook(file_obj, read_only=True, data_only=True)
     result = ReferenceImportResult()
-    if update_codes_only:
-        _load_apprenant_codes(workbook, result)
+    update_apprenant_ids_only = update_apprenant_ids_only or update_codes_only
+    update_sms_codes_only = update_sms_codes_only or update_codes_only
+    if update_apprenant_ids_only or update_sms_codes_only:
+        _load_apprenant_codes(
+            workbook,
+            result,
+            update_apprenant_ids=update_apprenant_ids_only,
+            update_sms_codes=update_sms_codes_only,
+        )
         return result
 
     _sync_auto_id_sequences()
