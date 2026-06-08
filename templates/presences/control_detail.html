@@ -99,8 +99,8 @@
         {% csrf_token %}
         <input type="hidden" name="action" value="search">
         <div class="pc-field">
-          <label for="presence-search">Code apprenant</label>
-          <input id="presence-search" type="search" name="q" value="{{ query }}" placeholder="Scanner le code court, ex. 9GHB" required>
+          <label for="presence-search">Code SMS ou ApprenantID</label>
+          <input id="presence-search" type="search" name="q" value="{{ query }}" placeholder="Scanner le code SMS ou saisir APP001" required>
         </div>
         <button class="pc-btn primary" type="submit">Valider par code</button>
       </form>
@@ -123,16 +123,17 @@
       <div class="pc-section-head">
         <div>
           <strong>Résultats de recherche</strong>
-          <div class="pc-muted">Le scan automatique accepte uniquement le code apprenant.</div>
+          <div class="pc-muted">Le scan automatique accepte le code SMS ou l'ApprenantID.</div>
         </div>
       </div>
       <div class="pc-table-wrap" style="max-height:280px;">
         <table class="pc-table">
-          <thead><tr><th>Code apprenant</th><th>Nom complet</th><th>Téléphone</th><th>Action</th></tr></thead>
+          <thead><tr><th>ApprenantID</th><th>Code SMS</th><th>Nom complet</th><th>Téléphone</th><th>Action</th></tr></thead>
           <tbody>
             {% for apprenant in search_results %}
               <tr>
                 <td class="pc-code">{{ apprenant.code }}</td>
+                <td class="pc-code">{{ apprenant.code_sms|default:"-" }}</td>
                 <td>{{ apprenant.nom_complet }}</td>
                 <td>{{ apprenant.telephone1|default:"-" }}</td>
                 <td>
@@ -162,7 +163,7 @@
       <div class="pc-dialog">
         <h3 id="external-code-title" style="margin:0 0 8px;">Apprenant trouve dans une autre classe</h3>
         <p class="pc-muted">
-          Le code <strong>{{ external_match.code }}</strong> correspond a
+          Le code <strong>{{ query }}</strong> correspond a
           <strong>{{ external_match.nom_complet }}</strong>, classe
           <strong>{{ external_match.classe.code }}</strong>.
         </p>
@@ -184,7 +185,7 @@
     <div class="pc-section-head">
       <div>
         <strong>Feuille de présence</strong>
-        <div class="pc-muted">Code apprenant = code court à scanner, comme 9GHB.</div>
+        <div class="pc-muted">Code SMS = code court à scanner; ApprenantID = identifiant réseau.</div>
       </div>
       <div class="pc-muted">{{ xlsx_filename }}</div>
     </div>
@@ -192,7 +193,8 @@
       <table class="pc-table">
         <thead>
           <tr>
-            <th>Code apprenant</th>
+            <th>ApprenantID</th>
+            <th>Code SMS</th>
             <th>Nom complet</th>
             <th>Téléphone</th>
             <th>Présence</th>
@@ -210,6 +212,7 @@
           {% for p in presences %}
             <tr>
               <td class="pc-code">{{ p.apprenant.code }}</td>
+              <td class="pc-code">{{ p.apprenant.code_sms|default:"-" }}</td>
               <td>{{ p.apprenant.nom_complet }}</td>
               <td>{{ p.apprenant.telephone1|default:p.apprenant.telephone2|default:"-" }}</td>
               <td><span class="pc-pill {% if p.presence == 'PR' %}pr{% else %}ab{% endif %}">{{ p.presence }}</span></td>
@@ -243,7 +246,7 @@
               </td>
             </tr>
           {% empty %}
-            <tr><td colspan="12" style="text-align:center; color:var(--muted);">Aucun apprenant dans ce contrôle.</td></tr>
+            <tr><td colspan="13" style="text-align:center; color:var(--muted);">Aucun apprenant dans ce contrôle.</td></tr>
           {% endfor %}
         </tbody>
       </table>

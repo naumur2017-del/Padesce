@@ -453,7 +453,8 @@ def _normalize_phone(value: str) -> str:
 
 
 def _build_sms_message(apprenant: Apprenant) -> str:
-    return f"Bonjour Mr/Mlle, votre code PADESCE est: {apprenant.code}. "
+    code = str(getattr(apprenant, "code_sms", "") or apprenant.code or "").strip()
+    return f"Bonjour Mr/Mlle, votre code PADESCE est: {code}. "
 
 
 def _reverse_analysis_route(request, route_name: str, *args) -> str:
@@ -493,8 +494,13 @@ def _resolve_analysis_call_for_apprenant(apprenant: Apprenant) -> Appel | None:
     if linked_satisfaction and linked_satisfaction.appel:
         return linked_satisfaction.appel
 
+    exact_query = Q(code__iexact=apprenant.code)
+    sms_code = str(getattr(apprenant, "code_sms", "") or "").strip()
+    if sms_code:
+        exact_query |= Q(code__iexact=sms_code)
     exact_call = (
-        Appel.objects.filter(is_active=True, code__iexact=apprenant.code)
+        Appel.objects.filter(is_active=True)
+        .filter(exact_query)
         .select_related("classe", "classe__prestation")
         .first()
     )

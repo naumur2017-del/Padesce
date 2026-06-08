@@ -392,13 +392,21 @@ def _find_apprenant_for_appel(base_qs, appel: Appel):
 
     # 1. Chercher par code (exact)
     if appel.code:
-        apprenant = base_qs.filter(code__iexact=str(appel.code or "").strip()).first()
+        appel_code = str(appel.code or "").strip()
+        apprenant = base_qs.filter(
+            Q(code__iexact=appel_code) | Q(code_sms__iexact=appel_code)
+        ).first()
         if apprenant:
                         return apprenant
 
     # 2. Chercher par code (partiel)
     if appel.code:
-        apprenant = base_qs.filter(code__icontains=str(appel.code).strip()).order_by("id").first()
+        appel_code = str(appel.code).strip()
+        apprenant = (
+            base_qs.filter(Q(code__icontains=appel_code) | Q(code_sms__icontains=appel_code))
+            .order_by("id")
+            .first()
+        )
         if apprenant:
                         return apprenant
 

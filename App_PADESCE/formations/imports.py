@@ -117,7 +117,7 @@ def _learner_key(classe_code: str, name: str) -> tuple[str, str]:
     return (_clean(classe_code).upper(), _normalize_header(name))
 
 
-def _consolidation_code_lookup(workbook) -> dict[tuple[str, str], str]:
+def _consolidation_sms_code_lookup(workbook) -> dict[tuple[str, str], str]:
     lookup = {}
     for row, get in _rows_by_header(workbook, "Consolidation"):
         classe_code = _clean(get(row, "Classe"))
@@ -370,13 +370,16 @@ def _load_classes(workbook, result, phase: Phase | None = None):
         )
 
 
-def _find_apprenant_for_import(source_code: str, final_code: str, classe: Classe, name: str):
-    if final_code:
-        found = Apprenant.objects.filter(code__iexact=final_code).first()
+def _find_apprenant_for_import(apprenant_id: str, sms_code: str, classe: Classe, name: str):
+    if apprenant_id:
+        found = Apprenant.objects.filter(code__iexact=apprenant_id).first()
         if found:
             return found
-    if source_code:
-        found = Apprenant.objects.filter(code__iexact=source_code).first()
+    if sms_code:
+        found = Apprenant.objects.filter(code_sms__iexact=sms_code).first()
+        if found:
+            return found
+        found = Apprenant.objects.filter(code__iexact=sms_code).first()
         if found:
             return found
     return Apprenant.objects.filter(classe=classe, nom_complet__iexact=name).first()
@@ -392,40 +395,41 @@ def _code_is_available(code: str, apprenant: Apprenant | None = None) -> bool:
 
 
 def _load_apprenant_codes(workbook, result) -> None:
-    code_lookup = _consolidation_code_lookup(workbook)
-    for (classe_code, normalized_name), final_code in code_lookup.items():
+    sms_lookup = _consolidation_sms_code_lookup(workbook)
+    for row, get in _rows_by_header(workbook, "Apprenants"):
+        apprenant_id = _clean(get(row, "ApprenantID"))
+        name = _clean(get(row, "Nom_Individu"))
+        classe_code = _clean(get(row, "Classe ID"))
+        sms_code = sms_lookup.get(_learner_key(classe_code, name)) or _clean(get(row, "Code"))
         classe = Classe.objects.filter(code__iexact=classe_code).first()
-        if not classe:
+        if not apprenant_id or not name or not classe:
             result.codes_skipped += 1
             continue
-        candidates = Apprenant.objects.filter(classe=classe)
-        apprenant = None
-        for candidate in candidates.only("id", "code", "nom_complet"):
-            if _normalize_header(candidate.nom_complet) == normalized_name:
-                apprenant = candidate
-                break
-        if not apprenant or not _code_is_available(final_code, apprenant):
+        apprenant = _find_apprenant_for_import(apprenant_id, sms_code, classe, name)
+        if not apprenant or not _code_is_available(apprenant_id, apprenant):
             result.codes_skipped += 1
             continue
-        if apprenant.code != final_code:
-            apprenant.code = final_code
-            apprenant.save(update_fields=["code", "updated_at"])
+        changed_fields = []
+        if apprenant.code != apprenant_id:
+            apprenant.code = apprenant_id
+            changed_fields.append("code")
+        if sms_code and getattr(apprenant, "code_sms", "") != sms_code:
+            apprenant.code_sms = sms_code
+            changed_fields.append("code_sms")
+        if changed_fields:
+            apprenant.save(update_fields=[*changed_fields, "updated_at"])
             result.codes_updated += 1
 
 
 def _load_apprenants(workbook, result, phase: Phase | None = None):
-    code_lookup = _consolidation_code_lookup(workbook)
+    sms_lookup = _consolidation_sms_code_lookup(workbook)
     for row, get in _rows_by_header(workbook, "Apprenants"):
-        source_code = _clean(get(row, "ApprenantID"))
+        apprenant_id = _clean(get(row, "ApprenantID"))
         name = _clean(get(row, "Nom_Individu"))
         classe_code = _clean(get(row, "Classe ID"))
         classe = Classe.objects.filter(code=classe_code).first()
-        final_code = (
-            code_lookup.get(_learner_key(classe_code, name))
-            or _clean(get(row, "Code"))
-            or source_code
-        )
-        if not final_code or not name or not classe:
+        sms_code = sms_lookup.get(_learner_key(classe_code, name)) or _clean(get(row, "Code"))
+        if not apprenant_id or not name or not classe:
             result.apprenants_skipped += 1
             continue
         defaults = {
@@ -444,32 +448,34 @@ def _load_apprenants(workbook, result, phase: Phase | None = None):
             "actif": _normalize_header(get(row, "Statut Apprenant")) != "inactif",
             "phase": phase,
         }
+        if sms_code:
+            defaults["code_sms"] = sms_code
         try:
-            obj = _find_apprenant_for_import(source_code, final_code, classe, name)
+            obj = _find_apprenant_for_import(apprenant_id, sms_code, classe, name)
             if obj:
-                if not _code_is_available(final_code, obj):
+                if not _code_is_available(apprenant_id, obj):
                     result.apprenants_skipped += 1
                     continue
-                obj.code = final_code
+                obj.code = apprenant_id
                 for key, value in defaults.items():
                     setattr(obj, key, value)
                 obj.save()
                 created = False
             else:
-                if not _code_is_available(final_code):
+                if not _code_is_available(apprenant_id):
                     result.apprenants_skipped += 1
                     continue
-                obj = Apprenant.objects.create(code=final_code, **defaults)
+                obj = Apprenant.objects.create(code=apprenant_id, **defaults)
                 created = True
         except IntegrityError:
             obj = Apprenant.objects.filter(classe=classe, nom_complet=name).first()
             if not obj:
                 result.apprenants_skipped += 1
                 continue
-            if not _code_is_available(final_code, obj):
+            if not _code_is_available(apprenant_id, obj):
                 result.apprenants_skipped += 1
                 continue
-            obj.code = final_code
+            obj.code = apprenant_id
             for key, value in defaults.items():
                 setattr(obj, key, value)
             obj.save()

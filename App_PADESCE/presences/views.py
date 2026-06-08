@@ -327,6 +327,7 @@ def _search_control_apprenants(control: PresenceControl, query: str):
         control.classe.apprenants.all()
         .filter(
             Q(code__icontains=clean_query)
+            | Q(code_sms__icontains=clean_query)
             | Q(numero__icontains=clean_query)
             | Q(nom_complet__icontains=clean_query)
             | Q(telephone1__icontains=clean_query)
@@ -341,7 +342,7 @@ def _exact_code_match(control: PresenceControl, query: str):
         return None
     matches = list(
         control.classe.apprenants.all()
-        .filter(code__iexact=clean_query)
+        .filter(Q(code__iexact=clean_query) | Q(code_sms__iexact=clean_query))
         .order_by("nom_complet", "code")[:2]
     )
     return matches[0] if len(matches) == 1 else None
@@ -353,7 +354,7 @@ def _exact_code_match_any_class(query: str):
         return None
     matches = list(
         Apprenant.objects.select_related("classe")
-        .filter(code__iexact=clean_query)
+        .filter(Q(code__iexact=clean_query) | Q(code_sms__iexact=clean_query))
         .order_by("classe__code", "nom_complet", "code")[:2]
     )
     return matches[0] if len(matches) == 1 else None
@@ -373,6 +374,7 @@ def api_check_apprenant_code(request, classe_id: int):
             "apprenant": {
                 "id": apprenant.id,
                 "code": apprenant.code,
+                "code_sms": getattr(apprenant, "code_sms", "") or "",
                 "apprenant_id": apprenant.code,
                 "nom_complet": apprenant.nom_complet,
                 "nom": apprenant.nom_complet,

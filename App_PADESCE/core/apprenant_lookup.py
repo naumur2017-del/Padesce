@@ -83,7 +83,7 @@ def _apprenant_queryset_for_appels(appels) -> list[Apprenant]:
 
     query = Q()
     if code_values:
-        query |= Q(code__in=code_values)
+        query |= Q(code__in=code_values) | Q(code_sms__in=code_values)
     if class_ids:
         query |= Q(classe_id__in=class_ids)
     if class_codes:
@@ -127,6 +127,8 @@ def _pick_partial_code(
         for candidate in candidates
         if code_key in _normalize_key(getattr(candidate, "code", ""))
         or _normalize_key(getattr(candidate, "code", "")) in code_key
+        or code_key in _normalize_key(getattr(candidate, "code_sms", ""))
+        or _normalize_key(getattr(candidate, "code_sms", "")) in code_key
     ]
     return _pick_by_class(partial_matches, class_codes)
 
@@ -189,6 +191,9 @@ def match_apprenants_to_appels(appels) -> dict[int, Apprenant | None]:
         code_key = _normalize_key(getattr(candidate, "code", ""))
         if code_key:
             candidates_by_code[code_key].append(candidate)
+        sms_code_key = _normalize_key(getattr(candidate, "code_sms", ""))
+        if sms_code_key:
+            candidates_by_code[sms_code_key].append(candidate)
 
         for phone in {
             _normalize_phone(getattr(candidate, "telephone1", "")),

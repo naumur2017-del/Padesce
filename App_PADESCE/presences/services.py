@@ -150,7 +150,7 @@ def presence_control_export_rows(control) -> list[list]:
                 apprenant.lieu_formation or getattr(lieu, "nom_lieu", ""),
                 apprenant.telephone1 or apprenant.telephone2 or "",
                 apprenant.cohorte or classe.cohorte,
-                apprenant.code,
+                getattr(apprenant, "code_sms", "") or "",
                 _money_total(prestation),
                 "",
                 control.theme,

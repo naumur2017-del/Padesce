@@ -7,6 +7,7 @@ from .models import Apprenant
 class ApprenantAdmin(admin.ModelAdmin):
     list_display = (
         "code",
+        "code_sms",
         "nom_complet",
         "classe",
         "formation",
@@ -15,5 +16,5 @@ class ApprenantAdmin(admin.ModelAdmin):
         "fenetre",
         "actif",
     )
-    search_fields = ("code", "nom_complet", "telephone1", "telephone2")
+    search_fields = ("code", "code_sms", "nom_complet", "telephone1", "telephone2")
     list_filter = ("classe", "formation", "fenetre", "actif")

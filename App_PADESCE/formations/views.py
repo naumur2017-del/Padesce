@@ -535,6 +535,7 @@ def _presence_control_apprenant_payload(classe: Classe) -> list[dict]:
             {
                 "id": apprenant.pk,
                 "code": apprenant.code or "",
+                "code_sms": getattr(apprenant, "code_sms", "") or "",
                 "numero": apprenant.numero or "",
                 "apprenant_id": apprenant.code or "",
                 "nom": apprenant.nom_complet or "",

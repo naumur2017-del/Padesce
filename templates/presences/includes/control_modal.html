@@ -238,7 +238,8 @@
       ["lieu", "Lieux"],
       ["telephone", "Téléphone"],
       ["cohorte", "Cohorte"],
-      ["code", "Code"],
+      ["code_sms", "Code SMS"],
+      ["code", "ApprenantID"],
       ["prix_total", "Prix Total"],
       ["theme", "Thème de la séance"],
       ["heure_debut", "H. Début"],
@@ -387,7 +388,9 @@
       if (!validateSession()) return;
       const q = (codeSearch.value || "").trim().toLowerCase();
       if (!q) return;
-      const learner = learners.find((item) => String(item.code || "").toLowerCase() === q);
+      const learner = learners.find((item) => {
+        return String(item.code_sms || "").toLowerCase() === q || String(item.code || "").toLowerCase() === q;
+      });
       if (learner) {
         mark(learner, "C");
         codeSearch.value = "";

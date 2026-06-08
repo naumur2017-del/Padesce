@@ -12,6 +12,7 @@ class Apprenant(TimeStampedModel):
 
     numero = models.CharField(max_length=20, blank=True)
     code = models.CharField(max_length=20, unique=True)
+    code_sms = models.CharField(max_length=20, blank=True, db_index=True)
     classe = models.ForeignKey(Classe, on_delete=models.CASCADE, related_name="apprenants")
     formation = models.ForeignKey(Formation, on_delete=models.CASCADE, related_name="apprenants")
     nom_complet = models.CharField(max_length=255)
@@ -48,7 +49,11 @@ class Apprenant(TimeStampedModel):
     appartenance_beneficiaire = models.BooleanField(default=False)
     actif = models.BooleanField(default=True)
     phase = models.ForeignKey(
-        "formations.Phase", on_delete=models.SET_NULL, related_name="apprenants", null=True, blank=True
+        "formations.Phase",
+        on_delete=models.SET_NULL,
+        related_name="apprenants",
+        null=True,
+        blank=True,
     )
 
     class Meta:
