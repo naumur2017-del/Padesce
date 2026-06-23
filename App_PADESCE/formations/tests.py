@@ -766,3 +766,70 @@ class ClassListSearchTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "CLA351")
         self.assertContains(response, "CLA999")
+
+
+@override_settings(ROOT_URLCONF="App_PADESCE.urls")
+class ImportTransactionIntegrityTests(TestCase):
+    """Ensure IntegrityError in _load_apprenants does not abort the whole atomic transaction."""
+
+    def _make_phase(self):
+        from App_PADESCE.formations.models import Phase
+        from datetime import date
+        return Phase.objects.create(nom="Vague TX", vague=9, date_debut=date(2026, 1, 1))
+
+    def test_duplicate_apprenant_code_is_skipped_without_aborting_transaction(self):
+        """A duplicate ApprenantID must be skipped; subsequent learners must still be imported."""
+        from App_PADESCE.formations.imports import import_reference_workbook
+        from App_PADESCE.apprenants.models import Apprenant
+
+        phase = self._make_phase()
+        # Pre-create an apprenant with the same code that the import will try to create
+        formation = Formation.objects.create(code="FOR-TX", nom="Formation TX")
+        prestataire = Prestataire.objects.create(code="PREST-TX", raison_sociale="Prest TX")
+        prestation = Prestation.objects.create(
+            code="PRESTA-TX", prestataire=prestataire, formation=formation
+        )
+        classe = Classe.objects.create(
+            code="CLA-TX", prestation=prestation, formation=formation,
+            intitule_formation="Formation TX", cohorte=1,
+        )
+        Apprenant.objects.create(
+            code="CONFLICT01", numero="X", classe=classe,
+            formation=formation, nom_complet="Conflit Existant",
+        )
+
+        data = _make_workbook_bytes({
+            "Formations": [["FormationID", "NomFormation"], ["FOR-TX", "Formation TX"]],
+            "Prestataires": [["PrestataireID", "NomPrestataire"], ["PREST-TX", "Prest TX"]],
+            "Beneficiaires": [["BeneficiaireID", "NomBeneficiaire"]],
+            "Lieux": [["LieuID", "NomLieu"]],
+            "Prestations": [
+                ["ID Prestation", "ID Prestataire", "ID Formation", "Formation",
+                 "ID Beneficaire", "Nombre D'apprenants Objectifs PADESCE",
+                 "Objectif d'apprenants femme Inscrit", "Statut de la prestation"],
+                ["PRESTA-TX", "PREST-TX", "FOR-TX", "Formation TX", None, 10, 5, "EN COURS"],
+            ],
+            "Classes": [
+                ["Classe ID", "Prestation ID", "Cohorte", "Statut de la prestation", "Lieux", "Ville", "FORMATION"],
+                ["CLA-TX", "PRESTA-TX", 1, "EN COURS", "Douala", "Douala", "Formation TX"],
+            ],
+            "Apprenants": [
+                ["ApprenantID", "Nom_Individu", "Classe ID", "Sexe", "Cohorte"],
+                # This code already exists — should be skipped without crashing
+                ["CONFLICT01", "Autre Personne", "CLA-TX", "M", "1"],
+                # This learner must still be imported despite the conflict above
+                ["UNIQUE999", "Nouveau Apprenant", "CLA-TX", "F", "1"],
+            ],
+            "Consolidation": [["Classe", "Nom et prenom 0 Name & first name", "Code"]],
+        })
+
+        # Must not raise any exception
+        result = import_reference_workbook(
+            io.BytesIO(data), phase=phase,
+            update_apprenant_ids_only=False, update_sms_codes_only=False,
+        )
+
+        # UNIQUE999 must have been imported
+        self.assertTrue(Apprenant.objects.filter(code="UNIQUE999").exists())
+        # CONFLICT01 original record must still exist and be unchanged
+        self.assertTrue(Apprenant.objects.filter(code="CONFLICT01").exists())

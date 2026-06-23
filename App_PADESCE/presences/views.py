@@ -509,15 +509,18 @@ def presence_control_detail(request, pk: int):
                 search_results = list(_search_control_apprenants(control, query))
                 if not search_results:
                     messages.warning(request, "Aucun apprenant trouvé pour cette recherche.")
-        elif action == "mark_present_external":
+        elif action == "note_mixed_cohort":
             apprenant = get_object_or_404(Apprenant, pk=request.POST.get("apprenant_id"))
-            _mark_presence(control, apprenant, "C")
-            messages.success(
+            source_code = getattr(getattr(apprenant, "classe", None), "code", "?")
+            if not getattr(control.classe, "melange_cohorte", False):
+                control.classe.melange_cohorte = True
+                control.classe.save(update_fields=["melange_cohorte", "updated_at"])
+            messages.info(
                 request,
                 (
-                    f"{apprenant.nom_complet} marque present depuis la classe "
-                    f"{apprenant.classe.code}. Classe {control.classe.code} marquee "
-                    "comme melange de cohorte."
+                    f"Mélange de cohorte noté : {apprenant.nom_complet} appartient à "
+                    f"la classe {source_code}. Classe {control.classe.code} marquée "
+                    "mélange de cohorte — aucune présence créée pour cet apprenant."
                 ),
             )
             return redirect("presence_control_detail", pk=control.pk)

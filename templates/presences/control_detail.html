@@ -58,6 +58,8 @@
   .pc-pill { display: inline-flex; align-items: center; justify-content: center; min-width: 42px; padding: 4px 8px; border-radius: 999px; border: 1px solid var(--border); font-weight: 900; }
   .pc-pill.pr { color: #166534; background: rgba(22,163,74,.12); border-color: rgba(22,163,74,.25); }
   .pc-pill.ab { color: #991b1b; background: rgba(239,68,68,.1); border-color: rgba(239,68,68,.2); }
+  .pc-pill.mixed { color: #92400e; background: rgba(234,179,8,.12); border-color: rgba(234,179,8,.3); cursor: default; }
+  [title] { cursor: help; }
   .pc-actions { display: flex; gap: 6px; flex-wrap: wrap; }
   .pc-inline { display: inline-flex; gap: 5px; align-items: center; margin: 0; }
   .pc-inline select { min-height: 34px; border: 1px solid var(--border); border-radius: 8px; background: white; }
@@ -161,21 +163,24 @@
   {% if external_match %}
     <div class="pc-modal" role="dialog" aria-modal="true" aria-labelledby="external-code-title">
       <div class="pc-dialog">
-        <h3 id="external-code-title" style="margin:0 0 8px;">Apprenant trouve dans une autre classe</h3>
+        <h3 id="external-code-title" style="margin:0 0 8px;">Mélange de cohorte détecté</h3>
         <p class="pc-muted">
-          Le code <strong>{{ query }}</strong> correspond a
-          <strong>{{ external_match.nom_complet }}</strong>, classe
+          Le code <strong>{{ query }}</strong> correspond à
+          <strong>{{ external_match.nom_complet }}</strong>, appartenant à la classe
           <strong>{{ external_match.classe.code }}</strong>.
         </p>
-        <p>Voulez-vous l'ajouter comme present dans {{ classe.code }} et marquer cette classe comme melange de cohorte ?</p>
+        <p>
+          Cet apprenant ne sera <strong>pas ajouté</strong> à la feuille de présence de {{ classe.code }}.
+          La classe sera uniquement marquée <em>mélange de cohorte</em> pour information.
+        </p>
         <div class="pc-actions">
           <form method="post">
             {% csrf_token %}
-            <input type="hidden" name="action" value="mark_present_external">
+            <input type="hidden" name="action" value="note_mixed_cohort">
             <input type="hidden" name="apprenant_id" value="{{ external_match.id }}">
-            <button class="pc-btn primary" type="submit">Oui, ajouter</button>
+            <button class="pc-btn warn" type="submit">Noter le mélange (sans ajouter)</button>
           </form>
-          <a class="pc-btn" href="{% url 'presence_control_detail' control.id %}">Non, annuler</a>
+          <a class="pc-btn" href="{% url 'presence_control_detail' control.id %}">Annuler</a>
         </div>
       </div>
     </div>
@@ -213,7 +218,12 @@
             <tr>
               <td class="pc-code">{{ p.apprenant.code }}</td>
               <td class="pc-code">{{ p.apprenant.code_sms|default:"-" }}</td>
-              <td>{{ p.apprenant.nom_complet }}</td>
+              <td>
+                {{ p.apprenant.nom_complet }}
+                {% if p.apprenant.classe_id != control.classe_id %}
+                  <span class="pc-pill mixed" title="Mélange de cohorte — appartient à la classe {{ p.apprenant.classe.code }}">M</span>
+                {% endif %}
+              </td>
               <td>{{ p.apprenant.telephone1|default:p.apprenant.telephone2|default:"-" }}</td>
               <td><span class="pc-pill {% if p.presence == 'PR' %}pr{% else %}ab{% endif %}">{{ p.presence }}</span></td>
               <td>{{ p.get_statut_display }}</td>

@@ -500,8 +500,23 @@ def _load_apprenants(workbook, result, phase: Phase | None = None):
                 if not _code_is_available(apprenant_id):
                     result.apprenants_skipped += 1
                     continue
-                obj = Apprenant.objects.create(code=apprenant_id, **defaults)
-                created = True
+                try:
+                    with transaction.atomic():
+                        obj = Apprenant.objects.create(code=apprenant_id, **defaults)
+                    created = True
+                except IntegrityError:
+                    obj = Apprenant.objects.filter(classe=classe, nom_complet=name).first()
+                    if not obj:
+                        result.apprenants_skipped += 1
+                        continue
+                    if not _code_is_available(apprenant_id, obj):
+                        result.apprenants_skipped += 1
+                        continue
+                    obj.code = apprenant_id
+                    for key, value in defaults.items():
+                        setattr(obj, key, value)
+                    obj.save()
+                    created = False
         except IntegrityError:
             obj = Apprenant.objects.filter(classe=classe, nom_complet=name).first()
             if not obj:
