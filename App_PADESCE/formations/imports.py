@@ -419,6 +419,18 @@ def _code_is_available(code: str, apprenant: Apprenant | None = None) -> bool:
     return not queryset.exists()
 
 
+def _save_apprenant_for_import(
+    apprenant: Apprenant,
+    apprenant_id: str,
+    defaults: dict,
+) -> None:
+    with transaction.atomic():
+        apprenant.code = apprenant_id
+        for key, value in defaults.items():
+            setattr(apprenant, key, value)
+        apprenant.save()
+
+
 def _load_apprenant_codes(
     workbook,
     result,
@@ -491,10 +503,7 @@ def _load_apprenants(workbook, result, phase: Phase | None = None):
                 if not _code_is_available(apprenant_id, obj):
                     result.apprenants_skipped += 1
                     continue
-                obj.code = apprenant_id
-                for key, value in defaults.items():
-                    setattr(obj, key, value)
-                obj.save()
+                _save_apprenant_for_import(obj, apprenant_id, defaults)
                 created = False
             else:
                 if not _code_is_available(apprenant_id):
@@ -512,10 +521,11 @@ def _load_apprenants(workbook, result, phase: Phase | None = None):
                     if not _code_is_available(apprenant_id, obj):
                         result.apprenants_skipped += 1
                         continue
-                    obj.code = apprenant_id
-                    for key, value in defaults.items():
-                        setattr(obj, key, value)
-                    obj.save()
+                    try:
+                        _save_apprenant_for_import(obj, apprenant_id, defaults)
+                    except IntegrityError:
+                        result.apprenants_skipped += 1
+                        continue
                     created = False
         except IntegrityError:
             obj = Apprenant.objects.filter(classe=classe, nom_complet=name).first()
@@ -525,10 +535,11 @@ def _load_apprenants(workbook, result, phase: Phase | None = None):
             if not _code_is_available(apprenant_id, obj):
                 result.apprenants_skipped += 1
                 continue
-            obj.code = apprenant_id
-            for key, value in defaults.items():
-                setattr(obj, key, value)
-            obj.save()
+            try:
+                _save_apprenant_for_import(obj, apprenant_id, defaults)
+            except IntegrityError:
+                result.apprenants_skipped += 1
+                continue
             created = False
         _save_counter(
             obj,

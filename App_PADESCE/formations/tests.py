@@ -833,3 +833,62 @@ class ImportTransactionIntegrityTests(TestCase):
         self.assertTrue(Apprenant.objects.filter(code="UNIQUE999").exists())
         # CONFLICT01 original record must still exist and be unchanged
         self.assertTrue(Apprenant.objects.filter(code="CONFLICT01").exists())
+
+    def test_update_integrity_error_does_not_abort_transaction(self):
+        """A failed learner update must not poison the import transaction."""
+        from App_PADESCE.formations.imports import import_reference_workbook
+        from App_PADESCE.apprenants.models import Apprenant
+
+        phase = self._make_phase()
+        formation = Formation.objects.create(code="FOR-UPD", nom="Formation Update")
+        prestataire = Prestataire.objects.create(code="PREST-UPD", raison_sociale="Prest Update")
+        prestation = Prestation.objects.create(
+            code="PRESTA-UPD", prestataire=prestataire, formation=formation
+        )
+        classe = Classe.objects.create(
+            code="CLA-UPD", prestation=prestation, formation=formation,
+            intitule_formation="Formation Update", cohorte=1,
+        )
+        Apprenant.objects.create(
+            code="OLD-SMS", code_sms="SMS-CONFLICT", numero="1", classe=classe,
+            formation=formation, nom_complet="Ancien Nom",
+        )
+        Apprenant.objects.create(
+            code="TARGET-OLD", numero="2", classe=classe,
+            formation=formation, nom_complet="Nom Deja Pris",
+        )
+
+        data = _make_workbook_bytes({
+            "Formations": [["FormationID", "NomFormation"], ["FOR-UPD", "Formation Update"]],
+            "Prestataires": [["PrestataireID", "NomPrestataire"], ["PREST-UPD", "Prest Update"]],
+            "Beneficiaires": [["BeneficiaireID", "NomBeneficiaire"]],
+            "Lieux": [["LieuID", "NomLieu"]],
+            "Prestations": [
+                ["ID Prestation", "ID Prestataire", "ID Formation", "Formation",
+                 "ID Beneficaire", "Nombre D'apprenants Objectifs PADESCE",
+                 "Objectif d'apprenants femme Inscrit", "Statut de la prestation"],
+                ["PRESTA-UPD", "PREST-UPD", "FOR-UPD", "Formation Update", None, 10, 5, "EN COURS"],
+            ],
+            "Classes": [
+                ["Classe ID", "Prestation ID", "Cohorte", "Statut de la prestation", "Lieux", "Ville", "FORMATION"],
+                ["CLA-UPD", "PRESTA-UPD", 1, "EN COURS", "Douala", "Douala", "Formation Update"],
+            ],
+            "Apprenants": [
+                ["ApprenantID", "Nom_Individu", "Classe ID", "Sexe", "Cohorte"],
+                ["TARGET-NEW", "Nom Deja Pris", "CLA-UPD", "M", "1"],
+                ["UNIQUE-AFTER", "Import Apres Erreur", "CLA-UPD", "F", "1"],
+            ],
+            "Consolidation": [
+                ["Classe", "Nom et prenom 0 Name & first name", "Code"],
+                ["CLA-UPD", "Nom Deja Pris", "SMS-CONFLICT"],
+            ],
+        })
+
+        result = import_reference_workbook(
+            io.BytesIO(data), phase=phase,
+            update_apprenant_ids_only=False, update_sms_codes_only=False,
+        )
+
+        self.assertTrue(Apprenant.objects.filter(code="UNIQUE-AFTER").exists())
+        self.assertTrue(Apprenant.objects.filter(code="TARGET-NEW").exists())
+        self.assertGreaterEqual(result.apprenants_updated, 1)
