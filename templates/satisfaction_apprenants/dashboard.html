@@ -409,7 +409,7 @@
   <div class="analysis-card">
     <h3>Prestations analysées</h3>
     <div class="count">
-      {% if missing_analysis.available %}{{ missing_analysis.total_qualified }}/{{ missing_analysis.total_source }}{% else %}{{ analyzed_prestations_ratio }}{% endif %}
+      {% if missing_analysis.available %}{{ missing_analysis.total_qualified }}{% else %}{{ analyzed_prestations_count }}{% endif %}
     </div>
     <div style="font-size:0.78rem; color:var(--muted); margin-bottom:10px;">Prestations terminées analysées sur le total dans la source choisie.</div>
     <div class="analysis-list">
@@ -1118,7 +1118,7 @@
         <tbody>
           {% for p in prestation_stats %}
           <tr>
-            <td>{{ p.code }}</td>
+            <td><a href="{% url 'prestation_analysis_detail' p.code %}" style="font-weight:700; color:var(--accent-strong); text-decoration:none;">{{ p.code }}</a></td>
             <td>{{ p.prestataire }}</td>
             <td>{{ p.beneficiaire }}</td>
             <td><strong>{{ p.nb }}</strong></td>
