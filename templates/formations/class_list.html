@@ -121,6 +121,24 @@
 </div>
 {% endif %}
 
+<form method="get" style="margin-bottom:14px;display:flex;gap:10px;align-items:center;">
+  <input
+    type="search"
+    name="q"
+    value="{{ search_query }}"
+    placeholder="Rechercher par code (ex: 351), formation, prestation…"
+    style="flex:1;padding:10px 14px;border:1px solid var(--border);border-radius:12px;font-size:1rem;background:#fff;"
+    autofocus
+  >
+  <button class="btn" type="submit">Rechercher</button>
+  {% if search_query %}
+    <a class="btn btn-ghost" href="{% url 'class_list' %}">Effacer</a>
+  {% endif %}
+</form>
+{% if search_query %}
+  <p style="color:var(--muted);margin-bottom:10px;">{{ classes|length }} classe(s) trouvee(s) pour « {{ search_query }} »</p>
+{% endif %}
+
 {% if classes %}
 <div class="grid">
   {% for classe in classes %}

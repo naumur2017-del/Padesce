@@ -290,16 +290,39 @@ def _load_lieux(workbook, result):
         )
 
 
+def _formation_for_prestation(formation_code: str, prestation_code: str, formation_name: str = "") -> Formation | None:
+    """Return a Formation for a prestation, creating a placeholder if needed."""
+    if formation_code:
+        found = Formation.objects.filter(code=formation_code).first()
+        if found:
+            return found
+    if formation_name and formation_name not in ("0", ""):
+        found = Formation.objects.filter(nom__iexact=formation_name).first()
+        if found:
+            return found
+        return Formation.objects.get_or_create(
+            code=f"AUTO-{formation_code or prestation_code}",
+            defaults={"nom": formation_name, "statut": "non_demarre", "actif": True},
+        )[0]
+    # No formation info at all — create a generic placeholder keyed to the prestation
+    placeholder_code = f"AUTO-{prestation_code}"
+    return Formation.objects.get_or_create(
+        code=placeholder_code,
+        defaults={"nom": f"Formation {prestation_code}", "statut": "non_demarre", "actif": True},
+    )[0]
+
+
 def _load_prestations(workbook, result, phase: Phase | None = None):
     for row, get in _rows_by_header(workbook, "Prestations"):
         code = _clean(get(row, "ID Prestation"))
         prestataire_code = _clean(get(row, "ID Prestataire"))
         formation_code = _clean(get(row, "ID Formation"))
+        formation_name = _clean(get(row, "Formation", "NomFormation"))
         beneficiaire_code = _clean(get(row, "ID Beneficaire", "ID Bénéficaire"))
         prestataire = Prestataire.objects.filter(code=prestataire_code).first()
-        formation = Formation.objects.filter(code=formation_code).first()
-        if not code or not prestataire or not formation:
+        if not code or not prestataire:
             continue
+        formation = _formation_for_prestation(formation_code, code, formation_name)
         _update_or_create(
             Prestation,
             lookup={"code": code},

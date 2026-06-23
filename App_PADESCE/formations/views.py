@@ -1307,18 +1307,29 @@ def class_list(request):
 
     phases = Phase.objects.all().order_by("vague", "id_phase")
     teams_links = _class_channel_links_by_code()
-    classes = (
+    search_query = request.GET.get("q", "").strip()
+    classes_qs = (
         Classe.objects.select_related("prestation", "formation", "lieu", "formateur")
         .annotate(
             presence_controls_count=Count("presence_controls", distinct=True),
             apprenants_count=Count("apprenants", distinct=True),
         )
-        .all()
         .order_by("code")
     )
+    if search_query:
+        classes_qs = classes_qs.filter(
+            Q(code__icontains=search_query)
+            | Q(intitule_formation__icontains=search_query)
+            | Q(prestation__code__icontains=search_query)
+        )
+    classes = list(classes_qs)
     for classe in classes:
         classe.teams_link = teams_links.get(str(classe.code or "").upper(), "")
-    return render(request, "formations/class_list.html", {"classes": classes, "phases": phases})
+    return render(
+        request,
+        "formations/class_list.html",
+        {"classes": classes, "phases": phases, "search_query": search_query},
+    )
 
 
 def class_detail(request, pk: int):

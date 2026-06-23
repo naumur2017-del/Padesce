@@ -608,3 +608,161 @@ class AnalysisEntityDetailTests(TestCase):
         self.assertContains(response, "PRESTA146")
         self.assertContains(response, "CLA001")
         self.assertContains(response, "Fiche reconstituee depuis la source")
+
+
+import io
+import openpyxl
+
+
+def _make_workbook_bytes(sheets: dict[str, list[list]]) -> bytes:
+    """Build a minimal .xlsx workbook in memory for import tests."""
+    wb = openpyxl.Workbook()
+    wb.remove(wb.active)
+    for sheet_name, rows in sheets.items():
+        ws = wb.create_sheet(sheet_name)
+        for row in rows:
+            ws.append(row)
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
+
+
+@override_settings(ROOT_URLCONF="App_PADESCE.urls")
+class ImportReferenceWorkbookTests(TestCase):
+    """Tests for import_reference_workbook, specifically the formation-less prestation fix."""
+
+    def _make_phase(self):
+        from App_PADESCE.formations.models import Phase
+        from datetime import date
+        return Phase.objects.create(nom="Vague 1 Post", vague=1, date_debut=date(2026, 1, 1))
+
+    def test_prestation_without_formation_id_is_imported_with_placeholder(self):
+        from App_PADESCE.formations.imports import import_reference_workbook
+
+        phase = self._make_phase()
+        data = _make_workbook_bytes({
+            "Formations": [["FormationID", "NomFormation"]],
+            "Prestataires": [
+                ["PrestataireID", "NomPrestataire"],
+                ["PREST015", "Expert Finance Consulting"],
+            ],
+            "Beneficiaires": [["BeneficiaireID", "NomBeneficiaire"]],
+            "Lieux": [["LieuID", "NomLieu"]],
+            "Prestations": [
+                ["ID Prestation", "ID Prestataire", "ID Formation", "Formation",
+                 "ID Beneficaire", "Nombre D'apprenants Objectifs PADESCE",
+                 "Objectif d'apprenants femme Inscrit", "Statut de la prestation"],
+                ["PRESTA115", "PREST015", None, None, None, 50, 50, "EN COURS"],
+            ],
+            "Classes": [
+                ["Classe ID", "Prestation ID", "Cohorte", "Statut de la prestation", "Lieux", "Ville", "FORMATION"],
+                ["CLA351", "PRESTA115", 1, "EN COURS", "NGOUTCHOUMI", "Gaschiga", None],
+                ["CLA352", "PRESTA115", 2, "EN COURS", "NGOUTCHOUMI", "Gaschiga", None],
+            ],
+            "Apprenants": [["ApprenantID", "Nom_Individu", "Classe ID"]],
+            "Consolidation": [["Classe", "Nom et prenom 0 Name & first name", "Code"]],
+        })
+
+        result = import_reference_workbook(
+            io.BytesIO(data), phase=phase,
+            update_apprenant_ids_only=False, update_sms_codes_only=False,
+        )
+
+        self.assertTrue(Prestation.objects.filter(code="PRESTA115").exists())
+        self.assertTrue(Classe.objects.filter(code="CLA351").exists())
+        self.assertTrue(Classe.objects.filter(code="CLA352").exists())
+        self.assertEqual(result.classes_created, 2)
+        placeholder = Formation.objects.filter(code__startswith="AUTO-").first()
+        self.assertIsNotNone(placeholder)
+
+    def test_prestation_with_valid_formation_id_uses_existing_formation(self):
+        from App_PADESCE.formations.imports import import_reference_workbook
+
+        phase = self._make_phase()
+        data = _make_workbook_bytes({
+            "Formations": [
+                ["FormationID", "NomFormation"],
+                ["FOR001", "Gestion d'entreprise"],
+            ],
+            "Prestataires": [
+                ["PrestataireID", "NomPrestataire"],
+                ["PREST001", "Prestataire Alpha"],
+            ],
+            "Beneficiaires": [["BeneficiaireID", "NomBeneficiaire"]],
+            "Lieux": [["LieuID", "NomLieu"]],
+            "Prestations": [
+                ["ID Prestation", "ID Prestataire", "ID Formation", "Formation",
+                 "ID Beneficaire", "Nombre D'apprenants Objectifs PADESCE",
+                 "Objectif d'apprenants femme Inscrit", "Statut de la prestation"],
+                ["PRESTA001", "PREST001", "FOR001", "Gestion d'entreprise", None, 30, 15, "EN COURS"],
+            ],
+            "Classes": [
+                ["Classe ID", "Prestation ID", "Cohorte", "Statut de la prestation", "Lieux", "Ville", "FORMATION"],
+                ["CLA001", "PRESTA001", 1, "EN COURS", "Douala", "Douala", "Gestion d'entreprise"],
+            ],
+            "Apprenants": [["ApprenantID", "Nom_Individu", "Classe ID"]],
+            "Consolidation": [["Classe", "Nom et prenom 0 Name & first name", "Code"]],
+        })
+
+        result = import_reference_workbook(
+            io.BytesIO(data), phase=phase,
+            update_apprenant_ids_only=False, update_sms_codes_only=False,
+        )
+
+        self.assertTrue(Prestation.objects.filter(code="PRESTA001").exists())
+        self.assertTrue(Classe.objects.filter(code="CLA001").exists())
+        presta = Prestation.objects.get(code="PRESTA001")
+        self.assertEqual(presta.formation.code, "FOR001")
+        self.assertFalse(Formation.objects.filter(code__startswith="AUTO-").exists())
+
+
+@override_settings(ROOT_URLCONF="App_PADESCE.urls")
+class ClassListSearchTests(TestCase):
+    """Tests for the search bar on the class list page."""
+
+    def setUp(self):
+        user_model = get_user_model()
+        self.user = user_model.objects.create_user(username="search-user", password="pass")
+        self.client.force_login(self.user)
+
+        self.prestataire = Prestataire.objects.create(code="PST-S1", raison_sociale="Prestataire Search")
+        self.formation = Formation.objects.create(code="FOR-S1", nom="Gestion digitale")
+        self.prestation = Prestation.objects.create(
+            code="PRESTA-S1", prestataire=self.prestataire, formation=self.formation
+        )
+        self.classe_a = Classe.objects.create(
+            code="CLA351", prestation=self.prestation, formation=self.formation,
+            intitule_formation="Gestion digitale", cohorte=1,
+        )
+        self.classe_b = Classe.objects.create(
+            code="CLA999", prestation=self.prestation, formation=self.formation,
+            intitule_formation="Autre formation", cohorte=2,
+        )
+
+    def test_search_by_partial_number_returns_matching_class(self):
+        response = self.client.get(reverse("class_list"), {"q": "351"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "CLA351")
+        self.assertNotContains(response, "CLA999")
+
+    def test_search_by_full_code_returns_matching_class(self):
+        response = self.client.get(reverse("class_list"), {"q": "CLA351"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "CLA351")
+        self.assertNotContains(response, "CLA999")
+
+    def test_search_by_formation_name_returns_matching_class(self):
+        response = self.client.get(reverse("class_list"), {"q": "digitale"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "CLA351")
+        self.assertNotContains(response, "CLA999")
+
+    def test_empty_search_returns_all_classes(self):
+        response = self.client.get(reverse("class_list"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "CLA351")
+        self.assertContains(response, "CLA999")
