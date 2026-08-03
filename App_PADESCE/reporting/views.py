@@ -2238,9 +2238,9 @@ def _format_concordance_value(header, value):
 def _campaign_window_key(value):
     """Return the reporting window used by the H/F recap table."""
     normalized = _concordance_header_key(value).replace("_", "")
-    if normalized in {"fenetre2", "f2"}:
+    if normalized in {"2", "fenetre2", "f2"}:
         return "Fenêtre 2"
-    if normalized in {"fenetre3", "f3"}:
+    if normalized in {"3", "fenetre3", "f3"}:
         return "Fenêtre 3"
     return ""
 
