@@ -2303,24 +2303,15 @@ def _concordance_window_summary(rows):
         window = _campaign_window_key(row.fenetre)
         if not window:
             continue
-        payload = row.payload
-        # The second block is the result after applying the concordance rate.
-        # Fall back to the attendance-report figures for older imports.
-        men = _number_from_concordance_payload(
-            payload,
-            "NOMBRE FORME TOTAL AVEC TAUX DE CONCORDANCE - H",
-            "NBRE PERSONNES FORMEES SELON FICHE DE PRESENCE RAPPORT PRESTATAIRE - H",
-        )
-        women = _number_from_concordance_payload(
-            payload,
-            "NOMBRE FORME TOTAL AVEC TAUX DE CONCORDANCE - F",
-            "NBRE PERSONNES FORMEES SELON FICHE DE PRESENCE RAPPORT PRESTATAIRE - F",
-        )
-        total = _number_from_concordance_payload(
-            payload,
-            "NOMBRE FORME TOTAL AVEC TAUX DE CONCORDANCE - T",
-            "NBRE PERSONNES FORMEES SELON FICHE DE PRESENCE RAPPORT PRESTATAIRE - T",
-        )
+        # Feuil2 stores the final concordance values in its last three columns:
+        # H, F, then T.  Their exact imported labels vary with Excel's merged
+        # headers, so use the stable column order rather than the label.
+        values = list(row.payload.values())
+        if len(values) < 3:
+            continue
+        men = _number_from_concordance_payload({"value": values[-3]}, "value")
+        women = _number_from_concordance_payload({"value": values[-2]}, "value")
+        total = _number_from_concordance_payload({"value": values[-1]}, "value")
         totals[window]["men"] += men
         totals[window]["women"] += women
         totals[window]["total"] += total or men + women
