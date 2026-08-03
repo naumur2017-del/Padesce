@@ -49,7 +49,7 @@
   {% endif %}
 
   <details class="panel" open>
-    <summary>Évolution des campagnes par genre et fenêtre</summary>
+    <summary>Reconciliation par appels par genre et fenêtre</summary>
     <div class="table"><table><thead><tr><th>Fenêtre</th><th>Genre</th><th>Appels</th><th>Formulaires remplis</th><th>Appels réussis</th></tr></thead><tbody>{% for segment in campaign_segments %}<tr><td>{{ segment.fenetre|default:"Non renseignée" }}</td><td>{{ segment.genre|default:"Non renseigné" }}</td><td>{{ segment.total }}</td><td>{{ segment.completed }}</td><td>{{ segment.successful }}</td></tr>{% empty %}<tr><td colspan="5">Aucune donnée importée.</td></tr>{% endfor %}</tbody></table></div>
   </details>
 
