@@ -240,14 +240,14 @@
 </div> -->
 
 {% if user.is_superuser %}
-  <p class="subtitle" style="color:var(--muted);">Importer un fichier xlsx/xlsm (Feuil1) pour charger les contacts (Noms et Prénoms, Bénéficiaires, Prestataires, Lieux, Classes, Téléphones).</p>
+  <p class="subtitle" style="color:var(--muted);">Importer un fichier Excel .xlsx ou .xlsm (feuille Feuil1 ou Sheet1) pour charger les contacts (Noms et Prénoms, Bénéficiaires, Prestataires, Lieux, Classes, Téléphones).</p>
   <div class="panel import-panel">
     <div class="import-title">Importer des contacts <span class="help-dot" title="Ajouter conserve les contacts deja affiches et ignore les doublons; remplacer recharge la liste active. Les lignes sans telephone sont ignorees.">?</span></div>
     <form method="post" enctype="multipart/form-data" class="form-inline" style="gap:12px; flex-wrap:wrap;">
       {% csrf_token %}
       <input type="hidden" name="update_mode" value="append">
       <div class="input-file">
-        <span class="file-label">Choisir un fichier (Feuil1)</span>
+        <span class="file-label">Choisir un fichier Excel (.xlsx/.xlsm)</span>
         <div class="file-input-fr">
           <input type="file" id="fr-import-append" name="file" accept=".xlsx,.xlsm" required class="file-input-fr-native js-fr-file-input" />
           <label for="fr-import-append" class="file-input-fr-btn">Parcourir</label>

@@ -452,6 +452,10 @@ def _find_apprenant_for_appel(base_qs, appel: Appel):
 
 
 def _parse_excel_sheet(file_obj, sheet_name: str):
+    # The same upload can be parsed more than once when trying compatible
+    # worksheet names, so always rewind the in-memory uploaded file first.
+    if hasattr(file_obj, "seek"):
+        file_obj.seek(0)
     wb = openpyxl.load_workbook(file_obj, read_only=True, data_only=True)
     if sheet_name not in wb.sheetnames:
         raise ValueError(f"{sheet_name} introuvable dans le fichier.")
@@ -532,7 +536,18 @@ def _parse_excel_sheet(file_obj, sheet_name: str):
 
 
 def _parse_excel(file_obj):
-    return _parse_excel_sheet(file_obj, "Sheet1")
+    """Read the standard PADESCE contact sheet.
+
+    The exported workbooks use either the French default sheet name ``Feuil1``
+    or the English default ``Sheet1``. Both formats contain the same columns.
+    """
+    for sheet_name in ("Sheet1", "Feuil1"):
+        try:
+            return _parse_excel_sheet(file_obj, sheet_name)
+        except ValueError as exc:
+            if f"{sheet_name} introuvable" not in str(exc):
+                raise
+    raise ValueError("Aucune feuille de contacts trouvee (Sheet1 ou Feuil1).")
 
 
 def _parse_excel_non_forme(file_obj):
