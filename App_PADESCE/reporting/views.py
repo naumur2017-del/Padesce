@@ -2144,22 +2144,31 @@ def _concordance_rows_from_file(uploaded_file):
         top_headers = [_normalize_cell(value) for value in sheet_rows[0]]
         bottom_headers = [_normalize_cell(value) for value in sheet_rows[1]]
         inherited = ""
-        headers = []
+        header_specs = []
         for index, value in enumerate(top_headers):
+            # Feuil2 contient une première colonne A entièrement vide : elle ne
+            # fait pas partie du tableau de rapprochement et ne doit surtout pas
+            # décaler la dernière colonne « T ».
+            if not value and not (bottom_headers[index] if index < len(bottom_headers) else "") and not any(
+                _normalize_cell(row[index]) for row in sheet_rows[2:] if index < len(row)
+            ):
+                continue
             if value:
                 inherited = value
             child = bottom_headers[index] if index < len(bottom_headers) else ""
             # Fenêtre est une colonne autonome dans Feuil2, même si Excel la
             # place sous la cellule visuellement fusionnée « Bénéficiaire ».
             if _concordance_header_key(child) == "fenetre":
-                headers.append(child)
+                header = child
             elif child and inherited and child != inherited:
-                headers.append(f"{inherited} - {child}")
+                header = f"{inherited} - {child}"
             elif inherited == "NBRE PERSONNES FORMEES SELON FICHE DE PRESENCE RAPPORT PRESTATAIRE":
                 # La première colonne de ce bloc est le total (T), puis H et F.
-                headers.append(f"{inherited} - T")
+                header = f"{inherited} - T"
             else:
-                headers.append(child or inherited or f"Colonne {index + 1}")
+                header = child or inherited or f"Colonne {index + 1}"
+            header_specs.append((index, header))
+        headers = [header for _index, header in header_specs]
         seen_headers = {}
         unique_headers = []
         for header in headers:
@@ -2167,9 +2176,14 @@ def _concordance_rows_from_file(uploaded_file):
             seen_headers[header] = occurrence + 1
             unique_headers.append(header if occurrence == 0 else f"{header} ({occurrence + 1})")
         headers = unique_headers
+        header_specs = [(header_specs[index][0], header) for index, header in enumerate(headers)]
         data_rows = sheet_rows[2:]
     else:
-        headers = [_normalize_cell(value) or f"Colonne {index + 1}" for index, value in enumerate(sheet_rows[0])]
+        header_specs = [
+            (index, _normalize_cell(value) or f"Colonne {index + 1}")
+            for index, value in enumerate(sheet_rows[0])
+        ]
+        headers = [header for _index, header in header_specs]
         data_rows = sheet_rows[1:]
     if not any(headers):
         raise ValueError("La première ligne doit contenir les en-têtes.")
@@ -2177,13 +2191,17 @@ def _concordance_rows_from_file(uploaded_file):
     rows = []
     for row in data_rows:
         payload = {
-            headers[index] or f"Colonne {index + 1}": _normalize_cell(value)
-            for index, value in enumerate(row[: len(headers)])
-            if headers[index] and _normalize_cell(value)
+            header: _normalize_cell(row[index])
+            for index, header in header_specs
+            if header and index < len(row) and _normalize_cell(row[index])
         }
         if not payload:
             continue
-        lookup = {normalized[index]: _normalize_cell(value) for index, value in enumerate(row[: len(headers)])}
+        lookup = {
+            _concordance_header_key(header): _normalize_cell(row[index])
+            for index, header in header_specs
+            if index < len(row)
+        }
         genre = lookup.get("genre") or lookup.get("sexe") or "Non renseigné"
         fenetre = lookup.get("fenetre") or lookup.get("fenetre_appel") or "Non renseignée"
         rows.append(ConcordanceRecord(genre=genre, fenetre=fenetre, payload=payload))
@@ -2221,7 +2239,9 @@ def concordance_campaigns_view(request):
                     messages.error(request, str(exc))
         return redirect("concordance_campaigns")
 
-    concordance = list(ConcordanceRecord.objects.all())
+    # L'ordre d'import est celui de Feuil2 : en particulier, la ligne TOTAL
+    # GENERAL doit rester à la fin du tableau.
+    concordance = list(ConcordanceRecord.objects.order_by("id"))
     selected_fenetre = (request.GET.get("fenetre") or "").strip()
     selected_prestataire = (request.GET.get("prestataire") or "").strip()
     selected_beneficiaire = (request.GET.get("beneficiaire") or "").strip()
@@ -2260,6 +2280,21 @@ def concordance_campaigns_view(request):
             if key not in headers:
                 headers.append(key)
     headers = headers[:13]
+    source_headers = {
+        "NBRE",
+        "PRESTA ID",
+        "PRESTATAIRE",
+        "BENEFICIAIRE",
+        "FENETRE",
+        "NBRE PERSONNES FORMEES SELON FICHE DE PRESENCE RAPPORT PRESTATAIRE - T",
+        "NBRE PERSONNES FORMEES SELON FICHE DE PRESENCE RAPPORT PRESTATAIRE - H",
+        "NBRE PERSONNES FORMEES SELON FICHE DE PRESENCE RAPPORT PRESTATAIRE - F",
+        "TAUX_CONCORDANCE",
+        "NOMBRE FORME TOTAL AVEC TAUX DE CONCORDANCE - H",
+        "NOMBRE FORME TOTAL AVEC TAUX DE CONCORDANCE - F",
+        "NOMBRE FORME TOTAL AVEC TAUX DE CONCORDANCE - T",
+    }
+    is_feuil2_layout = source_headers.issubset(set(headers))
     concordance_rows = [
         {"genre": row.genre, "fenetre": row.fenetre, "values": [row.payload.get(header, "") for header in headers]}
         for row in filtered_concordance[:100]
@@ -2292,7 +2327,7 @@ def concordance_campaigns_view(request):
         })
     return render(request, "reporting/concordance_campaigns.html", {
         "concordance_count": len(concordance), "filtered_concordance_count": len(filtered_concordance),
-        "headers": headers, "concordance_rows": concordance_rows, "filter_options": filter_options,
+        "headers": headers, "concordance_rows": concordance_rows, "is_feuil2_layout": is_feuil2_layout, "filter_options": filter_options,
         "selected_fenetre": selected_fenetre, "selected_prestataire": selected_prestataire,
         "selected_beneficiaire": selected_beneficiaire, "selected_presta_id": selected_presta_id, "search_query": search_query,
         "campaign_rows": campaign_rows, "synthesis_rows": synthesis,
