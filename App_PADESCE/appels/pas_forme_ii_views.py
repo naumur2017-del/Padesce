@@ -7,6 +7,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
 from django.db.models import Count, Q
+from django.core.paginator import Paginator
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
@@ -66,8 +67,18 @@ def index(request):
             AppelPasFormeII.objects.create(**item); created += 1
         messages.success(request, f"Import terminé : {created} ajoutés, {duplicates} doublons ignorés.")
         return redirect(request.path_info)
-    rows = AppelPasFormeII.objects.filter(is_active=True).order_by("prestation_id", "nom")
-    return render(request, "appels/pas_forme_ii.html", {"rows": rows, "thresholds": _thresholds()})
+    rows = AppelPasFormeII.objects.filter(is_active=True)
+    filters = {key: request.GET.get(key, "").strip() for key in ("status", "prestation", "prestataire", "beneficiaire", "q")}
+    if filters["status"]: rows = rows.filter(status=filters["status"])
+    if filters["prestation"]: rows = rows.filter(prestation_id=filters["prestation"])
+    if filters["prestataire"]: rows = rows.filter(prestataire__icontains=filters["prestataire"])
+    if filters["beneficiaire"]: rows = rows.filter(beneficiaire__icontains=filters["beneficiaire"])
+    if filters["q"]: rows = rows.filter(Q(nom__icontains=filters["q"]) | Q(telephone__icontains=filters["q"]))
+    all_rows = AppelPasFormeII.objects.filter(is_active=True)
+    filters.update({"prestations": list(all_rows.values_list("prestation_id", flat=True).distinct().order_by("prestation_id")), "prestataires": list(all_rows.values_list("prestataire", flat=True).distinct().order_by("prestataire")), "beneficiaires": list(all_rows.values_list("beneficiaire", flat=True).distinct().order_by("beneficiaire"))})
+    page_obj = Paginator(rows.order_by("prestation_id", "nom"), 50).get_page(request.GET.get("page", 1))
+    threshold_map = {item["prestation_id"]: item for item in _thresholds()}
+    return render(request, "appels/pas_forme_ii.html", {"rows": page_obj.object_list, "page_obj": page_obj, "filters": filters, "thresholds": list(threshold_map.values()), "threshold_map": threshold_map})
 
 
 @login_required
@@ -75,7 +86,24 @@ def index(request):
 def save_form(request, pk):
     row = get_object_or_404(AppelPasFormeII, pk=pk)
     row.nombre_seances_declare = _number(request.POST.get("nombre_seances_declare"))
-    row.formulaire_rempli_at = timezone.now(); row.status = "formulaire_rempli"; row.locked_by = request.user
-    row.save(update_fields=["nombre_seances_declare", "formulaire_rempli_at", "status", "locked_by", "updated_at"])
+    for field, key in (("connait_structure", "q1"), ("membre_structure", "q2"), ("a_assiste_formation", "q3"), ("connait_theme", "q4")):
+        value = str(request.POST.get(key, "")).upper(); setattr(row, field, value if value in {"OUI", "NON"} else "")
+    row.commentaire = str(request.POST.get("commentaire", "")).strip()
+    row.formulaire_rempli_at = timezone.now(); row.status = "formulaire_avec_audio" if request.FILES.get("audio") else "formulaire_rempli"; row.locked_by = request.user
+    if request.FILES.get("audio"): row.audio_file = request.FILES["audio"]
+    row.save()
     messages.success(request, "Formulaire enregistré.")
+    return redirect("pas_forme_ii_index")
+
+
+@login_required
+@require_POST
+def action(request, pk):
+    row = get_object_or_404(AppelPasFormeII, pk=pk)
+    action_name = request.POST.get("action")
+    if action_name in {"start", "resume"}: row.status, row.locked_by, row.locked_at = "en_cours", request.user, timezone.now()
+    elif action_name == "pause": row.status = "pause"
+    elif action_name == "reussi": row.status = "appel_reussi"
+    else: return redirect("pas_forme_ii_index")
+    row.save(update_fields=["status", "locked_by", "locked_at", "updated_at"])
     return redirect("pas_forme_ii_index")
