@@ -263,6 +263,7 @@ class LoginRequiredMiddleware:
             "/analyse/appels/formateur/",
             "/deploiement/live/",
             "/deploiement/live-status/",
+            "/reporting/concordance-campagnes/",
             "/backup/api/trigger/",
             "/service-worker.js",
             "/manifest.webmanifest",

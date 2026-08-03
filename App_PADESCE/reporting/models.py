@@ -47,3 +47,16 @@ class ConsolidationRecord(models.Model):
 
     def __str__(self) -> str:
         return f"{self.code or self.numero} - {self.nom_complet}"
+
+
+class ConcordanceRecord(models.Model):
+    """Ligne importée pour le suivi des travaux de concordance."""
+
+    genre = models.CharField(max_length=50, blank=True)
+    fenetre = models.CharField(max_length=100, blank=True)
+    payload = models.JSONField(default=dict)
+    imported_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["fenetre", "genre", "id"]
+        indexes = [models.Index(fields=["genre", "fenetre"], name="reporting_c_genre_4f84de_idx")]

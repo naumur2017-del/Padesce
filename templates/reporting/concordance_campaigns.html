@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Concordance et campagnes{% endblock %}
+{% block content %}
+<style>
+  .workspace { max-width:1180px; margin:32px auto 64px; padding:0 20px; }
+  .workspace-head { display:flex; justify-content:space-between; gap:20px; align-items:end; margin-bottom:22px; }
+  .workspace h1 { margin:0; font-size:clamp(1.7rem,3vw,2.3rem); color:var(--accent-strong); }
+  .workspace p { color:var(--muted); margin:7px 0 0; }
+  .tab-switch { display:flex; gap:7px; flex-wrap:wrap; padding:6px; background:#f1ebfb; border-radius:16px; }
+  .tab-switch button { border:0; cursor:pointer; border-radius:11px; padding:10px 14px; background:transparent; color:var(--muted); font-weight:700; }
+  .tab-switch button.active { background:#fff; color:var(--accent-strong); box-shadow:0 4px 12px rgba(76,29,149,.12); }
+  .panel { display:none; background:var(--panel); border:1px solid var(--border); border-radius:20px; padding:22px; box-shadow:0 10px 28px rgba(76,29,149,.06); }
+  .panel.active { display:block; }
+  .upload-box { display:flex; align-items:center; gap:14px; flex-wrap:wrap; padding:18px; border:1px dashed rgba(124,58,237,.4); border-radius:14px; background:#fcfaff; margin:0 0 20px; }
+  .btn { border:0; cursor:pointer; border-radius:10px; padding:10px 14px; background:var(--accent); color:#fff; font-weight:700; }
+  .btn.danger { background:#9f1239; } .muted { color:var(--muted); font-size:.92rem; }
+  .stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin:0 0 18px; }
+  .stat { padding:14px; border-radius:14px; background:#f8f5ff; } .stat strong { display:block; font-size:1.5rem; color:var(--accent-strong); }
+  .table-wrap { overflow:auto; border:1px solid var(--border); border-radius:14px; } table { width:100%; border-collapse:collapse; font-size:.91rem; } th,td { padding:11px 12px; text-align:left; border-bottom:1px solid #eee8f8; white-space:nowrap; } th { background:#faf8ff; color:var(--accent-strong); } tr:last-child td { border-bottom:0; }
+  @media(max-width:700px) { .workspace-head{align-items:start;flex-direction:column;} .panel{padding:15px;} }
+</style>
+<main class="workspace">
+  <div class="workspace-head"><div><h1>Concordance & évolution des appels</h1><p>Suivi des travaux importés et de la campagne active, ventilé par genre et fenêtre.</p></div>
+    <div class="tab-switch" role="tablist"><button class="active" data-tab="concordance">Travaux de concordance</button><button data-tab="campaigns">Évolution des campagnes</button><button data-tab="synthesis">Synthèse</button></div></div>
+  <section class="panel active" id="concordance">
+    <div class="stats"><div class="stat"><strong>{{ concordance_count }}</strong>Lignes importées</div><div class="stat"><strong>Genre + fenêtre</strong>Clés de rapprochement</div></div>
+    <form class="upload-box" method="post" enctype="multipart/form-data">{% csrf_token %}<input type="hidden" name="action" value="upload"><input type="file" name="fichier" accept=".xlsx,.xlsm,.csv" required><button class="btn" type="submit">Importer et remplacer</button><span class="muted">Colonnes reconnues : Genre/ Sexe et Fenêtre. Les autres colonnes sont conservées.</span></form>
+    {% if concordance_count %}<form method="post" style="margin-bottom:18px">{% csrf_token %}<input type="hidden" name="action" value="clear"><button class="btn danger" type="submit" onclick="return confirm('Supprimer toutes les données importées ?')">Vider l’import</button></form>{% endif %}
+    <div class="table-wrap"><table><thead><tr><th>Genre</th><th>Fenêtre</th>{% for h in headers %}<th>{{ h }}</th>{% endfor %}</tr></thead><tbody>{% for row in concordance_rows %}<tr><td>{{ row.genre }}</td><td>{{ row.fenetre }}</td>{% for value in row.values %}<td>{{ value }}</td>{% endfor %}</tr>{% empty %}<tr><td colspan="20" class="muted">Aucun travail de concordance importé.</td></tr>{% endfor %}</tbody></table></div>
+  </section>
+  <section class="panel" id="campaigns"><div class="stats"><div class="stat"><strong>{{ campaign_rows|length }}</strong>Segments actifs</div><div class="stat"><strong>Base appels PADESCE</strong>Données mises à jour automatiquement</div></div><div class="table-wrap"><table><thead><tr><th>Genre</th><th>Fenêtre</th><th>Total</th><th>Appels tentés</th><th>Appels réussis</th><th>Taux de réussite</th></tr></thead><tbody>{% for row in campaign_rows %}<tr><td>{{ row.genre }}</td><td>{{ row.fenetre }}</td><td>{{ row.total }}</td><td>{{ row.tentes }}</td><td>{{ row.reussis }}</td><td>{% widthratio row.reussis row.total 100 %}%</td></tr>{% empty %}<tr><td colspan="6" class="muted">Aucun appel actif.</td></tr>{% endfor %}</tbody></table></div></section>
+  <section class="panel" id="synthesis"><div class="stats"><div class="stat"><strong>{{ synthesis_rows|length }}</strong>Segments consolidés</div><div class="stat"><strong>Import + appels</strong>Lecture combinée par genre/fenêtre</div></div><div class="table-wrap"><table><thead><tr><th>Genre</th><th>Fenêtre</th><th>Concordance</th><th>Appels</th><th>Tentés</th><th>Réussis</th></tr></thead><tbody>{% for row in synthesis_rows %}<tr><td>{{ row.genre }}</td><td>{{ row.fenetre }}</td><td>{{ row.concordance }}</td><td>{{ row.appels }}</td><td>{{ row.tentes }}</td><td>{{ row.reussis }}</td></tr>{% empty %}<tr><td colspan="6" class="muted">Aucune donnée à consolider.</td></tr>{% endfor %}</tbody></table></div></section>
+</main>
+<script>document.querySelectorAll('[data-tab]').forEach(button=>button.addEventListener('click',()=>{document.querySelectorAll('[data-tab],.panel').forEach(item=>item.classList.remove('active'));button.classList.add('active');document.getElementById(button.dataset.tab).classList.add('active')}));</script>
+{% endblock %}

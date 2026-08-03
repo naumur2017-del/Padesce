@@ -3,6 +3,7 @@ from django.urls import path
 from App_PADESCE.core.lazy_urls import lazy_view
 
 urlpatterns = [
+    path("concordance-campagnes/", lazy_view("App_PADESCE.reporting.views.concordance_campaigns_view"), name="concordance_campaigns"),
     path(
         "", lazy_view("App_PADESCE.reporting.views.application_report_view"), name="reporting_index"
     ),

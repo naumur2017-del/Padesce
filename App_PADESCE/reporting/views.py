@@ -52,7 +52,7 @@ from App_PADESCE.reporting.manuals import (
     load_reporting_manual_markdown,
     render_reporting_manual_html,
 )
-from App_PADESCE.reporting.models import ConsolidationRecord
+from App_PADESCE.reporting.models import ConcordanceRecord, ConsolidationRecord
 from App_PADESCE.satisfaction_apprenants.models import SatisfactionApprenant
 from App_PADESCE.satisfaction_formateurs.models import SatisfactionFormateur
 
@@ -2117,3 +2117,107 @@ def public_reporting_manual_view(request):
         "is_public": True,
     }
     return render(request, "reporting/documentation_public.html", context)
+
+
+def _concordance_header_key(value):
+    return _normalize_header(value).replace(" ", "_")
+
+
+def _concordance_rows_from_file(uploaded_file):
+    """Read a simple Excel/CSV file and retain all its columns for the table."""
+    filename = str(getattr(uploaded_file, "name", "")).lower()
+    if filename.endswith(".csv"):
+        text_data = uploaded_file.read().decode("utf-8-sig")
+        reader = csv.reader(io.StringIO(text_data))
+        sheet_rows = list(reader)
+    elif filename.endswith((".xlsx", ".xlsm")):
+        workbook = load_workbook(uploaded_file, read_only=True, data_only=True)
+        sheet_rows = list(workbook.active.iter_rows(values_only=True))
+    else:
+        raise ValueError("Le fichier doit être au format XLSX, XLSM ou CSV.")
+    if not sheet_rows:
+        raise ValueError("Le fichier est vide.")
+    headers = [_normalize_cell(value) for value in sheet_rows[0]]
+    if not any(headers):
+        raise ValueError("La première ligne doit contenir les en-têtes.")
+    normalized = [_concordance_header_key(value) for value in headers]
+    rows = []
+    for row in sheet_rows[1:]:
+        payload = {
+            headers[index] or f"Colonne {index + 1}": _normalize_cell(value)
+            for index, value in enumerate(row[: len(headers)])
+            if headers[index] and _normalize_cell(value)
+        }
+        if not payload:
+            continue
+        lookup = {normalized[index]: _normalize_cell(value) for index, value in enumerate(row[: len(headers)])}
+        genre = lookup.get("genre") or lookup.get("sexe") or "Non renseigné"
+        fenetre = lookup.get("fenetre") or lookup.get("fenetre_appel") or "Non renseignée"
+        rows.append(ConcordanceRecord(genre=genre, fenetre=fenetre, payload=payload))
+    return headers, rows
+
+
+def concordance_campaigns_view(request):
+    if request.method == "POST":
+        action = request.POST.get("action")
+        if action == "clear":
+            ConcordanceRecord.objects.all().delete()
+            messages.success(request, "Les travaux de concordance ont été supprimés.")
+        elif action == "upload":
+            uploaded_file = request.FILES.get("fichier")
+            if not uploaded_file:
+                messages.error(request, "Sélectionnez un fichier avant de lancer l’import.")
+            else:
+                try:
+                    headers, records = _concordance_rows_from_file(uploaded_file)
+                    if not records:
+                        raise ValueError("Aucune ligne de données n’a été trouvée.")
+                    with transaction.atomic():
+                        ConcordanceRecord.objects.all().delete()
+                        ConcordanceRecord.objects.bulk_create(records, batch_size=500)
+                    messages.success(request, f"{len(records)} lignes de concordance importées.")
+                except Exception as exc:
+                    messages.error(request, str(exc))
+        return redirect("concordance_campaigns")
+
+    concordance = list(ConcordanceRecord.objects.all())
+    headers = []
+    for record in concordance:
+        for key in record.payload:
+            if key not in headers:
+                headers.append(key)
+    headers = headers[:12]
+    concordance_rows = [
+        {"genre": row.genre, "fenetre": row.fenetre, "values": [row.payload.get(header, "") for header in headers]}
+        for row in concordance[:100]
+    ]
+
+    learner_meta = {row["code"]: row for row in Apprenant.objects.values("code", "genre", "fenetre")}
+    campaign = {}
+    for call in Appel.objects.filter(is_active=True).values("code", "fenetre", "status"):
+        meta = learner_meta.get(call["code"], {})
+        genre = meta.get("genre") or "Non renseigné"
+        fenetre = call["fenetre"] or meta.get("fenetre") or "Non renseignée"
+        key = (genre, fenetre)
+        bucket = campaign.setdefault(key, {"genre": genre, "fenetre": fenetre, "total": 0, "tentes": 0, "reussis": 0})
+        bucket["total"] += 1
+        if call["status"] != "en_attente":
+            bucket["tentes"] += 1
+        if call["status"] in {"appel_reussi", "formulaire_rempli", "formulaire_avec_audio", "termine"}:
+            bucket["reussis"] += 1
+    campaign_rows = sorted(campaign.values(), key=lambda row: (row["fenetre"], row["genre"]))
+    concordance_counts = {}
+    for row in concordance:
+        key = (row.genre, row.fenetre)
+        concordance_counts[key] = concordance_counts.get(key, 0) + 1
+    synthesis = []
+    for key in sorted(set(campaign) | set(concordance_counts), key=lambda value: (value[1], value[0])):
+        campaign_row = campaign.get(key, {})
+        synthesis.append({
+            "genre": key[0], "fenetre": key[1], "concordance": concordance_counts.get(key, 0),
+            "appels": campaign_row.get("total", 0), "tentes": campaign_row.get("tentes", 0), "reussis": campaign_row.get("reussis", 0),
+        })
+    return render(request, "reporting/concordance_campaigns.html", {
+        "concordance_count": len(concordance), "headers": headers, "concordance_rows": concordance_rows,
+        "campaign_rows": campaign_rows, "synthesis_rows": synthesis,
+    })
