@@ -2155,6 +2155,9 @@ def _concordance_rows_from_file(uploaded_file):
                 headers.append(child)
             elif child and inherited and child != inherited:
                 headers.append(f"{inherited} - {child}")
+            elif inherited == "NBRE PERSONNES FORMEES SELON FICHE DE PRESENCE RAPPORT PRESTATAIRE":
+                # La première colonne de ce bloc est le total (T), puis H et F.
+                headers.append(f"{inherited} - T")
             else:
                 headers.append(child or inherited or f"Colonne {index + 1}")
         seen_headers = {}
@@ -2256,7 +2259,7 @@ def concordance_campaigns_view(request):
         for key in record.payload:
             if key not in headers:
                 headers.append(key)
-    headers = headers[:12]
+    headers = headers[:13]
     concordance_rows = [
         {"genre": row.genre, "fenetre": row.fenetre, "values": [row.payload.get(header, "") for header in headers]}
         for row in filtered_concordance[:100]
