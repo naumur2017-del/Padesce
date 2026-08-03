@@ -8,6 +8,7 @@ from django.contrib.auth.decorators import login_required
 from django.db import transaction
 from django.db.models import Count, Q
 from django.core.paginator import Paginator
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
@@ -85,18 +86,54 @@ def index(request):
 
 @login_required
 @require_POST
+@transaction.atomic
 def save_form(request, pk):
     row = get_object_or_404(AppelPasFormeII, pk=pk)
+    wants_json = request.headers.get("x-requested-with") == "XMLHttpRequest"
+
     if request.POST.get("action") == "rappeler":
-        row.status = "a_rappeler"; row.rappel_at = request.POST.get("rappel_at") or None; row.locked_by = request.user; row.save(update_fields=["status", "rappel_at", "locked_by", "updated_at"]); messages.success(request, "Rappel enregistré."); return redirect("pas_forme_ii_index")
-    row.nombre_seances_declare = _number(request.POST.get("nombre_seances_declare"))
+        row.status = "a_rappeler"
+        row.rappel_at = request.POST.get("rappel_at") or None
+        row.locked_by = request.user
+        row.save(update_fields=["status", "rappel_at", "locked_by", "updated_at"])
+        if wants_json:
+            return JsonResponse({"ok": True, "status": row.status})
+        messages.success(request, "Rappel enregistré.")
+        return redirect("pas_forme_ii_index")
+
+    membre_structure = str(request.POST.get("q2", "")).strip().upper()
+    nombre_seances = _number(request.POST.get("nombre_seances_declare"))
+    if membre_structure not in {"OUI", "NON"} or nombre_seances is None or nombre_seances < 0:
+        error = "Répondez par Oui ou Non et indiquez un nombre de séances valide."
+        if wants_json:
+            return JsonResponse({"ok": False, "error": error}, status=400)
+        messages.error(request, error)
+        return redirect("pas_forme_ii_index")
+
+    row.nombre_seances_declare = nombre_seances
+    row.membre_structure = membre_structure
     row.est_forme = request.POST.get("est_forme") == "on"
-    for field, key in (("connait_structure", "q1"), ("membre_structure", "q2"), ("a_assiste_formation", "q3"), ("connait_theme", "q4")):
-        value = str(request.POST.get(key, "")).upper(); setattr(row, field, value if value in {"OUI", "NON"} else "")
     row.commentaire = str(request.POST.get("commentaire", "")).strip()
-    row.formulaire_rempli_at = timezone.now(); row.status = "formulaire_avec_audio" if request.FILES.get("audio") else "formulaire_rempli"; row.locked_by = request.user
-    if request.FILES.get("audio"): row.audio_file = request.FILES["audio"]
+    row.formulaire_rempli_at = timezone.now()
+    row.status = "formulaire_avec_audio" if request.FILES.get("audio") else "formulaire_rempli"
+    row.locked_by = request.user
+    row.locked_at = None
+    row.rappel_at = None
+    if request.FILES.get("audio"):
+        row.audio_file = request.FILES["audio"]
     row.save()
+
+    if wants_json:
+        return JsonResponse(
+            {
+                "ok": True,
+                "status": row.status,
+                "status_label": row.get_status_display(),
+                "membre_structure": row.membre_structure,
+                "nombre_seances_declare": row.nombre_seances_declare,
+                "audio_url": row.audio_file.url if row.audio_file else "",
+            }
+        )
     messages.success(request, "Formulaire enregistré.")
     return redirect("pas_forme_ii_index")
 
@@ -111,4 +148,6 @@ def action(request, pk):
     elif action_name == "reussi": row.status = "appel_reussi"
     else: return redirect("pas_forme_ii_index")
     row.save(update_fields=["status", "locked_by", "locked_at", "updated_at"])
+    if request.headers.get("x-requested-with") == "XMLHttpRequest":
+        return JsonResponse({"ok": True, "status": row.status})
     return redirect("pas_forme_ii_index")
