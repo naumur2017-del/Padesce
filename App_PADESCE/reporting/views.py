@@ -21,7 +21,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 from openpyxl import Workbook, load_workbook
 
-from App_PADESCE.appels.models import Appel
+from App_PADESCE.appels.models import Appel, AppelPasFormeII
 from App_PADESCE.apprenants.models import Apprenant, SmsLog
 from App_PADESCE.core.access import require_analysis_access, require_superadmin_access
 from App_PADESCE.environnement.models import EnqueteEnvironnement
@@ -2217,26 +2217,47 @@ def _concordance_payload_value(payload, *aliases):
 
 
 def _build_not_formed_campaign_rows():
-    """Group the calls marked as non-formed by prestation and reporting window."""
-    learner_meta = {
-        row["code"]: row
-        for row in Apprenant.objects.values("code", "genre", "fenetre", "prestataire", "beneficiaire")
-    }
+    """Build the campaign from qualifying prestations in Appels Pas Formés II."""
+    threshold_by_prestation = {}
+    for item in (
+        AppelPasFormeII.objects.filter(is_active=True)
+        .values("prestation_id")
+        .annotate(total=Count("id"), appeles=Count("id", filter=Q(formulaire_rempli_at__isnull=False)))
+    ):
+        total = int(item["total"] or 0)
+        appeles = int(item["appeles"] or 0)
+        seuil = max(1, (total * 30 + 99) // 100) if total else 0
+        if total and appeles >= seuil:
+            threshold_by_prestation[item["prestation_id"]] = {"total": total, "appeles": appeles}
+
+    source_calls = list(AppelPasFormeII.objects.filter(
+        is_active=True,
+        prestation_id__in=threshold_by_prestation,
+    ).order_by("prestation_id", "fenetre", "nom"))
+    segment_counts = {}
+    for call in source_calls:
+        key = (
+            (call.prestation_id or "Non renseigné").strip(),
+            (call.prestataire or "Non renseigné").strip(),
+            (call.beneficiaire or "Non renseigné").strip(),
+            (call.fenetre or "Non renseignée").strip(),
+        )
+        counts = segment_counts.setdefault(key, {"total": 0, "appeles": 0})
+        counts["total"] += 1
+        if call.formulaire_rempli_at:
+            counts["appeles"] += 1
+
     groups = {}
-    calls = (
-        Appel.objects.filter(is_active=True, flag_pas_forme=True)
-        .select_related("classe__prestation__prestataire", "classe__prestation__beneficiaire")
-        .order_by("classe__prestation__code", "fenetre", "nom")
-    )
-    for call in calls:
-        learner = learner_meta.get(call.code, {})
-        prestation = getattr(getattr(call, "classe", None), "prestation", None)
-        presta_id = (getattr(prestation, "code", "") or call.classe_label or "Non renseigné").strip()
-        prestataire = (getattr(getattr(prestation, "prestataire", None), "raison_sociale", "") or call.prestataire or learner.get("prestataire") or "Non renseigné").strip()
-        beneficiaire = (getattr(getattr(prestation, "beneficiaire", None), "nom_structure", "") or call.beneficiaire or learner.get("beneficiaire") or "Non renseigné").strip()
-        fenetre = (call.fenetre or learner.get("fenetre") or "Non renseignée").strip()
-        genre = (learner.get("genre") or "Non renseigné").strip()
-        group = groups.setdefault((presta_id, prestataire, beneficiaire, fenetre), {"presta_id": presta_id, "prestataire": prestataire, "beneficiaire": beneficiaire, "fenetre": fenetre, "hommes": 0, "femmes": 0, "apprenants": []})
+    for call in source_calls:
+        if not call.formulaire_rempli_at:
+            continue
+        presta_id = (call.prestation_id or "Non renseigné").strip()
+        prestataire = (call.prestataire or "Non renseigné").strip()
+        beneficiaire = (call.beneficiaire or "Non renseigné").strip()
+        fenetre = (call.fenetre or "Non renseignée").strip()
+        genre = (call.genre or "Non renseigné").strip()
+        group_key = (presta_id, prestataire, beneficiaire, fenetre)
+        group = groups.setdefault(group_key, {"presta_id": presta_id, "prestataire": prestataire, "beneficiaire": beneficiaire, "fenetre": fenetre, "hommes": 0, "femmes": 0, "apprenants": [], **segment_counts[group_key]})
         normalized_genre = unicodedata.normalize("NFKD", genre).encode("ascii", "ignore").decode().lower()
         if normalized_genre.startswith(("h", "m", "masc")):
             group["hommes"] += 1
@@ -2248,10 +2269,10 @@ def _build_not_formed_campaign_rows():
                 audio_url = call.audio_file.url
             except Exception:
                 pass
-        group["apprenants"].append({"nom": call.nom, "code": call.code, "genre": genre, "fenetre": fenetre, "presta_id": presta_id, "audio_url": audio_url, "audio_disponible": bool(audio_url)})
+        group["apprenants"].append({"nom": call.nom, "code": call.reference_code, "genre": genre, "fenetre": fenetre, "presta_id": presta_id, "audio_url": audio_url, "audio_disponible": bool(audio_url)})
     rows = list(groups.values())
     for row in rows:
-        row["total"] = row["hommes"] + row["femmes"]
+        row["total_genre"] = row["hommes"] + row["femmes"]
     return sorted(rows, key=lambda row: (row["presta_id"], row["fenetre"], row["prestataire"]))
 
 
