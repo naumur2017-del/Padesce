@@ -2123,6 +2123,36 @@ def _concordance_header_key(value):
     return _normalize_header(value).replace(" ", "_")
 
 
+CONCORDANCE_FEUIL2_DISPLAY_HEADERS = (
+    "NBRE",
+    "PRESTA ID",
+    "PRESTATAIRE",
+    "BENEFICIAIRE",
+    "FENETRE",
+    "NBRE PERSONNES FORMEES SELON FICHE DE PRESENCE RAPPORT PRESTATAIRE - T",
+    "NBRE PERSONNES FORMEES SELON FICHE DE PRESENCE RAPPORT PRESTATAIRE - H",
+    "NBRE PERSONNES FORMEES SELON FICHE DE PRESENCE RAPPORT PRESTATAIRE - F",
+    "TAUX_CONCORDANCE",
+    "NOMBRE FORME TOTAL AVEC TAUX DE CONCORDANCE - H",
+    "NOMBRE FORME TOTAL AVEC TAUX DE CONCORDANCE - F",
+    "NOMBRE FORME TOTAL AVEC TAUX DE CONCORDANCE - T",
+)
+
+
+def _concordance_display_headers(records):
+    """Keep Feuil2's display order stable across SQLite and PostgreSQL JSONB."""
+    discovered = []
+    for record in records:
+        for key in record.payload:
+            if key not in discovered:
+                discovered.append(key)
+
+    is_feuil2_layout = set(CONCORDANCE_FEUIL2_DISPLAY_HEADERS).issubset(discovered)
+    if is_feuil2_layout:
+        return list(CONCORDANCE_FEUIL2_DISPLAY_HEADERS), True
+    return discovered[:13], False
+
+
 def _concordance_rows_from_file(uploaded_file):
     """Read a concordance workbook, favouring Feuil2 when it is available."""
     filename = str(getattr(uploaded_file, "name", "")).lower()
@@ -2295,7 +2325,7 @@ def _campaign_window_key(value):
 
 def _gender_key(value):
     normalized = _concordance_header_key(value)
-    if normalized in {"homme", "masculin", "m"}:
+    if normalized in {"homme", "masculin", "h", "m"}:
         return "men"
     if normalized in {"femme", "feminin", "féminin", "f"}:
         return "women"
@@ -2351,15 +2381,21 @@ def _concordance_window_summary(rows):
         window = _campaign_window_key(row.fenetre)
         if not window:
             continue
-        # Feuil2 stores the final concordance values in its last three columns:
-        # H, F, then T.  Their exact imported labels vary with Excel's merged
-        # headers, so use the stable column order rather than the label.
-        values = list(row.payload.values())
-        if len(values) < 3:
-            continue
-        men = _number_from_concordance_payload({"value": values[-3]}, "value")
-        women = _number_from_concordance_payload({"value": values[-2]}, "value")
-        total = _number_from_concordance_payload({"value": values[-1]}, "value")
+        men = _number_from_concordance_payload(
+            row.payload,
+            "NOMBRE FORME TOTAL AVEC TAUX DE CONCORDANCE - H",
+            "NBRE PERSONNES FORMEES SELON FICHE DE PRESENCE RAPPORT PRESTATAIRE - H",
+        )
+        women = _number_from_concordance_payload(
+            row.payload,
+            "NOMBRE FORME TOTAL AVEC TAUX DE CONCORDANCE - F",
+            "NBRE PERSONNES FORMEES SELON FICHE DE PRESENCE RAPPORT PRESTATAIRE - F",
+        )
+        total = _number_from_concordance_payload(
+            row.payload,
+            "NOMBRE FORME TOTAL AVEC TAUX DE CONCORDANCE - T",
+            "NBRE PERSONNES FORMEES SELON FICHE DE PRESENCE RAPPORT PRESTATAIRE - T",
+        )
         totals[window]["men"] += men
         totals[window]["women"] += women
         totals[window]["total"] += total or men + women
@@ -2435,27 +2471,7 @@ def concordance_campaigns_view(request):
         if search_query and search_query not in searchable:
             continue
         filtered_concordance.append(row)
-    headers = []
-    for record in concordance:
-        for key in record.payload:
-            if key not in headers:
-                headers.append(key)
-    headers = headers[:13]
-    source_headers = {
-        "NBRE",
-        "PRESTA ID",
-        "PRESTATAIRE",
-        "BENEFICIAIRE",
-        "FENETRE",
-        "NBRE PERSONNES FORMEES SELON FICHE DE PRESENCE RAPPORT PRESTATAIRE - T",
-        "NBRE PERSONNES FORMEES SELON FICHE DE PRESENCE RAPPORT PRESTATAIRE - H",
-        "NBRE PERSONNES FORMEES SELON FICHE DE PRESENCE RAPPORT PRESTATAIRE - F",
-        "TAUX_CONCORDANCE",
-        "NOMBRE FORME TOTAL AVEC TAUX DE CONCORDANCE - H",
-        "NOMBRE FORME TOTAL AVEC TAUX DE CONCORDANCE - F",
-        "NOMBRE FORME TOTAL AVEC TAUX DE CONCORDANCE - T",
-    }
-    is_feuil2_layout = source_headers.issubset(set(headers))
+    headers, is_feuil2_layout = _concordance_display_headers(concordance)
     concordance_rows = [
         {
             "genre": row.genre,
