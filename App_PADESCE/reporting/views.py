@@ -21,7 +21,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 from openpyxl import Workbook, load_workbook
 
-from App_PADESCE.appels.models import Appel, AppelPasFormeII
+from App_PADESCE.appels.models import Appel
 from App_PADESCE.apprenants.models import Apprenant, SmsLog
 from App_PADESCE.core.access import require_analysis_access, require_superadmin_access
 from App_PADESCE.environnement.models import EnqueteEnvironnement
