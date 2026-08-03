@@ -13,6 +13,7 @@ from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from App_PADESCE.appels.models import AppelPasFormeII
+from App_PADESCE.appels.pagination import build_pagination_tokens
 
 
 def _header(value):
@@ -78,14 +79,18 @@ def index(request):
     filters.update({"prestations": list(all_rows.values_list("prestation_id", flat=True).distinct().order_by("prestation_id")), "prestataires": list(all_rows.values_list("prestataire", flat=True).distinct().order_by("prestataire")), "beneficiaires": list(all_rows.values_list("beneficiaire", flat=True).distinct().order_by("beneficiaire"))})
     page_obj = Paginator(rows.order_by("prestation_id", "nom"), 50).get_page(request.GET.get("page", 1))
     threshold_map = {item["prestation_id"]: item for item in _thresholds()}
-    return render(request, "appels/pas_forme_ii.html", {"rows": page_obj.object_list, "page_obj": page_obj, "filters": filters, "thresholds": list(threshold_map.values()), "threshold_map": threshold_map})
+    params = request.GET.copy(); params.pop("page", None)
+    return render(request, "appels/pas_forme_ii.html", {"rows": page_obj.object_list, "page_obj": page_obj, "pagination_tokens": build_pagination_tokens(page_obj), "querystring_no_page": params.urlencode(), "filters": filters, "thresholds": list(threshold_map.values()), "threshold_map": threshold_map})
 
 
 @login_required
 @require_POST
 def save_form(request, pk):
     row = get_object_or_404(AppelPasFormeII, pk=pk)
+    if request.POST.get("action") == "rappeler":
+        row.status = "a_rappeler"; row.rappel_at = request.POST.get("rappel_at") or None; row.locked_by = request.user; row.save(update_fields=["status", "rappel_at", "locked_by", "updated_at"]); messages.success(request, "Rappel enregistré."); return redirect("pas_forme_ii_index")
     row.nombre_seances_declare = _number(request.POST.get("nombre_seances_declare"))
+    row.est_forme = request.POST.get("est_forme") == "on"
     for field, key in (("connait_structure", "q1"), ("membre_structure", "q2"), ("a_assiste_formation", "q3"), ("connait_theme", "q4")):
         value = str(request.POST.get(key, "")).upper(); setattr(row, field, value if value in {"OUI", "NON"} else "")
     row.commentaire = str(request.POST.get("commentaire", "")).strip()
