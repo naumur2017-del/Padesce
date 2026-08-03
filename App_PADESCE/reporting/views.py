@@ -2216,6 +2216,60 @@ def _concordance_payload_value(payload, *aliases):
     return ""
 
 
+def _build_not_formed_campaign_rows():
+    """Group the calls marked as non-formed by prestation and reporting window."""
+    learner_meta = {
+        row["code"]: row
+        for row in Apprenant.objects.values("code", "genre", "fenetre", "prestataire", "beneficiaire")
+    }
+    groups = {}
+    calls = (
+        Appel.objects.filter(is_active=True, flag_pas_forme=True)
+        .select_related("classe__prestation__prestataire", "classe__prestation__beneficiaire")
+        .order_by("classe__prestation__code", "fenetre", "nom")
+    )
+    for call in calls:
+        learner = learner_meta.get(call.code, {})
+        prestation = getattr(getattr(call, "classe", None), "prestation", None)
+        presta_id = (getattr(prestation, "code", "") or call.classe_label or "Non renseigné").strip()
+        prestataire = (getattr(getattr(prestation, "prestataire", None), "raison_sociale", "") or call.prestataire or learner.get("prestataire") or "Non renseigné").strip()
+        beneficiaire = (getattr(getattr(prestation, "beneficiaire", None), "nom_structure", "") or call.beneficiaire or learner.get("beneficiaire") or "Non renseigné").strip()
+        fenetre = (call.fenetre or learner.get("fenetre") or "Non renseignée").strip()
+        genre = (learner.get("genre") or "Non renseigné").strip()
+        group = groups.setdefault((presta_id, prestataire, beneficiaire, fenetre), {"presta_id": presta_id, "prestataire": prestataire, "beneficiaire": beneficiaire, "fenetre": fenetre, "hommes": 0, "femmes": 0, "apprenants": []})
+        normalized_genre = unicodedata.normalize("NFKD", genre).encode("ascii", "ignore").decode().lower()
+        if normalized_genre.startswith(("h", "m", "masc")):
+            group["hommes"] += 1
+        elif normalized_genre.startswith(("f", "fem")):
+            group["femmes"] += 1
+        audio_url = ""
+        if call.audio_file and call.audio_file.name:
+            try:
+                audio_url = call.audio_file.url
+            except Exception:
+                pass
+        group["apprenants"].append({"nom": call.nom, "code": call.code, "genre": genre, "fenetre": fenetre, "presta_id": presta_id, "audio_url": audio_url, "audio_disponible": bool(audio_url)})
+    rows = list(groups.values())
+    for row in rows:
+        row["total"] = row["hommes"] + row["femmes"]
+    return sorted(rows, key=lambda row: (row["presta_id"], row["fenetre"], row["prestataire"]))
+
+
+def _build_not_formed_campaign_summary(rows):
+    summary = {"prestations": set(), "fenetre_2": 0, "fenetre_3": 0, "hommes": 0, "femmes": 0}
+    for row in rows:
+        summary["prestations"].add(row["presta_id"])
+        window = _campaign_window_key(row["fenetre"])
+        if window == "Fenêtre 2":
+            summary["fenetre_2"] += len(row["apprenants"])
+        elif window == "Fenêtre 3":
+            summary["fenetre_3"] += len(row["apprenants"])
+        summary["hommes"] += row["hommes"]
+        summary["femmes"] += row["femmes"]
+    summary["prestations"] = len(summary["prestations"])
+    return summary
+
+
 def _format_concordance_value(header, value):
     """Match Feuil2's displayed number formats without changing stored data."""
     raw_value = str(value or "").strip()
@@ -2443,6 +2497,8 @@ def concordance_campaigns_view(request):
         if call["status"] in {"appel_reussi", "formulaire_rempli", "formulaire_avec_audio", "termine"}:
             bucket["reussis"] += 1
     campaign_rows = sorted(campaign.values(), key=lambda row: (row["fenetre"], row["genre"]))
+    not_formed_campaign_rows = _build_not_formed_campaign_rows()
+    not_formed_campaign_summary = _build_not_formed_campaign_summary(not_formed_campaign_rows)
     concordance_counts = {}
     for row in concordance:
         key = (row.genre, row.fenetre)
@@ -2460,6 +2516,8 @@ def concordance_campaigns_view(request):
         "selected_fenetre": selected_fenetre, "selected_prestataire": selected_prestataire,
         "selected_beneficiaire": selected_beneficiaire, "selected_presta_id": selected_presta_id, "search_query": search_query,
         "campaign_rows": campaign_rows, "synthesis_rows": synthesis,
+        "not_formed_campaign_rows": not_formed_campaign_rows,
+        "not_formed_campaign_summary": not_formed_campaign_summary,
         "concordance_gender_summary": _concordance_window_summary(filtered_concordance),
         "campaign_gender_summary": _window_gender_summary(
             campaign_rows, gender_key=lambda row: row["genre"], window_key=lambda row: row["fenetre"],
