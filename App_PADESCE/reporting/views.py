@@ -2216,6 +2216,25 @@ def _concordance_payload_value(payload, *aliases):
     return ""
 
 
+def _format_concordance_value(header, value):
+    """Match Feuil2's displayed number formats without changing stored data."""
+    raw_value = str(value or "").strip()
+    if not raw_value:
+        return ""
+    try:
+        number = float(raw_value.replace(",", "."))
+    except (TypeError, ValueError):
+        return raw_value
+
+    if _concordance_header_key(header) == "taux_concordance":
+        # Feuil2 formats this value as 0.0%.
+        return f"{number:.1%}"
+    if str(header).startswith("NOMBRE FORME TOTAL AVEC TAUX DE CONCORDANCE"):
+        # The calculated H/F/T values in Feuil2 use the Excel number format 0.
+        return f"{number:.0f}"
+    return raw_value
+
+
 def concordance_campaigns_view(request):
     if request.method == "POST":
         action = request.POST.get("action")
@@ -2296,7 +2315,14 @@ def concordance_campaigns_view(request):
     }
     is_feuil2_layout = source_headers.issubset(set(headers))
     concordance_rows = [
-        {"genre": row.genre, "fenetre": row.fenetre, "values": [row.payload.get(header, "") for header in headers]}
+        {
+            "genre": row.genre,
+            "fenetre": row.fenetre,
+            "values": [
+                _format_concordance_value(header, row.payload.get(header, ""))
+                for header in headers
+            ],
+        }
         for row in filtered_concordance[:100]
     ]
 
