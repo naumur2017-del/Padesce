@@ -2124,7 +2124,7 @@ def _concordance_header_key(value):
 
 
 def _concordance_rows_from_file(uploaded_file):
-    """Read a simple Excel/CSV file and retain all its columns for the table."""
+    """Read a concordance workbook, favouring Feuil2 when it is available."""
     filename = str(getattr(uploaded_file, "name", "")).lower()
     if filename.endswith(".csv"):
         text_data = uploaded_file.read().decode("utf-8-sig")
@@ -2132,17 +2132,36 @@ def _concordance_rows_from_file(uploaded_file):
         sheet_rows = list(reader)
     elif filename.endswith((".xlsx", ".xlsm")):
         workbook = load_workbook(uploaded_file, read_only=True, data_only=True)
-        sheet_rows = list(workbook.active.iter_rows(values_only=True))
+        worksheet = workbook["Feuil2"] if "Feuil2" in workbook.sheetnames else workbook.active
+        sheet_rows = list(worksheet.iter_rows(values_only=True))
     else:
         raise ValueError("Le fichier doit être au format XLSX, XLSM ou CSV.")
     if not sheet_rows:
         raise ValueError("Le fichier est vide.")
-    headers = [_normalize_cell(value) for value in sheet_rows[0]]
+    # Le fichier de rapprochement comporte deux lignes d'en-tête dans Feuil2.
+    # On les fusionne et rend les colonnes H/F/T distinctes et filtrables.
+    if filename.endswith((".xlsx", ".xlsm")) and "Feuil2" in workbook.sheetnames and len(sheet_rows) > 2:
+        top_headers = [_normalize_cell(value) for value in sheet_rows[0]]
+        bottom_headers = [_normalize_cell(value) for value in sheet_rows[1]]
+        inherited = ""
+        headers = []
+        for index, value in enumerate(top_headers):
+            if value:
+                inherited = value
+            child = bottom_headers[index] if index < len(bottom_headers) else ""
+            if child and inherited and child not in inherited:
+                headers.append(f"{inherited} - {child}")
+            else:
+                headers.append(child or inherited or f"Colonne {index + 1}")
+        data_rows = sheet_rows[2:]
+    else:
+        headers = [_normalize_cell(value) or f"Colonne {index + 1}" for index, value in enumerate(sheet_rows[0])]
+        data_rows = sheet_rows[1:]
     if not any(headers):
         raise ValueError("La première ligne doit contenir les en-têtes.")
     normalized = [_concordance_header_key(value) for value in headers]
     rows = []
-    for row in sheet_rows[1:]:
+    for row in data_rows:
         payload = {
             headers[index] or f"Colonne {index + 1}": _normalize_cell(value)
             for index, value in enumerate(row[: len(headers)])
@@ -2155,6 +2174,14 @@ def _concordance_rows_from_file(uploaded_file):
         fenetre = lookup.get("fenetre") or lookup.get("fenetre_appel") or "Non renseignée"
         rows.append(ConcordanceRecord(genre=genre, fenetre=fenetre, payload=payload))
     return headers, rows
+
+
+def _concordance_payload_value(payload, *aliases):
+    normalized_aliases = {_concordance_header_key(alias) for alias in aliases}
+    for key, value in payload.items():
+        if _concordance_header_key(key) in normalized_aliases:
+            return str(value or "").strip()
+    return ""
 
 
 def concordance_campaigns_view(request):
@@ -2181,6 +2208,38 @@ def concordance_campaigns_view(request):
         return redirect("concordance_campaigns")
 
     concordance = list(ConcordanceRecord.objects.all())
+    selected_fenetre = (request.GET.get("fenetre") or "").strip()
+    selected_prestataire = (request.GET.get("prestataire") or "").strip()
+    selected_beneficiaire = (request.GET.get("beneficiaire") or "").strip()
+    selected_presta_id = (request.GET.get("presta_id") or "").strip()
+    search_query = (request.GET.get("q") or "").strip().lower()
+
+    def source_value(row, key):
+        return _concordance_payload_value(row.payload, key)
+
+    filter_options = {
+        "fenetres": sorted({row.fenetre for row in concordance if row.fenetre}),
+        "prestataires": sorted({source_value(row, "PRESTATAIRE") for row in concordance if source_value(row, "PRESTATAIRE")}),
+        "beneficiaires": sorted({source_value(row, "BENEFICIAIRE") for row in concordance if source_value(row, "BENEFICIAIRE")}),
+        "presta_ids": sorted({source_value(row, "PRESTA ID") for row in concordance if source_value(row, "PRESTA ID")}),
+    }
+    filtered_concordance = []
+    for row in concordance:
+        prestataire = source_value(row, "PRESTATAIRE")
+        beneficiaire = source_value(row, "BENEFICIAIRE")
+        presta_id = source_value(row, "PRESTA ID")
+        searchable = " ".join([row.genre, row.fenetre, prestataire, beneficiaire, presta_id, *map(str, row.payload.values())]).lower()
+        if selected_fenetre and row.fenetre != selected_fenetre:
+            continue
+        if selected_prestataire and prestataire != selected_prestataire:
+            continue
+        if selected_beneficiaire and beneficiaire != selected_beneficiaire:
+            continue
+        if selected_presta_id and presta_id != selected_presta_id:
+            continue
+        if search_query and search_query not in searchable:
+            continue
+        filtered_concordance.append(row)
     headers = []
     for record in concordance:
         for key in record.payload:
@@ -2189,7 +2248,7 @@ def concordance_campaigns_view(request):
     headers = headers[:12]
     concordance_rows = [
         {"genre": row.genre, "fenetre": row.fenetre, "values": [row.payload.get(header, "") for header in headers]}
-        for row in concordance[:100]
+        for row in filtered_concordance[:100]
     ]
 
     learner_meta = {row["code"]: row for row in Apprenant.objects.values("code", "genre", "fenetre")}
@@ -2218,6 +2277,9 @@ def concordance_campaigns_view(request):
             "appels": campaign_row.get("total", 0), "tentes": campaign_row.get("tentes", 0), "reussis": campaign_row.get("reussis", 0),
         })
     return render(request, "reporting/concordance_campaigns.html", {
-        "concordance_count": len(concordance), "headers": headers, "concordance_rows": concordance_rows,
+        "concordance_count": len(concordance), "filtered_concordance_count": len(filtered_concordance),
+        "headers": headers, "concordance_rows": concordance_rows, "filter_options": filter_options,
+        "selected_fenetre": selected_fenetre, "selected_prestataire": selected_prestataire,
+        "selected_beneficiaire": selected_beneficiaire, "selected_presta_id": selected_presta_id, "search_query": search_query,
         "campaign_rows": campaign_rows, "synthesis_rows": synthesis,
     })
