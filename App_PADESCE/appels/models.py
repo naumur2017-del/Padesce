@@ -653,6 +653,7 @@ class AppelPasFormeII(TimeStampedModel):
     beneficiaire = models.CharField(max_length=255, blank=True)
     prestataire = models.CharField(max_length=255, blank=True)
     genre = models.CharField(max_length=20, blank=True)
+    fenetre = models.CharField(max_length=30, blank=True, db_index=True)
     absent_dans_consolide = models.BooleanField(default=False)
     total_presence = models.PositiveSmallIntegerField(null=True, blank=True)
     total_seances = models.PositiveSmallIntegerField(null=True, blank=True)

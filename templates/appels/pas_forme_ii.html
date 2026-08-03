@@ -39,14 +39,19 @@
 
   {% if user.is_superuser %}
     <section class="panel">
-      <h3>Importer la liste</h3>
+      <h3>Importer la liste ou actualiser les segments</h3>
       <form method="post" enctype="multipart/form-data">
         {% csrf_token %}
-        <strong>Ajouter sans doublons</strong>
-        <div class="file"><input type="file" name="file" accept=".xlsx,.xlsm" required><button class="btn">Importer pour ajouter</button></div>
+        <div class="file"><input type="file" name="file" accept=".xlsx,.xlsm" required><button class="btn" name="import_action" value="add">Importer pour ajouter</button><button class="btn" name="import_action" value="update_segments">Mettre à jour genre et fenêtre</button></div>
+        <p>La mise à jour des segments utilise les colonnes <strong>GENRE</strong> et <strong>FENETRE</strong> de Feuil1 et ne modifie pas les appels ou formulaires existants.</p>
       </form>
     </section>
   {% endif %}
+
+  <details class="panel" open>
+    <summary>Évolution des campagnes par genre et fenêtre</summary>
+    <div class="table"><table><thead><tr><th>Fenêtre</th><th>Genre</th><th>Appels</th><th>Formulaires remplis</th><th>Appels réussis</th></tr></thead><tbody>{% for segment in campaign_segments %}<tr><td>{{ segment.fenetre|default:"Non renseignée" }}</td><td>{{ segment.genre|default:"Non renseigné" }}</td><td>{{ segment.total }}</td><td>{{ segment.completed }}</td><td>{{ segment.successful }}</td></tr>{% empty %}<tr><td colspan="5">Aucune donnée importée.</td></tr>{% endfor %}</tbody></table></div>
+  </details>
 
   <details class="panel" open>
     <summary>Seuil de formulaires remplis par prestation — 30 %</summary>
@@ -69,6 +74,8 @@
         <option value="formulaire_avec_audio" {% if filters.status == "formulaire_avec_audio" %}selected{% endif %}>Formulaire avec audio</option>
         <option value="a_rappeler" {% if filters.status == "a_rappeler" %}selected{% endif %}>À rappeler</option>
       </select>
+      <select class="input" name="genre"><option value="">Genre</option>{% for value in filters.genres %}<option value="{{ value }}" {% if filters.genre == value %}selected{% endif %}>{{ value }}</option>{% endfor %}</select>
+      <select class="input" name="fenetre"><option value="">Fenêtre</option>{% for value in filters.fenetres %}<option value="{{ value }}" {% if filters.fenetre == value %}selected{% endif %}>{{ value }}</option>{% endfor %}</select>
       <select class="input" name="prestation"><option value="">Prestation — seuil 30 %</option>{% for p in filters.prestations %}<option value="{{ p }}" {% if filters.prestation == p %}selected{% endif %}>{{ p }}</option>{% endfor %}</select>
       <select class="input" name="prestataire"><option value="">Prestataire</option>{% for p in filters.prestataires %}<option value="{{ p }}" {% if filters.prestataire == p %}selected{% endif %}>{{ p }}</option>{% endfor %}</select>
       <select class="input" name="beneficiaire"><option value="">Bénéficiaire</option>{% for p in filters.beneficiaires %}<option value="{{ p }}" {% if filters.beneficiaire == p %}selected{% endif %}>{{ p }}</option>{% endfor %}</select>
@@ -78,7 +85,7 @@
 
   <section class="panel table">
     <table>
-      <thead><tr><th>Apprenant</th><th>Téléphone</th><th>Prestation</th><th>Présences</th><th>Séances prévues</th><th>Séances source</th><th>Statut</th><th>Audio</th><th>Actions</th></tr></thead>
+      <thead><tr><th>Apprenant</th><th>Genre</th><th>Fenêtre</th><th>Téléphone</th><th>Prestation</th><th>Présences</th><th>Séances prévues</th><th>Séances source</th><th>Statut</th><th>Audio</th><th>Actions</th></tr></thead>
       <tbody>
         {% for row in rows %}
           <tr class="call-row"
@@ -97,7 +104,7 @@
               data-audio-url="{% if row.audio_file %}{{ row.audio_file.url }}{% endif %}"
               data-form-url="{% url 'pas_forme_ii_save_form' row.id %}"
               data-action-url="{% url 'pas_forme_ii_action' row.id %}">
-            <td>{{ row.nom }}</td><td>{{ row.telephone }}</td><td>{{ row.prestation_id }}</td><td>{{ row.total_presence }}</td><td>{{ row.total_seances }}</td><td>{{ row.nombre_seances_source }}</td>
+            <td>{{ row.nom }}</td><td>{{ row.genre|default:"—" }}</td><td>{{ row.fenetre|default:"—" }}</td><td>{{ row.telephone }}</td><td>{{ row.prestation_id }}</td><td>{{ row.total_presence }}</td><td>{{ row.total_seances }}</td><td>{{ row.nombre_seances_source }}</td>
             <td><span class="badge">{{ row.get_status_display }}</span></td>
             <td>{% if row.audio_file %}<audio controls preload="none" src="{{ row.audio_file.url }}" style="width:180px;height:32px"></audio>{% else %}—{% endif %}</td>
             <td>{% if not row.formulaire_rempli_at and row.status != "formulaire_rempli" and row.status != "formulaire_avec_audio" %}<button type="button" class="btn open">Démarrer</button>{% else %}<span class="badge">Consulter la ligne</span>{% endif %}</td>
