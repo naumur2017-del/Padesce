@@ -2149,10 +2149,21 @@ def _concordance_rows_from_file(uploaded_file):
             if value:
                 inherited = value
             child = bottom_headers[index] if index < len(bottom_headers) else ""
-            if child and inherited and child not in inherited:
+            # Fenêtre est une colonne autonome dans Feuil2, même si Excel la
+            # place sous la cellule visuellement fusionnée « Bénéficiaire ».
+            if _concordance_header_key(child) == "fenetre":
+                headers.append(child)
+            elif child and inherited and child != inherited:
                 headers.append(f"{inherited} - {child}")
             else:
                 headers.append(child or inherited or f"Colonne {index + 1}")
+        seen_headers = {}
+        unique_headers = []
+        for header in headers:
+            occurrence = seen_headers.get(header, 0)
+            seen_headers[header] = occurrence + 1
+            unique_headers.append(header if occurrence == 0 else f"{header} ({occurrence + 1})")
+        headers = unique_headers
         data_rows = sheet_rows[2:]
     else:
         headers = [_normalize_cell(value) or f"Colonne {index + 1}" for index, value in enumerate(sheet_rows[0])]
