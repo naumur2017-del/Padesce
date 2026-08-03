@@ -213,7 +213,10 @@
         form.reset();
         when.disabled = true;
         document.querySelector('#saveRecall').hidden = true;
-        form.action = row.dataset.formUrl;
+        // Les boutons portent le nom "action" : dans le DOM, `form.action`
+        // peut alors devenir un RadioNodeList au lieu de l'URL du formulaire.
+        form.setAttribute('action', row.dataset.formUrl);
+        form.dataset.submitUrl = row.dataset.formUrl;
         document.querySelector('#who').textContent = row.dataset.name;
         document.querySelector('#session').textContent = `Bénéficiaire: ${row.dataset.benef} · Prestataire: ${row.dataset.presta} · Présences: ${row.dataset.pres} · Séances prévues: ${row.dataset.total} · Source: ${row.dataset.source}`;
         errorBox.hidden = true;
@@ -257,7 +260,7 @@
         discardAudio();
       }
 
-      const response = await fetch(form.action, {
+      const response = await fetch(form.dataset.submitUrl, {
         method:'POST',
         headers:{'X-CSRFToken':csrfToken, 'X-Requested-With':'XMLHttpRequest'},
         body:data,

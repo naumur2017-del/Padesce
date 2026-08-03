@@ -66,6 +66,8 @@ class AppelPasFormeIISaveTests(TestCase):
         self.assertContains(page, 'data-q2="OUI"')
         self.assertContains(page, 'data-declared="5"')
         self.assertContains(page, "<audio", html=False)
+        self.assertContains(page, "fetch(form.dataset.submitUrl")
+        self.assertNotContains(page, "fetch(form.action")
 
     def test_invalid_form_is_rejected_without_being_counted(self):
         response = self.client.post(
