@@ -651,7 +651,7 @@
           <input type="checkbox" name="flag_pas_forme"> N'a pas suivi la formation
         </label>
         <label style="display:flex; align-items:center; gap:6px; font-size:0.85rem;">
-          <input type="checkbox" name="flag_déjà_appele"> Déjà appelé auparavant
+          <input type="checkbox" name="flag_deja_appele"> Déjà appelé auparavant
         </label>
         <label style="display:flex; align-items:center; gap:6px; font-size:0.85rem;">
           <input type="checkbox" name="flag_numero_double"> Numéro double
@@ -1178,11 +1178,13 @@
         satForm.append("flag_pas_forme", document.getElementById("js-sat-flag-pas-forme").checked ? "1" : "0");
         satForm.append("flag_faux_nom", document.getElementById("js-sat-flag-faux-nom").checked ? "1" : "0");
         satForm.append("flag_vrai_nom", document.getElementById("js-sat-vrai-nom").value);
-        satForm.append("flag_déjà_appele", document.getElementById("js-sat-flag-déjà-appele").checked ? "1" : "0");
+        satForm.append("flag_deja_appele", document.getElementById("js-sat-flag-déjà-appele").checked ? "1" : "0");
         satForm.append("flag_numero_double", document.getElementById("js-sat-flag-numero-double").checked ? "1" : "0");
-        satForm.append("déjà_forme", de_forme_check ? "1" : "0");
+        satForm.append("deja_forme", de_forme_check ? "1" : "0");
         satForm.append("rappel_at", rappelAt || "");
-        satForm.append("form_modified", satModal?.dataset.formModified || "0");
+        // Les neuf valeurs sont soumises : le serveur les utilise comme preuve
+        // qu'un questionnaire a été rempli, sans dépendre de ce marqueur UI.
+        satForm.append("form_modified", "1");
 
         satModal.hidden = true;
 
@@ -1893,13 +1895,14 @@
             <div><strong>Prestataire:</strong> ${a.prestataire}</div>
             <div><strong>Statut:</strong> ${a.status_label}</div>
             <div><strong>Initialement verrouillé par:</strong> ${a.locked_by||'-'}</div>
+            <div style="grid-column:1 / -1;"><strong>Audio:</strong> ${a.audio_url ? `<audio controls preload="metadata" src="${a.audio_url}" style="vertical-align:middle; max-width:100%; height:30px;"></audio>` : "Aucun audio disponible"}</div>
           `;
           
           renderDetailQuestions(data.answers);
           detailForm.commentaire.value = data.answers?.commentaire || "";
           detailForm.recommandations.value = data.answers?.recommandations || "";
           detailForm.flag_pas_forme.checked = a.flag_pas_forme;
-          detailForm.flag_déjà_appele.checked = a.flag_déjà_appele;
+          detailForm.flag_deja_appele.checked = a.flag_deja_appele;
           detailForm.flag_numero_double.checked = a.flag_numero_double;
           detailForm.flag_faux_nom.checked = a.flag_faux_nom;
           detailForm.flag_vrai_nom.value = a.flag_vrai_nom || "";
@@ -1919,7 +1922,7 @@
       const id = detailForm.dataset.rowId;
       const fd = new FormData(detailForm);
       // Flags are checkboxes
-      ["flag_pas_forme", "flag_déjà_appele", "flag_numero_double", "flag_faux_nom"].forEach(f => {
+      ["flag_pas_forme", "flag_deja_appele", "flag_numero_double", "flag_faux_nom"].forEach(f => {
         if (!fd.has(f)) fd.append(f, "0"); else fd.set(f, "1");
       });
 

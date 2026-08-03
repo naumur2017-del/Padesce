@@ -27,6 +27,7 @@ from App_PADESCE.appels.models import (
     AppelCGA,
     AppelFormateur,
     AppelImportArchive,
+    CALL_COMPLETED_STATUSES,
     appel_answers_completed_q,
     appel_answers_modified_completion_q,
     derive_padesce_status,
@@ -1624,7 +1625,7 @@ def appel_action(request, pk: int):
     if appel.classe_label:
         q_count = Appel.objects.filter(classe_label=appel.classe_label, is_active=True)
         total_c = q_count.count()
-        termines_c = q_count.filter(status="termine").count()
+        termines_c = q_count.filter(status__in=CALL_COMPLETED_STATUSES).count()
         target_c = (total_c + 1) // 2
         reached_c = total_c > 0 and termines_c >= target_c
         class_info = {
@@ -1661,8 +1662,13 @@ def finalize_appel(request, pk: int):
             file_obj = request.FILES.get("audio")
             
             if action == "terminer":
-                # form_modified=1 uniquement si l'utilisateur a explicitement cliqué un radio Q1-Q9
-                _has_real_form = request.POST.get("form_modified") == "1"
+                # Ne pas dépendre du marqueur JavaScript ``form_modified`` : il
+                # peut rester à 0 lorsque l'agent garde les choix déjà affichés.
+                # La présence d'au moins une réponse Q1-Q9 est la source fiable.
+                _has_real_form = any(
+                    request.POST.get(f"q{number}") not in (None, "")
+                    for number in range(1, 10)
+                )
                 _has_audio_upload = bool(request.FILES.get("audio"))
                 if _has_real_form and _has_audio_upload:
                     appel.status = "formulaire_avec_audio"
@@ -1671,7 +1677,7 @@ def finalize_appel(request, pk: int):
                 elif _has_audio_upload:
                     appel.status = "formulaire_avec_audio"
                 else:
-                    appel.status = "appel_tente"
+                    appel.status = "appel_reussi"
                 appel.rappel_at = None
             elif action == "rappeler":
                 appel.status = "a_rappeler"
@@ -1709,7 +1715,7 @@ def finalize_appel(request, pk: int):
 
             satisfaction_saved = False
             satisfaction_message = ""
-            if action == "terminer":
+            if action == "terminer" and _has_real_form:
                 commentaire_val = request.POST.get("commentaire", "") or "RAS"
                 recommandations_val = request.POST.get("recommandations", "") or "RAS"
                 # IMPORTANT: Toujours envoyer les réponses (même avec valeurs défaut)
@@ -1726,12 +1732,12 @@ def finalize_appel(request, pk: int):
                     "commentaire": commentaire_val.strip() or "RAS",
                     "recommandations": recommandations_val.strip() or "RAS",
                 }
-                auto_result = _auto_process_satisfaction_from_appel(
-                    appel, request.user, manual_data=manual_data
-                )
-                satisfaction_saved = auto_result.get("satisfaction_saved", False)
-                satisfaction_message = auto_result.get("message", "")
-                satisfaction_id = auto_result.get("satisfaction_id")
+                # La fiche de l'appel est l'enregistrement de référence pour ce
+                # flux. On la sauvegarde directement, sans créer une enquête
+                # apprenant séparée (qui peut ne pas correspondre au contact).
+                _save_appel_answers(appel, request.user, manual_data, apply_defaults=True)
+                satisfaction_message = "Questionnaire enregistre."
+                satisfaction_id = None
             else:
                 satisfaction_id = None
 
@@ -1747,7 +1753,7 @@ def finalize_appel(request, pk: int):
             if appel.classe_label:
                 q_count = Appel.objects.filter(classe_label=appel.classe_label, is_active=True)
                 total_c = q_count.count()
-                termines_c = q_count.filter(status="termine").count()
+                termines_c = q_count.filter(status__in=CALL_COMPLETED_STATUSES).count()
                 target_c = (total_c + 1) // 2
                 reached_c = total_c > 0 and termines_c >= target_c
                 class_info = {
@@ -1841,7 +1847,7 @@ def appel_upload_audio(request, pk: int):
     if appel.classe_label:
         q_count = Appel.objects.filter(classe_label=appel.classe_label, is_active=True)
         total_c = q_count.count()
-        termines_c = q_count.filter(status="termine").count()
+        termines_c = q_count.filter(status__in=CALL_COMPLETED_STATUSES).count()
         target_c = (total_c + 1) // 2
         reached_c = total_c > 0 and termines_c >= target_c
         class_info = {
@@ -2043,6 +2049,7 @@ def appel_answers_detail(request, pk: int):
             "flag_deja_appele": appel.flag_deja_appele,
             "flag_numero_double": appel.flag_numero_double,
             "locked_by": appel.locked_by.username if appel.locked_by else "",
+            "audio_url": _safe_audio_url(appel),
         },
         "answers": None,
     }
