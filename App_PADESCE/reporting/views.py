@@ -21,7 +21,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 from openpyxl import Workbook, load_workbook
 
-from App_PADESCE.appels.models import Appel
+from App_PADESCE.appels.models import Appel, AppelPasFormeII
 from App_PADESCE.apprenants.models import Apprenant, SmsLog
 from App_PADESCE.core.access import require_analysis_access, require_superadmin_access
 from App_PADESCE.environnement.models import EnqueteEnvironnement
@@ -2216,6 +2216,54 @@ def _concordance_payload_value(payload, *aliases):
     return ""
 
 
+def _build_pas_forme_ii_campaign():
+    """Return only Pas Formés II prestations that reached the 30% call threshold."""
+    thresholded = {}
+    aggregates = AppelPasFormeII.objects.filter(is_active=True).values("prestation_id").annotate(
+        total=Count("id"), appeles=Count("id", filter=Q(formulaire_rempli_at__isnull=False))
+    )
+    for item in aggregates:
+        total, appeles = int(item["total"] or 0), int(item["appeles"] or 0)
+        if total and appeles >= max(1, (total * 30 + 99) // 100):
+            thresholded[item["prestation_id"]] = True
+
+    calls = list(AppelPasFormeII.objects.filter(
+        is_active=True, prestation_id__in=thresholded
+    ).order_by("prestation_id", "fenetre", "nom"))
+    segments = {}
+    for call in calls:
+        key = (call.prestation_id or "Non renseigné", call.prestataire or "Non renseigné", call.beneficiaire or "Non renseigné", call.fenetre or "Non renseignée")
+        segment = segments.setdefault(key, {"presta_id": key[0], "prestataire": key[1], "beneficiaire": key[2], "fenetre": key[3], "total": 0, "appeles": 0, "hommes": 0, "femmes": 0, "apprenants": []})
+        segment["total"] += 1
+        if not call.formulaire_rempli_at:
+            continue
+        segment["appeles"] += 1
+        genre = (call.genre or "Non renseigné").strip()
+        genre_key = _gender_key(genre)
+        if genre_key == "men":
+            segment["hommes"] += 1
+        elif genre_key == "women":
+            segment["femmes"] += 1
+        audio_url = ""
+        if call.audio_file and call.audio_file.name:
+            try:
+                audio_url = call.audio_file.url
+            except Exception:
+                pass
+        segment["apprenants"].append({"nom": call.nom, "code": call.reference_code, "genre": genre, "fenetre": key[3], "presta_id": key[0], "audio_url": audio_url, "audio_disponible": bool(audio_url)})
+
+    rows = [row for row in segments.values() if row["appeles"]]
+    summary = {"prestations": len(thresholded), "fenetre_2": 0, "fenetre_3": 0, "hommes": 0, "femmes": 0}
+    for row in rows:
+        if _campaign_window_key(row["fenetre"]) == "Fenêtre 2":
+            summary["fenetre_2"] += row["appeles"]
+        elif _campaign_window_key(row["fenetre"]) == "Fenêtre 3":
+            summary["fenetre_3"] += row["appeles"]
+        summary["hommes"] += row["hommes"]
+        summary["femmes"] += row["femmes"]
+    return sorted(rows, key=lambda row: (row["presta_id"], row["fenetre"])), summary
+
+
 def _format_concordance_value(header, value):
     """Match Feuil2's displayed number formats without changing stored data."""
     raw_value = str(value or "").strip()
@@ -2434,6 +2482,7 @@ def concordance_campaigns_view(request):
         if call["status"] in {"appel_reussi", "formulaire_rempli", "formulaire_avec_audio", "termine"}:
             bucket["reussis"] += 1
     campaign_rows = sorted(campaign.values(), key=lambda row: (row["fenetre"], row["genre"]))
+    not_formed_campaign_rows, not_formed_campaign_summary = _build_pas_forme_ii_campaign()
     concordance_counts = {}
     for row in concordance:
         key = (row.genre, row.fenetre)
@@ -2451,6 +2500,8 @@ def concordance_campaigns_view(request):
         "selected_fenetre": selected_fenetre, "selected_prestataire": selected_prestataire,
         "selected_beneficiaire": selected_beneficiaire, "selected_presta_id": selected_presta_id, "search_query": search_query,
         "campaign_rows": campaign_rows, "synthesis_rows": synthesis,
+        "not_formed_campaign_rows": not_formed_campaign_rows,
+        "not_formed_campaign_summary": not_formed_campaign_summary,
         "concordance_gender_summary": _concordance_window_summary(filtered_concordance),
         "campaign_gender_summary": _window_gender_summary(
             campaign_rows, gender_key=lambda row: row["genre"], window_key=lambda row: row["fenetre"],
