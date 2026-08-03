@@ -71,7 +71,7 @@
   {% if user.is_superuser %}
     <div class="panel import-panel">
       <div class="panel-heading">
-        <div class="import-title">Importer la liste des apprenants non formes <span class="help-dot" title="Ajouter conserve les lignes deja affichees et ignore les doublons; remplacer recharge la liste active. Les lignes sans telephone ne sont pas importees.">?</span></div>
+        <div class="import-title">Importer la liste des apprenants non formes <span class="help-dot" title="Ajouter conserve les lignes deja affichees et ignore les doublons; remplacer recharge la liste active. Les lignes sans telephone sont conservees mais ne sont pas appelables.">?</span></div>
         <button type="button" class="btn btn-primary btn-sm" id="js-open-manual-add">Ajouter une ligne</button>
       </div>
       <div class="import-options">
@@ -98,7 +98,7 @@
           <button type="submit" class="btn btn-secondary btn-sm">Importer pour remplacer</button>
         </form>
       </div>
-      <p class="subtitle">Colonnes attendues : APPRENANT ABSENT CHEZ NAUMUR, NUMERO DE TELEPHONE, PRESTATION ID, NOM DU PRESTATAIRE, NOM DU BENEFICIAIRE. Les lignes sans telephone sont ignorees.</p>
+      <p class="subtitle">Colonnes attendues : APPRENANT ABSENT CHEZ NAUMUR ou Nom et prénom, NUMERO DE TELEPHONE ou 1er No tél, PRESTATION ID ou Classe, Prestataire et Bénéficiaires. Les lignes sans téléphone sont conservées mais ne sont pas appelables.</p>
     </div>
   {% endif %}
 

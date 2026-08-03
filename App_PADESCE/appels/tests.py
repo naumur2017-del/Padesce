@@ -29,8 +29,40 @@ from App_PADESCE.appels.models import (
     AppelPasForme,
     AppelPrestataireDemarrage,
 )
+from App_PADESCE.appels.pas_forme_views import _parse_pas_forme_excel
 from App_PADESCE.formations.models import Beneficiaire, Formation, Prestataire, Prestation
 from App_PADESCE.satisfaction_apprenants.models import SatisfactionApprenant
+
+
+class PasFormeExcelParserTests(SimpleTestCase):
+    def test_parse_excel_accepts_standard_padesce_learner_columns(self):
+        workbook = openpyxl.Workbook()
+        worksheet = workbook.active
+        worksheet.title = "Feuil1"
+        worksheet.append(
+            [
+                "N°",
+                "Nom et prénom 0 Name & first name",
+                "Bénéficiaires",
+                "Prestataire",
+                "Statut de la prestation",
+                "1er No tél 0 Tel No\nApprenant",
+                "Classe",
+            ]
+        )
+        worksheet.append([1, "Ada Lovelace", "Benef A", "Prest A", "TERMINE", 699000001, "CLA001"])
+        worksheet.append([2, "Sans Telephone", "Benef B", "Prest B", "TERMINE", None, "CLA002"])
+        source = io.BytesIO()
+        workbook.save(source)
+
+        rows = _parse_pas_forme_excel(source)
+
+        self.assertEqual(len(rows), 2)
+        self.assertEqual(rows[0]["reference_code"], "CLA001-699000001-ada-lovelace")
+        self.assertEqual(rows[0]["prestataire"], "Prest A")
+        self.assertEqual(rows[0]["beneficiaire"], "Benef A")
+        self.assertEqual(rows[1]["telephone"], "")
+        self.assertEqual(rows[1]["reference_code"], "CLA002-sans-tel-sans-telephone")
 
 
 class ConsolidationFilterTests(SimpleTestCase):

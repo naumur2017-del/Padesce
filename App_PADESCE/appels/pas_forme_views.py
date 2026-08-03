@@ -77,20 +77,36 @@ def _parse_pas_forme_excel(file_obj):
 
     payload = []
     for row in rows:
-        nom = get(row, "APPRENANT ABSENT CHEZ NAUMUR", "APPRENANT", "NOM")
+        nom = get(
+            row,
+            "APPRENANT ABSENT CHEZ NAUMUR",
+            "APPRENANT",
+            "NOM ET PRENOM 0 NAME & FIRST NAME",
+            "NOM ET PRENOM",
+            "NOM ET PRÉNOM",
+            "NOM",
+        )
         if not nom:
             continue
         item = {
-            "numero": get(row, "NUMERO"),
+            "numero": get(row, "NUMERO", "N°", "NO"),
             "nom": _as_text(nom),
-            "telephone": _normalize_phone(get(row, "NUMERO DE TELEPHONE", "TELEPHONE")),
-            "est_forme": _as_text(get(row, "EST FORME")),
-            "prestation_id": _as_text(get(row, "PRESTATION ID", "PRESTATION")),
+            "telephone": _normalize_phone(
+                get(
+                    row,
+                    "NUMERO DE TELEPHONE",
+                    "TELEPHONE",
+                    "1ER NO TEL 0 TEL NO APPRENANT",
+                    "1ER NO TEL 0 TEL NO",
+                )
+            ),
+            "est_forme": _as_text(get(row, "EST FORME", "STATUT DE LA PRESTATION")),
+            "prestation_id": _as_text(get(row, "PRESTATION ID", "PRESTATION", "CLASSE")),
             "prestataire": _as_text(get(row, "NOM DU PRESTATAIRE", "PRESTATAIRE")),
-            "beneficiaire": _as_text(get(row, "NOM DU BENEFICIAIRE", "BENEFICIAIRE")),
+            "beneficiaire": _as_text(
+                get(row, "NOM DU BENEFICIAIRE", "BENEFICIAIRE", "BENEFICIAIRES")
+            ),
         }
-        if not item["telephone"]:
-            continue
         try:
             item["numero"] = int(str(item["numero"]).strip()) if item["numero"] != "" else None
         except (TypeError, ValueError):
@@ -242,7 +258,7 @@ def pas_forme_index(request):
             (
                 f"Fichier importe. {created} nouveau(x) appel(s), "
                 f"{updated} appel(s) mis a jour, {skipped_duplicates} doublon(s) ignore(s). "
-                "Les lignes sans numero de telephone ne sont pas importees."
+                "Les lignes sans numero de telephone sont conservees mais ne sont pas appelables."
             ),
         )
         return redirect(request.path_info)
