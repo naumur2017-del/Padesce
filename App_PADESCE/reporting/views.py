@@ -2235,6 +2235,109 @@ def _format_concordance_value(header, value):
     return raw_value
 
 
+def _campaign_window_key(value):
+    """Return the reporting window used by the H/F recap table."""
+    normalized = _concordance_header_key(value).replace("_", "")
+    if normalized in {"fenetre2", "f2"}:
+        return "Fenêtre 2"
+    if normalized in {"fenetre3", "f3"}:
+        return "Fenêtre 3"
+    return ""
+
+
+def _gender_key(value):
+    normalized = _concordance_header_key(value)
+    if normalized in {"homme", "masculin", "m"}:
+        return "men"
+    if normalized in {"femme", "feminin", "féminin", "f"}:
+        return "women"
+    return ""
+
+
+def _window_gender_summary(rows, *, gender_key, window_key, value_key=lambda _row: 1):
+    """Build the Fenêtre 2 / Fenêtre 3 H/F/T recap used on each tab."""
+    totals = {
+        "Fenêtre 2": {"men": 0, "women": 0},
+        "Fenêtre 3": {"men": 0, "women": 0},
+    }
+    for row in rows:
+        window = _campaign_window_key(window_key(row))
+        gender = _gender_key(gender_key(row))
+        if not window or not gender:
+            continue
+        totals[window][gender] += value_key(row) or 0
+
+    summary_rows = []
+    for window, values in totals.items():
+        summary_rows.append({
+            "window": window,
+            "men": values["men"],
+            "women": values["women"],
+            "total": values["men"] + values["women"],
+        })
+    summary_rows.append({
+        "window": "Total",
+        "men": sum(row["men"] for row in summary_rows),
+        "women": sum(row["women"] for row in summary_rows),
+        "total": sum(row["total"] for row in summary_rows),
+    })
+    return summary_rows
+
+
+def _number_from_concordance_payload(payload, *aliases):
+    """Read a workbook numeric cell without failing on French decimal formatting."""
+    raw_value = _concordance_payload_value(payload, *aliases).replace(" ", "").replace(",", ".")
+    try:
+        return float(raw_value)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _concordance_window_summary(rows):
+    """Sum the final H/F/T values produced by the concordance workbook."""
+    totals = {
+        "Fenêtre 2": {"men": 0, "women": 0, "total": 0},
+        "Fenêtre 3": {"men": 0, "women": 0, "total": 0},
+    }
+    for row in rows:
+        window = _campaign_window_key(row.fenetre)
+        if not window:
+            continue
+        payload = row.payload
+        # The second block is the result after applying the concordance rate.
+        # Fall back to the attendance-report figures for older imports.
+        men = _number_from_concordance_payload(
+            payload,
+            "NOMBRE FORME TOTAL AVEC TAUX DE CONCORDANCE - H",
+            "NBRE PERSONNES FORMEES SELON FICHE DE PRESENCE RAPPORT PRESTATAIRE - H",
+        )
+        women = _number_from_concordance_payload(
+            payload,
+            "NOMBRE FORME TOTAL AVEC TAUX DE CONCORDANCE - F",
+            "NBRE PERSONNES FORMEES SELON FICHE DE PRESENCE RAPPORT PRESTATAIRE - F",
+        )
+        total = _number_from_concordance_payload(
+            payload,
+            "NOMBRE FORME TOTAL AVEC TAUX DE CONCORDANCE - T",
+            "NBRE PERSONNES FORMEES SELON FICHE DE PRESENCE RAPPORT PRESTATAIRE - T",
+        )
+        totals[window]["men"] += men
+        totals[window]["women"] += women
+        totals[window]["total"] += total or men + women
+
+    summary_rows = [
+        {"window": window, **{key: int(value) if value.is_integer() else value for key, value in values.items()}}
+        for window, values in totals.items()
+    ]
+    summary_rows.append({
+        "window": "Total",
+        "men": sum(row["men"] for row in summary_rows),
+        "women": sum(row["women"] for row in summary_rows),
+        "total": sum(row["total"] for row in summary_rows),
+    })
+    return summary_rows
+
+
 def concordance_campaigns_view(request):
     if request.method == "POST":
         action = request.POST.get("action")
@@ -2357,4 +2460,13 @@ def concordance_campaigns_view(request):
         "selected_fenetre": selected_fenetre, "selected_prestataire": selected_prestataire,
         "selected_beneficiaire": selected_beneficiaire, "selected_presta_id": selected_presta_id, "search_query": search_query,
         "campaign_rows": campaign_rows, "synthesis_rows": synthesis,
+        "concordance_gender_summary": _concordance_window_summary(filtered_concordance),
+        "campaign_gender_summary": _window_gender_summary(
+            campaign_rows, gender_key=lambda row: row["genre"], window_key=lambda row: row["fenetre"],
+            value_key=lambda row: row["total"],
+        ),
+        "synthesis_gender_summary": _window_gender_summary(
+            synthesis, gender_key=lambda row: row["genre"], window_key=lambda row: row["fenetre"],
+            value_key=lambda row: row["appels"],
+        ),
     })
