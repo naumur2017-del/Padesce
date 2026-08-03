@@ -21,7 +21,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 from openpyxl import Workbook, load_workbook
 
-from App_PADESCE.appels.models import Appel
+from App_PADESCE.appels.models import Appel, AppelPasFormeII
 from App_PADESCE.apprenants.models import Apprenant, SmsLog
 from App_PADESCE.core.access import require_analysis_access, require_superadmin_access
 from App_PADESCE.environnement.models import EnqueteEnvironnement
@@ -2420,18 +2420,20 @@ def concordance_campaigns_view(request):
         for row in filtered_concordance[:100]
     ]
 
-    learner_meta = {row["code"]: row for row in Apprenant.objects.values("code", "genre", "fenetre")}
     campaign = {}
-    for call in Appel.objects.filter(is_active=True).values("code", "fenetre", "status"):
-        meta = learner_meta.get(call["code"], {})
-        genre = meta.get("genre") or "Non renseigné"
-        fenetre = call["fenetre"] or meta.get("fenetre") or "Non renseignée"
+    for call in AppelPasFormeII.objects.filter(is_active=True).values(
+        "genre", "fenetre", "status", "formulaire_rempli_at"
+    ):
+        genre = call["genre"] or "Non renseigné"
+        fenetre = call["fenetre"] or "Non renseignée"
         key = (genre, fenetre)
         bucket = campaign.setdefault(key, {"genre": genre, "fenetre": fenetre, "total": 0, "tentes": 0, "reussis": 0})
         bucket["total"] += 1
         if call["status"] != "en_attente":
             bucket["tentes"] += 1
-        if call["status"] in {"appel_reussi", "formulaire_rempli", "formulaire_avec_audio", "termine"}:
+        if call["formulaire_rempli_at"] or call["status"] in {
+            "appel_reussi", "formulaire_rempli", "formulaire_avec_audio", "termine"
+        }:
             bucket["reussis"] += 1
     campaign_rows = sorted(campaign.values(), key=lambda row: (row["fenetre"], row["genre"]))
     concordance_counts = {}
