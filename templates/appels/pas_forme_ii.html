@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}Appels pas formés II{% endblock %}
+{% block content %}
+<main class="shell">
+  <div class="scope-switch"><div class="scope-tabs"><a class="scope-tab" href="{% url 'appels_index' %}">Appels apprenants</a><a class="scope-tab" href="{% url 'formateurs_index' %}">Appels formateurs</a><a class="scope-tab" href="{% url 'pas_forme_index' %}">Appels Pas Formés</a><a class="scope-tab active" href="{% url 'pas_forme_ii_index' %}">Appels Pas Formés II</a></div></div>
+  <h1>Appels pas formés II</h1>
+  {% if user.is_superuser %}<form method="post" enctype="multipart/form-data" class="panel">{% csrf_token %}<strong>Ajouter sans doublons</strong><input type="file" name="file" accept=".xlsx,.xlsm" required><button class="btn" type="submit">Importer pour ajouter</button><p>Feuil1 : PRESTATION_ID, APPRENANTS, NUMERO, TOTAL_PRESENCE, TOTAL_SEANCE, Seuil 75 %, NOMBRE SEANCE.</p></form>{% endif %}
+  <section class="panel"><h2>Seuil de formulaires par prestation — 30 %</h2><table><thead><tr><th>Prestation</th><th>Formulaires</th><th>Seuil</th><th>Avancement</th></tr></thead><tbody>{% for item in thresholds %}<tr><td>{{ item.prestation_id }}</td><td>{{ item.completed }} / {{ item.total }}</td><td>{{ item.target }}</td><td>{{ item.pct }}%</td></tr>{% empty %}<tr><td colspan="4">Aucune donnée importée.</td></tr>{% endfor %}</tbody></table></section>
+  <section class="panel"><table><thead><tr><th>Prestation</th><th>Apprenant</th><th>Téléphone</th><th>Présences</th><th>Séances prévues</th><th>Séances source</th><th>Déclarées</th><th>Formulaire</th></tr></thead><tbody>{% for row in rows %}<tr><td>{{ row.prestation_id }}</td><td>{{ row.nom }}</td><td>{{ row.telephone|default:"—" }}</td><td>{{ row.total_presence|default:"—" }}</td><td>{{ row.total_seances|default:"—" }}</td><td>{{ row.nombre_seances_source|default:"—" }}</td><td><form method="post" action="{% url 'pas_forme_ii_save_form' row.pk %}">{% csrf_token %}<input name="nombre_seances_declare" type="number" min="0" value="{{ row.nombre_seances_declare|default_if_none:'' }}"><button class="btn" type="submit">Enregistrer</button></form></td><td>{% if row.formulaire_rempli_at %}Rempli{% else %}À faire{% endif %}</td></tr>{% empty %}<tr><td colspan="8">Importez le fichier pour commencer.</td></tr>{% endfor %}</tbody></table></section>
+</main>
+{% endblock %}

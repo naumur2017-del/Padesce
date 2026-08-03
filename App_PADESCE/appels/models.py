@@ -643,6 +643,37 @@ class AppelPasForme(TimeStampedModel):
         return f"Appel pas forme {self.reference_code} - {self.nom}"
 
 
+class AppelPasFormeII(TimeStampedModel):
+    STATUS_CHOICES = Appel.STATUS_CHOICES
+
+    reference_code = models.CharField(max_length=160, unique=True)
+    prestation_id = models.CharField(max_length=80, db_index=True)
+    nom = models.CharField(max_length=255)
+    telephone = models.CharField(max_length=30, blank=True)
+    beneficiaire = models.CharField(max_length=255, blank=True)
+    prestataire = models.CharField(max_length=255, blank=True)
+    genre = models.CharField(max_length=20, blank=True)
+    absent_dans_consolide = models.BooleanField(default=False)
+    total_presence = models.PositiveSmallIntegerField(null=True, blank=True)
+    total_seances = models.PositiveSmallIntegerField(null=True, blank=True)
+    seuil_75 = models.PositiveSmallIntegerField(null=True, blank=True)
+    nombre_seances_source = models.PositiveSmallIntegerField(null=True, blank=True)
+    forme_final = models.CharField(max_length=80, blank=True)
+    nombre_seances_declare = models.PositiveSmallIntegerField(null=True, blank=True)
+    is_active = models.BooleanField(default=True, db_index=True)
+    status = models.CharField(max_length=25, choices=STATUS_CHOICES, default="en_attente", db_index=True)
+    formulaire_rempli_at = models.DateTimeField(null=True, blank=True)
+    locked_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="appels_pas_forme_ii_lock")
+    locked_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["prestation_id", "nom"]
+        indexes = [models.Index(fields=["prestation_id", "is_active", "status"])]
+
+    def __str__(self):
+        return f"Appel pas forme II {self.reference_code} - {self.nom}"
+
+
 class AppelPrestataireDemarrage(TimeStampedModel):
     STATUS_CHOICES = Appel.STATUS_CHOICES
     BOOLEAN_CHOICES = [

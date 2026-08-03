@@ -133,6 +133,7 @@ app_urlpatterns = [
     path("appels/", include("App_PADESCE.appels.urls")),
     path("appels-formateurs/", include("App_PADESCE.appels.formateurs_urls")),
     path("appels-pas-forme/", include("App_PADESCE.appels.pas_forme_urls")),
+    path("appels-pas-forme-ii/", include("App_PADESCE.appels.pas_forme_ii_urls")),
     path(
         "appels-prestataires-demarrage/",
         include("App_PADESCE.appels.prestataire_demarrage_urls"),
