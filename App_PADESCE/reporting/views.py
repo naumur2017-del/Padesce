@@ -2403,10 +2403,13 @@ def _build_pas_forme_ii_campaign():
         "fenetre_2": 0, "fenetre_3": 0, "hommes": 0, "femmes": 0,
     }
     for row in rows:
+        # The H/F recap intentionally has no "non renseigné" column.
+        # Count only the same H and F people that are displayed in it.
+        gendered_calls = row["hommes"] + row["femmes"]
         if _campaign_window_key(row["fenetre"]) == "Fenêtre 2":
-            summary["fenetre_2"] += row["appeles"]
+            summary["fenetre_2"] += gendered_calls
         elif _campaign_window_key(row["fenetre"]) == "Fenêtre 3":
-            summary["fenetre_3"] += row["appeles"]
+            summary["fenetre_3"] += gendered_calls
         summary["hommes"] += row["hommes"]
         summary["femmes"] += row["femmes"]
     return sorted(rows, key=lambda row: (row["presta_id"], row["fenetre"])), summary
@@ -2488,6 +2491,36 @@ def _window_gender_summary(rows, *, gender_key, window_key, value_key=lambda _ro
         "total": sum(row["total"] for row in summary_rows),
     })
     return summary_rows
+
+
+def _combine_gender_summaries(*summaries):
+    """Add the H/F recap figures already calculated for other tabs."""
+    windows = ("Fenêtre 2", "Fenêtre 3")
+    totals = {window: {"men": 0, "women": 0} for window in windows}
+    for summary in summaries:
+        for row in summary:
+            window = row.get("window")
+            if window not in totals:
+                continue
+            totals[window]["men"] += row.get("men", 0) or 0
+            totals[window]["women"] += row.get("women", 0) or 0
+
+    result = [
+        {
+            "window": window,
+            "men": values["men"],
+            "women": values["women"],
+            "total": values["men"] + values["women"],
+        }
+        for window, values in totals.items()
+    ]
+    result.append({
+        "window": "Total",
+        "men": sum(row["men"] for row in result),
+        "women": sum(row["women"] for row in result),
+        "total": sum(row["total"] for row in result),
+    })
+    return result
 
 
 def _number_from_concordance_payload(payload, *aliases):
@@ -2740,6 +2773,14 @@ def concordance_campaigns_view(request):
             for record in pending_contact_import.records.all()[:100]
         ]
 
+    concordance_gender_summary = _concordance_window_summary(concordance, headers)
+    campaign_gender_summary = _window_gender_summary(
+        campaign_rows,
+        gender_key=lambda row: row["genre"],
+        window_key=lambda row: row["fenetre"],
+        value_key=lambda row: row["total"],
+    )
+
     return render(request, "reporting/concordance_campaigns.html", {
         "concordance_count": len(concordance), "filtered_concordance_count": len(filtered_concordance),
         "headers": headers, "concordance_rows": concordance_rows, "is_feuil2_layout": is_feuil2_layout, "filter_options": filter_options,
@@ -2755,13 +2796,9 @@ def concordance_campaigns_view(request):
         "pending_contact_rows": pending_contact_rows,
         "can_manage_concordance_import": can_manage_concordance_import,
         # This recap is global; filters apply only to the detailed import grid.
-        "concordance_gender_summary": _concordance_window_summary(concordance, headers),
-        "campaign_gender_summary": _window_gender_summary(
-            campaign_rows, gender_key=lambda row: row["genre"], window_key=lambda row: row["fenetre"],
-            value_key=lambda row: row["total"],
-        ),
-        "synthesis_gender_summary": _window_gender_summary(
-            synthesis, gender_key=lambda row: row["genre"], window_key=lambda row: row["fenetre"],
-            value_key=lambda row: row["appels"],
+        "concordance_gender_summary": concordance_gender_summary,
+        "campaign_gender_summary": campaign_gender_summary,
+        "synthesis_gender_summary": _combine_gender_summaries(
+            concordance_gender_summary, campaign_gender_summary
         ),
     })
