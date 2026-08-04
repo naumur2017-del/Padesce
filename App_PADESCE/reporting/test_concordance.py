@@ -54,7 +54,9 @@ class ConcordancePostgresParityTests(SimpleTestCase):
     def test_concordance_summary_reads_named_columns_from_reordered_json(self):
         record = ConcordanceRecord(fenetre="3", payload=_postgres_jsonb_order(_feuil2_payload()))
 
-        summary = views._concordance_window_summary([record])
+        summary = views._concordance_window_summary(
+            [record], list(views.CONCORDANCE_FEUIL2_DISPLAY_HEADERS)
+        )
 
         self.assertEqual(
             summary,
@@ -145,6 +147,28 @@ class ConcordanceCampaignPageTests(TestCase):
             },
         )
 
+    def test_reconciliation_method_prioritizes_concordance_then_calls(self):
+        concordance_prestations = {("PRESTA001", "Fenêtre 3")}
+
+        self.assertEqual(
+            views._reconciliation_method(
+                "PRESTA001", "3", concordance_prestations, has_calls=True
+            ),
+            "RC",
+        )
+        self.assertEqual(
+            views._reconciliation_method(
+                "PRESTA002", "3", concordance_prestations, has_calls=True
+            ),
+            "RA",
+        )
+        self.assertEqual(
+            views._reconciliation_method(
+                "PRESTA003", "3", concordance_prestations, has_calls=False
+            ),
+            "R",
+        )
+
     @override_settings(
         STORAGES={
             "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
@@ -161,6 +185,11 @@ class ConcordanceCampaignPageTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Prestations analysées")
         self.assertContains(response, "Personnes appelées — fenêtre 3")
+        self.assertContains(response, "Réconciliation par prestation")
+        self.assertContains(response, "Méthode")
+        self.assertContains(response, "PRESTA035")
+        self.assertContains(response, "3 / 6")
+        self.assertEqual(response.context["synthesis_reconciliation_rows"][0]["methode"], "RA")
         self.assertEqual(
             response.context["headers"],
             list(views.CONCORDANCE_FEUIL2_DISPLAY_HEADERS),
@@ -169,6 +198,22 @@ class ConcordanceCampaignPageTests(TestCase):
             response.context["concordance_rows"][0]["values"][:5],
             ["1", "PRESTA001", "CFP FAMEAC", "COOP CA WALDE BEKA MARDOCK", "3"],
         )
+
+    @override_settings(
+        STORAGES={
+            "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+            "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
+        }
+    )
+    def test_synthesis_prestation_uses_rc_when_concordance_exists(self):
+        ConcordanceRecord.objects.create(
+            fenetre="3",
+            payload={"PRESTA ID": "PRESTA035"},
+        )
+
+        response = self.client.get(reverse("concordance_campaigns"))
+
+        self.assertEqual(response.context["synthesis_reconciliation_rows"][0]["methode"], "RC")
 
 
 @override_settings(
@@ -180,7 +225,10 @@ class ConcordanceCampaignPageTests(TestCase):
 class PendingLearnerContactImportTests(TestCase):
     def setUp(self):
         user = get_user_model().objects.create_user(
-            username="pending-contact-tester", password="test-pass-123"
+            username="pending-contact-tester",
+            password="test-pass-123",
+            is_staff=True,
+            is_superuser=True,
         )
         manager_group, _ = Group.objects.get_or_create(name="manager_padesce")
         user.groups.add(manager_group)

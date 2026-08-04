@@ -2144,6 +2144,50 @@ CONCORDANCE_FEUIL2_DISPLAY_HEADERS = (
 )
 
 
+SYNTHESIS_RECONCILIATION_PRESTATIONS = (
+    {
+        "presta_id": "PRESTA035",
+        "prestataire": "CFR DE BOUAM",
+        "beneficiaire": "GIC / AEKEDIA DES AGRICULTEURS ET ELEVEURS DE TIGAZA",
+        "fenetre": "3",
+        "hommes": 3,
+        "femmes": 0,
+        "appeles": 3,
+        "total": 6,
+    },
+    {
+        "presta_id": "PRESTA109",
+        "prestataire": "CFP LA DOMINICAINE",
+        "beneficiaire": "SOCIETE COOPERATIVE SIMPLIFIEE DES ELEVEURS DE BOVINS DE DJOUROUM (SCOOPS GOUDALI DE DJOUROUM)",
+        "fenetre": "3",
+        "hommes": 2,
+        "femmes": 0,
+        "appeles": 2,
+        "total": 2,
+    },
+    {
+        "presta_id": "PRESTA123",
+        "prestataire": "CFR DE BOUAM",
+        "beneficiaire": "GIC FIDELITE",
+        "fenetre": "3",
+        "hommes": 1,
+        "femmes": 3,
+        "appeles": 4,
+        "total": 4,
+    },
+    {
+        "presta_id": "PRESTA155",
+        "prestataire": "CFP-IFP 2IPT",
+        "beneficiaire": "COOP-CA MIEL ANNOUR",
+        "fenetre": "3",
+        "hommes": 11,
+        "femmes": 3,
+        "appeles": 14,
+        "total": 18,
+    },
+)
+
+
 def _concordance_display_headers(records):
     """Keep Feuil2's display order stable across SQLite and PostgreSQL JSONB."""
     discovered = []
@@ -2358,6 +2402,16 @@ def _build_pas_forme_ii_campaign():
     return sorted(rows, key=lambda row: (row["presta_id"], row["fenetre"])), summary
 
 
+def _reconciliation_method(presta_id, fenetre, concordance_prestations, has_calls):
+    """Identify the source used to reconcile a prestation in the synthesis grid."""
+    key = (str(presta_id or "").strip(), _campaign_window_key(fenetre))
+    if key in concordance_prestations:
+        return "RC"
+    if has_calls:
+        return "RA"
+    return "R"
+
+
 def _format_concordance_value(header, value):
     """Match Feuil2's displayed number formats without changing stored data."""
     raw_value = str(value or "").strip()
@@ -2445,18 +2499,27 @@ def _concordance_window_summary(rows, headers):
         window = _campaign_window_key(row.fenetre)
         if not window:
             continue
-        # In Feuil2, the final values are always the last three columns: H, F, T.
-        # Excel's merged header cells make their imported labels unreliable.
-        # Use the common displayed header order. A row can omit empty cells
-        # from its JSON payload, so payload.values() would shift the columns.
-        values = [row.payload.get(header, "") for header in headers]
-        if len(values) < 3:
-            continue
-        # The detail grid displays each calculated H/F cell as a whole person.
-        # Apply that same rounding *before* summing so the recap equals the
-        # manually added values visible after filtering (e.g. Fenêtre 2).
-        men = int(round(_number_from_concordance_payload({"value": values[-3]}, "value")))
-        women = int(round(_number_from_concordance_payload({"value": values[-2]}, "value")))
+        men_value = _concordance_payload_value(
+            row.payload,
+            "NOMBRE FORME TOTAL AVEC TAUX DE CONCORDANCE - H",
+        )
+        women_value = _concordance_payload_value(
+            row.payload,
+            "NOMBRE FORME TOTAL AVEC TAUX DE CONCORDANCE - F",
+        )
+        if men_value or women_value:
+            # Prefer explicit labels: JSONB does not preserve the Excel column order.
+            men = int(round(_number_from_concordance_payload({"value": men_value}, "value")))
+            women = int(round(_number_from_concordance_payload({"value": women_value}, "value")))
+        else:
+            # Some Feuil2 exports have merged headers without usable labels.
+            # Use the common displayed order because JSONB can reorder payload keys.
+            values = [row.payload.get(header, "") for header in headers]
+            if len(values) < 3:
+                continue
+            # The detail grid displays each calculated H/F cell as a whole person.
+            men = int(round(_number_from_concordance_payload({"value": values[-3]}, "value")))
+            women = int(round(_number_from_concordance_payload({"value": values[-2]}, "value")))
         totals[window]["men"] += men
         totals[window]["women"] += women
         totals[window]["total"] += men + women
@@ -2615,6 +2678,26 @@ def concordance_campaigns_view(request):
             bucket["formes"] += 1
     campaign_rows = sorted(campaign.values(), key=lambda row: (row["fenetre"], row["genre"]))
     not_formed_campaign_rows, not_formed_campaign_summary = _build_pas_forme_ii_campaign()
+    concordance_prestations = {
+        (
+            _concordance_payload_value(row.payload, "PRESTA ID"),
+            _campaign_window_key(row.fenetre),
+        )
+        for row in concordance
+        if _concordance_payload_value(row.payload, "PRESTA ID")
+    }
+    synthesis_reconciliation_rows = []
+    for row in SYNTHESIS_RECONCILIATION_PRESTATIONS:
+        reconciliation_row = {
+            **row,
+            "methode": _reconciliation_method(
+                row["presta_id"],
+                row["fenetre"],
+                concordance_prestations,
+                bool(row["appeles"]),
+            ),
+        }
+        synthesis_reconciliation_rows.append(reconciliation_row)
     concordance_counts = {}
     for row in concordance:
         key = (row.genre, row.fenetre)
@@ -2649,6 +2732,7 @@ def concordance_campaigns_view(request):
         "campaign_rows": campaign_rows, "synthesis_rows": synthesis,
         "not_formed_campaign_rows": not_formed_campaign_rows,
         "not_formed_campaign_summary": not_formed_campaign_summary,
+        "synthesis_reconciliation_rows": synthesis_reconciliation_rows,
         "pending_contact_import": pending_contact_import,
         "pending_contact_count": pending_contact_count,
         "pending_contact_headers": pending_contact_headers,
