@@ -2953,6 +2953,9 @@ def concordance_campaigns_view(request):
         "concordance_gender_summary": concordance_gender_summary,
         "campaign_gender_summary": campaign_gender_summary,
         "campaign_formed_people_summary": campaign_formed_people_summary,
-        # This recap must only show people trained through the call campaign.
-        "synthesis_gender_summary": campaign_gender_summary,
+        # The consolidated recap combines trained people from both
+        # reconciliation sources: concordance (RC) and call campaigns (RA).
+        "synthesis_gender_summary": _combine_gender_summaries(
+            concordance_gender_summary, campaign_gender_summary
+        ),
     })

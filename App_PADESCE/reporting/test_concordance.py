@@ -218,6 +218,30 @@ class ConcordanceCampaignPageTests(TestCase):
             response.context["campaign_gender_summary"],
         )
 
+    def test_synthesis_gender_summary_combines_concordance_and_calls(self):
+        ConcordanceRecord.objects.create(fenetre="3", payload=_feuil2_payload())
+        AppelPasFormeII.objects.create(
+            reference_code="PFII-SYNTHESIS-GENDER",
+            prestation_id="PRESTA-SUMMARY",
+            nom="Apprenant formé",
+            genre="F",
+            fenetre="2",
+            total_seances=4,
+            nombre_seances_declare=3,
+            formulaire_rempli_at=timezone.now(),
+        )
+
+        response = self.client.get(reverse("concordance_campaigns"))
+
+        self.assertEqual(
+            response.context["synthesis_gender_summary"],
+            [
+                {"window": "Fenêtre 2", "men": 0, "women": 1, "total": 1},
+                {"window": "Fenêtre 3", "men": 17, "women": 6, "total": 23},
+                {"window": "Total", "men": 17, "women": 7, "total": 24},
+            ],
+        )
+
     def test_campaign_detail_exposes_phone_and_structure_membership(self):
         AppelPasFormeII.objects.create(
             reference_code="PFII-CONTACT-001",
