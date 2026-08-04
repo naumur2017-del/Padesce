@@ -2355,23 +2355,26 @@ def _concordance_payload_value(payload, *aliases):
 
 
 def _build_pas_forme_ii_campaign():
-    """Return only Pas Formés II prestations that reached the 30% call threshold."""
+    """Return Pas Formés II prestations along with their 30% call threshold status."""
     thresholded = {}
     aggregates = AppelPasFormeII.objects.filter(is_active=True).values("prestation_id").annotate(
         total=Count("id"), appeles=Count("id", filter=Q(formulaire_rempli_at__isnull=False))
     )
     for item in aggregates:
         total, appeles = int(item["total"] or 0), int(item["appeles"] or 0)
-        if total and appeles >= max(1, (total * 30 + 99) // 100):
-            thresholded[item["prestation_id"]] = True
+        thresholded[item["prestation_id"]] = bool(total and appeles >= max(1, (total * 30 + 99) // 100))
 
     calls = list(AppelPasFormeII.objects.filter(
-        is_active=True, prestation_id__in=thresholded
+        is_active=True
     ).order_by("prestation_id", "fenetre", "nom"))
     segments = {}
     for call in calls:
         key = (call.prestation_id or "Non renseigné", call.prestataire or "Non renseigné", call.beneficiaire or "Non renseigné", call.fenetre or "Non renseignée")
-        segment = segments.setdefault(key, {"presta_id": key[0], "prestataire": key[1], "beneficiaire": key[2], "fenetre": key[3], "total": 0, "appeles": 0, "hommes": 0, "femmes": 0, "apprenants": []})
+        segment = segments.setdefault(key, {
+            "presta_id": key[0], "prestataire": key[1], "beneficiaire": key[2], "fenetre": key[3],
+            "total": 0, "appeles": 0, "hommes": 0, "femmes": 0, "apprenants": [],
+            "seuil_atteint": thresholded.get(call.prestation_id, False),
+        })
         segment["total"] += 1
         if not call.formulaire_rempli_at:
             continue
@@ -2391,7 +2394,10 @@ def _build_pas_forme_ii_campaign():
         segment["apprenants"].append({"nom": call.nom, "code": call.reference_code, "genre": genre, "fenetre": key[3], "presta_id": key[0], "audio_url": audio_url, "audio_disponible": bool(audio_url)})
 
     rows = [row for row in segments.values() if row["appeles"]]
-    summary = {"prestations": len(thresholded), "fenetre_2": 0, "fenetre_3": 0, "hommes": 0, "femmes": 0}
+    summary = {
+        "prestations": sum(1 for atteint in thresholded.values() if atteint),
+        "fenetre_2": 0, "fenetre_3": 0, "hommes": 0, "femmes": 0,
+    }
     for row in rows:
         if _campaign_window_key(row["fenetre"]) == "Fenêtre 2":
             summary["fenetre_2"] += row["appeles"]
