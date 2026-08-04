@@ -152,47 +152,6 @@ class ConcordanceCampaignPageTests(TestCase):
             },
         )
 
-    @override_settings(
-        STORAGES={
-            "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
-            "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
-        }
-    )
-    def test_pas_forme_ii_campaign_uses_ten_percent_threshold_everywhere(self):
-        calls = []
-        for prestation_id, total in (("PRESTA-TEN", 10), ("PRESTA-ELEVEN", 11)):
-            for index in range(total):
-                calls.append(
-                    AppelPasFormeII(
-                        reference_code=f"{prestation_id}-{index}",
-                        prestation_id=prestation_id,
-                        nom=f"Apprenant {prestation_id} {index}",
-                        formulaire_rempli_at=timezone.now() if index == 0 else None,
-                    )
-                )
-        AppelPasFormeII.objects.bulk_create(calls)
-
-        rows, _ = views._build_pas_forme_ii_campaign()
-        rows_by_prestation = {row["presta_id"]: row for row in rows}
-
-        self.assertTrue(rows_by_prestation["PRESTA-TEN"]["seuil_atteint"])
-        self.assertFalse(rows_by_prestation["PRESTA-ELEVEN"]["seuil_atteint"])
-
-        response = self.client.get(reverse("concordance_campaigns"))
-        synthesis_prestations = {
-            row["presta_id"]
-            for row in response.context["synthesis_reconciliation_rows"]
-            if row["methode"] == "RA"
-        }
-        self.assertEqual(response.context["pas_forme_ii_threshold_percent"], 10)
-        self.assertEqual(synthesis_prestations, {"PRESTA-TEN"})
-        self.assertContains(
-            response,
-            "Le seuil correspond à 10 % de formulaires complétés par prestation.",
-        )
-        self.assertContains(response, "<td>Oui</td>", html=False)
-        self.assertContains(response, "<td>Non</td>", html=False)
-
     def test_campaign_detail_reports_declared_and_planned_sessions_with_status(self):
         calls = [
             AppelPasFormeII(
@@ -398,7 +357,7 @@ class ConcordanceCampaignPageTests(TestCase):
             "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
         }
     )
-    def test_synthesis_keeps_only_threshold_reached_ra_and_flexible_r_source_headers(self):
+    def test_synthesis_keeps_unattempted_ra_and_flexible_r_source_headers(self):
         ConcordanceRecord.objects.create(
             fenetre="3",
             payload=_postgres_jsonb_order(_feuil2_payload()),
@@ -433,7 +392,8 @@ class ConcordanceCampaignPageTests(TestCase):
         rows = response.context["synthesis_reconciliation_rows"]
         rows_by_key = {(row["methode"], row["presta_id"]): row for row in rows}
 
-        self.assertNotIn(("RA", "PRESTA004"), rows_by_key)
+        self.assertEqual(rows_by_key[("RA", "PRESTA004")]["appeles"], 0)
+        self.assertEqual(rows_by_key[("RA", "PRESTA004")]["total"], 1)
         self.assertEqual(rows_by_key[("R", "PRESTA005")]["prestataire"], "Prestataire R")
         self.assertEqual(rows_by_key[("R", "PRESTA005")]["beneficiaire"], "Bénéficiaire R")
         self.assertEqual(rows_by_key[("R", "PRESTA005")]["fenetre"], "2")

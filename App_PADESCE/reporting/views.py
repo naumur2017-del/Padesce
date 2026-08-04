@@ -22,10 +22,6 @@ from django.views.decorators.http import require_POST
 from openpyxl import Workbook, load_workbook
 
 from App_PADESCE.appels.models import Appel, AppelPasFormeII, is_call_attempted_status
-from App_PADESCE.appels.thresholds import (
-    PAS_FORME_II_THRESHOLD_PERCENT,
-    pas_forme_ii_threshold_reached,
-)
 from App_PADESCE.apprenants.models import Apprenant, SmsLog
 from App_PADESCE.core.access import require_analysis_access, require_superadmin_access
 from App_PADESCE.environnement.models import EnqueteEnvironnement
@@ -2339,16 +2335,17 @@ def _synthesis_payload_identity(payload):
 
 
 def _build_pas_forme_ii_campaign():
-    """Return every Pas Formés II prestation and its configured threshold status."""
+    """Return every Pas Formés II prestation and its 10% call threshold status."""
     thresholded = {}
     aggregates = AppelPasFormeII.objects.filter(is_active=True).values("prestation_id").annotate(
         total=Count("id"), appeles=Count("id", filter=Q(formulaire_rempli_at__isnull=False))
     )
     for item in aggregates:
         total, appeles = int(item["total"] or 0), int(item["appeles"] or 0)
-        thresholded[item["prestation_id"]] = pas_forme_ii_threshold_reached(
-            total,
-            appeles,
+        # A prestation reaches the call-reconciliation threshold once at
+        # least 10% of its learners have completed the form (minimum one).
+        thresholded[item["prestation_id"]] = bool(
+            total and appeles >= max(1, (total * 10 + 99) // 100)
         )
 
     calls = list(AppelPasFormeII.objects.filter(
@@ -2389,18 +2386,10 @@ def _build_pas_forme_ii_campaign():
         attendance_rate = None
         training_status = "Non renseigné"
         if declared_sessions is not None and planned_sessions is not None and planned_sessions > 0:
-            if declared_sessions == 0:
-                # A declared count of 0 does not reliably mean "attended
-                # nothing" (blank inputs default to 0); treat it as
-                # indeterminate instead of asserting "Pas formé". The raw
-                # value stays in nombre_seances_declare, only the derived
-                # rate/status hide it from the UI.
-                training_status = "Non déterminé"
-            else:
-                attendance_rate = declared_sessions / planned_sessions * 100
-                training_status = (
-                    "Formé" if 75 <= attendance_rate <= 120 else "Pas formé"
-                )
+            attendance_rate = declared_sessions / planned_sessions * 100
+            training_status = (
+                "Formé" if 75 <= attendance_rate <= 100 else "Pas formé"
+            )
         if training_status == "Formé":
             segment["formes_total"] += 1
             if genre_key == "men":
@@ -2701,7 +2690,6 @@ def _build_synthesis_reconciliation_rows(concordance, headers, campaign_rows, pe
             "methode": "RA",
         }
         for row in campaign_rows
-        if row["seuil_atteint"]
     )
 
     if pending_contact_import:
@@ -2894,8 +2882,7 @@ def concordance_campaigns_view(request):
             declared_sessions is not None
             and planned_sessions is not None
             and planned_sessions > 0
-            and declared_sessions != 0
-            and 75 <= declared_sessions / planned_sessions * 100 <= 120
+            and 75 <= declared_sessions / planned_sessions * 100 <= 100
         ):
             bucket["formes"] += 1
     campaign_rows = sorted(campaign.values(), key=lambda row: (row["fenetre"], row["genre"]))
@@ -2957,7 +2944,6 @@ def concordance_campaigns_view(request):
         "campaign_rows": campaign_rows, "synthesis_rows": synthesis,
         "not_formed_campaign_rows": not_formed_campaign_rows,
         "not_formed_campaign_summary": not_formed_campaign_summary,
-        "pas_forme_ii_threshold_percent": PAS_FORME_II_THRESHOLD_PERCENT,
         "formed_people_summary": formed_people_summary,
         "synthesis_reconciliation_rows": synthesis_reconciliation_rows,
         "synthesis_reconciliation_summary": synthesis_reconciliation_summary,

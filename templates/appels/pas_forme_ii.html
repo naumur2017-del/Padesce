@@ -11,7 +11,7 @@
   .tabs a { border-radius:999px; background:#fff; color:var(--b); border:1px solid var(--border); }
   .tabs a.active { background:var(--a); color:#fff; }
   .input { padding:9px; border:1px solid var(--border); border-radius:10px; }
-  .file { padding:12px; border:1px dashed var(--border); border-radius:12px; display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .file { padding:12px; border:1px dashed var(--border); border-radius:12px; }
   .table { overflow:auto; }
   table { width:100%; border-collapse:collapse; min-width:1000px; }
   th,td { padding:10px; border-bottom:1px solid var(--border); text-align:left; }
@@ -25,8 +25,7 @@
   .q { display:flex; justify-content:space-between; gap:15px; padding:13px 0; border-bottom:1px solid var(--border); }
   .form-error { color:#b91c1c; font-weight:700; }
   .detail-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
-  .detail-grid > div { padding:10px; background:#f7f3ff; border-radius:10px; }
-  .detail-grid input.input, .detail-grid select.input { width:100%; box-sizing:border-box; margin-top:4px; }
+  .detail-grid div { padding:10px; background:#f7f3ff; border-radius:10px; }
   details summary { font-weight:800; cursor:pointer; }
 </style>
 
@@ -43,14 +42,8 @@
       <h3>Importer la liste ou actualiser les segments</h3>
       <form method="post" enctype="multipart/form-data">
         {% csrf_token %}
-        <div class="file">
-          <input type="file" name="file" accept=".xlsx,.xlsm" required>
-          <button class="btn" name="import_action" value="add">Importer pour ajouter</button>
-          <button class="btn" name="import_action" value="update_segments">Mettre à jour genre et fenêtre</button>
-          <button class="btn" name="import_action" value="compare_sync" onclick="return confirm('Comparer ce fichier avec la plateforme et désactiver les apprenants absents du fichier ?');">Comparer et mettre à jour</button>
-        </div>
+        <div class="file"><input type="file" name="file" accept=".xlsx,.xlsm" required><button class="btn" name="import_action" value="add">Importer pour ajouter</button><button class="btn" name="import_action" value="update_segments">Mettre à jour genre et fenêtre</button></div>
         <p>La mise à jour des segments utilise les colonnes <strong>GENRE</strong> et <strong>FENETRE</strong> de Feuil1 et ne modifie pas les appels ou formulaires existants.</p>
-        <p><strong>Comparer et mettre à jour</strong> conserve les apprenants présents des deux côtés, désactive sans les supprimer ceux absents du fichier, et ajoute les nouveaux. Les appels, formulaires et audios déjà enregistrés restent intacts.</p>
       </form>
     </section>
   {% endif %}
@@ -61,11 +54,11 @@
   </details>
 
   <details class="panel" open>
-    <summary>Seuil de formulaires remplis par prestation — {{ pas_forme_ii_threshold_percent }} %</summary>
+    <summary>Seuil de formulaires remplis par prestation — 30 %</summary>
     <div class="table">
       <table>
-        <tr><th>Prestation</th><th>Formulaires</th><th>Objectif</th><th>%</th><th>Contacts</th></tr>
-        {% for t in thresholds %}<tr><td>{{ t.prestation_id }}</td><td>{{ t.completed }} / {{ t.total }}</td><td>{{ t.target }}</td><td><span class="badge">{{ t.pct }}%</span></td><td>{% if t.reached %}<span class="badge">Bloqués</span>{% else %}Autorisés{% endif %}</td></tr>{% endfor %}
+        <tr><th>Prestation</th><th>Formulaires</th><th>Objectif</th><th>%</th></tr>
+        {% for t in thresholds %}<tr><td>{{ t.prestation_id }}</td><td>{{ t.completed }} / {{ t.total }}</td><td>{{ t.target }}</td><td><span class="badge">{{ t.pct }}%</span></td></tr>{% endfor %}
       </table>
     </div>
   </details>
@@ -83,7 +76,7 @@
       </select>
       <select class="input" name="genre"><option value="">Genre</option>{% for value in filters.genres %}<option value="{{ value }}" {% if filters.genre == value %}selected{% endif %}>{{ value }}</option>{% endfor %}</select>
       <select class="input" name="fenetre"><option value="">Fenêtre</option>{% for value in filters.fenetres %}<option value="{{ value }}" {% if filters.fenetre == value %}selected{% endif %}>{{ value }}</option>{% endfor %}</select>
-      <select class="input" name="prestation"><option value="">Prestation — seuil {{ pas_forme_ii_threshold_percent }} %</option>{% for p in filters.prestations %}<option value="{{ p }}" {% if filters.prestation == p %}selected{% endif %}>{{ p }}</option>{% endfor %}</select>
+      <select class="input" name="prestation"><option value="">Prestation — seuil 30 %</option>{% for p in filters.prestations %}<option value="{{ p }}" {% if filters.prestation == p %}selected{% endif %}>{{ p }}</option>{% endfor %}</select>
       <select class="input" name="prestataire"><option value="">Prestataire</option>{% for p in filters.prestataires %}<option value="{{ p }}" {% if filters.prestataire == p %}selected{% endif %}>{{ p }}</option>{% endfor %}</select>
       <select class="input" name="beneficiaire"><option value="">Bénéficiaire</option>{% for p in filters.beneficiaires %}<option value="{{ p }}" {% if filters.beneficiaire == p %}selected{% endif %}>{{ p }}</option>{% endfor %}</select>
       <button class="btn">Filtrer</button>
@@ -107,19 +100,18 @@
               data-pres="{{ row.total_presence|default:'' }}"
               data-q2="{{ row.membre_structure }}"
               data-declared="{{ row.nombre_seances_declare|default:'' }}"
+              data-est-forme="{{ row.est_forme|yesno:'true,false' }}"
               data-faux-nom="{{ row.faux_nom|yesno:'true,false' }}"
               data-vrai-nom="{{ row.vrai_nom }}"
-              data-status="{{ row.status }}"
+              data-modified-by="{% if row.modified_by %}{{ row.modified_by.username }}{% endif %}"
               data-status-label="{{ row.get_status_display }}"
               data-audio-url="{% if row.audio_file %}{{ row.audio_file.url }}{% endif %}"
               data-form-url="{% url 'pas_forme_ii_save_form' row.id %}"
-              data-action-url="{% url 'pas_forme_ii_action' row.id %}"
-              data-update-url="{% url 'pas_forme_ii_update' row.id %}"
-              data-can-edit="{% if user.is_superuser or row.locked_by_id == user.id %}true{% else %}false{% endif %}">
+              data-action-url="{% url 'pas_forme_ii_action' row.id %}">
             <td>{{ row.nom }}</td><td>{{ row.genre|default:"—" }}</td><td>{{ row.fenetre|default:"—" }}</td><td>{{ row.telephone }}</td><td>{{ row.prestation_id }}</td><td>{{ row.total_presence }}</td><td>{{ row.total_seances }}</td><td>{{ row.nombre_seances_source }}</td>
-            <td><span class="badge">{{ row.get_status_display }}</span></td>
+            <td><span class="badge">{{ row.get_status_display }}</span>{% if row.locked_by %}<br><small>Appelé par {{ row.locked_by.username }}</small>{% endif %}{% if row.modified_by %}<br><small>Modifié par {{ row.modified_by.username }}</small>{% endif %}</td>
             <td>{% if row.audio_file %}<audio controls preload="none" src="{{ row.audio_file.url }}" style="width:180px;height:32px"></audio>{% else %}—{% endif %}</td>
-            <td>{% if row.contact_blocked and not row.formulaire_rempli_at %}<span class="badge">Quota {{ pas_forme_ii_threshold_percent }} % atteint — contact bloqué</span>{% elif not row.formulaire_rempli_at and row.status != "formulaire_rempli" and row.status != "formulaire_avec_audio" %}<button type="button" class="btn open">Démarrer</button>{% else %}<span class="badge">Consulter la ligne</span>{% endif %}</td>
+            <td>{% if not row.formulaire_rempli_at %}<button type="button" class="btn open">{% if row.status == "a_rappeler" %}Reprendre le rappel{% else %}Démarrer{% endif %}</button>{% elif row.can_edit_form %}<button type="button" class="btn open edit-form">Modifier</button>{% else %}<span class="badge">Consulter la ligne</span>{% endif %}</td>
           </tr>
         {% endfor %}
       </tbody>
@@ -147,66 +139,20 @@
 </div>
 
 <div class="modal" id="detail-modal" hidden>
-  <form class="dialog" id="detail-form" method="post" enctype="multipart/form-data">
-    {% csrf_token %}
+  <div class="dialog">
     <h2>Valeurs du formulaire — <span id="detail-who"></span></h2>
-    <p id="detail-error" class="form-error" hidden></p>
     <div class="detail-grid">
-      <div>
-        <strong>Téléphone</strong><br>
-        <span class="view-mode" id="detail-phone"></span>
-        <input class="input edit-mode" id="edit-phone" name="telephone" type="text" hidden>
-      </div>
-      <div>
-        <strong>Prestation</strong><br>
-        <span class="view-mode" id="detail-prestation"></span>
-        <input class="input edit-mode" id="edit-prestation" name="prestation_id" type="text" hidden>
-      </div>
-      <div>
-        <strong>Membre de la structure</strong><br>
-        <span class="view-mode" id="detail-q2"></span>
-        <select class="input edit-mode" id="edit-q2" name="q2" hidden>
-          <option value="">—</option>
-          <option value="OUI">Oui</option>
-          <option value="NON">Non</option>
-        </select>
-      </div>
-      <div>
-        <strong>Nombre de séances déclaré</strong><br>
-        <span class="view-mode" id="detail-sessions"></span>
-        <input class="input edit-mode" id="edit-sessions" name="nombre_seances_declare" type="number" min="0" hidden>
-      </div>
-      <div>
-        <strong>Faux nom / vrai nom</strong><br>
-        <span class="view-mode" id="detail-faux-nom"></span>
-        <span class="edit-mode" id="edit-faux-nom-wrap" hidden>
-          <label><input type="checkbox" id="edit-faux-nom" name="faux_nom"> Faux nom</label>
-          <input class="input" id="edit-vrai-nom" name="vrai_nom" type="text" maxlength="255" placeholder="Vrai nom" hidden>
-        </span>
-      </div>
-      <div>
-        <strong>Statut</strong><br>
-        <span class="view-mode" id="detail-status"></span>
-        <select class="input edit-mode" id="edit-status" name="status" hidden>
-          {% for value, label in status_choices %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
-        </select>
-      </div>
-      <div>
-        <strong>Audio</strong><br>
-        <span class="view-mode" id="detail-audio"></span>
-        <span class="edit-mode" id="edit-audio-wrap" hidden>
-          <input type="file" name="audio" accept="audio/*">
-          <label id="edit-remove-audio-label"><input type="checkbox" id="edit-remove-audio" name="remove_audio"> Supprimer l'audio existant</label>
-        </span>
-      </div>
+      <div><strong>Téléphone</strong><br><span id="detail-phone"></span></div>
+      <div><strong>Prestation</strong><br><span id="detail-prestation"></span></div>
+      <div><strong>Membre de la structure</strong><br><span id="detail-q2"></span></div>
+      <div><strong>Nombre de séances déclaré</strong><br><span id="detail-sessions"></span></div>
+      <div><strong>Faux nom / vrai nom</strong><br><span id="detail-faux-nom"></span></div>
+      <div><strong>Dernière modification</strong><br><span id="detail-modified-by"></span></div>
+      <div><strong>Statut</strong><br><span id="detail-status"></span></div>
+      <div><strong>Audio</strong><br><span id="detail-audio"></span></div>
     </div>
-    <p>
-      <button type="button" class="btn" id="detail-close">Fermer</button>
-      <button type="button" class="btn" id="detail-edit" hidden>Modifier</button>
-      <button type="button" class="btn" id="detail-cancel" hidden>Annuler</button>
-      <button type="submit" class="btn" id="detail-save" hidden>Enregistrer</button>
-    </p>
-  </form>
+    <p><button type="button" class="btn" id="detail-close">Fermer</button></p>
+  </div>
 </div>
 
 <script>
@@ -269,10 +215,7 @@
       body:data,
       credentials:'same-origin'
     });
-    const payload = await response.json().catch(() => ({}));
-    if (!response.ok || !payload.ok) {
-      throw new Error(payload.error || "Impossible de démarrer l'appel.");
-    }
+    if (!response.ok) throw new Error("Impossible de démarrer l'appel.");
   }
 
   document.querySelectorAll('.open').forEach(button => {
@@ -281,12 +224,22 @@
       const row = button.closest('tr');
       button.disabled = true;
       try {
-        await postAction(row, 'start');
+        const editing = button.classList.contains('edit-form');
+        if (!editing) await postAction(row, 'start');
         form.reset();
         when.disabled = true;
         fauxNom.checked = false;
         vraiNomField.hidden = true;
         vraiNom.required = false;
+        if (editing) {
+          const q2 = form.querySelector(`[name="q2"][value="${row.dataset.q2}"]`);
+          if (q2) q2.checked = true;
+          form.querySelector('[name="nombre_seances_declare"]').value = row.dataset.declared;
+          fauxNom.checked = row.dataset.fauxNom === 'true';
+          vraiNomField.hidden = !fauxNom.checked;
+          vraiNom.required = fauxNom.checked;
+          vraiNom.value = row.dataset.vraiNom || '';
+        }
         document.querySelector('#saveRecall').hidden = true;
         // Les boutons portent le nom "action" : dans le DOM, `form.action`
         // peut alors devenir un RadioNodeList au lieu de l'URL du formulaire.
@@ -360,111 +313,33 @@
     }
   });
 
-  const detailForm = document.querySelector('#detail-form');
-  const detailCsrf = detailForm.querySelector('[name="csrfmiddlewaretoken"]').value;
-  const detailError = document.querySelector('#detail-error');
-  const detailEditBtn = document.querySelector('#detail-edit');
-  const detailCancelBtn = document.querySelector('#detail-cancel');
-  const detailSaveBtn = document.querySelector('#detail-save');
-  const editFauxNom = document.querySelector('#edit-faux-nom');
-  const editVraiNom = document.querySelector('#edit-vrai-nom');
-  let currentRow = null;
-
-  function fillDetailView(row) {
-    document.querySelector('#detail-who').textContent = row.dataset.name;
-    document.querySelector('#detail-phone').textContent = row.dataset.phone || '—';
-    document.querySelector('#detail-prestation').textContent = row.dataset.prestation || '—';
-    document.querySelector('#detail-q2').textContent = row.dataset.q2 || '—';
-    document.querySelector('#detail-sessions').textContent = row.dataset.declared || '—';
-    document.querySelector('#detail-faux-nom').textContent = row.dataset.fauxNom === 'true' ? (row.dataset.vraiNom || 'Oui') : 'Non';
-    document.querySelector('#detail-status').textContent = row.dataset.statusLabel || '—';
-    const audio = document.querySelector('#detail-audio');
-    audio.replaceChildren();
-    if (row.dataset.audioUrl) {
-      const player = document.createElement('audio');
-      player.controls = true;
-      player.preload = 'metadata';
-      player.src = row.dataset.audioUrl;
-      audio.appendChild(player);
-    } else {
-      audio.textContent = 'Aucun audio disponible';
-    }
-  }
-
-  function fillDetailEdit(row) {
-    document.querySelector('#edit-phone').value = row.dataset.phone || '';
-    document.querySelector('#edit-prestation').value = row.dataset.prestation || '';
-    document.querySelector('#edit-q2').value = row.dataset.q2 || '';
-    document.querySelector('#edit-sessions').value = row.dataset.declared || '';
-    editFauxNom.checked = row.dataset.fauxNom === 'true';
-    editVraiNom.value = row.dataset.vraiNom || '';
-    editVraiNom.hidden = !editFauxNom.checked;
-    document.querySelector('#edit-status').value = row.dataset.status || '';
-    document.querySelector('#edit-remove-audio').checked = false;
-    document.querySelector('#edit-remove-audio-label').hidden = !row.dataset.audioUrl;
-    detailForm.querySelector('[name="audio"]').value = '';
-  }
-
-  function setEditMode(active) {
-    document.querySelectorAll('#detail-form .view-mode').forEach(el => { el.hidden = active; });
-    document.querySelectorAll('#detail-form .edit-mode').forEach(el => { el.hidden = !active; });
-    detailCancelBtn.hidden = !active;
-    detailSaveBtn.hidden = !active;
-    detailEditBtn.hidden = active || !currentRow || currentRow.dataset.canEdit !== 'true';
-    detailError.hidden = true;
-  }
-
-  editFauxNom.addEventListener('change', () => {
-    editVraiNom.hidden = !editFauxNom.checked;
-    if (!editFauxNom.checked) editVraiNom.value = '';
-  });
-
   document.querySelectorAll('.call-row').forEach(row => {
     row.addEventListener('click', event => {
       if (event.target.closest('button, a, audio, input')) return;
-      currentRow = row;
-      fillDetailView(row);
-      fillDetailEdit(row);
-      detailForm.setAttribute('action', row.dataset.updateUrl);
-      setEditMode(false);
+      document.querySelector('#detail-who').textContent = row.dataset.name;
+      document.querySelector('#detail-phone').textContent = row.dataset.phone || '—';
+      document.querySelector('#detail-prestation').textContent = row.dataset.prestation || '—';
+      document.querySelector('#detail-q2').textContent = row.dataset.q2 || '—';
+      document.querySelector('#detail-sessions').textContent = row.dataset.declared || '—';
+      document.querySelector('#detail-faux-nom').textContent = row.dataset.fauxNom === 'true' ? (row.dataset.vraiNom || 'Oui') : 'Non';
+      document.querySelector('#detail-modified-by').textContent = row.dataset.modifiedBy || 'Aucune modification';
+      document.querySelector('#detail-status').textContent = row.dataset.statusLabel || '—';
+      const audio = document.querySelector('#detail-audio');
+      audio.replaceChildren();
+      if (row.dataset.audioUrl) {
+        const player = document.createElement('audio');
+        player.controls = true;
+        player.preload = 'metadata';
+        player.src = row.dataset.audioUrl;
+        audio.appendChild(player);
+      } else {
+        audio.textContent = 'Aucun audio disponible';
+      }
       detailModal.hidden = false;
     });
   });
 
-  detailEditBtn.addEventListener('click', () => setEditMode(true));
-  detailCancelBtn.addEventListener('click', () => {
-    if (currentRow) fillDetailEdit(currentRow);
-    setEditMode(false);
-  });
-
-  document.querySelector('#detail-close').addEventListener('click', () => {
-    setEditMode(false);
-    detailModal.hidden = true;
-  });
-
-  detailForm.addEventListener('submit', async event => {
-    event.preventDefault();
-    if (!currentRow) return;
-    const buttons = detailForm.querySelectorAll('button');
-    buttons.forEach(button => button.disabled = true);
-    detailError.hidden = true;
-    try {
-      const data = new FormData(detailForm);
-      const response = await fetch(currentRow.dataset.updateUrl, {
-        method: 'POST',
-        headers: {'X-CSRFToken': detailCsrf, 'X-Requested-With': 'XMLHttpRequest'},
-        body: data,
-        credentials: 'same-origin'
-      });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok || !payload.ok) throw new Error(payload.error || "La fiche n'a pas pu être enregistrée.");
-      window.location.reload();
-    } catch (error) {
-      detailError.textContent = error.message;
-      detailError.hidden = false;
-      buttons.forEach(button => button.disabled = false);
-    }
-  });
+  document.querySelector('#detail-close').addEventListener('click', () => { detailModal.hidden = true; });
 })();
 </script>
 {% endblock %}
