@@ -2387,6 +2387,8 @@ def _build_pas_forme_ii_campaign():
         segment["apprenants"].append({
             "nom": call.nom,
             "code": call.reference_code,
+            "telephone": call.telephone,
+            "membre_structure": call.membre_structure,
             "genre": genre,
             "fenetre": key[3],
             "presta_id": key[0],
@@ -2916,6 +2918,7 @@ def concordance_campaigns_view(request):
         window_key=lambda row: row["fenetre"],
         value_key=lambda row: row["formes"],
     )
+    campaign_formed_people_summary = _formed_people_summary(campaign_gender_summary)
 
     return render(request, "reporting/concordance_campaigns.html", {
         "concordance_count": len(concordance), "filtered_concordance_count": len(filtered_concordance),
@@ -2936,7 +2939,7 @@ def concordance_campaigns_view(request):
         # This recap is global; filters apply only to the detailed import grid.
         "concordance_gender_summary": concordance_gender_summary,
         "campaign_gender_summary": campaign_gender_summary,
-        "synthesis_gender_summary": _combine_gender_summaries(
-            concordance_gender_summary, campaign_gender_summary
-        ),
+        "campaign_formed_people_summary": campaign_formed_people_summary,
+        # This recap must only show people trained through the call campaign.
+        "synthesis_gender_summary": campaign_gender_summary,
     })

@@ -209,6 +209,30 @@ class ConcordanceCampaignPageTests(TestCase):
                 {"window": "Total", "men": 1, "women": 1, "total": 2},
             ],
         )
+        self.assertEqual(
+            response.context["campaign_formed_people_summary"],
+            {"total": 2, "fenetre_2": 1, "fenetre_3": 1, "hommes": 1, "femmes": 1},
+        )
+        self.assertEqual(
+            response.context["synthesis_gender_summary"],
+            response.context["campaign_gender_summary"],
+        )
+
+    def test_campaign_detail_exposes_phone_and_structure_membership(self):
+        AppelPasFormeII.objects.create(
+            reference_code="PFII-CONTACT-001",
+            prestation_id="PRESTA-CONTACT",
+            nom="Apprenant contact",
+            telephone="690000001",
+            membre_structure="OUI",
+            formulaire_rempli_at=timezone.now(),
+        )
+
+        rows, _ = views._build_pas_forme_ii_campaign()
+        apprenant = rows[0]["apprenants"][0]
+
+        self.assertEqual(apprenant["telephone"], "690000001")
+        self.assertEqual(apprenant["membre_structure"], "OUI")
 
     @override_settings(
         STORAGES={
