@@ -2452,10 +2452,9 @@ def _concordance_window_summary(rows):
             continue
         men = _number_from_concordance_payload({"value": values[-3]}, "value")
         women = _number_from_concordance_payload({"value": values[-2]}, "value")
-        total = _number_from_concordance_payload({"value": values[-1]}, "value")
         totals[window]["men"] += men
         totals[window]["women"] += women
-        totals[window]["total"] += total or men + women
+        totals[window]["total"] += men + women
 
     summary_rows = [
         {"window": window, **{key: int(value) if value.is_integer() else value for key, value in values.items()}}
