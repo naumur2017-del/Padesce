@@ -2580,12 +2580,14 @@ def concordance_campaigns_view(request):
 
     campaign = {}
     for call in AppelPasFormeII.objects.filter(is_active=True).values(
-        "genre", "fenetre", "status", "formulaire_rempli_at"
+        "genre", "fenetre", "status", "formulaire_rempli_at", "est_forme"
     ):
         genre = call["genre"] or "Non renseigné"
         fenetre = call["fenetre"] or "Non renseignée"
         key = (genre, fenetre)
-        bucket = campaign.setdefault(key, {"genre": genre, "fenetre": fenetre, "total": 0, "tentes": 0, "reussis": 0})
+        bucket = campaign.setdefault(
+            key, {"genre": genre, "fenetre": fenetre, "total": 0, "tentes": 0, "reussis": 0, "formes": 0}
+        )
         bucket["total"] += 1
         if call["status"] != "en_attente":
             bucket["tentes"] += 1
@@ -2593,6 +2595,8 @@ def concordance_campaigns_view(request):
             "appel_reussi", "formulaire_rempli", "formulaire_avec_audio", "termine"
         }:
             bucket["reussis"] += 1
+        if call["est_forme"]:
+            bucket["formes"] += 1
     campaign_rows = sorted(campaign.values(), key=lambda row: (row["fenetre"], row["genre"]))
     not_formed_campaign_rows, not_formed_campaign_summary = _build_pas_forme_ii_campaign()
     concordance_counts = {}
