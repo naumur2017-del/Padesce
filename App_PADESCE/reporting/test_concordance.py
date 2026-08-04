@@ -251,6 +251,8 @@ class ConcordanceCampaignPageTests(TestCase):
             nom="Apprenant contact",
             telephone="690000001",
             membre_structure="OUI",
+            total_seances=12,
+            nombre_seances_declare=10,
             formulaire_rempli_at=timezone.now(),
         )
 

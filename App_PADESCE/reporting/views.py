@@ -2412,11 +2412,11 @@ def _build_pas_forme_ii_campaign():
                 segment["formes_fenetre_3"] += 1
         elif training_status == "Pas formé":
             segment["pas_formes_total"] += 1
-        if training_status == "Non déterminé":
-            # A declared count of 0 stays in nombre_seances_declare (DB, via
-            # call.save() elsewhere) but the row is left out of the "Détail
-            # des apprenants appelés" list since it reads as indeterminate
-            # rather than a real, reviewable answer.
+        if training_status in {"Non déterminé", "Non renseigné"}:
+            # Neither an explicit 0 nor a missing declaration is a real,
+            # reviewable answer. Both stay in the underlying call record
+            # (DB) but are left out of the "Détail des apprenants appelés"
+            # list shown to the enquêteur.
             continue
         segment["apprenants"].append({
             "nom": call.nom,
