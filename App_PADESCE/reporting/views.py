@@ -2375,7 +2375,28 @@ def _build_pas_forme_ii_campaign():
                 audio_url = call.audio_file.url
             except Exception:
                 pass
-        segment["apprenants"].append({"nom": call.nom, "code": call.reference_code, "genre": genre, "fenetre": key[3], "presta_id": key[0], "audio_url": audio_url, "audio_disponible": bool(audio_url)})
+        declared_sessions = call.nombre_seances_declare
+        planned_sessions = call.total_seances
+        attendance_rate = None
+        training_status = "Non renseigné"
+        if declared_sessions is not None and planned_sessions is not None and planned_sessions > 0:
+            attendance_rate = declared_sessions / planned_sessions * 100
+            training_status = (
+                "Formé" if 75 <= attendance_rate <= 100 else "Pas formé"
+            )
+        segment["apprenants"].append({
+            "nom": call.nom,
+            "code": call.reference_code,
+            "genre": genre,
+            "fenetre": key[3],
+            "presta_id": key[0],
+            "seances_declarees": declared_sessions,
+            "seances_prevues": planned_sessions,
+            "taux_presence": attendance_rate,
+            "statut_formation": training_status,
+            "audio_url": audio_url,
+            "audio_disponible": bool(audio_url),
+        })
 
     # Keep the prestations still awaiting their first call.  They are present in
     # the RA source tab and must consequently also be visible in the synthesis.
@@ -2814,7 +2835,8 @@ def concordance_campaigns_view(request):
 
     campaign = {}
     for call in AppelPasFormeII.objects.filter(is_active=True).values(
-        "genre", "fenetre", "status", "formulaire_rempli_at", "est_forme"
+        "genre", "fenetre", "status", "formulaire_rempli_at",
+        "nombre_seances_declare", "total_seances",
     ):
         # This tab reports people who have actually been called.  Do not load
         # records still waiting for their first call into its totals.
@@ -2835,7 +2857,14 @@ def concordance_campaigns_view(request):
             "appel_reussi", "formulaire_rempli", "formulaire_avec_audio", "termine"
         }:
             bucket["reussis"] += 1
-        if call["est_forme"]:
+        declared_sessions = call["nombre_seances_declare"]
+        planned_sessions = call["total_seances"]
+        if (
+            declared_sessions is not None
+            and planned_sessions is not None
+            and planned_sessions > 0
+            and 75 <= declared_sessions / planned_sessions * 100 <= 100
+        ):
             bucket["formes"] += 1
     campaign_rows = sorted(campaign.values(), key=lambda row: (row["fenetre"], row["genre"]))
     not_formed_campaign_rows, not_formed_campaign_summary = _build_pas_forme_ii_campaign()
@@ -2884,7 +2913,7 @@ def concordance_campaigns_view(request):
         campaign_rows,
         gender_key=lambda row: row["genre"],
         window_key=lambda row: row["fenetre"],
-        value_key=lambda row: row["total"],
+        value_key=lambda row: row["formes"],
     )
 
     return render(request, "reporting/concordance_campaigns.html", {

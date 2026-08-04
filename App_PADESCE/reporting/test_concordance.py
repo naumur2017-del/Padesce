@@ -152,6 +152,86 @@ class ConcordanceCampaignPageTests(TestCase):
             },
         )
 
+    def test_campaign_detail_reports_declared_and_planned_sessions_with_status(self):
+        calls = [
+            AppelPasFormeII(
+                reference_code="PFII-FORME",
+                prestation_id="PRESTA-SEANCES",
+                nom="Formé",
+                total_seances=4,
+                nombre_seances_declare=3,
+                formulaire_rempli_at=timezone.now(),
+            ),
+            AppelPasFormeII(
+                reference_code="PFII-EXCESS",
+                prestation_id="PRESTA-SEANCES",
+                nom="Excès",
+                total_seances=4,
+                nombre_seances_declare=5,
+                formulaire_rempli_at=timezone.now(),
+            ),
+            AppelPasFormeII(
+                reference_code="PFII-LOW",
+                prestation_id="PRESTA-SEANCES",
+                nom="Insuffisant",
+                total_seances=4,
+                nombre_seances_declare=2,
+                formulaire_rempli_at=timezone.now(),
+            ),
+        ]
+        AppelPasFormeII.objects.bulk_create(calls)
+
+        rows, _ = views._build_pas_forme_ii_campaign()
+        apprenants = {item["code"]: item for item in rows[0]["apprenants"]}
+
+        self.assertEqual(apprenants["PFII-FORME"]["seances_declarees"], 3)
+        self.assertEqual(apprenants["PFII-FORME"]["seances_prevues"], 4)
+        self.assertEqual(apprenants["PFII-FORME"]["taux_presence"], 75)
+        self.assertEqual(apprenants["PFII-FORME"]["statut_formation"], "Formé")
+        self.assertEqual(apprenants["PFII-EXCESS"]["statut_formation"], "Pas formé")
+        self.assertEqual(apprenants["PFII-LOW"]["statut_formation"], "Pas formé")
+
+    def test_campaign_gender_summary_counts_only_formed_learners(self):
+        AppelPasFormeII.objects.bulk_create([
+            AppelPasFormeII(reference_code="PFII-H2-FORME", prestation_id="PRESTA-SUM", nom="Homme formé", genre="H", fenetre="2", total_seances=4, nombre_seances_declare=3, formulaire_rempli_at=timezone.now()),
+            AppelPasFormeII(reference_code="PFII-F2-NON", prestation_id="PRESTA-SUM", nom="Femme non formée", genre="F", fenetre="2", total_seances=4, nombre_seances_declare=2, formulaire_rempli_at=timezone.now()),
+            AppelPasFormeII(reference_code="PFII-F3-FORME", prestation_id="PRESTA-SUM", nom="Femme formée", genre="F", fenetre="3", total_seances=4, nombre_seances_declare=4, formulaire_rempli_at=timezone.now()),
+            AppelPasFormeII(reference_code="PFII-H3-EXCESS", prestation_id="PRESTA-SUM", nom="Homme excès", genre="H", fenetre="3", total_seances=4, nombre_seances_declare=5, formulaire_rempli_at=timezone.now()),
+        ])
+
+        response = self.client.get(reverse("concordance_campaigns"))
+
+        self.assertEqual(
+            response.context["campaign_gender_summary"],
+            [
+                {"window": "Fenêtre 2", "men": 1, "women": 0, "total": 1},
+                {"window": "Fenêtre 3", "men": 0, "women": 1, "total": 1},
+                {"window": "Total", "men": 1, "women": 1, "total": 2},
+            ],
+        )
+
+    def test_reconciliation_method_prioritizes_concordance_then_calls(self):
+        concordance_prestations = {("PRESTA001", "Fenêtre 3")}
+
+        self.assertEqual(
+            views._reconciliation_method(
+                "PRESTA001", "3", concordance_prestations, has_calls=True
+            ),
+            "RC",
+        )
+        self.assertEqual(
+            views._reconciliation_method(
+                "PRESTA002", "3", concordance_prestations, has_calls=True
+            ),
+            "RA",
+        )
+        self.assertEqual(
+            views._reconciliation_method(
+                "PRESTA003", "3", concordance_prestations, has_calls=False
+            ),
+            "R",
+        )
+
     @override_settings(
         STORAGES={
             "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
