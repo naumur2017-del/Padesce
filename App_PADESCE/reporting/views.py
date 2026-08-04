@@ -2435,7 +2435,7 @@ def _number_from_concordance_payload(payload, *aliases):
         return 0
 
 
-def _concordance_window_summary(rows):
+def _concordance_window_summary(rows, headers):
     """Sum the final H/F/T values produced by the concordance workbook."""
     totals = {
         "Fenêtre 2": {"men": 0, "women": 0, "total": 0},
@@ -2447,7 +2447,9 @@ def _concordance_window_summary(rows):
             continue
         # In Feuil2, the final values are always the last three columns: H, F, T.
         # Excel's merged header cells make their imported labels unreliable.
-        values = list(row.payload.values())
+        # Use the common displayed header order. A row can omit empty cells
+        # from its JSON payload, so payload.values() would shift the columns.
+        values = [row.payload.get(header, "") for header in headers]
         if len(values) < 3:
             continue
         men = _number_from_concordance_payload({"value": values[-3]}, "value")
@@ -2638,7 +2640,7 @@ def concordance_campaigns_view(request):
         "pending_contact_headers": pending_contact_headers,
         "pending_contact_rows": pending_contact_rows,
         # This recap is global; filters apply only to the detailed import grid.
-        "concordance_gender_summary": _concordance_window_summary(concordance),
+        "concordance_gender_summary": _concordance_window_summary(concordance, headers),
         "campaign_gender_summary": _window_gender_summary(
             campaign_rows, gender_key=lambda row: row["genre"], window_key=lambda row: row["fenetre"],
             value_key=lambda row: row["total"],
