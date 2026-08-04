@@ -2368,21 +2368,24 @@ def _build_pas_forme_ii_campaign():
             is_call_attempted_status(call.status) or call.formulaire_rempli_at
         ):
             continue
-        segment["appeles"] += 1
         genre = (call.genre or "Non renseigné").strip()
         genre_key = _gender_key(genre)
-        if genre_key == "men":
-            segment["hommes"] += 1
-        elif genre_key == "women":
-            segment["femmes"] += 1
+        declared_sessions = call.nombre_seances_declare
+        planned_sessions = call.total_seances
+        # The reconciliation counts only a call when the form has actually
+        # been completed and its number of attended sessions is provided.
+        if call.formulaire_rempli_at and declared_sessions is not None:
+            segment["appeles"] += 1
+            if genre_key == "men":
+                segment["hommes"] += 1
+            elif genre_key == "women":
+                segment["femmes"] += 1
         audio_url = ""
         if call.audio_file and call.audio_file.name:
             try:
                 audio_url = call.audio_file.url
             except Exception:
                 pass
-        declared_sessions = call.nombre_seances_declare
-        planned_sessions = call.total_seances
         attendance_rate = None
         training_status = "Non renseigné"
         if declared_sessions is not None and planned_sessions is not None and planned_sessions > 0:

@@ -132,6 +132,8 @@ class ConcordanceCampaignPageTests(TestCase):
                         beneficiaire=f"Bénéficiaire {prestation_index}",
                         genre=genre,
                         fenetre="3",
+                        total_seances=1,
+                        nombre_seances_declare=1,
                         formulaire_rempli_at=timezone.now(),
                     )
                 )
@@ -272,6 +274,19 @@ class ConcordanceCampaignPageTests(TestCase):
         self.assertEqual(rows[0]["formes_femmes"], 1)
         self.assertEqual(rows[0]["formes_fenetre_2"], 2)
         self.assertEqual(rows[0]["formes_fenetre_3"], 0)
+
+    def test_campaign_called_counts_require_completed_form_and_sessions(self):
+        AppelPasFormeII.objects.bulk_create([
+            AppelPasFormeII(reference_code="PFII-CALLED-VALID", prestation_id="PRESTA-CALLED", nom="Valide", genre="H", fenetre="2", total_seances=4, nombre_seances_declare=3, formulaire_rempli_at=timezone.now()),
+            AppelPasFormeII(reference_code="PFII-CALLED-NO-SESSIONS", prestation_id="PRESTA-CALLED", nom="Sans séances", genre="F", fenetre="2", total_seances=4, formulaire_rempli_at=timezone.now()),
+            AppelPasFormeII(reference_code="PFII-CALLED-NO-FORM", prestation_id="PRESTA-CALLED", nom="Sans formulaire", genre="F", fenetre="2", total_seances=4, nombre_seances_declare=2, status="appel_tente"),
+        ])
+
+        rows, _ = views._build_pas_forme_ii_campaign()
+
+        self.assertEqual(rows[0]["appeles"], 1)
+        self.assertEqual(rows[0]["hommes"], 1)
+        self.assertEqual(rows[0]["femmes"], 0)
 
     @override_settings(
         STORAGES={
