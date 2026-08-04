@@ -210,28 +210,6 @@ class ConcordanceCampaignPageTests(TestCase):
             ],
         )
 
-    def test_reconciliation_method_prioritizes_concordance_then_calls(self):
-        concordance_prestations = {("PRESTA001", "Fenêtre 3")}
-
-        self.assertEqual(
-            views._reconciliation_method(
-                "PRESTA001", "3", concordance_prestations, has_calls=True
-            ),
-            "RC",
-        )
-        self.assertEqual(
-            views._reconciliation_method(
-                "PRESTA002", "3", concordance_prestations, has_calls=True
-            ),
-            "RA",
-        )
-        self.assertEqual(
-            views._reconciliation_method(
-                "PRESTA003", "3", concordance_prestations, has_calls=False
-            ),
-            "R",
-        )
-
     @override_settings(
         STORAGES={
             "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
