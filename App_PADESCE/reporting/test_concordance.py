@@ -294,7 +294,7 @@ class ConcordanceCampaignPageTests(TestCase):
             "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
         }
     )
-    def test_synthesis_keeps_unattempted_ra_and_flexible_r_source_headers(self):
+    def test_synthesis_keeps_only_threshold_reached_ra_and_flexible_r_source_headers(self):
         ConcordanceRecord.objects.create(
             fenetre="3",
             payload=_postgres_jsonb_order(_feuil2_payload()),
@@ -329,8 +329,7 @@ class ConcordanceCampaignPageTests(TestCase):
         rows = response.context["synthesis_reconciliation_rows"]
         rows_by_key = {(row["methode"], row["presta_id"]): row for row in rows}
 
-        self.assertEqual(rows_by_key[("RA", "PRESTA004")]["appeles"], 0)
-        self.assertEqual(rows_by_key[("RA", "PRESTA004")]["total"], 1)
+        self.assertNotIn(("RA", "PRESTA004"), rows_by_key)
         self.assertEqual(rows_by_key[("R", "PRESTA005")]["prestataire"], "Prestataire R")
         self.assertEqual(rows_by_key[("R", "PRESTA005")]["beneficiaire"], "Bénéficiaire R")
         self.assertEqual(rows_by_key[("R", "PRESTA005")]["fenetre"], "2")

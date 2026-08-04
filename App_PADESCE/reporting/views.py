@@ -2671,6 +2671,7 @@ def _build_synthesis_reconciliation_rows(concordance, headers, campaign_rows, pe
             "methode": "RA",
         }
         for row in campaign_rows
+        if row["seuil_atteint"]
     )
 
     if pending_contact_import:
