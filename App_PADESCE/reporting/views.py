@@ -21,7 +21,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 from openpyxl import Workbook, load_workbook
 
-from App_PADESCE.appels.models import Appel, AppelPasFormeII
+from App_PADESCE.appels.models import Appel, AppelPasFormeII, is_call_attempted_status
 from App_PADESCE.apprenants.models import Apprenant, SmsLog
 from App_PADESCE.core.access import require_analysis_access, require_superadmin_access
 from App_PADESCE.environnement.models import EnqueteEnvironnement
@@ -2598,6 +2598,10 @@ def concordance_campaigns_view(request):
     for call in AppelPasFormeII.objects.filter(is_active=True).values(
         "genre", "fenetre", "status", "formulaire_rempli_at", "est_forme"
     ):
+        # This tab reports people who have actually been called.  Do not load
+        # records still waiting for their first call into its totals.
+        if not is_call_attempted_status(call["status"]):
+            continue
         genre = call["genre"] or "Non renseigné"
         fenetre = call["fenetre"] or "Non renseignée"
         key = (genre, fenetre)
@@ -2605,8 +2609,7 @@ def concordance_campaigns_view(request):
             key, {"genre": genre, "fenetre": fenetre, "total": 0, "tentes": 0, "reussis": 0, "formes": 0}
         )
         bucket["total"] += 1
-        if call["status"] != "en_attente":
-            bucket["tentes"] += 1
+        bucket["tentes"] += 1
         if call["formulaire_rempli_at"] or call["status"] in {
             "appel_reussi", "formulaire_rempli", "formulaire_avec_audio", "termine"
         }:
