@@ -64,8 +64,8 @@
     <summary>Seuil de formulaires remplis par prestation — {{ pas_forme_ii_threshold_percent }} %</summary>
     <div class="table">
       <table>
-        <tr><th>Prestation</th><th>Formulaires</th><th>Objectif</th><th>%</th></tr>
-        {% for t in thresholds %}<tr><td>{{ t.prestation_id }}</td><td>{{ t.completed }} / {{ t.total }}</td><td>{{ t.target }}</td><td><span class="badge">{{ t.pct }}%</span></td></tr>{% endfor %}
+        <tr><th>Prestation</th><th>Formulaires</th><th>Objectif</th><th>%</th><th>Contacts</th></tr>
+        {% for t in thresholds %}<tr><td>{{ t.prestation_id }}</td><td>{{ t.completed }} / {{ t.total }}</td><td>{{ t.target }}</td><td><span class="badge">{{ t.pct }}%</span></td><td>{% if t.reached %}<span class="badge">Bloqués</span>{% else %}Autorisés{% endif %}</td></tr>{% endfor %}
       </table>
     </div>
   </details>
@@ -119,7 +119,7 @@
             <td>{{ row.nom }}</td><td>{{ row.genre|default:"—" }}</td><td>{{ row.fenetre|default:"—" }}</td><td>{{ row.telephone }}</td><td>{{ row.prestation_id }}</td><td>{{ row.total_presence }}</td><td>{{ row.total_seances }}</td><td>{{ row.nombre_seances_source }}</td>
             <td><span class="badge">{{ row.get_status_display }}</span></td>
             <td>{% if row.audio_file %}<audio controls preload="none" src="{{ row.audio_file.url }}" style="width:180px;height:32px"></audio>{% else %}—{% endif %}</td>
-            <td>{% if not row.formulaire_rempli_at and row.status != "formulaire_rempli" and row.status != "formulaire_avec_audio" %}<button type="button" class="btn open">Démarrer</button>{% else %}<span class="badge">Consulter la ligne</span>{% endif %}</td>
+            <td>{% if row.contact_blocked and not row.formulaire_rempli_at %}<span class="badge">Quota {{ pas_forme_ii_threshold_percent }} % atteint — contact bloqué</span>{% elif not row.formulaire_rempli_at and row.status != "formulaire_rempli" and row.status != "formulaire_avec_audio" %}<button type="button" class="btn open">Démarrer</button>{% else %}<span class="badge">Consulter la ligne</span>{% endif %}</td>
           </tr>
         {% endfor %}
       </tbody>
@@ -269,7 +269,10 @@
       body:data,
       credentials:'same-origin'
     });
-    if (!response.ok) throw new Error("Impossible de démarrer l'appel.");
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok || !payload.ok) {
+      throw new Error(payload.error || "Impossible de démarrer l'appel.");
+    }
   }
 
   document.querySelectorAll('.open').forEach(button => {

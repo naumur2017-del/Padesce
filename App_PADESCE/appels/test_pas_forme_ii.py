@@ -199,6 +199,8 @@ class AppelPasFormeIIImportTests(TestCase):
         self.assertEqual(response.context["pas_forme_ii_threshold_percent"], 10)
         self.assertEqual(thresholds["PRESTA-TEN"]["target"], 1)
         self.assertEqual(thresholds["PRESTA-ELEVEN"]["target"], 2)
+        self.assertTrue(thresholds["PRESTA-TEN"]["reached"])
+        self.assertFalse(thresholds["PRESTA-ELEVEN"]["reached"])
         self.assertContains(response, "Seuil de formulaires remplis par prestation — 10 %")
 
 
@@ -227,6 +229,20 @@ class AppelPasFormeIISaveTests(TestCase):
             total_seances=6,
             nombre_seances_source=4,
         )
+
+    def _reach_prestation_threshold(self, *, completed=1):
+        rows = []
+        for index in range(9):
+            rows.append(
+                AppelPasFormeII(
+                    reference_code=f"PFII-QUOTA-{index}",
+                    prestation_id=self.row.prestation_id,
+                    nom=f"Apprenant quota {index}",
+                    telephone=f"6900001{index:02d}",
+                    formulaire_rempli_at=timezone.now() if index < completed else None,
+                )
+            )
+        AppelPasFormeII.objects.bulk_create(rows)
 
     def test_completed_form_is_saved_counted_and_exposes_audio(self):
         response = self.client.post(
@@ -299,3 +315,70 @@ class AppelPasFormeIISaveTests(TestCase):
         self.row.refresh_from_db()
         self.assertEqual(self.row.status, "en_cours")
         self.assertEqual(self.row.locked_by, self.user)
+
+    def test_threshold_reached_hides_every_new_contact_action(self):
+        self._reach_prestation_threshold()
+
+        page = self.client.get(reverse("pas_forme_ii_index"))
+
+        self.assertNotContains(page, 'class="btn open"')
+        self.assertContains(page, "Quota 10 % atteint — contact bloqué")
+        self.assertContains(page, "Bloqués")
+
+    def test_threshold_reached_blocks_start_resume_and_success_on_backend(self):
+        self._reach_prestation_threshold(completed=2)
+        url = reverse("pas_forme_ii_action", args=[self.row.pk])
+
+        for action_name in ("start", "resume", "reussi"):
+            with self.subTest(action=action_name):
+                response = self.client.post(
+                    url,
+                    {"action": action_name},
+                    HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+                )
+                self.assertEqual(response.status_code, 409)
+                self.assertFalse(response.json()["ok"])
+                self.assertTrue(response.json()["threshold_reached"])
+
+        self.row.refresh_from_db()
+        self.assertEqual(self.row.status, "en_attente")
+        self.assertIsNone(self.row.locked_by)
+
+    def test_threshold_reached_blocks_recall_and_form_submission_on_backend(self):
+        self._reach_prestation_threshold()
+        url = reverse("pas_forme_ii_save_form", args=[self.row.pk])
+
+        for payload in (
+            {"action": "rappeler", "rappel_at": "2026-08-05T10:00"},
+            {"action": "terminer", "q2": "OUI", "nombre_seances_declare": "4"},
+        ):
+            with self.subTest(action=payload["action"]):
+                response = self.client.post(
+                    url,
+                    payload,
+                    HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+                )
+                self.assertEqual(response.status_code, 409)
+                self.assertFalse(response.json()["ok"])
+                self.assertTrue(response.json()["threshold_reached"])
+
+        self.row.refresh_from_db()
+        self.assertEqual(self.row.status, "en_attente")
+        self.assertIsNone(self.row.formulaire_rempli_at)
+        self.assertIsNone(self.row.rappel_at)
+
+    def test_pause_remains_available_to_stop_an_in_progress_call_at_threshold(self):
+        self._reach_prestation_threshold()
+        self.row.status = "en_cours"
+        self.row.locked_by = self.user
+        self.row.save(update_fields=["status", "locked_by", "updated_at"])
+
+        response = self.client.post(
+            reverse("pas_forme_ii_action", args=[self.row.pk]),
+            {"action": "pause"},
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.row.refresh_from_db()
+        self.assertEqual(self.row.status, "pause")

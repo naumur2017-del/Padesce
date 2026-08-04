@@ -24,7 +24,7 @@ from openpyxl import Workbook, load_workbook
 from App_PADESCE.appels.models import Appel, AppelPasFormeII, is_call_attempted_status
 from App_PADESCE.appels.thresholds import (
     PAS_FORME_II_THRESHOLD_PERCENT,
-    pas_forme_ii_threshold_target,
+    pas_forme_ii_threshold_reached,
 )
 from App_PADESCE.apprenants.models import Apprenant, SmsLog
 from App_PADESCE.core.access import require_analysis_access, require_superadmin_access
@@ -2346,8 +2346,9 @@ def _build_pas_forme_ii_campaign():
     )
     for item in aggregates:
         total, appeles = int(item["total"] or 0), int(item["appeles"] or 0)
-        thresholded[item["prestation_id"]] = bool(
-            total and appeles >= pas_forme_ii_threshold_target(total)
+        thresholded[item["prestation_id"]] = pas_forme_ii_threshold_reached(
+            total,
+            appeles,
         )
 
     calls = list(AppelPasFormeII.objects.filter(
