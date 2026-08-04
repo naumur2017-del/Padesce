@@ -2358,7 +2358,7 @@ def _build_pas_forme_ii_campaign():
             "presta_id": key[0], "prestataire": key[1], "beneficiaire": key[2], "fenetre": key[3],
             "total": 0, "appeles": 0, "hommes": 0, "femmes": 0, "apprenants": [],
             "formes_total": 0, "formes_hommes": 0, "formes_femmes": 0,
-            "formes_fenetre_2": 0, "formes_fenetre_3": 0,
+            "formes_fenetre_2": 0, "formes_fenetre_3": 0, "pas_formes_total": 0,
             "seuil_atteint": thresholded.get(call.prestation_id, False),
         })
         segment["total"] += 1
@@ -2410,6 +2410,8 @@ def _build_pas_forme_ii_campaign():
                 segment["formes_fenetre_2"] += 1
             elif window == "Fenêtre 3":
                 segment["formes_fenetre_3"] += 1
+        elif training_status == "Pas formé":
+            segment["pas_formes_total"] += 1
         if training_status == "Non déterminé":
             # A declared count of 0 stays in nombre_seances_declare (DB, via
             # call.save() elsewhere) but the row is left out of the "Détail
@@ -2435,6 +2437,10 @@ def _build_pas_forme_ii_campaign():
     # Keep the prestations still awaiting their first call.  They are present in
     # the RA source tab and must consequently also be visible in the synthesis.
     rows = list(segments.values())
+    for row in rows:
+        denom = row["formes_total"] + row["pas_formes_total"]
+        row["taux_formation"] = (row["formes_total"] / denom * 100) if denom else None
+        row["decision"] = 100 if (row["taux_formation"] is not None and row["taux_formation"] > 75) else "_"
     summary = {
         "prestations": sum(1 for atteint in thresholded.values() if atteint),
         "appels_effectues": 0,
