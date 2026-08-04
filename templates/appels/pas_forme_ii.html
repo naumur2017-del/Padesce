@@ -107,6 +107,7 @@
               data-pres="{{ row.total_presence|default:'' }}"
               data-q2="{{ row.membre_structure }}"
               data-declared="{{ row.nombre_seances_declare|default:'' }}"
+              data-pas-forme-du-tout="{{ row.pas_forme_du_tout|yesno:'true,false' }}"
               data-faux-nom="{{ row.faux_nom|yesno:'true,false' }}"
               data-vrai-nom="{{ row.vrai_nom }}"
               data-status="{{ row.status }}"
@@ -136,6 +137,7 @@
     <p id="form-error" class="form-error" hidden></p>
     <div class="q"><strong>1. Êtes-vous membre de cette structure de bénéficiaire ?</strong><span><label><input type="radio" name="q2" value="OUI" required> Oui</label> <label><input type="radio" name="q2" value="NON"> Non</label></span></div>
     <div class="q"><strong>2. Combien de séances avez-vous assisté dans le cadre de cette formation ?</strong><input name="nombre_seances_declare" type="number" min="0" required></div>
+    <div class="q"><strong>N’a pas été formé du tout</strong><label><input id="pas-forme-du-tout" name="pas_forme_du_tout" type="checkbox"> Oui, l’apprenant déclare ne pas avoir été formé</label></div>
     <div class="q"><strong>Le nom déclaré est-il faux ?</strong><label><input id="faux-nom" name="faux_nom" type="checkbox"> Faux nom</label></div>
     <div class="q" id="vrai-nom-field" hidden><strong>Quel est le vrai nom ?</strong><input class="input" id="vrai-nom" name="vrai_nom" type="text" maxlength="255" autocomplete="name"></div>
     <div class="q"><strong>À rappeler</strong><span><input id="rappel" type="checkbox"><input id="when" name="rappel_at" type="datetime-local" disabled></span></div>
@@ -175,6 +177,11 @@
         <strong>Nombre de séances déclaré</strong><br>
         <span class="view-mode" id="detail-sessions"></span>
         <input class="input edit-mode" id="edit-sessions" name="nombre_seances_declare" type="number" min="0" hidden>
+      </div>
+      <div>
+        <strong>N’a pas été formé du tout</strong><br>
+        <span class="view-mode" id="detail-pas-forme-du-tout"></span>
+        <label class="edit-mode" id="edit-pas-forme-du-tout-wrap" hidden><input id="edit-pas-forme-du-tout" name="pas_forme_du_tout" type="checkbox"> Oui</label>
       </div>
       <div>
         <strong>Faux nom / vrai nom</strong><br>
@@ -283,6 +290,7 @@
       try {
         await postAction(row, 'start');
         form.reset();
+        nombreSeances.readOnly = false;
         when.disabled = true;
         fauxNom.checked = false;
         vraiNomField.hidden = true;
@@ -318,6 +326,12 @@
   const fauxNom = document.querySelector('#faux-nom');
   const vraiNomField = document.querySelector('#vrai-nom-field');
   const vraiNom = document.querySelector('#vrai-nom');
+  const pasFormeDuTout = document.querySelector('#pas-forme-du-tout');
+  const nombreSeances = form.querySelector('[name="nombre_seances_declare"]');
+  pasFormeDuTout.addEventListener('change', () => {
+    nombreSeances.readOnly = pasFormeDuTout.checked;
+    if (pasFormeDuTout.checked) nombreSeances.value = '0';
+  });
   fauxNom.addEventListener('change', () => {
     vraiNomField.hidden = !fauxNom.checked;
     vraiNom.required = fauxNom.checked;
@@ -368,6 +382,8 @@
   const detailSaveBtn = document.querySelector('#detail-save');
   const editFauxNom = document.querySelector('#edit-faux-nom');
   const editVraiNom = document.querySelector('#edit-vrai-nom');
+  const editPasFormeDuTout = document.querySelector('#edit-pas-forme-du-tout');
+  const editSessions = document.querySelector('#edit-sessions');
   let currentRow = null;
 
   function fillDetailView(row) {
@@ -376,6 +392,7 @@
     document.querySelector('#detail-prestation').textContent = row.dataset.prestation || '—';
     document.querySelector('#detail-q2').textContent = row.dataset.q2 || '—';
     document.querySelector('#detail-sessions').textContent = row.dataset.declared || '—';
+    document.querySelector('#detail-pas-forme-du-tout').textContent = row.dataset.pasFormeDuTout === 'true' ? 'Oui' : 'Non';
     document.querySelector('#detail-faux-nom').textContent = row.dataset.fauxNom === 'true' ? (row.dataset.vraiNom || 'Oui') : 'Non';
     document.querySelector('#detail-status').textContent = row.dataset.statusLabel || '—';
     const audio = document.querySelector('#detail-audio');
@@ -395,7 +412,9 @@
     document.querySelector('#edit-phone').value = row.dataset.phone || '';
     document.querySelector('#edit-prestation').value = row.dataset.prestation || '';
     document.querySelector('#edit-q2').value = row.dataset.q2 || '';
-    document.querySelector('#edit-sessions').value = row.dataset.declared || '';
+    editSessions.value = row.dataset.declared || '';
+    editPasFormeDuTout.checked = row.dataset.pasFormeDuTout === 'true';
+    editSessions.readOnly = editPasFormeDuTout.checked;
     editFauxNom.checked = row.dataset.fauxNom === 'true';
     editVraiNom.value = row.dataset.vraiNom || '';
     editVraiNom.hidden = !editFauxNom.checked;
@@ -417,6 +436,11 @@
   editFauxNom.addEventListener('change', () => {
     editVraiNom.hidden = !editFauxNom.checked;
     if (!editFauxNom.checked) editVraiNom.value = '';
+  });
+
+  editPasFormeDuTout.addEventListener('change', () => {
+    editSessions.readOnly = editPasFormeDuTout.checked;
+    if (editPasFormeDuTout.checked) editSessions.value = '0';
   });
 
   document.querySelectorAll('.call-row').forEach(row => {

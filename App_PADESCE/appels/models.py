@@ -662,6 +662,7 @@ class AppelPasFormeII(TimeStampedModel):
     forme_final = models.CharField(max_length=80, blank=True)
     nombre_seances_declare = models.PositiveSmallIntegerField(null=True, blank=True)
     est_forme = models.BooleanField(default=False)
+    pas_forme_du_tout = models.BooleanField(default=False)
     connait_structure = models.CharField(max_length=3, blank=True)
     membre_structure = models.CharField(max_length=3, blank=True)
     a_assiste_formation = models.CharField(max_length=3, blank=True)

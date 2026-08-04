@@ -279,6 +279,60 @@ class AppelPasFormeIISaveTests(TestCase):
         self.assertContains(page, "fetch(form.dataset.submitUrl")
         self.assertNotContains(page, "fetch(form.action")
 
+    def test_not_trained_at_all_checkbox_is_saved_and_shown(self):
+        response = self.client.post(
+            reverse("pas_forme_ii_save_form", args=[self.row.pk]),
+            {
+                "action": "terminer",
+                "q2": "NON",
+                "pas_forme_du_tout": "on",
+            },
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()["pas_forme_du_tout"])
+        self.row.refresh_from_db()
+        self.assertTrue(self.row.pas_forme_du_tout)
+        self.assertEqual(self.row.nombre_seances_declare, 0)
+
+        page = self.client.get(reverse("pas_forme_ii_index"))
+        self.assertContains(page, "N’a pas été formé du tout")
+        self.assertContains(page, 'data-pas-forme-du-tout="true"')
+        self.assertContains(page, 'id="edit-pas-forme-du-tout"')
+
+    def test_not_trained_at_all_checkbox_can_be_corrected(self):
+        self.row.locked_by = self.user
+        self.row.pas_forme_du_tout = True
+        self.row.nombre_seances_declare = 0
+        self.row.save(
+            update_fields=[
+                "locked_by",
+                "pas_forme_du_tout",
+                "nombre_seances_declare",
+                "updated_at",
+            ]
+        )
+        url = reverse("pas_forme_ii_update", args=[self.row.pk])
+
+        response = self.client.post(
+            url,
+            {
+                "telephone": self.row.telephone,
+                "prestation_id": self.row.prestation_id,
+                "q2": "OUI",
+                "nombre_seances_declare": "4",
+                "status": "formulaire_rempli",
+            },
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.json()["pas_forme_du_tout"])
+        self.row.refresh_from_db()
+        self.assertFalse(self.row.pas_forme_du_tout)
+        self.assertEqual(self.row.nombre_seances_declare, 4)
+
     def test_invalid_form_is_rejected_without_being_counted(self):
         response = self.client.post(
             reverse("pas_forme_ii_save_form", args=[self.row.pk]),

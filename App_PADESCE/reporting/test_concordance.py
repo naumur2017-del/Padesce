@@ -107,6 +107,12 @@ class ConcordancePostgresParityTests(SimpleTestCase):
         self.assertEqual(payloads[0]["Téléphone"], "690000002")
 
 
+@override_settings(
+    STORAGES={
+        "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+        "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
+    }
+)
 class ConcordanceCampaignPageTests(TestCase):
     def setUp(self):
         user = get_user_model().objects.create_user(
@@ -219,6 +225,15 @@ class ConcordanceCampaignPageTests(TestCase):
                 nombre_seances_declare=2,
                 formulaire_rempli_at=timezone.now(),
             ),
+            AppelPasFormeII(
+                reference_code="PFII-INDETERMINE",
+                prestation_id="PRESTA-SEANCES",
+                nom="Pas formé du tout",
+                total_seances=4,
+                nombre_seances_declare=0,
+                pas_forme_du_tout=True,
+                formulaire_rempli_at=timezone.now(),
+            ),
         ]
         AppelPasFormeII.objects.bulk_create(calls)
 
@@ -231,6 +246,11 @@ class ConcordanceCampaignPageTests(TestCase):
         self.assertEqual(apprenants["PFII-FORME"]["statut_formation"], "Formé")
         self.assertEqual(apprenants["PFII-EXCESS"]["statut_formation"], "Pas formé")
         self.assertEqual(apprenants["PFII-LOW"]["statut_formation"], "Pas formé")
+        self.assertEqual(
+            apprenants["PFII-INDETERMINE"]["statut_formation"],
+            "Indéterminé",
+        )
+        self.assertTrue(apprenants["PFII-INDETERMINE"]["pas_forme_du_tout"])
 
     def test_campaign_gender_summary_counts_only_formed_learners(self):
         AppelPasFormeII.objects.bulk_create([
@@ -238,6 +258,7 @@ class ConcordanceCampaignPageTests(TestCase):
             AppelPasFormeII(reference_code="PFII-F2-NON", prestation_id="PRESTA-SUM", nom="Femme non formée", genre="F", fenetre="2", total_seances=4, nombre_seances_declare=2, formulaire_rempli_at=timezone.now()),
             AppelPasFormeII(reference_code="PFII-F3-FORME", prestation_id="PRESTA-SUM", nom="Femme formée", genre="F", fenetre="3", total_seances=4, nombre_seances_declare=4, formulaire_rempli_at=timezone.now()),
             AppelPasFormeII(reference_code="PFII-H3-EXCESS", prestation_id="PRESTA-SUM", nom="Homme excès", genre="H", fenetre="3", total_seances=4, nombre_seances_declare=5, formulaire_rempli_at=timezone.now()),
+            AppelPasFormeII(reference_code="PFII-H2-INDETERMINE", prestation_id="PRESTA-SUM", nom="Homme indéterminé", genre="H", fenetre="2", total_seances=4, nombre_seances_declare=4, pas_forme_du_tout=True, formulaire_rempli_at=timezone.now()),
         ])
 
         response = self.client.get(reverse("concordance_campaigns"))
@@ -304,6 +325,7 @@ class ConcordanceCampaignPageTests(TestCase):
             AppelPasFormeII(reference_code="PFII-COLUMNS-H", prestation_id="PRESTA-COLUMNS", nom="Homme", genre="H", fenetre="2", total_seances=4, nombre_seances_declare=3, formulaire_rempli_at=timezone.now()),
             AppelPasFormeII(reference_code="PFII-COLUMNS-F", prestation_id="PRESTA-COLUMNS", nom="Femme", genre="F", fenetre="2", total_seances=4, nombre_seances_declare=4, formulaire_rempli_at=timezone.now()),
             AppelPasFormeII(reference_code="PFII-COLUMNS-NON", prestation_id="PRESTA-COLUMNS", nom="Non formé", genre="F", fenetre="2", total_seances=4, nombre_seances_declare=2, formulaire_rempli_at=timezone.now()),
+            AppelPasFormeII(reference_code="PFII-COLUMNS-INDETERMINE", prestation_id="PRESTA-COLUMNS", nom="Indéterminé", genre="H", fenetre="2", total_seances=4, nombre_seances_declare=4, pas_forme_du_tout=True, formulaire_rempli_at=timezone.now()),
         ])
 
         rows, _ = views._build_pas_forme_ii_campaign()

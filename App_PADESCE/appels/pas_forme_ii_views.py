@@ -348,7 +348,12 @@ def save_form(request, pk):
         return redirect("pas_forme_ii_index")
 
     membre_structure = str(request.POST.get("q2", "")).strip().upper()
-    nombre_seances = _number(request.POST.get("nombre_seances_declare"))
+    pas_forme_du_tout = request.POST.get("pas_forme_du_tout") == "on"
+    nombre_seances = (
+        0
+        if pas_forme_du_tout
+        else _number(request.POST.get("nombre_seances_declare"))
+    )
     if membre_structure not in {"OUI", "NON"} or nombre_seances is None or nombre_seances < 0:
         error = "Répondez par Oui ou Non et indiquez un nombre de séances valide."
         if wants_json:
@@ -368,6 +373,7 @@ def save_form(request, pk):
     row.nombre_seances_declare = nombre_seances
     row.membre_structure = membre_structure
     row.est_forme = request.POST.get("est_forme") == "on"
+    row.pas_forme_du_tout = pas_forme_du_tout
     row.faux_nom = faux_nom
     row.vrai_nom = vrai_nom if faux_nom else ""
     row.commentaire = str(request.POST.get("commentaire", "")).strip()
@@ -388,6 +394,7 @@ def save_form(request, pk):
                 "status_label": row.get_status_display(),
                 "membre_structure": row.membre_structure,
                 "nombre_seances_declare": row.nombre_seances_declare,
+                "pas_forme_du_tout": row.pas_forme_du_tout,
                 "audio_url": row.audio_file.url if row.audio_file else "",
             }
         )
@@ -416,7 +423,12 @@ def update_form(request, pk):
     telephone = _phone(request.POST.get("telephone", row.telephone))
     prestation_id = str(request.POST.get("prestation_id", "")).strip()
     membre_structure = str(request.POST.get("q2", "")).strip().upper()
-    nombre_seances = _number(request.POST.get("nombre_seances_declare"))
+    pas_forme_du_tout = request.POST.get("pas_forme_du_tout") == "on"
+    nombre_seances = (
+        0
+        if pas_forme_du_tout
+        else _number(request.POST.get("nombre_seances_declare"))
+    )
     status = str(request.POST.get("status", "")).strip()
     faux_nom = request.POST.get("faux_nom") == "on"
     vrai_nom = str(request.POST.get("vrai_nom", "")).strip()
@@ -446,6 +458,7 @@ def update_form(request, pk):
     row.membre_structure = membre_structure
     if nombre_seances is not None:
         row.nombre_seances_declare = nombre_seances
+    row.pas_forme_du_tout = pas_forme_du_tout
     row.faux_nom = faux_nom
     row.vrai_nom = vrai_nom if faux_nom else ""
     if status:
@@ -465,6 +478,7 @@ def update_form(request, pk):
                 "prestation_id": row.prestation_id,
                 "membre_structure": row.membre_structure,
                 "nombre_seances_declare": row.nombre_seances_declare,
+                "pas_forme_du_tout": row.pas_forme_du_tout,
                 "faux_nom": row.faux_nom,
                 "vrai_nom": row.vrai_nom,
                 "status": row.status,

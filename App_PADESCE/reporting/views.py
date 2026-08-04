@@ -2390,6 +2390,9 @@ def _build_pas_forme_ii_campaign():
         training_status = "Non renseigné"
         if declared_sessions is not None and planned_sessions is not None and planned_sessions > 0:
             attendance_rate = declared_sessions / planned_sessions * 100
+        if call.pas_forme_du_tout:
+            training_status = "Indéterminé"
+        elif attendance_rate is not None:
             training_status = (
                 "Formé" if 75 <= attendance_rate <= 100 else "Pas formé"
             )
@@ -2416,6 +2419,7 @@ def _build_pas_forme_ii_campaign():
             "seances_prevues": planned_sessions,
             "taux_presence": attendance_rate,
             "statut_formation": training_status,
+            "pas_forme_du_tout": call.pas_forme_du_tout,
             "audio_url": audio_url,
             "audio_disponible": bool(audio_url),
         })
@@ -2859,7 +2863,7 @@ def concordance_campaigns_view(request):
     campaign = {}
     for call in AppelPasFormeII.objects.filter(is_active=True).values(
         "genre", "fenetre", "status", "formulaire_rempli_at",
-        "nombre_seances_declare", "total_seances",
+        "nombre_seances_declare", "total_seances", "pas_forme_du_tout",
     ):
         # This tab reports people who have actually been called.  Do not load
         # records still waiting for their first call into its totals.
@@ -2886,6 +2890,7 @@ def concordance_campaigns_view(request):
             declared_sessions is not None
             and planned_sessions is not None
             and planned_sessions > 0
+            and not call["pas_forme_du_tout"]
             and 75 <= declared_sessions / planned_sessions * 100 <= 100
         ):
             bucket["formes"] += 1
