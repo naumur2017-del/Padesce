@@ -102,7 +102,7 @@ def index(request):
     page_obj = Paginator(rows.order_by("prestation_id", "nom"), 50).get_page(request.GET.get("page", 1))
     threshold_map = {item["prestation_id"]: item for item in _thresholds()}
     params = request.GET.copy(); params.pop("page", None)
-    return render(request, "appels/pas_forme_ii.html", {"rows": page_obj.object_list, "page_obj": page_obj, "pagination_tokens": build_pagination_tokens(page_obj), "querystring_no_page": params.urlencode(), "filters": filters, "thresholds": list(threshold_map.values()), "threshold_map": threshold_map, "campaign_segments": campaign_segments})
+    return render(request, "appels/pas_forme_ii.html", {"rows": page_obj.object_list, "page_obj": page_obj, "pagination_tokens": build_pagination_tokens(page_obj), "querystring_no_page": params.urlencode(), "filters": filters, "thresholds": list(threshold_map.values()), "threshold_map": threshold_map, "campaign_segments": campaign_segments, "status_choices": AppelPasFormeII.STATUS_CHOICES})
 
 
 @login_required
@@ -167,6 +167,87 @@ def save_form(request, pk):
             }
         )
     messages.success(request, "Formulaire enregistré.")
+    return redirect("pas_forme_ii_index")
+
+
+def _can_edit(request, row):
+    return request.user.is_superuser or (row.locked_by_id and row.locked_by_id == request.user.id)
+
+
+@login_required
+@require_POST
+@transaction.atomic
+def update_form(request, pk):
+    row = get_object_or_404(AppelPasFormeII, pk=pk)
+    wants_json = request.headers.get("x-requested-with") == "XMLHttpRequest"
+
+    if not _can_edit(request, row):
+        error = "Seul l'agent ayant traité cette fiche ou un administrateur peut la modifier."
+        if wants_json:
+            return JsonResponse({"ok": False, "error": error}, status=403)
+        messages.error(request, error)
+        return redirect("pas_forme_ii_index")
+
+    telephone = _phone(request.POST.get("telephone", row.telephone))
+    prestation_id = str(request.POST.get("prestation_id", "")).strip()
+    membre_structure = str(request.POST.get("q2", "")).strip().upper()
+    nombre_seances = _number(request.POST.get("nombre_seances_declare"))
+    status = str(request.POST.get("status", "")).strip()
+    faux_nom = request.POST.get("faux_nom") == "on"
+    vrai_nom = str(request.POST.get("vrai_nom", "")).strip()
+    remove_audio = request.POST.get("remove_audio") == "on"
+
+    if not prestation_id:
+        error = "La prestation est requise."
+    elif membre_structure not in {"", "OUI", "NON"}:
+        error = "Répondez par Oui ou Non pour l'appartenance à la structure."
+    elif nombre_seances is not None and nombre_seances < 0:
+        error = "Le nombre de séances déclaré est invalide."
+    elif faux_nom and not vrai_nom:
+        error = "Indiquez le vrai nom lorsque le nom déclaré est faux."
+    elif status and status not in dict(AppelPasFormeII.STATUS_CHOICES):
+        error = "Statut invalide."
+    else:
+        error = None
+
+    if error:
+        if wants_json:
+            return JsonResponse({"ok": False, "error": error}, status=400)
+        messages.error(request, error)
+        return redirect("pas_forme_ii_index")
+
+    row.telephone = telephone
+    row.prestation_id = prestation_id
+    row.membre_structure = membre_structure
+    if nombre_seances is not None:
+        row.nombre_seances_declare = nombre_seances
+    row.faux_nom = faux_nom
+    row.vrai_nom = vrai_nom if faux_nom else ""
+    if status:
+        row.status = status
+    if request.FILES.get("audio"):
+        row.audio_file = request.FILES["audio"]
+    elif remove_audio and row.audio_file:
+        row.audio_file.delete(save=False)
+        row.audio_file = None
+    row.save()
+
+    if wants_json:
+        return JsonResponse(
+            {
+                "ok": True,
+                "telephone": row.telephone,
+                "prestation_id": row.prestation_id,
+                "membre_structure": row.membre_structure,
+                "nombre_seances_declare": row.nombre_seances_declare,
+                "faux_nom": row.faux_nom,
+                "vrai_nom": row.vrai_nom,
+                "status": row.status,
+                "status_label": row.get_status_display(),
+                "audio_url": row.audio_file.url if row.audio_file else "",
+            }
+        )
+    messages.success(request, "Fiche mise à jour.")
     return redirect("pas_forme_ii_index")
 
 

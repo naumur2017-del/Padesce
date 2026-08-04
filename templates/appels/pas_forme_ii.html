@@ -25,7 +25,8 @@
   .q { display:flex; justify-content:space-between; gap:15px; padding:13px 0; border-bottom:1px solid var(--border); }
   .form-error { color:#b91c1c; font-weight:700; }
   .detail-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
-  .detail-grid div { padding:10px; background:#f7f3ff; border-radius:10px; }
+  .detail-grid > div { padding:10px; background:#f7f3ff; border-radius:10px; }
+  .detail-grid input.input, .detail-grid select.input { width:100%; box-sizing:border-box; margin-top:4px; }
   details summary { font-weight:800; cursor:pointer; }
 </style>
 
@@ -102,10 +103,13 @@
               data-declared="{{ row.nombre_seances_declare|default:'' }}"
               data-faux-nom="{{ row.faux_nom|yesno:'true,false' }}"
               data-vrai-nom="{{ row.vrai_nom }}"
+              data-status="{{ row.status }}"
               data-status-label="{{ row.get_status_display }}"
               data-audio-url="{% if row.audio_file %}{{ row.audio_file.url }}{% endif %}"
               data-form-url="{% url 'pas_forme_ii_save_form' row.id %}"
-              data-action-url="{% url 'pas_forme_ii_action' row.id %}">
+              data-action-url="{% url 'pas_forme_ii_action' row.id %}"
+              data-update-url="{% url 'pas_forme_ii_update' row.id %}"
+              data-can-edit="{% if user.is_superuser or row.locked_by_id == user.id %}true{% else %}false{% endif %}">
             <td>{{ row.nom }}</td><td>{{ row.genre|default:"—" }}</td><td>{{ row.fenetre|default:"—" }}</td><td>{{ row.telephone }}</td><td>{{ row.prestation_id }}</td><td>{{ row.total_presence }}</td><td>{{ row.total_seances }}</td><td>{{ row.nombre_seances_source }}</td>
             <td><span class="badge">{{ row.get_status_display }}</span></td>
             <td>{% if row.audio_file %}<audio controls preload="none" src="{{ row.audio_file.url }}" style="width:180px;height:32px"></audio>{% else %}—{% endif %}</td>
@@ -137,19 +141,66 @@
 </div>
 
 <div class="modal" id="detail-modal" hidden>
-  <div class="dialog">
+  <form class="dialog" id="detail-form" method="post" enctype="multipart/form-data">
+    {% csrf_token %}
     <h2>Valeurs du formulaire — <span id="detail-who"></span></h2>
+    <p id="detail-error" class="form-error" hidden></p>
     <div class="detail-grid">
-      <div><strong>Téléphone</strong><br><span id="detail-phone"></span></div>
-      <div><strong>Prestation</strong><br><span id="detail-prestation"></span></div>
-      <div><strong>Membre de la structure</strong><br><span id="detail-q2"></span></div>
-      <div><strong>Nombre de séances déclaré</strong><br><span id="detail-sessions"></span></div>
-      <div><strong>Faux nom / vrai nom</strong><br><span id="detail-faux-nom"></span></div>
-      <div><strong>Statut</strong><br><span id="detail-status"></span></div>
-      <div><strong>Audio</strong><br><span id="detail-audio"></span></div>
+      <div>
+        <strong>Téléphone</strong><br>
+        <span class="view-mode" id="detail-phone"></span>
+        <input class="input edit-mode" id="edit-phone" name="telephone" type="text" hidden>
+      </div>
+      <div>
+        <strong>Prestation</strong><br>
+        <span class="view-mode" id="detail-prestation"></span>
+        <input class="input edit-mode" id="edit-prestation" name="prestation_id" type="text" hidden>
+      </div>
+      <div>
+        <strong>Membre de la structure</strong><br>
+        <span class="view-mode" id="detail-q2"></span>
+        <select class="input edit-mode" id="edit-q2" name="q2" hidden>
+          <option value="">—</option>
+          <option value="OUI">Oui</option>
+          <option value="NON">Non</option>
+        </select>
+      </div>
+      <div>
+        <strong>Nombre de séances déclaré</strong><br>
+        <span class="view-mode" id="detail-sessions"></span>
+        <input class="input edit-mode" id="edit-sessions" name="nombre_seances_declare" type="number" min="0" hidden>
+      </div>
+      <div>
+        <strong>Faux nom / vrai nom</strong><br>
+        <span class="view-mode" id="detail-faux-nom"></span>
+        <span class="edit-mode" id="edit-faux-nom-wrap" hidden>
+          <label><input type="checkbox" id="edit-faux-nom" name="faux_nom"> Faux nom</label>
+          <input class="input" id="edit-vrai-nom" name="vrai_nom" type="text" maxlength="255" placeholder="Vrai nom" hidden>
+        </span>
+      </div>
+      <div>
+        <strong>Statut</strong><br>
+        <span class="view-mode" id="detail-status"></span>
+        <select class="input edit-mode" id="edit-status" name="status" hidden>
+          {% for value, label in status_choices %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+        </select>
+      </div>
+      <div>
+        <strong>Audio</strong><br>
+        <span class="view-mode" id="detail-audio"></span>
+        <span class="edit-mode" id="edit-audio-wrap" hidden>
+          <input type="file" name="audio" accept="audio/*">
+          <label id="edit-remove-audio-label"><input type="checkbox" id="edit-remove-audio" name="remove_audio"> Supprimer l'audio existant</label>
+        </span>
+      </div>
     </div>
-    <p><button type="button" class="btn" id="detail-close">Fermer</button></p>
-  </div>
+    <p>
+      <button type="button" class="btn" id="detail-close">Fermer</button>
+      <button type="button" class="btn" id="detail-edit" hidden>Modifier</button>
+      <button type="button" class="btn" id="detail-cancel" hidden>Annuler</button>
+      <button type="submit" class="btn" id="detail-save" hidden>Enregistrer</button>
+    </p>
+  </form>
 </div>
 
 <script>
@@ -300,32 +351,111 @@
     }
   });
 
+  const detailForm = document.querySelector('#detail-form');
+  const detailCsrf = detailForm.querySelector('[name="csrfmiddlewaretoken"]').value;
+  const detailError = document.querySelector('#detail-error');
+  const detailEditBtn = document.querySelector('#detail-edit');
+  const detailCancelBtn = document.querySelector('#detail-cancel');
+  const detailSaveBtn = document.querySelector('#detail-save');
+  const editFauxNom = document.querySelector('#edit-faux-nom');
+  const editVraiNom = document.querySelector('#edit-vrai-nom');
+  let currentRow = null;
+
+  function fillDetailView(row) {
+    document.querySelector('#detail-who').textContent = row.dataset.name;
+    document.querySelector('#detail-phone').textContent = row.dataset.phone || '—';
+    document.querySelector('#detail-prestation').textContent = row.dataset.prestation || '—';
+    document.querySelector('#detail-q2').textContent = row.dataset.q2 || '—';
+    document.querySelector('#detail-sessions').textContent = row.dataset.declared || '—';
+    document.querySelector('#detail-faux-nom').textContent = row.dataset.fauxNom === 'true' ? (row.dataset.vraiNom || 'Oui') : 'Non';
+    document.querySelector('#detail-status').textContent = row.dataset.statusLabel || '—';
+    const audio = document.querySelector('#detail-audio');
+    audio.replaceChildren();
+    if (row.dataset.audioUrl) {
+      const player = document.createElement('audio');
+      player.controls = true;
+      player.preload = 'metadata';
+      player.src = row.dataset.audioUrl;
+      audio.appendChild(player);
+    } else {
+      audio.textContent = 'Aucun audio disponible';
+    }
+  }
+
+  function fillDetailEdit(row) {
+    document.querySelector('#edit-phone').value = row.dataset.phone || '';
+    document.querySelector('#edit-prestation').value = row.dataset.prestation || '';
+    document.querySelector('#edit-q2').value = row.dataset.q2 || '';
+    document.querySelector('#edit-sessions').value = row.dataset.declared || '';
+    editFauxNom.checked = row.dataset.fauxNom === 'true';
+    editVraiNom.value = row.dataset.vraiNom || '';
+    editVraiNom.hidden = !editFauxNom.checked;
+    document.querySelector('#edit-status').value = row.dataset.status || '';
+    document.querySelector('#edit-remove-audio').checked = false;
+    document.querySelector('#edit-remove-audio-label').hidden = !row.dataset.audioUrl;
+    detailForm.querySelector('[name="audio"]').value = '';
+  }
+
+  function setEditMode(active) {
+    document.querySelectorAll('#detail-form .view-mode').forEach(el => { el.hidden = active; });
+    document.querySelectorAll('#detail-form .edit-mode').forEach(el => { el.hidden = !active; });
+    detailCancelBtn.hidden = !active;
+    detailSaveBtn.hidden = !active;
+    detailEditBtn.hidden = active || !currentRow || currentRow.dataset.canEdit !== 'true';
+    detailError.hidden = true;
+  }
+
+  editFauxNom.addEventListener('change', () => {
+    editVraiNom.hidden = !editFauxNom.checked;
+    if (!editFauxNom.checked) editVraiNom.value = '';
+  });
+
   document.querySelectorAll('.call-row').forEach(row => {
     row.addEventListener('click', event => {
       if (event.target.closest('button, a, audio, input')) return;
-      document.querySelector('#detail-who').textContent = row.dataset.name;
-      document.querySelector('#detail-phone').textContent = row.dataset.phone || '—';
-      document.querySelector('#detail-prestation').textContent = row.dataset.prestation || '—';
-      document.querySelector('#detail-q2').textContent = row.dataset.q2 || '—';
-      document.querySelector('#detail-sessions').textContent = row.dataset.declared || '—';
-      document.querySelector('#detail-faux-nom').textContent = row.dataset.fauxNom === 'true' ? (row.dataset.vraiNom || 'Oui') : 'Non';
-      document.querySelector('#detail-status').textContent = row.dataset.statusLabel || '—';
-      const audio = document.querySelector('#detail-audio');
-      audio.replaceChildren();
-      if (row.dataset.audioUrl) {
-        const player = document.createElement('audio');
-        player.controls = true;
-        player.preload = 'metadata';
-        player.src = row.dataset.audioUrl;
-        audio.appendChild(player);
-      } else {
-        audio.textContent = 'Aucun audio disponible';
-      }
+      currentRow = row;
+      fillDetailView(row);
+      fillDetailEdit(row);
+      detailForm.setAttribute('action', row.dataset.updateUrl);
+      setEditMode(false);
       detailModal.hidden = false;
     });
   });
 
-  document.querySelector('#detail-close').addEventListener('click', () => { detailModal.hidden = true; });
+  detailEditBtn.addEventListener('click', () => setEditMode(true));
+  detailCancelBtn.addEventListener('click', () => {
+    if (currentRow) fillDetailEdit(currentRow);
+    setEditMode(false);
+  });
+
+  document.querySelector('#detail-close').addEventListener('click', () => {
+    setEditMode(false);
+    detailModal.hidden = true;
+  });
+
+  detailForm.addEventListener('submit', async event => {
+    event.preventDefault();
+    if (!currentRow) return;
+    const buttons = detailForm.querySelectorAll('button');
+    buttons.forEach(button => button.disabled = true);
+    detailError.hidden = true;
+    try {
+      const data = new FormData(detailForm);
+      const response = await fetch(currentRow.dataset.updateUrl, {
+        method: 'POST',
+        headers: {'X-CSRFToken': detailCsrf, 'X-Requested-With': 'XMLHttpRequest'},
+        body: data,
+        credentials: 'same-origin'
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !payload.ok) throw new Error(payload.error || "La fiche n'a pas pu être enregistrée.");
+      window.location.reload();
+    } catch (error) {
+      detailError.textContent = error.message;
+      detailError.hidden = false;
+      buttons.forEach(button => button.disabled = false);
+    }
+  });
 })();
 </script>
 {% endblock %}
