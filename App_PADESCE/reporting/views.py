@@ -15,6 +15,7 @@ from django.db.models import Avg, Count, Q, Sum
 from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import redirect, render
 from django.urls import reverse
+from django.utils import timezone
 from django.utils.safestring import mark_safe
 from django.utils.text import slugify
 from django.views.decorators.csrf import csrf_exempt
@@ -2748,6 +2749,174 @@ def _build_synthesis_reconciliation_rows(concordance, headers, campaign_rows, pe
             row["fenetre"],
         ),
     )
+
+
+def _dated_export_filename(base_name, extension):
+    """Append today's date to an export filename, e.g. base_2026-08-04.csv."""
+    return f"{base_name}_{timezone.now().strftime('%Y-%m-%d')}.{extension}"
+
+
+def _csv_export_response(base_name, headers, rows):
+    response = HttpResponse(content_type="text/csv")
+    response["Content-Disposition"] = f'attachment; filename="{_dated_export_filename(base_name, "csv")}"'
+    writer = csv.writer(response)
+    writer.writerow(headers)
+    writer.writerows(rows)
+    return response
+
+
+def _excel_export_response(base_name, headers, rows):
+    workbook = Workbook()
+    worksheet = workbook.active
+    worksheet.append(list(headers))
+    for row in rows:
+        worksheet.append(list(row))
+    buffer = io.BytesIO()
+    workbook.save(buffer)
+    response = HttpResponse(
+        buffer.getvalue(),
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+    response["Content-Disposition"] = f'attachment; filename="{_dated_export_filename(base_name, "xlsx")}"'
+    return response
+
+
+def _concordance_export_rows(request):
+    """Full filtered RC dataset (headers + row values), unlike the 100-row preview."""
+    concordance = list(ConcordanceRecord.objects.order_by("id"))
+    selected_fenetre = (request.GET.get("fenetre") or "").strip()
+    selected_prestataire = (request.GET.get("prestataire") or "").strip()
+    selected_beneficiaire = (request.GET.get("beneficiaire") or "").strip()
+    selected_presta_id = (request.GET.get("presta_id") or "").strip()
+    search_query = (request.GET.get("q") or "").strip().lower()
+
+    def source_value(row, key):
+        return _concordance_payload_value(row.payload, key)
+
+    filtered = []
+    for row in concordance:
+        prestataire = source_value(row, "PRESTATAIRE")
+        beneficiaire = source_value(row, "BENEFICIAIRE")
+        presta_id = source_value(row, "PRESTA ID")
+        searchable = " ".join([row.genre, row.fenetre, prestataire, beneficiaire, presta_id, *map(str, row.payload.values())]).lower()
+        if selected_fenetre and row.fenetre != selected_fenetre:
+            continue
+        if selected_prestataire and prestataire != selected_prestataire:
+            continue
+        if selected_beneficiaire and beneficiaire != selected_beneficiaire:
+            continue
+        if selected_presta_id and presta_id != selected_presta_id:
+            continue
+        if search_query and search_query not in searchable:
+            continue
+        filtered.append(row)
+
+    headers, _ = _concordance_display_headers(concordance)
+    rows = [
+        [_format_concordance_value(header, row.payload.get(header, "")) for header in headers]
+        for row in filtered
+    ]
+    return list(headers), rows
+
+
+def _campaign_export_rows():
+    """Full RA dataset (one row per prestation), matching the 'Prestations et seuil des appels' table."""
+    rows, _ = _build_pas_forme_ii_campaign()
+    headers = [
+        "PRESTAID", "Prestataire", "Bénéficiaire", "Fenêtre",
+        "Appelés H", "Appelés F", "Appelés", "Total",
+        "Formés total", "Formés H", "Formés F", "Formés fenêtre 2", "Formés fenêtre 3",
+        "Pas formés total", "Taux de formation (%)", "Décision", "Seuil atteint",
+    ]
+    data = [
+        [
+            row["presta_id"], row["prestataire"], row["beneficiaire"], row["fenetre"],
+            row["hommes"], row["femmes"], row["appeles"], row["total"],
+            row["formes_total"], row["formes_hommes"], row["formes_femmes"],
+            row["formes_fenetre_2"], row["formes_fenetre_3"], row["pas_formes_total"],
+            round(row["taux_formation"], 1) if row["taux_formation"] is not None else "",
+            row["decision"] if row["decision"] != "_" else "",
+            "Oui" if row["seuil_atteint"] else "Non",
+        ]
+        for row in rows
+    ]
+    return headers, data
+
+
+def _synthesis_export_rows():
+    """Full 'Réconciliation par prestation' dataset (RC/RA/R consolidated)."""
+    concordance = list(ConcordanceRecord.objects.order_by("id"))
+    headers, _ = _concordance_display_headers(concordance)
+    not_formed_campaign_rows, _ = _build_pas_forme_ii_campaign()
+    pending_contact_import = PendingLearnerContactImport.objects.first()
+    rows = _build_synthesis_reconciliation_rows(
+        concordance, headers, not_formed_campaign_rows, pending_contact_import
+    )
+    export_headers = [
+        "PRESTAID", "Prestataire", "Bénéficiaire", "Fenêtre",
+        "Appelés H", "Appelés F", "Appelés", "Total", "Méthode",
+    ]
+    data = [
+        [
+            row["presta_id"], row["prestataire"] or "—", row["beneficiaire"] or "—", row["fenetre"] or "—",
+            row["hommes"], row["femmes"], row["appeles"], row["total"], row["methode"],
+        ]
+        for row in rows
+    ]
+    return export_headers, data
+
+
+def _pending_contacts_export_rows():
+    """Full pending-contacts dataset, unlike the 100-row preview."""
+    pending_contact_import = PendingLearnerContactImport.objects.first()
+    if not pending_contact_import:
+        return ["#"], []
+    headers = ["#"] + list(pending_contact_import.headers)
+    rows = [
+        [record.row_number] + [record.payload.get(header, "") for header in pending_contact_import.headers]
+        for record in pending_contact_import.records.all()
+    ]
+    return headers, rows
+
+
+def concordance_export_rc_csv(request):
+    headers, rows = _concordance_export_rows(request)
+    return _csv_export_response("reconciliation_concordance", headers, rows)
+
+
+def concordance_export_rc_excel(request):
+    headers, rows = _concordance_export_rows(request)
+    return _excel_export_response("reconciliation_concordance", headers, rows)
+
+
+def concordance_export_ra_csv(request):
+    headers, rows = _campaign_export_rows()
+    return _csv_export_response("reconciliation_appels", headers, rows)
+
+
+def concordance_export_ra_excel(request):
+    headers, rows = _campaign_export_rows()
+    return _excel_export_response("reconciliation_appels", headers, rows)
+
+
+def concordance_export_synthesis_csv(request):
+    headers, rows = _synthesis_export_rows()
+    return _csv_export_response("synthese_reconciliation", headers, rows)
+
+
+def concordance_export_synthesis_excel(request):
+    headers, rows = _synthesis_export_rows()
+    return _excel_export_response("synthese_reconciliation", headers, rows)
+
+
+def concordance_export_contacts_csv(request):
+    headers, rows = _pending_contacts_export_rows()
+    return _csv_export_response("contacts_en_attente", headers, rows)
+
+
+def concordance_export_contacts_excel(request):
+    headers, rows = _pending_contacts_export_rows()
+    return _excel_export_response("contacts_en_attente", headers, rows)
 
 
 def concordance_campaigns_view(request):
