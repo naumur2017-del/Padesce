@@ -82,6 +82,17 @@ class AppelPasFormeIISaveTests(TestCase):
         self.assertIsNone(self.row.formulaire_rempli_at)
         self.assertEqual(self.row.status, "en_attente")
 
+    def test_false_name_requires_and_saves_the_real_name(self):
+        url = reverse("pas_forme_ii_save_form", args=[self.row.pk])
+        incomplete = self.client.post(url, {"q2": "OUI", "nombre_seances_declare": "3", "faux_nom": "on"}, HTTP_X_REQUESTED_WITH="XMLHttpRequest")
+        self.assertEqual(incomplete.status_code, 400)
+
+        response = self.client.post(url, {"q2": "OUI", "nombre_seances_declare": "3", "faux_nom": "on", "vrai_nom": "Vrai Apprenant"}, HTTP_X_REQUESTED_WITH="XMLHttpRequest")
+        self.assertEqual(response.status_code, 200)
+        self.row.refresh_from_db()
+        self.assertTrue(self.row.faux_nom)
+        self.assertEqual(self.row.vrai_nom, "Vrai Apprenant")
+
     def test_start_action_is_persisted_for_ajax(self):
         response = self.client.post(
             reverse("pas_forme_ii_action", args=[self.row.pk]),

@@ -666,6 +666,8 @@ class AppelPasFormeII(TimeStampedModel):
     membre_structure = models.CharField(max_length=3, blank=True)
     a_assiste_formation = models.CharField(max_length=3, blank=True)
     connait_theme = models.CharField(max_length=3, blank=True)
+    faux_nom = models.BooleanField(default=False)
+    vrai_nom = models.CharField(max_length=255, blank=True)
     commentaire = models.TextField(blank=True)
     rappel_at = models.DateTimeField(null=True, blank=True)
     audio_file = models.FileField(upload_to="pas-forme-ii/", null=True, blank=True, max_length=255)

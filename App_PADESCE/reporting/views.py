@@ -2400,9 +2400,11 @@ def _build_pas_forme_ii_campaign():
     rows = [row for row in segments.values() if row["appeles"]]
     summary = {
         "prestations": sum(1 for atteint in thresholded.values() if atteint),
+        "appels_effectues": 0,
         "fenetre_2": 0, "fenetre_3": 0, "hommes": 0, "femmes": 0,
     }
     for row in rows:
+        summary["appels_effectues"] += row["appeles"]
         if _campaign_window_key(row["fenetre"]) == "Fenêtre 2":
             summary["fenetre_2"] += row["appeles"]
         elif _campaign_window_key(row["fenetre"]) == "Fenêtre 3":

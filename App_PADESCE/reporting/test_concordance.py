@@ -140,6 +140,7 @@ class ConcordanceCampaignPageTests(TestCase):
             summary,
             {
                 "prestations": 4,
+                "appels_effectues": 23,
                 "fenetre_2": 0,
                 "fenetre_3": 23,
                 "hommes": 17,
@@ -184,6 +185,7 @@ class ConcordanceCampaignPageTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Prestations analysées")
+        self.assertContains(response, "Total des appels effectués")
         self.assertContains(response, "Personnes appelées — fenêtre 3")
         self.assertContains(response, "Réconciliation par prestation")
         self.assertContains(response, "Méthode")
