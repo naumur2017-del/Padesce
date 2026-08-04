@@ -2472,8 +2472,22 @@ def _concordance_window_summary(rows, headers):
 
 
 def concordance_campaigns_view(request):
+    can_manage_concordance_import = bool(
+        request.user.is_authenticated and request.user.is_superuser
+    )
     if request.method == "POST":
         action = request.POST.get("action")
+        protected_actions = {
+            "upload", "clear", "pending_contacts_upload", "pending_contacts_clear",
+        }
+        if action in protected_actions and not can_manage_concordance_import:
+            messages.error(
+                request,
+                "Seul un administrateur peut importer, remplacer ou supprimer ces données.",
+            )
+            if action.startswith("pending_contacts"):
+                return redirect(f"{reverse('concordance_campaigns')}?tab=pending-contacts")
+            return redirect("concordance_campaigns")
         if action == "pending_contacts_clear":
             PendingLearnerContactImport.objects.all().delete()
             messages.success(request, "Les contacts importés ont été supprimés.")
@@ -2639,6 +2653,7 @@ def concordance_campaigns_view(request):
         "pending_contact_count": pending_contact_count,
         "pending_contact_headers": pending_contact_headers,
         "pending_contact_rows": pending_contact_rows,
+        "can_manage_concordance_import": can_manage_concordance_import,
         # This recap is global; filters apply only to the detailed import grid.
         "concordance_gender_summary": _concordance_window_summary(concordance, headers),
         "campaign_gender_summary": _window_gender_summary(
