@@ -407,6 +407,20 @@
     <div class="stat-label">Connexions recentes</div>
     <div class="stat-value">{{ recent_login_logs|length }}</div>
   </article>
+  {% if call_scope == "padesce" %}
+    <article class="stat-card">
+      <div class="stat-label">Formulaires remplis aujourd’hui (depuis 00h)</div>
+      <div class="stat-value" id="forms-today-value">{{ formulaires_remplis_aujourdhui }}</div>
+    </article>
+    <article class="stat-card">
+      <div class="stat-label">Formulaires sans audio aujourd’hui</div>
+      <div class="stat-value" id="forms-without-audio-today-value">{{ formulaires_sans_audio_aujourdhui }}</div>
+    </article>
+    <article class="stat-card">
+      <div class="stat-label">Formulaires avec audio aujourd’hui</div>
+      <div class="stat-value" id="forms-with-audio-today-value">{{ formulaires_avec_audio_aujourdhui }}</div>
+    </article>
+  {% endif %}
 </section>
 
 <section class="panel">
@@ -460,6 +474,9 @@
               <th>Faux numéro</th>
             {% else %}
               <th>Formulaires remplis</th>
+              <th>Formulaires aujourd’hui</th>
+              <th>Sans audio aujourd’hui</th>
+              <th>Avec audio aujourd’hui</th>
               <th>Formulaires modifies</th>
               <th>Termines</th>
             {% endif %}
@@ -494,6 +511,9 @@
               <td><a class="drill-link" href="{{ row.faux_numeros_url }}">{{ row.cga_faux_numeros }}</a></td>
             {% else %}
               <td><a class="drill-link" href="{{ row.formulaires_url }}">{{ row.formulaires_remplis }}</a></td>
+              <td>{{ row.formulaires_sans_audio_aujourdhui|add:row.formulaires_avec_audio_aujourdhui }}</td>
+              <td>{{ row.formulaires_sans_audio_aujourdhui }}</td>
+              <td>{{ row.formulaires_avec_audio_aujourdhui }}</td>
               <td><a class="drill-link" href="{{ row.modifies_url }}">{{ row.formulaires_modifies }}</a></td>
               <td><a class="drill-link" href="{{ row.termines_url }}">{{ row.termines }}</a></td>
             {% endif %}
@@ -679,6 +699,9 @@
     const statsOnline = document.getElementById("online-users-value");
     const statsTotal = document.getElementById("total-users-value");
     const statsPoints = document.getElementById("globe-points-value");
+    const formsToday = document.getElementById("forms-today-value");
+    const formsWithoutAudioToday = document.getElementById("forms-without-audio-today-value");
+    const formsWithAudioToday = document.getElementById("forms-with-audio-today-value");
     const onlineFeedList = document.getElementById("online-feed-list");
     const liveApiUrl = "{% url 'user_tracking_live_api' %}?scope={{ call_scope|urlencode }}{% if user_search %}&user_search={{ user_search|urlencode }}{% endif %}";
     const worldGeoJsonUrl = "{% static 'geojson/world-countries.geojson' %}";
@@ -1159,6 +1182,9 @@
         if (statsOnline) statsOnline.textContent = typeof payload.online_count !== "undefined" && payload.online_count !== null ? payload.online_count : "0";
         if (statsTotal) statsTotal.textContent = typeof payload.total_users !== "undefined" && payload.total_users !== null ? payload.total_users : "0";
         if (statsPoints) statsPoints.textContent = points.length;
+        if (formsToday) formsToday.textContent = payload.formulaires_remplis_aujourdhui ?? "0";
+        if (formsWithoutAudioToday) formsWithoutAudioToday.textContent = payload.formulaires_sans_audio_aujourdhui ?? "0";
+        if (formsWithAudioToday) formsWithAudioToday.textContent = payload.formulaires_avec_audio_aujourdhui ?? "0";
         if (pinnedCountry) {
           renderSelectedCountryUsers(pinnedCountry);
         } else {

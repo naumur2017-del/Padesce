@@ -79,3 +79,27 @@ class UserTrackingDailyMetricsTests(TestCase):
         self.assertEqual(row["total_appels"], 3)
         self.assertEqual(row["formulaires_remplis"], 1)
         self.assertEqual(row["termines"], 1)
+
+    def test_user_tracking_counts_today_forms_with_and_without_audio(self):
+        Appel.objects.create(
+            code="TRK003",
+            nom="Formulaire sans audio",
+            locked_by=self.agent,
+            status="formulaire_rempli",
+            is_active=True,
+        )
+        AppelPasFormeII.objects.create(
+            reference_code="PFII-TRACK-AUDIO",
+            prestation_id="PRESTA-TRACK",
+            nom="Formulaire avec audio",
+            locked_by=self.agent,
+            status="formulaire_avec_audio",
+            is_active=True,
+        )
+
+        payload = _compute_tracking_payload(user_search="", call_scope="padesce")
+        row = next(item for item in payload["user_activity_rows"] if item["username"] == "agent-tracking")
+
+        self.assertEqual(row["formulaires_sans_audio_aujourdhui"], 1)
+        self.assertEqual(row["formulaires_avec_audio_aujourdhui"], 1)
+        self.assertEqual(payload["formulaires_remplis_aujourdhui"], 2)

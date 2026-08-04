@@ -2469,6 +2469,14 @@ def _compute_tracking_payload(
                 appels_reussis=Count("id", filter=Q(status="appel_reussi")),
                 formulaires_remplis_status=Count("id", filter=Q(status="formulaire_rempli")),
                 formulaires_avec_audio=Count("id", filter=Q(status="formulaire_avec_audio")),
+                formulaires_sans_audio_aujourdhui=Count(
+                    "id",
+                    filter=Q(updated_at__gte=today_start, status="formulaire_rempli"),
+                ),
+                formulaires_avec_audio_aujourdhui=Count(
+                    "id",
+                    filter=Q(updated_at__gte=today_start, status="formulaire_avec_audio"),
+                ),
                 en_cours=Count("id", filter=Q(status="en_cours")),
                 recent_24h=Count(
                     "id", filter=Q(updated_at__gte=since_24h) & ~Q(status="en_attente")
@@ -2489,6 +2497,14 @@ def _compute_tracking_payload(
                         "id", filter=Q(status__in=["formulaire_rempli", "formulaire_avec_audio"])
                     ),
                     formulaires_avec_audio=Count("id", filter=Q(status="formulaire_avec_audio")),
+                    formulaires_sans_audio_aujourdhui=Count(
+                        "id",
+                        filter=Q(updated_at__gte=today_start, status="formulaire_rempli"),
+                    ),
+                    formulaires_avec_audio_aujourdhui=Count(
+                        "id",
+                        filter=Q(updated_at__gte=today_start, status="formulaire_avec_audio"),
+                    ),
                     en_cours=Count("id", filter=Q(status="en_cours")),
                     termines=Count("id", filter=Q(status__in=CALL_COMPLETED_STATUSES)),
                     recent_24h=Count(
@@ -2676,6 +2692,12 @@ def _compute_tracking_payload(
                 "formulaires_remplis": formulaires_remplis_total,
                 "formulaires_modifies": formulaires_modifies_total,
                 "formulaires_avec_audio": int(stats_row.get("formulaires_avec_audio") or 0),
+                "formulaires_sans_audio_aujourdhui": int(
+                    stats_row.get("formulaires_sans_audio_aujourdhui") or 0
+                ),
+                "formulaires_avec_audio_aujourdhui": int(
+                    stats_row.get("formulaires_avec_audio_aujourdhui") or 0
+                ),
                 "termines": termines_total,
                 "en_cours": int(stats_row.get("en_cours") or 0),
                 "recent_24h": int(stats_row.get("recent_24h") or 0),
@@ -2766,6 +2788,12 @@ def _compute_tracking_payload(
         if row["last_latitude"] is not None and row["last_longitude"] is not None
     ]
     tracking_schema_ready = activities_ready and events_ready and login_logs_ready
+    formulaires_sans_audio_aujourdhui = sum(
+        row["formulaires_sans_audio_aujourdhui"] for row in user_rows
+    )
+    formulaires_avec_audio_aujourdhui = sum(
+        row["formulaires_avec_audio_aujourdhui"] for row in user_rows
+    )
 
     return {
         "user_activity_rows": user_rows,
@@ -2776,6 +2804,11 @@ def _compute_tracking_payload(
         "tracking_scope_tabs": tracking_scope_tabs,
         "total_users": User.objects.count(),
         "online_count": len(online_rows),
+        "formulaires_sans_audio_aujourdhui": formulaires_sans_audio_aujourdhui,
+        "formulaires_avec_audio_aujourdhui": formulaires_avec_audio_aujourdhui,
+        "formulaires_remplis_aujourdhui": (
+            formulaires_sans_audio_aujourdhui + formulaires_avec_audio_aujourdhui
+        ),
         "recent_login_logs": recent_login_logs,
         "globe_points": globe_points,
         "online_rows": online_rows,
@@ -2905,6 +2938,9 @@ def user_tracking_live_api(request):
             "ok": True,
             "online_count": payload["online_count"],
             "total_users": payload["total_users"],
+            "formulaires_sans_audio_aujourdhui": payload["formulaires_sans_audio_aujourdhui"],
+            "formulaires_avec_audio_aujourdhui": payload["formulaires_avec_audio_aujourdhui"],
+            "formulaires_remplis_aujourdhui": payload["formulaires_remplis_aujourdhui"],
             "tracking_schema_ready": payload["tracking_schema_ready"],
             "globe_points": payload["globe_points"],
             "online_rows": [
