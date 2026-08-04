@@ -33,19 +33,126 @@ def _number(value):
         return None
 
 
+def _boolean(value):
+    return _header(value) in {"1", "oui", "yes", "true", "vrai", "x"}
+
+
 def _parse(file_obj):
     ws = openpyxl.load_workbook(file_obj, read_only=True, data_only=True)["Feuil1"]
-    rows = ws.iter_rows(values_only=True); headers = next(rows, None) or []
+    rows = ws.iter_rows(values_only=True)
+    headers = next(rows, None) or []
     lookup = {_header(v): i for i, v in enumerate(headers)}
+
     def get(row, key):
-        i = lookup.get(key); return row[i] if i is not None and i < len(row) else ""
+        i = lookup.get(key)
+        return row[i] if i is not None and i < len(row) else ""
+
     result = []
     for row in rows:
-        prestation = str(get(row, "prestation id") or "").strip(); nom = str(get(row, "apprenants") or "").strip()
-        if not prestation or not nom: continue
-        phone = _phone(get(row, "numero")); ref = f"{prestation}-{phone or 'sans-tel'}-{re.sub(r'[^a-z0-9]+', '-', nom.lower()).strip('-')}"[:160]
-        result.append({"reference_code": ref, "prestation_id": prestation, "nom": nom, "telephone": phone, "beneficiaire": str(get(row, "beneficiaires") or "").strip(), "prestataire": str(get(row, "prestataires") or "").strip(), "genre": str(get(row, "genre") or "").strip(), "fenetre": str(get(row, "fenetre") or "").strip(), "absent_dans_consolide": bool(get(row, "absent dans consolide")), "total_presence": _number(get(row, "total presence")), "total_seances": _number(get(row, "total seance")), "seuil_75": _number(get(row, "seuil 75%")), "nombre_seances_source": _number(get(row, "nombre seance")), "forme_final": str(get(row, "forme final") or "").strip()})
+        prestation = str(get(row, "prestation id") or "").strip()
+        nom = str(get(row, "apprenants") or "").strip()
+        if not prestation or not nom:
+            continue
+        phone = _phone(get(row, "numero"))
+        nom_key = re.sub(r"[^a-z0-9]+", "-", nom.lower()).strip("-")
+        ref = f"{prestation}-{phone or 'sans-tel'}-{nom_key}"[:160]
+        result.append(
+            {
+                "reference_code": ref,
+                "prestation_id": prestation,
+                "nom": nom,
+                "telephone": phone,
+                "beneficiaire": str(get(row, "beneficiaires") or "").strip(),
+                "prestataire": str(get(row, "prestataires") or "").strip(),
+                "genre": str(get(row, "genre") or "").strip(),
+                "fenetre": str(get(row, "fenetre") or "").strip(),
+                "absent_dans_consolide": _boolean(get(row, "absent dans consolide")),
+                "total_presence": _number(get(row, "total presence")),
+                "total_seances": _number(get(row, "total seance")),
+                "seuil_75": _number(get(row, "seuil 75%")),
+                "nombre_seances_source": _number(get(row, "nombre seance")),
+                "forme_final": str(get(row, "forme final") or "").strip(),
+            }
+        )
     return result
+
+
+_SOURCE_FIELDS = (
+    "prestation_id",
+    "nom",
+    "telephone",
+    "beneficiaire",
+    "prestataire",
+    "genre",
+    "fenetre",
+    "absent_dans_consolide",
+    "total_presence",
+    "total_seances",
+    "seuil_75",
+    "nombre_seances_source",
+    "forme_final",
+)
+
+
+def _comparison_sync(payload):
+    """Synchronize visible rows while preserving every existing call and form field."""
+    incoming_by_reference = {}
+    duplicates = 0
+    for item in payload:
+        reference = item["reference_code"]
+        if reference in incoming_by_reference:
+            duplicates += 1
+            continue
+        incoming_by_reference[reference] = item
+
+    existing_by_reference = {row.reference_code: row for row in AppelPasFormeII.objects.all()}
+    now = timezone.now()
+    to_create = []
+    to_reactivate = []
+    unchanged = 0
+
+    for reference, item in incoming_by_reference.items():
+        row = existing_by_reference.get(reference)
+        if row is None:
+            to_create.append(AppelPasFormeII(**item, is_active=True))
+        elif row.is_active:
+            # A row present on both sides must remain completely untouched.
+            unchanged += 1
+        else:
+            # Restore the source data without altering the preserved call/form history.
+            for field in _SOURCE_FIELDS:
+                setattr(row, field, item[field])
+            row.is_active = True
+            row.updated_at = now
+            to_reactivate.append(row)
+
+    incoming_references = set(incoming_by_reference)
+    deactivate_ids = [
+        row.pk
+        for reference, row in existing_by_reference.items()
+        if row.is_active and reference not in incoming_references
+    ]
+    for start in range(0, len(deactivate_ids), 500):
+        AppelPasFormeII.objects.filter(
+            pk__in=deactivate_ids[start : start + 500]
+        ).update(is_active=False, updated_at=now)
+
+    if to_reactivate:
+        AppelPasFormeII.objects.bulk_update(
+            to_reactivate,
+            [*_SOURCE_FIELDS, "is_active", "updated_at"],
+            batch_size=500,
+        )
+    if to_create:
+        AppelPasFormeII.objects.bulk_create(to_create, batch_size=500)
+
+    return {
+        "created": len(to_create),
+        "reactivated": len(to_reactivate),
+        "deactivated": len(deactivate_ids),
+        "unchanged": unchanged,
+        "duplicates": duplicates,
+    }
 
 
 def _thresholds():
@@ -62,6 +169,26 @@ def index(request):
         try: payload = _parse(io.BytesIO(request.FILES["file"].read()))
         except Exception as exc: messages.error(request, f"Impossible de lire le fichier : {exc}"); return redirect(request.path_info)
         action_name = request.POST.get("import_action", "add")
+        if action_name == "compare_sync":
+            if not payload:
+                messages.error(
+                    request,
+                    "Comparaison annulée : le fichier ne contient aucune ligne exploitable.",
+                )
+                return redirect(request.path_info)
+            result = _comparison_sync(payload)
+            messages.success(
+                request,
+                (
+                    "Comparaison et mise à jour terminées : "
+                    f"{result['unchanged']} inchangés, "
+                    f"{result['deactivated']} désactivés, "
+                    f"{result['created']} ajoutés, "
+                    f"{result['reactivated']} réactivés"
+                    f" et {result['duplicates']} doublons du fichier ignorés."
+                ),
+            )
+            return redirect(request.path_info)
         created = updated = duplicates = not_found = 0
         existing_by_reference = {
             row.reference_code: row

@@ -11,7 +11,7 @@
   .tabs a { border-radius:999px; background:#fff; color:var(--b); border:1px solid var(--border); }
   .tabs a.active { background:var(--a); color:#fff; }
   .input { padding:9px; border:1px solid var(--border); border-radius:10px; }
-  .file { padding:12px; border:1px dashed var(--border); border-radius:12px; }
+  .file { padding:12px; border:1px dashed var(--border); border-radius:12px; display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
   .table { overflow:auto; }
   table { width:100%; border-collapse:collapse; min-width:1000px; }
   th,td { padding:10px; border-bottom:1px solid var(--border); text-align:left; }
@@ -43,8 +43,14 @@
       <h3>Importer la liste ou actualiser les segments</h3>
       <form method="post" enctype="multipart/form-data">
         {% csrf_token %}
-        <div class="file"><input type="file" name="file" accept=".xlsx,.xlsm" required><button class="btn" name="import_action" value="add">Importer pour ajouter</button><button class="btn" name="import_action" value="update_segments">Mettre à jour genre et fenêtre</button></div>
+        <div class="file">
+          <input type="file" name="file" accept=".xlsx,.xlsm" required>
+          <button class="btn" name="import_action" value="add">Importer pour ajouter</button>
+          <button class="btn" name="import_action" value="update_segments">Mettre à jour genre et fenêtre</button>
+          <button class="btn" name="import_action" value="compare_sync" onclick="return confirm('Comparer ce fichier avec la plateforme et désactiver les apprenants absents du fichier ?');">Comparer et mettre à jour</button>
+        </div>
         <p>La mise à jour des segments utilise les colonnes <strong>GENRE</strong> et <strong>FENETRE</strong> de Feuil1 et ne modifie pas les appels ou formulaires existants.</p>
+        <p><strong>Comparer et mettre à jour</strong> conserve les apprenants présents des deux côtés, désactive sans les supprimer ceux absents du fichier, et ajoute les nouveaux. Les appels, formulaires et audios déjà enregistrés restent intacts.</p>
       </form>
     </section>
   {% endif %}
