@@ -2452,16 +2452,16 @@ def _concordance_window_summary(rows, headers):
         values = [row.payload.get(header, "") for header in headers]
         if len(values) < 3:
             continue
-        men = _number_from_concordance_payload({"value": values[-3]}, "value")
-        women = _number_from_concordance_payload({"value": values[-2]}, "value")
+        # The detail grid displays each calculated H/F cell as a whole person.
+        # Apply that same rounding *before* summing so the recap equals the
+        # manually added values visible after filtering (e.g. Fenêtre 2).
+        men = int(round(_number_from_concordance_payload({"value": values[-3]}, "value")))
+        women = int(round(_number_from_concordance_payload({"value": values[-2]}, "value")))
         totals[window]["men"] += men
         totals[window]["women"] += women
         totals[window]["total"] += men + women
 
-    summary_rows = [
-        {"window": window, **{key: int(value) if value.is_integer() else value for key, value in values.items()}}
-        for window, values in totals.items()
-    ]
+    summary_rows = [{"window": window, **values} for window, values in totals.items()]
     summary_rows.append({
         "window": "Total",
         "men": sum(row["men"] for row in summary_rows),
