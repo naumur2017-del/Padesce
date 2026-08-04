@@ -2389,10 +2389,16 @@ def _build_pas_forme_ii_campaign():
         attendance_rate = None
         training_status = "Non renseigné"
         if declared_sessions is not None and planned_sessions is not None and planned_sessions > 0:
-            attendance_rate = declared_sessions / planned_sessions * 100
-            training_status = (
-                "Formé" if 75 <= attendance_rate <= 100 else "Pas formé"
-            )
+            if declared_sessions == 0:
+                # A declared count of 0 does not reliably mean "attended
+                # nothing" (blank inputs default to 0); treat it as
+                # indeterminate instead of asserting "Pas formé".
+                training_status = "Non déterminé"
+            else:
+                attendance_rate = declared_sessions / planned_sessions * 100
+                training_status = (
+                    "Formé" if 75 <= attendance_rate <= 120 else "Pas formé"
+                )
         if training_status == "Formé":
             segment["formes_total"] += 1
             if genre_key == "men":
@@ -2404,6 +2410,12 @@ def _build_pas_forme_ii_campaign():
                 segment["formes_fenetre_2"] += 1
             elif window == "Fenêtre 3":
                 segment["formes_fenetre_3"] += 1
+        if training_status == "Non déterminé":
+            # A declared count of 0 stays in nombre_seances_declare (DB, via
+            # call.save() elsewhere) but the row is left out of the "Détail
+            # des apprenants appelés" list since it reads as indeterminate
+            # rather than a real, reviewable answer.
+            continue
         segment["apprenants"].append({
             "nom": call.nom,
             "code": call.reference_code,
@@ -2885,7 +2897,8 @@ def concordance_campaigns_view(request):
             declared_sessions is not None
             and planned_sessions is not None
             and planned_sessions > 0
-            and 75 <= declared_sessions / planned_sessions * 100 <= 100
+            and declared_sessions != 0
+            and 75 <= declared_sessions / planned_sessions * 100 <= 120
         ):
             bucket["formes"] += 1
     campaign_rows = sorted(campaign.values(), key=lambda row: (row["fenetre"], row["genre"]))
