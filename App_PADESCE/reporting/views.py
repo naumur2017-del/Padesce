@@ -2353,6 +2353,8 @@ def _build_pas_forme_ii_campaign():
         segment = segments.setdefault(key, {
             "presta_id": key[0], "prestataire": key[1], "beneficiaire": key[2], "fenetre": key[3],
             "total": 0, "appeles": 0, "hommes": 0, "femmes": 0, "apprenants": [],
+            "formes_total": 0, "formes_hommes": 0, "formes_femmes": 0,
+            "formes_fenetre_2": 0, "formes_fenetre_3": 0,
             "seuil_atteint": thresholded.get(call.prestation_id, False),
         })
         segment["total"] += 1
@@ -2384,6 +2386,17 @@ def _build_pas_forme_ii_campaign():
             training_status = (
                 "Formé" if 75 <= attendance_rate <= 100 else "Pas formé"
             )
+        if training_status == "Formé":
+            segment["formes_total"] += 1
+            if genre_key == "men":
+                segment["formes_hommes"] += 1
+            elif genre_key == "women":
+                segment["formes_femmes"] += 1
+            window = _campaign_window_key(key[3])
+            if window == "Fenêtre 2":
+                segment["formes_fenetre_2"] += 1
+            elif window == "Fenêtre 3":
+                segment["formes_fenetre_3"] += 1
         segment["apprenants"].append({
             "nom": call.nom,
             "code": call.reference_code,

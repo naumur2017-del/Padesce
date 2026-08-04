@@ -234,6 +234,21 @@ class ConcordanceCampaignPageTests(TestCase):
         self.assertEqual(apprenant["telephone"], "690000001")
         self.assertEqual(apprenant["membre_structure"], "OUI")
 
+    def test_campaign_rows_include_formed_people_breakdown_columns(self):
+        AppelPasFormeII.objects.bulk_create([
+            AppelPasFormeII(reference_code="PFII-COLUMNS-H", prestation_id="PRESTA-COLUMNS", nom="Homme", genre="H", fenetre="2", total_seances=4, nombre_seances_declare=3, formulaire_rempli_at=timezone.now()),
+            AppelPasFormeII(reference_code="PFII-COLUMNS-F", prestation_id="PRESTA-COLUMNS", nom="Femme", genre="F", fenetre="2", total_seances=4, nombre_seances_declare=4, formulaire_rempli_at=timezone.now()),
+            AppelPasFormeII(reference_code="PFII-COLUMNS-NON", prestation_id="PRESTA-COLUMNS", nom="Non formé", genre="F", fenetre="2", total_seances=4, nombre_seances_declare=2, formulaire_rempli_at=timezone.now()),
+        ])
+
+        rows, _ = views._build_pas_forme_ii_campaign()
+
+        self.assertEqual(rows[0]["formes_total"], 2)
+        self.assertEqual(rows[0]["formes_hommes"], 1)
+        self.assertEqual(rows[0]["formes_femmes"], 1)
+        self.assertEqual(rows[0]["formes_fenetre_2"], 2)
+        self.assertEqual(rows[0]["formes_fenetre_3"], 0)
+
     @override_settings(
         STORAGES={
             "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},

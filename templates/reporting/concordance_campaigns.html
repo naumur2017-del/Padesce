@@ -80,4 +80,27 @@
     }));
   }());
 </script>
+<script>
+  (function () {
+    const table = document.querySelector('#campaigns table');
+    const rows = JSON.parse(document.getElementById('not-formed-campaign-data').textContent);
+    const header = table.querySelector('thead tr');
+    const thresholdHeader = [...header.children].find(cell => cell.textContent.trim() === 'Seuil atteint');
+    ['Formés total', 'Formés H', 'Formés F', 'Formés fenêtre 2', 'Formés fenêtre 3'].forEach(label => {
+      const cell = document.createElement('th');
+      cell.textContent = label;
+      header.insertBefore(cell, thresholdHeader);
+    });
+    [...table.querySelectorAll('tbody tr')].forEach((tableRow, index) => {
+      const row = rows[index];
+      if (!row) return;
+      const thresholdCell = tableRow.lastElementChild;
+      ['formes_total', 'formes_hommes', 'formes_femmes', 'formes_fenetre_2', 'formes_fenetre_3'].forEach(key => {
+        const cell = document.createElement('td');
+        cell.textContent = row[key] ?? 0;
+        tableRow.insertBefore(cell, thresholdCell);
+      });
+    });
+  }());
+</script>
 {% endblock %}
