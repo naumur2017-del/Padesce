@@ -2144,50 +2144,6 @@ CONCORDANCE_FEUIL2_DISPLAY_HEADERS = (
 )
 
 
-SYNTHESIS_RECONCILIATION_PRESTATIONS = (
-    {
-        "presta_id": "PRESTA035",
-        "prestataire": "CFR DE BOUAM",
-        "beneficiaire": "GIC / AEKEDIA DES AGRICULTEURS ET ELEVEURS DE TIGAZA",
-        "fenetre": "3",
-        "hommes": 3,
-        "femmes": 0,
-        "appeles": 3,
-        "total": 6,
-    },
-    {
-        "presta_id": "PRESTA109",
-        "prestataire": "CFP LA DOMINICAINE",
-        "beneficiaire": "SOCIETE COOPERATIVE SIMPLIFIEE DES ELEVEURS DE BOVINS DE DJOUROUM (SCOOPS GOUDALI DE DJOUROUM)",
-        "fenetre": "3",
-        "hommes": 2,
-        "femmes": 0,
-        "appeles": 2,
-        "total": 2,
-    },
-    {
-        "presta_id": "PRESTA123",
-        "prestataire": "CFR DE BOUAM",
-        "beneficiaire": "GIC FIDELITE",
-        "fenetre": "3",
-        "hommes": 1,
-        "femmes": 3,
-        "appeles": 4,
-        "total": 4,
-    },
-    {
-        "presta_id": "PRESTA155",
-        "prestataire": "CFP-IFP 2IPT",
-        "beneficiaire": "COOP-CA MIEL ANNOUR",
-        "fenetre": "3",
-        "hommes": 11,
-        "femmes": 3,
-        "appeles": 14,
-        "total": 18,
-    },
-)
-
-
 def _concordance_display_headers(records):
     """Keep Feuil2's display order stable across SQLite and PostgreSQL JSONB."""
     discovered = []
@@ -2354,8 +2310,32 @@ def _concordance_payload_value(payload, *aliases):
     return ""
 
 
+def _synthesis_payload_identity(payload):
+    """Read the source identifiers used by RC and the freely-shaped R import."""
+    return {
+        "presta_id": _concordance_payload_value(
+            payload,
+            "PRESTA ID", "PRESTAID", "PRESTATION ID", "PRESTATION",
+            "CODE PRESTATION", "CODE PRESTA",
+        ),
+        "prestataire": _concordance_payload_value(
+            payload,
+            "PRESTATAIRE", "PRESTATAIRES", "NOM PRESTATAIRE",
+            "NOM DU PRESTATAIRE", "STRUCTURE PRESTATAIRE",
+        ),
+        "beneficiaire": _concordance_payload_value(
+            payload,
+            "BENEFICIAIRE", "BENEFICIAIRES", "NOM BENEFICIAIRE",
+            "NOM DU BENEFICIAIRE", "STRUCTURE BENEFICIAIRE",
+        ),
+        "fenetre": _concordance_payload_value(
+            payload, "FENETRE", "FENETRE APPEL", "FENETRE D APPEL", "COHORTE"
+        ),
+    }
+
+
 def _build_pas_forme_ii_campaign():
-    """Return Pas Formés II prestations along with their 30% call threshold status."""
+    """Return every Pas Formés II prestation and its 30% call threshold status."""
     thresholded = {}
     aggregates = AppelPasFormeII.objects.filter(is_active=True).values("prestation_id").annotate(
         total=Count("id"), appeles=Count("id", filter=Q(formulaire_rempli_at__isnull=False))
@@ -2397,15 +2377,19 @@ def _build_pas_forme_ii_campaign():
                 pass
         segment["apprenants"].append({"nom": call.nom, "code": call.reference_code, "genre": genre, "fenetre": key[3], "presta_id": key[0], "audio_url": audio_url, "audio_disponible": bool(audio_url)})
 
-    rows = [row for row in segments.values() if row["appeles"]]
+    # Keep the prestations still awaiting their first call.  They are present in
+    # the RA source tab and must consequently also be visible in the synthesis.
+    rows = list(segments.values())
     summary = {
         "prestations": sum(1 for atteint in thresholded.values() if atteint),
+        "appels_effectues": 0,
         "fenetre_2": 0, "fenetre_3": 0, "hommes": 0, "femmes": 0,
     }
     for row in rows:
         # The H/F recap intentionally has no "non renseigné" column.
         # Count only the same H and F people that are displayed in it.
         gendered_calls = row["hommes"] + row["femmes"]
+        summary["appels_effectues"] += row["appeles"]
         if _campaign_window_key(row["fenetre"]) == "Fenêtre 2":
             summary["fenetre_2"] += gendered_calls
         elif _campaign_window_key(row["fenetre"]) == "Fenêtre 3":
@@ -2413,16 +2397,6 @@ def _build_pas_forme_ii_campaign():
         summary["hommes"] += row["hommes"]
         summary["femmes"] += row["femmes"]
     return sorted(rows, key=lambda row: (row["presta_id"], row["fenetre"])), summary
-
-
-def _reconciliation_method(presta_id, fenetre, concordance_prestations, has_calls):
-    """Identify the source used to reconcile a prestation in the synthesis grid."""
-    key = (str(presta_id or "").strip(), _campaign_window_key(fenetre))
-    if key in concordance_prestations:
-        return "RC"
-    if has_calls:
-        return "RA"
-    return "R"
 
 
 def _format_concordance_value(header, value):
@@ -2461,6 +2435,19 @@ def _gender_key(value):
     if normalized in {"femme", "feminin", "féminin", "f"}:
         return "women"
     return ""
+
+
+def _formed_people_summary(concordance_window_summary):
+    """Reshape the concordance H/F/T recap (NOMBRE FORME TOTAL) into stat cards."""
+    by_window = {row["window"]: row for row in concordance_window_summary}
+    total_row = by_window.get("Total", {"men": 0, "women": 0, "total": 0})
+    return {
+        "total": total_row["total"],
+        "fenetre_2": by_window.get("Fenêtre 2", {}).get("total", 0),
+        "fenetre_3": by_window.get("Fenêtre 3", {}).get("total", 0),
+        "hommes": total_row["men"],
+        "femmes": total_row["women"],
+    }
 
 
 def _window_gender_summary(rows, *, gender_key, window_key, value_key=lambda _row: 1):
@@ -2575,6 +2562,131 @@ def _concordance_window_summary(rows, headers):
         "total": sum(row["total"] for row in summary_rows),
     })
     return summary_rows
+
+
+def _concordance_final_gender_values(row, headers):
+    """Return the final H/F values for one concordance prestation."""
+    men_value = _concordance_payload_value(
+        row.payload,
+        "NOMBRE FORME TOTAL AVEC TAUX DE CONCORDANCE - H",
+    )
+    women_value = _concordance_payload_value(
+        row.payload,
+        "NOMBRE FORME TOTAL AVEC TAUX DE CONCORDANCE - F",
+    )
+    if men_value or women_value:
+        return (
+            int(round(_number_from_concordance_payload({"value": men_value}, "value"))),
+            int(round(_number_from_concordance_payload({"value": women_value}, "value"))),
+        )
+
+    values = [row.payload.get(header, "") for header in headers]
+    if len(values) < 3:
+        return 0, 0
+    return (
+        int(round(_number_from_concordance_payload({"value": values[-3]}, "value"))),
+        int(round(_number_from_concordance_payload({"value": values[-2]}, "value"))),
+    )
+
+
+def _build_synthesis_reconciliation_rows(concordance, headers, campaign_rows, pending_contact_import):
+    """Consolidate RC, RA and R sources for the real-time synthesis table."""
+    rows = []
+
+    concordance_segments = {}
+    for record in concordance:
+        identity = _synthesis_payload_identity(record.payload)
+        presta_id = identity["presta_id"]
+        if not presta_id or presta_id.upper() == "TOTAL GENERAL":
+            continue
+        prestataire = identity["prestataire"]
+        beneficiaire = identity["beneficiaire"]
+        fenetre = record.fenetre or identity["fenetre"]
+        key = (presta_id, prestataire, beneficiaire, fenetre)
+        segment = concordance_segments.setdefault(
+            key,
+            {
+                "presta_id": presta_id,
+                "prestataire": prestataire,
+                "beneficiaire": beneficiaire,
+                "fenetre": fenetre,
+                "hommes": 0,
+                "femmes": 0,
+                "appeles": 0,
+                "total": 0,
+                "methode": "RC",
+            },
+        )
+        hommes, femmes = _concordance_final_gender_values(record, headers)
+        source_total_value = _concordance_payload_value(
+            record.payload,
+            "NBRE PERSONNES FORMEES SELON FICHE DE PRESENCE RAPPORT PRESTATAIRE - T",
+        )
+        final_total_value = _concordance_payload_value(
+            record.payload,
+            "NOMBRE FORME TOTAL AVEC TAUX DE CONCORDANCE - T",
+        )
+        # RC displays the reconciled people called against the original
+        # presence-list total, as in the concordance tab.
+        total_value = source_total_value or final_total_value
+        total = int(round(_number_from_concordance_payload({"value": total_value}, "value")))
+        total = total if total_value else hommes + femmes
+        segment["hommes"] += hommes
+        segment["femmes"] += femmes
+        segment["appeles"] += hommes + femmes
+        segment["total"] += total
+    rows.extend(concordance_segments.values())
+
+    rows.extend(
+        {
+            "presta_id": row["presta_id"],
+            "prestataire": row["prestataire"],
+            "beneficiaire": row["beneficiaire"],
+            "fenetre": row["fenetre"],
+            "hommes": row["hommes"],
+            "femmes": row["femmes"],
+            "appeles": row["appeles"],
+            "total": row["total"],
+            "methode": "RA",
+        }
+        for row in campaign_rows
+    )
+
+    if pending_contact_import:
+        pending_segments = {}
+        for record in pending_contact_import.records.all():
+            identity = _synthesis_payload_identity(record.payload)
+            presta_id = identity["presta_id"] or "Non renseigné"
+            prestataire = identity["prestataire"]
+            beneficiaire = identity["beneficiaire"]
+            fenetre = identity["fenetre"]
+            key = (presta_id, prestataire, beneficiaire, fenetre)
+            segment = pending_segments.setdefault(
+                key,
+                {
+                    "presta_id": presta_id,
+                    "prestataire": prestataire,
+                    "beneficiaire": beneficiaire,
+                    "fenetre": fenetre,
+                    "hommes": 0,
+                    "femmes": 0,
+                    "appeles": 0,
+                    "total": 0,
+                    "methode": "R",
+                },
+            )
+            segment["total"] += 1
+        rows.extend(pending_segments.values())
+
+    method_order = {"RC": 0, "RA": 1, "R": 2}
+    return sorted(
+        rows,
+        key=lambda row: (
+            method_order[row["methode"]],
+            row["presta_id"],
+            row["fenetre"],
+        ),
+    )
 
 
 def concordance_campaigns_view(request):
@@ -2727,26 +2839,7 @@ def concordance_campaigns_view(request):
             bucket["formes"] += 1
     campaign_rows = sorted(campaign.values(), key=lambda row: (row["fenetre"], row["genre"]))
     not_formed_campaign_rows, not_formed_campaign_summary = _build_pas_forme_ii_campaign()
-    concordance_prestations = {
-        (
-            _concordance_payload_value(row.payload, "PRESTA ID"),
-            _campaign_window_key(row.fenetre),
-        )
-        for row in concordance
-        if _concordance_payload_value(row.payload, "PRESTA ID")
-    }
-    synthesis_reconciliation_rows = []
-    for row in SYNTHESIS_RECONCILIATION_PRESTATIONS:
-        reconciliation_row = {
-            **row,
-            "methode": _reconciliation_method(
-                row["presta_id"],
-                row["fenetre"],
-                concordance_prestations,
-                bool(row["appeles"]),
-            ),
-        }
-        synthesis_reconciliation_rows.append(reconciliation_row)
+    formed_people_summary = _formed_people_summary(_concordance_window_summary(concordance, headers))
     concordance_counts = {}
     for row in concordance:
         key = (row.genre, row.fenetre)
@@ -2772,6 +2865,19 @@ def concordance_campaigns_view(request):
             }
             for record in pending_contact_import.records.all()[:100]
         ]
+    synthesis_reconciliation_rows = _build_synthesis_reconciliation_rows(
+        concordance,
+        headers,
+        not_formed_campaign_rows,
+        pending_contact_import,
+    )
+    synthesis_reconciliation_summary = {
+        method: sum(
+            1 for row in synthesis_reconciliation_rows if row["methode"] == method
+        )
+        for method in ("RC", "RA", "R")
+    }
+    synthesis_reconciliation_summary["total"] = len(synthesis_reconciliation_rows)
 
     concordance_gender_summary = _concordance_window_summary(concordance, headers)
     campaign_gender_summary = _window_gender_summary(
@@ -2789,7 +2895,9 @@ def concordance_campaigns_view(request):
         "campaign_rows": campaign_rows, "synthesis_rows": synthesis,
         "not_formed_campaign_rows": not_formed_campaign_rows,
         "not_formed_campaign_summary": not_formed_campaign_summary,
+        "formed_people_summary": formed_people_summary,
         "synthesis_reconciliation_rows": synthesis_reconciliation_rows,
+        "synthesis_reconciliation_summary": synthesis_reconciliation_summary,
         "pending_contact_import": pending_contact_import,
         "pending_contact_count": pending_contact_count,
         "pending_contact_headers": pending_contact_headers,

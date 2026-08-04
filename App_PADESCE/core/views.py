@@ -33,6 +33,7 @@ from App_PADESCE.appels.models import (
     AppelCGA,
     AppelFormateur,
     AppelPasForme,
+    AppelPasFormeII,
     AppelPrestataireDemarrage,
     appel_answers_completed_q,
     appel_answers_modified_completion_q,
@@ -2474,7 +2475,7 @@ def _compute_tracking_payload(
                 ),
             )
         }
-        for extra_model in (AppelPasForme, AppelPrestataireDemarrage):
+        for extra_model in (AppelPasForme, AppelPasFormeII, AppelPrestataireDemarrage):
             extra_rows = (
                 extra_model.objects.filter(is_active=True, locked_by__isnull=False)
                 .values("locked_by_id")
@@ -2552,6 +2553,18 @@ def _compute_tracking_payload(
                     "code": appel.reference_code,
                     "nom": appel.nom,
                     "url": f"{pas_forme_index_url}?{query_params}",
+                }
+            )
+        pas_forme_ii_index_url = reverse("pas_forme_ii_index")
+        for appel in AppelPasFormeII.objects.filter(
+            is_active=True, status__in=CALL_TENTATIVE_STATUSES, locked_by__isnull=False
+        ).order_by("locked_by__username", "nom"):
+            query_params = urlencode({"status": appel.status, "q": appel.telephone})
+            current_calls_by_user.setdefault(appel.locked_by_id, []).append(
+                {
+                    "code": appel.reference_code,
+                    "nom": appel.nom,
+                    "url": f"{pas_forme_ii_index_url}?{query_params}",
                 }
             )
         demarrage_index_url = reverse("prestataire_demarrage_index")

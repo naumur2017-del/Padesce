@@ -100,6 +100,8 @@
               data-pres="{{ row.total_presence|default:'' }}"
               data-q2="{{ row.membre_structure }}"
               data-declared="{{ row.nombre_seances_declare|default:'' }}"
+              data-faux-nom="{{ row.faux_nom|yesno:'true,false' }}"
+              data-vrai-nom="{{ row.vrai_nom }}"
               data-status-label="{{ row.get_status_display }}"
               data-audio-url="{% if row.audio_file %}{{ row.audio_file.url }}{% endif %}"
               data-form-url="{% url 'pas_forme_ii_save_form' row.id %}"
@@ -124,6 +126,8 @@
     <p id="form-error" class="form-error" hidden></p>
     <div class="q"><strong>1. Êtes-vous membre de cette structure de bénéficiaire ?</strong><span><label><input type="radio" name="q2" value="OUI" required> Oui</label> <label><input type="radio" name="q2" value="NON"> Non</label></span></div>
     <div class="q"><strong>2. Combien de séances avez-vous assisté dans le cadre de cette formation ?</strong><input name="nombre_seances_declare" type="number" min="0" required></div>
+    <div class="q"><strong>Le nom déclaré est-il faux ?</strong><label><input id="faux-nom" name="faux_nom" type="checkbox"> Faux nom</label></div>
+    <div class="q" id="vrai-nom-field" hidden><strong>Quel est le vrai nom ?</strong><input class="input" id="vrai-nom" name="vrai_nom" type="text" maxlength="255" autocomplete="name"></div>
     <div class="q"><strong>À rappeler</strong><span><input id="rappel" type="checkbox"><input id="when" name="rappel_at" type="datetime-local" disabled></span></div>
     <p>Audio de l'appel : <input type="file" name="audio" accept="audio/*"></p>
     <button type="button" class="btn" id="close">Annuler</button>
@@ -140,6 +144,7 @@
       <div><strong>Prestation</strong><br><span id="detail-prestation"></span></div>
       <div><strong>Membre de la structure</strong><br><span id="detail-q2"></span></div>
       <div><strong>Nombre de séances déclaré</strong><br><span id="detail-sessions"></span></div>
+      <div><strong>Faux nom / vrai nom</strong><br><span id="detail-faux-nom"></span></div>
       <div><strong>Statut</strong><br><span id="detail-status"></span></div>
       <div><strong>Audio</strong><br><span id="detail-audio"></span></div>
     </div>
@@ -219,6 +224,9 @@
         await postAction(row, 'start');
         form.reset();
         when.disabled = true;
+        fauxNom.checked = false;
+        vraiNomField.hidden = true;
+        vraiNom.required = false;
         document.querySelector('#saveRecall').hidden = true;
         // Les boutons portent le nom "action" : dans le DOM, `form.action`
         // peut alors devenir un RadioNodeList au lieu de l'URL du formulaire.
@@ -245,6 +253,15 @@
   rappel.addEventListener('change', () => {
     when.disabled = !rappel.checked;
     document.querySelector('#saveRecall').hidden = !rappel.checked;
+  });
+
+  const fauxNom = document.querySelector('#faux-nom');
+  const vraiNomField = document.querySelector('#vrai-nom-field');
+  const vraiNom = document.querySelector('#vrai-nom');
+  fauxNom.addEventListener('change', () => {
+    vraiNomField.hidden = !fauxNom.checked;
+    vraiNom.required = fauxNom.checked;
+    if (!fauxNom.checked) vraiNom.value = '';
   });
 
   form.addEventListener('submit', async event => {
@@ -291,6 +308,7 @@
       document.querySelector('#detail-prestation').textContent = row.dataset.prestation || '—';
       document.querySelector('#detail-q2').textContent = row.dataset.q2 || '—';
       document.querySelector('#detail-sessions').textContent = row.dataset.declared || '—';
+      document.querySelector('#detail-faux-nom').textContent = row.dataset.fauxNom === 'true' ? (row.dataset.vraiNom || 'Oui') : 'Non';
       document.querySelector('#detail-status').textContent = row.dataset.statusLabel || '—';
       const audio = document.querySelector('#detail-audio');
       audio.replaceChildren();

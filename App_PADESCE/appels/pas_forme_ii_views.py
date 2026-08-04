@@ -131,9 +131,20 @@ def save_form(request, pk):
         messages.error(request, error)
         return redirect("pas_forme_ii_index")
 
+    faux_nom = request.POST.get("faux_nom") == "on"
+    vrai_nom = str(request.POST.get("vrai_nom", "")).strip()
+    if faux_nom and not vrai_nom:
+        error = "Indiquez le vrai nom lorsque le nom déclaré est faux."
+        if wants_json:
+            return JsonResponse({"ok": False, "error": error}, status=400)
+        messages.error(request, error)
+        return redirect("pas_forme_ii_index")
+
     row.nombre_seances_declare = nombre_seances
     row.membre_structure = membre_structure
     row.est_forme = request.POST.get("est_forme") == "on"
+    row.faux_nom = faux_nom
+    row.vrai_nom = vrai_nom if faux_nom else ""
     row.commentaire = str(request.POST.get("commentaire", "")).strip()
     row.formulaire_rempli_at = timezone.now()
     row.status = "formulaire_avec_audio" if request.FILES.get("audio") else "formulaire_rempli"

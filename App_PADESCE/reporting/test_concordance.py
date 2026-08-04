@@ -10,7 +10,11 @@ from openpyxl import Workbook
 
 from App_PADESCE.appels.models import AppelPasFormeII
 from App_PADESCE.reporting import views
-from App_PADESCE.reporting.models import ConcordanceRecord, PendingLearnerContactImport
+from App_PADESCE.reporting.models import (
+    ConcordanceRecord,
+    PendingLearnerContactImport,
+    PendingLearnerContactRecord,
+)
 
 
 def _postgres_jsonb_order(payload):
@@ -140,33 +144,12 @@ class ConcordanceCampaignPageTests(TestCase):
             summary,
             {
                 "prestations": 4,
+                "appels_effectues": 23,
                 "fenetre_2": 0,
                 "fenetre_3": 23,
                 "hommes": 17,
                 "femmes": 6,
             },
-        )
-
-    def test_reconciliation_method_prioritizes_concordance_then_calls(self):
-        concordance_prestations = {("PRESTA001", "Fenêtre 3")}
-
-        self.assertEqual(
-            views._reconciliation_method(
-                "PRESTA001", "3", concordance_prestations, has_calls=True
-            ),
-            "RC",
-        )
-        self.assertEqual(
-            views._reconciliation_method(
-                "PRESTA002", "3", concordance_prestations, has_calls=True
-            ),
-            "RA",
-        )
-        self.assertEqual(
-            views._reconciliation_method(
-                "PRESTA003", "3", concordance_prestations, has_calls=False
-            ),
-            "R",
         )
 
     @override_settings(
@@ -184,12 +167,11 @@ class ConcordanceCampaignPageTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Prestations analysées")
+        self.assertContains(response, "Total des appels effectués")
         self.assertContains(response, "Personnes appelées — fenêtre 3")
         self.assertContains(response, "Réconciliation par prestation")
         self.assertContains(response, "Méthode")
-        self.assertContains(response, "PRESTA035")
-        self.assertContains(response, "3 / 6")
-        self.assertEqual(response.context["synthesis_reconciliation_rows"][0]["methode"], "RA")
+        self.assertEqual(response.context["synthesis_reconciliation_rows"][0]["methode"], "RC")
         self.assertEqual(
             response.context["headers"],
             list(views.CONCORDANCE_FEUIL2_DISPLAY_HEADERS),
@@ -205,15 +187,95 @@ class ConcordanceCampaignPageTests(TestCase):
             "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
         }
     )
-    def test_synthesis_prestation_uses_rc_when_concordance_exists(self):
+    def test_synthesis_collects_rc_ra_and_r_rows_from_their_tabs(self):
         ConcordanceRecord.objects.create(
             fenetre="3",
-            payload={"PRESTA ID": "PRESTA035"},
+            payload=_postgres_jsonb_order(_feuil2_payload()),
+        )
+        AppelPasFormeII.objects.create(
+            reference_code="PFII-SYNTHESIS-001",
+            prestation_id="PRESTA002",
+            nom="Apprenant RA",
+            prestataire="Prestataire RA",
+            beneficiaire="Bénéficiaire RA",
+            genre="F",
+            fenetre="3",
+            is_active=True,
+            formulaire_rempli_at=timezone.now(),
+        )
+        pending_import = PendingLearnerContactImport.objects.create(
+            source_filename="contacts.csv",
+            headers=["PRESTA ID", "Prestataire", "Bénéficiaire", "Fenêtre", "Apprenant"],
+        )
+        PendingLearnerContactRecord.objects.create(
+            import_batch=pending_import,
+            row_number=1,
+            payload={
+                "PRESTA ID": "PRESTA003",
+                "Prestataire": "Prestataire R",
+                "Bénéficiaire": "Bénéficiaire R",
+                "Fenêtre": "3",
+                "Apprenant": "Apprenant R",
+            },
         )
 
         response = self.client.get(reverse("concordance_campaigns"))
 
-        self.assertEqual(response.context["synthesis_reconciliation_rows"][0]["methode"], "RC")
+        rows = response.context["synthesis_reconciliation_rows"]
+        rows_by_method = {row["methode"]: row for row in rows}
+        self.assertEqual(set(rows_by_method), {"RC", "RA", "R"})
+        self.assertEqual(rows_by_method["RC"]["presta_id"], "PRESTA001")
+        self.assertEqual(rows_by_method["RA"]["presta_id"], "PRESTA002")
+        self.assertEqual(rows_by_method["R"]["presta_id"], "PRESTA003")
+        self.assertEqual(rows_by_method["R"]["appeles"], 0)
+        self.assertEqual(rows_by_method["R"]["total"], 1)
+
+    @override_settings(
+        STORAGES={
+            "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+            "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
+        }
+    )
+    def test_synthesis_keeps_unattempted_ra_and_flexible_r_source_headers(self):
+        ConcordanceRecord.objects.create(
+            fenetre="3",
+            payload=_postgres_jsonb_order(_feuil2_payload()),
+        )
+        AppelPasFormeII.objects.create(
+            reference_code="PFII-WAITING-001",
+            prestation_id="PRESTA004",
+            nom="Apprenant en attente",
+            prestataire="Prestataire RA en attente",
+            beneficiaire="Bénéficiaire RA en attente",
+            genre="H",
+            fenetre="2",
+            is_active=True,
+            status="en_attente",
+        )
+        pending_import = PendingLearnerContactImport.objects.create(
+            source_filename="contacts.xlsx",
+            headers=["Prestation ID", "Prestataires", "Bénéficiaires", "Fenetre appel"],
+        )
+        PendingLearnerContactRecord.objects.create(
+            import_batch=pending_import,
+            row_number=1,
+            payload={
+                "Prestation ID": "PRESTA005",
+                "Prestataires": "Prestataire R",
+                "Bénéficiaires": "Bénéficiaire R",
+                "Fenetre appel": "2",
+            },
+        )
+
+        response = self.client.get(reverse("concordance_campaigns"))
+        rows = response.context["synthesis_reconciliation_rows"]
+        rows_by_key = {(row["methode"], row["presta_id"]): row for row in rows}
+
+        self.assertEqual(rows_by_key[("RA", "PRESTA004")]["appeles"], 0)
+        self.assertEqual(rows_by_key[("RA", "PRESTA004")]["total"], 1)
+        self.assertEqual(rows_by_key[("R", "PRESTA005")]["prestataire"], "Prestataire R")
+        self.assertEqual(rows_by_key[("R", "PRESTA005")]["beneficiaire"], "Bénéficiaire R")
+        self.assertEqual(rows_by_key[("R", "PRESTA005")]["fenetre"], "2")
 
 
 @override_settings(

@@ -4,7 +4,7 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.utils import timezone
 
-from App_PADESCE.appels.models import Appel
+from App_PADESCE.appels.models import Appel, AppelPasFormeII
 from App_PADESCE.core.models import UserActivity
 from App_PADESCE.core.views import _compute_tracking_payload
 
@@ -63,3 +63,19 @@ class UserTrackingDailyMetricsTests(TestCase):
         )
         self.assertEqual(row["total_appels"], 2)
         self.assertEqual(row["appels_aujourdhui"], 1)
+
+    def test_user_tracking_includes_pas_forme_ii_calls(self):
+        AppelPasFormeII.objects.create(
+            reference_code="PFII-TRACK-001",
+            prestation_id="PRESTA-TRACK",
+            nom="Appel Pas Forme II",
+            locked_by=self.agent,
+            status="formulaire_rempli",
+            is_active=True,
+        )
+
+        payload = _compute_tracking_payload(user_search="", call_scope="padesce")
+        row = next(item for item in payload["user_activity_rows"] if item["username"] == "agent-tracking")
+        self.assertEqual(row["total_appels"], 3)
+        self.assertEqual(row["formulaires_remplis"], 1)
+        self.assertEqual(row["termines"], 1)
