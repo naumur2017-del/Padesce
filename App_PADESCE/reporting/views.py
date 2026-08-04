@@ -52,7 +52,12 @@ from App_PADESCE.reporting.manuals import (
     load_reporting_manual_markdown,
     render_reporting_manual_html,
 )
-from App_PADESCE.reporting.models import ConcordanceRecord, ConsolidationRecord
+from App_PADESCE.reporting.models import (
+    ConcordanceRecord,
+    ConsolidationRecord,
+    PendingLearnerContactImport,
+    PendingLearnerContactRecord,
+)
 from App_PADESCE.satisfaction_apprenants.models import SatisfactionApprenant
 from App_PADESCE.satisfaction_formateurs.models import SatisfactionFormateur
 
@@ -2153,6 +2158,65 @@ def _concordance_display_headers(records):
     return discovered[:13], False
 
 
+def _pending_contact_rows_from_file(uploaded_file):
+    """Read a flexible contact workbook while preserving its source column order."""
+    filename = str(getattr(uploaded_file, "name", "")).lower()
+    if filename.endswith(".csv"):
+        try:
+            text_data = uploaded_file.read().decode("utf-8-sig")
+        except UnicodeDecodeError as exc:
+            raise ValueError("Le fichier CSV doit être encodé en UTF-8.") from exc
+        try:
+            dialect = csv.Sniffer().sniff(text_data[:4096], delimiters=",;\t")
+        except csv.Error:
+            dialect = csv.excel
+        sheet_rows = list(csv.reader(io.StringIO(text_data), dialect=dialect))
+    elif filename.endswith((".xlsx", ".xlsm")):
+        workbook = load_workbook(uploaded_file, read_only=True, data_only=True)
+        sheet_rows = list(workbook.active.iter_rows(values_only=True))
+    else:
+        raise ValueError("Le fichier doit être au format XLSX, XLSM ou CSV.")
+
+    header_index = next(
+        (
+            index
+            for index, row in enumerate(sheet_rows)
+            if any(_normalize_cell(value) for value in row)
+        ),
+        None,
+    )
+    if header_index is None:
+        raise ValueError("Le fichier est vide.")
+
+    source_headers = sheet_rows[header_index]
+    data_rows = sheet_rows[header_index + 1 :]
+    column_count = max([len(source_headers), *(len(row) for row in data_rows)] or [0])
+    if column_count > 100:
+        raise ValueError("Le fichier dépasse la limite de 100 colonnes.")
+
+    headers = []
+    occurrences = {}
+    for index in range(column_count):
+        base_header = (
+            _normalize_cell(source_headers[index])
+            if index < len(source_headers)
+            else ""
+        ) or f"Colonne {index + 1}"
+        occurrence = occurrences.get(base_header, 0) + 1
+        occurrences[base_header] = occurrence
+        headers.append(base_header if occurrence == 1 else f"{base_header} ({occurrence})")
+
+    payloads = []
+    for row in data_rows:
+        payload = {
+            header: _normalize_cell(row[index]) if index < len(row) else ""
+            for index, header in enumerate(headers)
+        }
+        if any(payload.values()):
+            payloads.append(payload)
+    return headers, payloads
+
+
 def _concordance_rows_from_file(uploaded_file):
     """Read a concordance workbook, favouring Feuil2 when it is available."""
     filename = str(getattr(uploaded_file, "name", "")).lower()
@@ -2416,7 +2480,43 @@ def _concordance_window_summary(rows):
 def concordance_campaigns_view(request):
     if request.method == "POST":
         action = request.POST.get("action")
-        if action == "clear":
+        if action == "pending_contacts_clear":
+            PendingLearnerContactImport.objects.all().delete()
+            messages.success(request, "Les contacts importés ont été supprimés.")
+        elif action == "pending_contacts_upload":
+            uploaded_file = request.FILES.get("fichier")
+            if not uploaded_file:
+                messages.error(request, "Sélectionnez un fichier avant de lancer l’import.")
+            else:
+                try:
+                    headers, payloads = _pending_contact_rows_from_file(uploaded_file)
+                    if not payloads:
+                        raise ValueError("Aucune ligne de contact n’a été trouvée.")
+                    source_filename = str(uploaded_file.name).replace("\\", "/").rsplit("/", 1)[-1]
+                    with transaction.atomic():
+                        PendingLearnerContactImport.objects.all().delete()
+                        import_batch = PendingLearnerContactImport.objects.create(
+                            source_filename=source_filename[:255],
+                            headers=headers,
+                        )
+                        PendingLearnerContactRecord.objects.bulk_create(
+                            [
+                                PendingLearnerContactRecord(
+                                    import_batch=import_batch,
+                                    row_number=index,
+                                    payload=payload,
+                                )
+                                for index, payload in enumerate(payloads, start=1)
+                            ],
+                            batch_size=500,
+                        )
+                    messages.success(
+                        request,
+                        f"{len(payloads)} contacts importés et ancien fichier remplacé.",
+                    )
+                except Exception as exc:
+                    messages.error(request, str(exc))
+        elif action == "clear":
             ConcordanceRecord.objects.all().delete()
             messages.success(request, "Les travaux de concordance ont été supprimés.")
         elif action == "upload":
@@ -2434,6 +2534,8 @@ def concordance_campaigns_view(request):
                     messages.success(request, f"{len(records)} lignes de concordance importées.")
                 except Exception as exc:
                     messages.error(request, str(exc))
+        if action in {"pending_contacts_clear", "pending_contacts_upload"}:
+            return redirect(f"{reverse('concordance_campaigns')}?tab=pending-contacts")
         return redirect("concordance_campaigns")
 
     # L'ordre d'import est celui de Feuil2 : en particulier, la ligne TOTAL
@@ -2512,6 +2614,21 @@ def concordance_campaigns_view(request):
             "genre": key[0], "fenetre": key[1], "concordance": concordance_counts.get(key, 0),
             "appels": campaign_row.get("total", 0), "tentes": campaign_row.get("tentes", 0), "reussis": campaign_row.get("reussis", 0),
         })
+    pending_contact_import = PendingLearnerContactImport.objects.first()
+    pending_contact_headers = pending_contact_import.headers if pending_contact_import else []
+    pending_contact_count = (
+        pending_contact_import.records.count() if pending_contact_import else 0
+    )
+    pending_contact_rows = []
+    if pending_contact_import:
+        pending_contact_rows = [
+            {
+                "row_number": record.row_number,
+                "values": [record.payload.get(header, "") for header in pending_contact_headers],
+            }
+            for record in pending_contact_import.records.all()[:100]
+        ]
+
     return render(request, "reporting/concordance_campaigns.html", {
         "concordance_count": len(concordance), "filtered_concordance_count": len(filtered_concordance),
         "headers": headers, "concordance_rows": concordance_rows, "is_feuil2_layout": is_feuil2_layout, "filter_options": filter_options,
@@ -2520,6 +2637,10 @@ def concordance_campaigns_view(request):
         "campaign_rows": campaign_rows, "synthesis_rows": synthesis,
         "not_formed_campaign_rows": not_formed_campaign_rows,
         "not_formed_campaign_summary": not_formed_campaign_summary,
+        "pending_contact_import": pending_contact_import,
+        "pending_contact_count": pending_contact_count,
+        "pending_contact_headers": pending_contact_headers,
+        "pending_contact_rows": pending_contact_rows,
         "concordance_gender_summary": _concordance_window_summary(filtered_concordance),
         "campaign_gender_summary": _window_gender_summary(
             campaign_rows, gender_key=lambda row: row["genre"], window_key=lambda row: row["fenetre"],

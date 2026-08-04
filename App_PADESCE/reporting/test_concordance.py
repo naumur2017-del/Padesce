@@ -1,12 +1,16 @@
+import io
+
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
+from openpyxl import Workbook
 
 from App_PADESCE.appels.models import AppelPasFormeII
 from App_PADESCE.reporting import views
-from App_PADESCE.reporting.models import ConcordanceRecord
+from App_PADESCE.reporting.models import ConcordanceRecord, PendingLearnerContactImport
 
 
 def _postgres_jsonb_order(payload):
@@ -60,6 +64,41 @@ class ConcordancePostgresParityTests(SimpleTestCase):
                 {"window": "Total", "men": 17, "women": 6, "total": 23},
             ],
         )
+
+    def test_pending_contact_csv_preserves_source_column_order(self):
+        uploaded_file = SimpleUploadedFile(
+            "contacts.csv",
+            "PRESTA ID;Apprenant;Téléphone\nPRESTA001;Alice;690000001\n".encode(),
+            content_type="text/csv",
+        )
+
+        headers, payloads = views._pending_contact_rows_from_file(uploaded_file)
+
+        self.assertEqual(headers, ["PRESTA ID", "Apprenant", "Téléphone"])
+        self.assertEqual(
+            payloads,
+            [
+                {
+                    "PRESTA ID": "PRESTA001",
+                    "Apprenant": "Alice",
+                    "Téléphone": "690000001",
+                }
+            ],
+        )
+
+    def test_pending_contact_xlsx_uses_first_sheet(self):
+        workbook = Workbook()
+        worksheet = workbook.active
+        worksheet.append(["PRESTA ID", "Apprenant", "Téléphone"])
+        worksheet.append(["PRESTA002", "Bob", "690000002"])
+        content = io.BytesIO()
+        workbook.save(content)
+        uploaded_file = SimpleUploadedFile("contacts.xlsx", content.getvalue())
+
+        headers, payloads = views._pending_contact_rows_from_file(uploaded_file)
+
+        self.assertEqual(headers, ["PRESTA ID", "Apprenant", "Téléphone"])
+        self.assertEqual(payloads[0]["Téléphone"], "690000002")
 
 
 class ConcordanceCampaignPageTests(TestCase):
@@ -130,3 +169,104 @@ class ConcordanceCampaignPageTests(TestCase):
             response.context["concordance_rows"][0]["values"][:5],
             ["1", "PRESTA001", "CFP FAMEAC", "COOP CA WALDE BEKA MARDOCK", "3"],
         )
+
+
+@override_settings(
+    STORAGES={
+        "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+        "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
+    }
+)
+class PendingLearnerContactImportTests(TestCase):
+    def setUp(self):
+        user = get_user_model().objects.create_user(
+            username="pending-contact-tester", password="test-pass-123"
+        )
+        manager_group, _ = Group.objects.get_or_create(name="manager_padesce")
+        user.groups.add(manager_group)
+        self.client.force_login(user)
+
+    @staticmethod
+    def _csv_file(name, rows):
+        return SimpleUploadedFile(name, rows.encode(), content_type="text/csv")
+
+    def test_import_replaces_previous_contact_file_atomically(self):
+        self.client.post(
+            reverse("concordance_campaigns"),
+            {
+                "action": "pending_contacts_upload",
+                "fichier": self._csv_file(
+                    "premier.csv",
+                    "PRESTA ID;Apprenant;Téléphone\nPRESTA001;Alice;690000001\n",
+                ),
+            },
+        )
+
+        response = self.client.post(
+            reverse("concordance_campaigns"),
+            {
+                "action": "pending_contacts_upload",
+                "fichier": self._csv_file(
+                    "second.csv",
+                    "Code;Nom;Contact\nPRESTA002;Bob;690000002\nPRESTA003;Carole;690000003\n",
+                ),
+            },
+        )
+
+        self.assertRedirects(
+            response,
+            f"{reverse('concordance_campaigns')}?tab=pending-contacts",
+        )
+        self.assertEqual(PendingLearnerContactImport.objects.count(), 1)
+        current_import = PendingLearnerContactImport.objects.get()
+        self.assertEqual(current_import.source_filename, "second.csv")
+        self.assertEqual(current_import.headers, ["Code", "Nom", "Contact"])
+        self.assertEqual(current_import.records.count(), 2)
+
+    def test_invalid_import_keeps_current_contacts(self):
+        self.client.post(
+            reverse("concordance_campaigns"),
+            {
+                "action": "pending_contacts_upload",
+                "fichier": self._csv_file(
+                    "contacts.csv",
+                    "Code;Nom\nPRESTA001;Alice\n",
+                ),
+            },
+        )
+        current_import = PendingLearnerContactImport.objects.get()
+
+        self.client.post(
+            reverse("concordance_campaigns"),
+            {
+                "action": "pending_contacts_upload",
+                "fichier": SimpleUploadedFile("invalide.txt", b"contenu invalide"),
+            },
+        )
+
+        self.assertEqual(PendingLearnerContactImport.objects.count(), 1)
+        self.assertTrue(PendingLearnerContactImport.objects.filter(id=current_import.id).exists())
+        self.assertEqual(current_import.records.count(), 1)
+
+    def test_page_renders_fourth_tab_and_imported_table(self):
+        self.client.post(
+            reverse("concordance_campaigns"),
+            {
+                "action": "pending_contacts_upload",
+                "fichier": self._csv_file(
+                    "contacts.csv",
+                    "PRESTA ID;Apprenant;Téléphone\nPRESTA001;Alice;690000001\n",
+                ),
+            },
+        )
+
+        response = self.client.get(reverse("concordance_campaigns"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response,
+            "Récupération des contacts des apprenants des prestations en attente",
+        )
+        self.assertContains(response, "contacts.csv")
+        self.assertContains(response, "690000001")
+        self.assertEqual(response.context["pending_contact_count"], 1)
