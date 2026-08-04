@@ -2408,6 +2408,25 @@ def _gender_key(value):
     return ""
 
 
+def _formed_people_summary():
+    """Count Pas Formés II people marked est_forme, by fenêtre and genre."""
+    summary = {"total": 0, "fenetre_2": 0, "fenetre_3": 0, "hommes": 0, "femmes": 0}
+    calls = AppelPasFormeII.objects.filter(is_active=True, est_forme=True).values("genre", "fenetre")
+    for call in calls:
+        summary["total"] += 1
+        window = _campaign_window_key(call["fenetre"])
+        if window == "Fenêtre 2":
+            summary["fenetre_2"] += 1
+        elif window == "Fenêtre 3":
+            summary["fenetre_3"] += 1
+        gender = _gender_key(call["genre"])
+        if gender == "men":
+            summary["hommes"] += 1
+        elif gender == "women":
+            summary["femmes"] += 1
+    return summary
+
+
 def _window_gender_summary(rows, *, gender_key, window_key, value_key=lambda _row: 1):
     """Build the Fenêtre 2 / Fenêtre 3 H/F/T recap used on each tab."""
     totals = {
@@ -2761,6 +2780,7 @@ def concordance_campaigns_view(request):
             bucket["formes"] += 1
     campaign_rows = sorted(campaign.values(), key=lambda row: (row["fenetre"], row["genre"]))
     not_formed_campaign_rows, not_formed_campaign_summary = _build_pas_forme_ii_campaign()
+    formed_people_summary = _formed_people_summary()
     concordance_counts = {}
     for row in concordance:
         key = (row.genre, row.fenetre)
@@ -2808,6 +2828,7 @@ def concordance_campaigns_view(request):
         "campaign_rows": campaign_rows, "synthesis_rows": synthesis,
         "not_formed_campaign_rows": not_formed_campaign_rows,
         "not_formed_campaign_summary": not_formed_campaign_summary,
+        "formed_people_summary": formed_people_summary,
         "synthesis_reconciliation_rows": synthesis_reconciliation_rows,
         "synthesis_reconciliation_summary": synthesis_reconciliation_summary,
         "pending_contact_import": pending_contact_import,
