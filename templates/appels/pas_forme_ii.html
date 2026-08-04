@@ -61,7 +61,7 @@
   </details>
 
   <details class="panel" open>
-    <summary>Seuil de formulaires remplis par prestation — 30 %</summary>
+    <summary>Seuil de formulaires remplis par prestation — {{ pas_forme_ii_threshold_percent }} %</summary>
     <div class="table">
       <table>
         <tr><th>Prestation</th><th>Formulaires</th><th>Objectif</th><th>%</th></tr>
@@ -83,7 +83,7 @@
       </select>
       <select class="input" name="genre"><option value="">Genre</option>{% for value in filters.genres %}<option value="{{ value }}" {% if filters.genre == value %}selected{% endif %}>{{ value }}</option>{% endfor %}</select>
       <select class="input" name="fenetre"><option value="">Fenêtre</option>{% for value in filters.fenetres %}<option value="{{ value }}" {% if filters.fenetre == value %}selected{% endif %}>{{ value }}</option>{% endfor %}</select>
-      <select class="input" name="prestation"><option value="">Prestation — seuil 30 %</option>{% for p in filters.prestations %}<option value="{{ p }}" {% if filters.prestation == p %}selected{% endif %}>{{ p }}</option>{% endfor %}</select>
+      <select class="input" name="prestation"><option value="">Prestation — seuil {{ pas_forme_ii_threshold_percent }} %</option>{% for p in filters.prestations %}<option value="{{ p }}" {% if filters.prestation == p %}selected{% endif %}>{{ p }}</option>{% endfor %}</select>
       <select class="input" name="prestataire"><option value="">Prestataire</option>{% for p in filters.prestataires %}<option value="{{ p }}" {% if filters.prestataire == p %}selected{% endif %}>{{ p }}</option>{% endfor %}</select>
       <select class="input" name="beneficiaire"><option value="">Bénéficiaire</option>{% for p in filters.beneficiaires %}<option value="{{ p }}" {% if filters.beneficiaire == p %}selected{% endif %}>{{ p }}</option>{% endfor %}</select>
       <button class="btn">Filtrer</button>

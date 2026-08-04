@@ -22,6 +22,10 @@ from django.views.decorators.http import require_POST
 from openpyxl import Workbook, load_workbook
 
 from App_PADESCE.appels.models import Appel, AppelPasFormeII, is_call_attempted_status
+from App_PADESCE.appels.thresholds import (
+    PAS_FORME_II_THRESHOLD_PERCENT,
+    pas_forme_ii_threshold_target,
+)
 from App_PADESCE.apprenants.models import Apprenant, SmsLog
 from App_PADESCE.core.access import require_analysis_access, require_superadmin_access
 from App_PADESCE.environnement.models import EnqueteEnvironnement
@@ -2335,14 +2339,16 @@ def _synthesis_payload_identity(payload):
 
 
 def _build_pas_forme_ii_campaign():
-    """Return every Pas Formés II prestation and its 30% call threshold status."""
+    """Return every Pas Formés II prestation and its configured threshold status."""
     thresholded = {}
     aggregates = AppelPasFormeII.objects.filter(is_active=True).values("prestation_id").annotate(
         total=Count("id"), appeles=Count("id", filter=Q(formulaire_rempli_at__isnull=False))
     )
     for item in aggregates:
         total, appeles = int(item["total"] or 0), int(item["appeles"] or 0)
-        thresholded[item["prestation_id"]] = bool(total and appeles >= max(1, (total * 30 + 99) // 100))
+        thresholded[item["prestation_id"]] = bool(
+            total and appeles >= pas_forme_ii_threshold_target(total)
+        )
 
     calls = list(AppelPasFormeII.objects.filter(
         is_active=True
@@ -2941,6 +2947,7 @@ def concordance_campaigns_view(request):
         "campaign_rows": campaign_rows, "synthesis_rows": synthesis,
         "not_formed_campaign_rows": not_formed_campaign_rows,
         "not_formed_campaign_summary": not_formed_campaign_summary,
+        "pas_forme_ii_threshold_percent": PAS_FORME_II_THRESHOLD_PERCENT,
         "formed_people_summary": formed_people_summary,
         "synthesis_reconciliation_rows": synthesis_reconciliation_rows,
         "synthesis_reconciliation_summary": synthesis_reconciliation_summary,

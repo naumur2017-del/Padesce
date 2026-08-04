@@ -7,6 +7,7 @@ from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
 from django.urls import reverse
+from django.utils import timezone
 
 from App_PADESCE.appels.models import AppelPasFormeII
 
@@ -177,6 +178,28 @@ class AppelPasFormeIIImportTests(TestCase):
         existing.refresh_from_db()
         self.assertTrue(existing.is_active)
         self.assertContains(response, "Comparaison annulée")
+
+    def test_page_uses_ten_percent_threshold_with_ceiling(self):
+        calls = []
+        for prestation_id, total in (("PRESTA-TEN", 10), ("PRESTA-ELEVEN", 11)):
+            for index in range(total):
+                calls.append(
+                    AppelPasFormeII(
+                        reference_code=f"{prestation_id}-{index}",
+                        prestation_id=prestation_id,
+                        nom=f"Apprenant {prestation_id} {index}",
+                        formulaire_rempli_at=timezone.now() if index == 0 else None,
+                    )
+                )
+        AppelPasFormeII.objects.bulk_create(calls)
+
+        response = self.client.get(reverse("pas_forme_ii_index"))
+        thresholds = {row["prestation_id"]: row for row in response.context["thresholds"]}
+
+        self.assertEqual(response.context["pas_forme_ii_threshold_percent"], 10)
+        self.assertEqual(thresholds["PRESTA-TEN"]["target"], 1)
+        self.assertEqual(thresholds["PRESTA-ELEVEN"]["target"], 2)
+        self.assertContains(response, "Seuil de formulaires remplis par prestation — 10 %")
 
 
 @override_settings(
