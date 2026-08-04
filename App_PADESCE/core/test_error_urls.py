@@ -1,5 +1,7 @@
 from django.core.exceptions import PermissionDenied, SuspiciousOperation
+from django.contrib.auth import get_user_model
 from django.http import Http404, HttpResponse, JsonResponse
+from django.test import TestCase, override_settings
 from django.urls import path
 
 
@@ -35,3 +37,16 @@ urlpatterns = [
     path("server-error/", server_error_view),
     path("json-forbidden/", json_forbidden_view),
 ]
+
+
+@override_settings(DEBUG=True, ROOT_URLCONF="App_PADESCE.core.test_error_urls")
+class ErrorPageStaticIndependenceTests(TestCase):
+    def test_500_page_does_not_depend_on_a_static_manifest_entry(self):
+        user = get_user_model().objects.create_user("error-page-static-user", password="test-pass")
+        self.client.force_login(user)
+        self.client.raise_request_exception = False
+
+        response = self.client.get("/server-error/")
+
+        self.assertEqual(response.status_code, 500)
+        self.assertNotContains(response, "branding/logo.png", status_code=500)

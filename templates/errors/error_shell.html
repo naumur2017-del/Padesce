@@ -13,8 +13,8 @@
   <meta name="apple-mobile-web-app-title" content="PADESCE">
   <meta name="theme-color" content="#d15a32">
   <meta name="msapplication-TileColor" content="#d15a32">
-  <link rel="icon" type="image/png" href="{% static 'branding/logo.png' %}">
-  <link rel="apple-touch-icon" href="{% static 'branding/logo.png' %}">
+  {# Cette page doit rester affichable même si le manifeste des fichiers
+     statiques est incomplet pendant un déploiement. #}
   <style>
     :root {
       --ink: #0f233d;
