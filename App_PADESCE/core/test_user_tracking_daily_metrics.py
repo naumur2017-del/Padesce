@@ -1,7 +1,8 @@
 from datetime import timedelta
 
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.test import TestCase, override_settings
+from django.urls import reverse
 from django.utils import timezone
 
 from App_PADESCE.appels.models import Appel, AppelPasFormeII
@@ -9,6 +10,14 @@ from App_PADESCE.core.models import UserActivity
 from App_PADESCE.core.views import _compute_tracking_payload
 
 
+@override_settings(
+    STORAGES={
+        "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+        "staticfiles": {
+            "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"
+        },
+    }
+)
 class UserTrackingDailyMetricsTests(TestCase):
     def _set_appel_updated_at(self, appel, updated_at):
         Appel.objects.filter(pk=appel.pk).update(updated_at=updated_at)
@@ -103,3 +112,28 @@ class UserTrackingDailyMetricsTests(TestCase):
         self.assertEqual(row["formulaires_sans_audio_aujourdhui"], 1)
         self.assertEqual(row["formulaires_avec_audio_aujourdhui"], 1)
         self.assertEqual(payload["formulaires_remplis_aujourdhui"], 2)
+
+    def test_tracking_page_displays_today_form_counts(self):
+        Appel.objects.create(
+            code="TRK004",
+            nom="Sans audio",
+            locked_by=self.agent,
+            status="formulaire_rempli",
+            is_active=True,
+        )
+        AppelPasFormeII.objects.create(
+            reference_code="PFII-TRACK-PAGE-AUDIO",
+            prestation_id="PRESTA-TRACK",
+            nom="Avec audio",
+            locked_by=self.agent,
+            status="formulaire_avec_audio",
+            is_active=True,
+        )
+        self.client.force_login(self.superuser)
+
+        response = self.client.get(reverse("user_tracking"))
+
+        self.assertContains(response, "Formulaires remplis aujourd’hui (depuis 00h)")
+        self.assertContains(response, "Sans audio aujourd’hui")
+        self.assertContains(response, "Avec audio aujourd’hui")
+        self.assertEqual(response.context["formulaires_remplis_aujourdhui"], 2)
