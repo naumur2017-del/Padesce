@@ -230,6 +230,53 @@ class ConcordanceCampaignPageTests(TestCase):
         self.assertEqual(rows_by_method["R"]["appeles"], 0)
         self.assertEqual(rows_by_method["R"]["total"], 1)
 
+    @override_settings(
+        STORAGES={
+            "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+            "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
+        }
+    )
+    def test_synthesis_keeps_unattempted_ra_and_flexible_r_source_headers(self):
+        ConcordanceRecord.objects.create(
+            fenetre="3",
+            payload=_postgres_jsonb_order(_feuil2_payload()),
+        )
+        AppelPasFormeII.objects.create(
+            reference_code="PFII-WAITING-001",
+            prestation_id="PRESTA004",
+            nom="Apprenant en attente",
+            prestataire="Prestataire RA en attente",
+            beneficiaire="Bénéficiaire RA en attente",
+            genre="H",
+            fenetre="2",
+            is_active=True,
+            status="en_attente",
+        )
+        pending_import = PendingLearnerContactImport.objects.create(
+            source_filename="contacts.xlsx",
+            headers=["Prestation ID", "Prestataires", "Bénéficiaires", "Fenetre appel"],
+        )
+        PendingLearnerContactRecord.objects.create(
+            import_batch=pending_import,
+            row_number=1,
+            payload={
+                "Prestation ID": "PRESTA005",
+                "Prestataires": "Prestataire R",
+                "Bénéficiaires": "Bénéficiaire R",
+                "Fenetre appel": "2",
+            },
+        )
+
+        response = self.client.get(reverse("concordance_campaigns"))
+        rows = response.context["synthesis_reconciliation_rows"]
+        rows_by_key = {(row["methode"], row["presta_id"]): row for row in rows}
+
+        self.assertEqual(rows_by_key[("RA", "PRESTA004")]["appeles"], 0)
+        self.assertEqual(rows_by_key[("RA", "PRESTA004")]["total"], 1)
+        self.assertEqual(rows_by_key[("R", "PRESTA005")]["prestataire"], "Prestataire R")
+        self.assertEqual(rows_by_key[("R", "PRESTA005")]["beneficiaire"], "Bénéficiaire R")
+        self.assertEqual(rows_by_key[("R", "PRESTA005")]["fenetre"], "2")
+
 
 @override_settings(
     STORAGES={

@@ -2310,8 +2310,32 @@ def _concordance_payload_value(payload, *aliases):
     return ""
 
 
+def _synthesis_payload_identity(payload):
+    """Read the source identifiers used by RC and the freely-shaped R import."""
+    return {
+        "presta_id": _concordance_payload_value(
+            payload,
+            "PRESTA ID", "PRESTAID", "PRESTATION ID", "PRESTATION",
+            "CODE PRESTATION", "CODE PRESTA",
+        ),
+        "prestataire": _concordance_payload_value(
+            payload,
+            "PRESTATAIRE", "PRESTATAIRES", "NOM PRESTATAIRE",
+            "NOM DU PRESTATAIRE", "STRUCTURE PRESTATAIRE",
+        ),
+        "beneficiaire": _concordance_payload_value(
+            payload,
+            "BENEFICIAIRE", "BENEFICIAIRES", "NOM BENEFICIAIRE",
+            "NOM DU BENEFICIAIRE", "STRUCTURE BENEFICIAIRE",
+        ),
+        "fenetre": _concordance_payload_value(
+            payload, "FENETRE", "FENETRE APPEL", "FENETRE D APPEL", "COHORTE"
+        ),
+    }
+
+
 def _build_pas_forme_ii_campaign():
-    """Return Pas Formés II prestations along with their 30% call threshold status."""
+    """Return every Pas Formés II prestation and its 30% call threshold status."""
     thresholded = {}
     aggregates = AppelPasFormeII.objects.filter(is_active=True).values("prestation_id").annotate(
         total=Count("id"), appeles=Count("id", filter=Q(formulaire_rempli_at__isnull=False))
@@ -2353,7 +2377,9 @@ def _build_pas_forme_ii_campaign():
                 pass
         segment["apprenants"].append({"nom": call.nom, "code": call.reference_code, "genre": genre, "fenetre": key[3], "presta_id": key[0], "audio_url": audio_url, "audio_disponible": bool(audio_url)})
 
-    rows = [row for row in segments.values() if row["appeles"]]
+    # Keep the prestations still awaiting their first call.  They are present in
+    # the RA source tab and must consequently also be visible in the synthesis.
+    rows = list(segments.values())
     summary = {
         "prestations": sum(1 for atteint in thresholded.values() if atteint),
         "appels_effectues": 0,
@@ -2542,12 +2568,13 @@ def _build_synthesis_reconciliation_rows(concordance, headers, campaign_rows, pe
 
     concordance_segments = {}
     for record in concordance:
-        presta_id = _concordance_payload_value(record.payload, "PRESTA ID", "PRESTAID")
+        identity = _synthesis_payload_identity(record.payload)
+        presta_id = identity["presta_id"]
         if not presta_id or presta_id.upper() == "TOTAL GENERAL":
             continue
-        prestataire = _concordance_payload_value(record.payload, "PRESTATAIRE")
-        beneficiaire = _concordance_payload_value(record.payload, "BENEFICIAIRE", "BÉNÉFICIAIRE")
-        fenetre = record.fenetre or _concordance_payload_value(record.payload, "FENETRE", "FENÊTRE")
+        prestataire = identity["prestataire"]
+        beneficiaire = identity["beneficiaire"]
+        fenetre = record.fenetre or identity["fenetre"]
         key = (presta_id, prestataire, beneficiaire, fenetre)
         segment = concordance_segments.setdefault(
             key,
@@ -2564,10 +2591,17 @@ def _build_synthesis_reconciliation_rows(concordance, headers, campaign_rows, pe
             },
         )
         hommes, femmes = _concordance_final_gender_values(record, headers)
-        total_value = _concordance_payload_value(
+        source_total_value = _concordance_payload_value(
+            record.payload,
+            "NBRE PERSONNES FORMEES SELON FICHE DE PRESENCE RAPPORT PRESTATAIRE - T",
+        )
+        final_total_value = _concordance_payload_value(
             record.payload,
             "NOMBRE FORME TOTAL AVEC TAUX DE CONCORDANCE - T",
         )
+        # RC displays the reconciled people called against the original
+        # presence-list total, as in the concordance tab.
+        total_value = source_total_value or final_total_value
         total = int(round(_number_from_concordance_payload({"value": total_value}, "value")))
         total = total if total_value else hommes + femmes
         segment["hommes"] += hommes
@@ -2594,13 +2628,11 @@ def _build_synthesis_reconciliation_rows(concordance, headers, campaign_rows, pe
     if pending_contact_import:
         pending_segments = {}
         for record in pending_contact_import.records.all():
-            payload = record.payload
-            presta_id = _concordance_payload_value(
-                payload, "PRESTA ID", "PRESTAID", "CODE PRESTATION", "CODE"
-            ) or "Non renseigné"
-            prestataire = _concordance_payload_value(payload, "PRESTATAIRE")
-            beneficiaire = _concordance_payload_value(payload, "BENEFICIAIRE", "BÉNÉFICIAIRE")
-            fenetre = _concordance_payload_value(payload, "FENETRE", "FENÊTRE")
+            identity = _synthesis_payload_identity(record.payload)
+            presta_id = identity["presta_id"] or "Non renseigné"
+            prestataire = identity["prestataire"]
+            beneficiaire = identity["beneficiaire"]
+            fenetre = identity["fenetre"]
             key = (presta_id, prestataire, beneficiaire, fenetre)
             segment = pending_segments.setdefault(
                 key,
