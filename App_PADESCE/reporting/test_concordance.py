@@ -193,12 +193,23 @@ class ConcordanceCampaignPageTests(TestCase):
         self.assertEqual(apprenants["PFII-EXCESS"]["statut_formation"], "Pas formé")
         self.assertEqual(apprenants["PFII-LOW"]["statut_formation"], "Pas formé")
 
-    def test_campaign_gender_summary_counts_only_formed_learners(self):
+    def test_campaign_gender_summary_is_built_from_decision_hf_columns(self):
+        # PRESTA-DEC2 (fenêtre 2): 4/4 formés (taux 100% > 75) -> decision = total = 4,
+        # reparti a parts egales (2 hommes appeles, 2 femmes appelees).
         AppelPasFormeII.objects.bulk_create([
-            AppelPasFormeII(reference_code="PFII-H2-FORME", prestation_id="PRESTA-SUM", nom="Homme formé", genre="H", fenetre="2", total_seances=4, nombre_seances_declare=3, formulaire_rempli_at=timezone.now()),
-            AppelPasFormeII(reference_code="PFII-F2-NON", prestation_id="PRESTA-SUM", nom="Femme non formée", genre="F", fenetre="2", total_seances=4, nombre_seances_declare=2, formulaire_rempli_at=timezone.now()),
-            AppelPasFormeII(reference_code="PFII-F3-FORME", prestation_id="PRESTA-SUM", nom="Femme formée", genre="F", fenetre="3", total_seances=4, nombre_seances_declare=4, formulaire_rempli_at=timezone.now()),
-            AppelPasFormeII(reference_code="PFII-H3-EXCESS", prestation_id="PRESTA-SUM", nom="Homme excès", genre="H", fenetre="3", total_seances=4, nombre_seances_declare=5, formulaire_rempli_at=timezone.now()),
+            AppelPasFormeII(reference_code="PFII-DEC2-H1", prestation_id="PRESTA-DEC2", nom="H1", genre="H", fenetre="2", total_seances=10, nombre_seances_declare=9, formulaire_rempli_at=timezone.now()),
+            AppelPasFormeII(reference_code="PFII-DEC2-H2", prestation_id="PRESTA-DEC2", nom="H2", genre="H", fenetre="2", total_seances=10, nombre_seances_declare=8, formulaire_rempli_at=timezone.now()),
+            AppelPasFormeII(reference_code="PFII-DEC2-F1", prestation_id="PRESTA-DEC2", nom="F1", genre="F", fenetre="2", total_seances=10, nombre_seances_declare=9, formulaire_rempli_at=timezone.now()),
+            AppelPasFormeII(reference_code="PFII-DEC2-F2", prestation_id="PRESTA-DEC2", nom="F2", genre="F", fenetre="2", total_seances=10, nombre_seances_declare=8, formulaire_rempli_at=timezone.now()),
+        ])
+        # PRESTA-DEC3 (fenêtre 3): 4/5 formés (taux 80% > 75) -> decision = total = 5,
+        # reparti au prorata des 4 hommes / 1 femme appeles (4 et 1).
+        AppelPasFormeII.objects.bulk_create([
+            AppelPasFormeII(reference_code="PFII-DEC3-H1", prestation_id="PRESTA-DEC3", nom="H1", genre="H", fenetre="3", total_seances=10, nombre_seances_declare=9, formulaire_rempli_at=timezone.now()),
+            AppelPasFormeII(reference_code="PFII-DEC3-H2", prestation_id="PRESTA-DEC3", nom="H2", genre="H", fenetre="3", total_seances=10, nombre_seances_declare=8, formulaire_rempli_at=timezone.now()),
+            AppelPasFormeII(reference_code="PFII-DEC3-H3", prestation_id="PRESTA-DEC3", nom="H3", genre="H", fenetre="3", total_seances=10, nombre_seances_declare=9, formulaire_rempli_at=timezone.now()),
+            AppelPasFormeII(reference_code="PFII-DEC3-H4-NON", prestation_id="PRESTA-DEC3", nom="H4 pas forme", genre="H", fenetre="3", total_seances=10, nombre_seances_declare=2, formulaire_rempli_at=timezone.now()),
+            AppelPasFormeII(reference_code="PFII-DEC3-F1", prestation_id="PRESTA-DEC3", nom="F1", genre="F", fenetre="3", total_seances=10, nombre_seances_declare=9, formulaire_rempli_at=timezone.now()),
         ])
 
         response = self.client.get(reverse("concordance_campaigns"))
@@ -206,14 +217,14 @@ class ConcordanceCampaignPageTests(TestCase):
         self.assertEqual(
             response.context["campaign_gender_summary"],
             [
-                {"window": "Fenêtre 2", "men": 1, "women": 0, "total": 1},
-                {"window": "Fenêtre 3", "men": 0, "women": 1, "total": 1},
-                {"window": "Total", "men": 1, "women": 1, "total": 2},
+                {"window": "Fenêtre 2", "men": 2, "women": 2, "total": 4},
+                {"window": "Fenêtre 3", "men": 4, "women": 1, "total": 5},
+                {"window": "Total", "men": 6, "women": 3, "total": 9},
             ],
         )
         self.assertEqual(
             response.context["campaign_formed_people_summary"],
-            {"total": 2, "fenetre_2": 1, "fenetre_3": 1, "hommes": 1, "femmes": 1},
+            {"total": 9, "fenetre_2": 4, "fenetre_3": 5, "hommes": 6, "femmes": 3},
         )
         self.assertEqual(
             response.context["synthesis_gender_summary"],
