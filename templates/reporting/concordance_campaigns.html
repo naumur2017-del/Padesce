@@ -90,7 +90,7 @@
     const rows = JSON.parse(document.getElementById('not-formed-campaign-data').textContent);
     const header = table.querySelector('thead tr');
     const thresholdHeader = [...header.children].find(cell => cell.textContent.trim() === 'Seuil atteint');
-    ['Formés H', 'Formés F', 'Formés fenêtre 2', 'Formés fenêtre 3', 'Total formé', 'Total pas formé', 'Taux de confirmation', 'Décision'].forEach(label => {
+    ['Formés H', 'Formés F', 'Formés fenêtre 2', 'Formés fenêtre 3', 'Total formé', 'Total pas formé', 'Taux de confirmation', 'Décision H', 'Décision F', 'Décision'].forEach(label => {
       const cell = document.createElement('th');
       cell.textContent = label;
       header.insertBefore(cell, thresholdHeader);
@@ -113,6 +113,12 @@
       const rate = row.taux_formation;
       rateCell.textContent = rate === null || rate === undefined ? '—' : `${Number(rate).toFixed(1).replace(/\.0$/, '')} %`;
       tableRow.insertBefore(rateCell, thresholdCell);
+      const decisionHommesCell = document.createElement('td');
+      decisionHommesCell.textContent = row.decision_hommes ?? '_';
+      tableRow.insertBefore(decisionHommesCell, thresholdCell);
+      const decisionFemmesCell = document.createElement('td');
+      decisionFemmesCell.textContent = row.decision_femmes ?? '_';
+      tableRow.insertBefore(decisionFemmesCell, thresholdCell);
       const decisionCell = document.createElement('td');
       decisionCell.textContent = row.decision ?? '_';
       tableRow.insertBefore(decisionCell, thresholdCell);
