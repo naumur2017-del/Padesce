@@ -2522,18 +2522,21 @@ def _formed_people_summary(concordance_window_summary):
     }
 
 
-def _window_gender_summary(rows, *, gender_key, window_key, value_key=lambda _row: 1):
-    """Build the Fenêtre 2 / Fenêtre 3 H/F/T recap used on each tab."""
+def _decision_gender_summary(rows):
+    """Build the Fenêtre 2 / Fenêtre 3 H/F/T recap from the Decision H/F columns
+    of the 'Prestations et seuil des appels' table (one row per prestation)."""
     totals = {
         "Fenêtre 2": {"men": 0, "women": 0},
         "Fenêtre 3": {"men": 0, "women": 0},
     }
     for row in rows:
-        window = _campaign_window_key(window_key(row))
-        gender = _gender_key(gender_key(row))
-        if not window or not gender:
+        window = _campaign_window_key(row["fenetre"])
+        if not window:
             continue
-        totals[window][gender] += value_key(row) or 0
+        hommes = row["decision_hommes"]
+        femmes = row["decision_femmes"]
+        totals[window]["men"] += hommes if hommes != "_" else 0
+        totals[window]["women"] += femmes if femmes != "_" else 0
 
     summary_rows = []
     for window, values in totals.items():
@@ -3131,12 +3134,7 @@ def concordance_campaigns_view(request):
     synthesis_reconciliation_summary["total"] = len(synthesis_reconciliation_rows)
 
     concordance_gender_summary = _concordance_window_summary(concordance, headers)
-    campaign_gender_summary = _window_gender_summary(
-        campaign_rows,
-        gender_key=lambda row: row["genre"],
-        window_key=lambda row: row["fenetre"],
-        value_key=lambda row: row["formes"],
-    )
+    campaign_gender_summary = _decision_gender_summary(not_formed_campaign_rows)
     campaign_formed_people_summary = _formed_people_summary(campaign_gender_summary)
 
     return render(request, "reporting/concordance_campaigns.html", {
