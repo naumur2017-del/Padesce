@@ -2443,8 +2443,15 @@ def _build_pas_forme_ii_campaign():
         row["taux_formation"] = (row["formes_total"] / denom * 100) if denom else None
         decision_atteinte = row["taux_formation"] is not None and row["taux_formation"] > 75
         row["decision"] = row["total"] if decision_atteinte else "_"
-        row["decision_hommes"] = row["hommes"] if decision_atteinte else "_"
-        row["decision_femmes"] = row["femmes"] if decision_atteinte else "_"
+        gendered_calls = row["hommes"] + row["femmes"]
+        if decision_atteinte and gendered_calls:
+            # Split the prestation's total (not just the called headcount)
+            # using the H/F ratio observed among its called learners.
+            row["decision_hommes"] = round(row["total"] * row["hommes"] / gendered_calls)
+            row["decision_femmes"] = row["total"] - row["decision_hommes"]
+        else:
+            row["decision_hommes"] = "_"
+            row["decision_femmes"] = "_"
     summary = {
         "prestations": sum(1 for atteint in thresholded.values() if atteint),
         "appels_effectues": 0,
