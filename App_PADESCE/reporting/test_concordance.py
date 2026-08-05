@@ -1,3 +1,4 @@
+import csv
 import io
 
 from django.contrib.auth import get_user_model
@@ -212,6 +213,92 @@ class ConcordanceCampaignPageTests(TestCase):
             "Indéterminé",
         )
         self.assertTrue(apprenants["PFII-INDETERMINE"]["pas_forme_du_tout"])
+
+    def test_custom_formation_rate_interval_recalculates_all_dependent_values(self):
+        calls = []
+        for index, genre in enumerate(("H", "H", "F", "F"), start=1):
+            calls.append(AppelPasFormeII(
+                reference_code=f"PFII-CUSTOM-50-{index}",
+                prestation_id="PRESTA-CUSTOM-RATE",
+                nom=f"Taux 50 #{index}",
+                genre=genre,
+                fenetre="2",
+                total_seances=4,
+                nombre_seances_declare=2,
+                formulaire_rempli_at=timezone.now(),
+            ))
+        calls.append(AppelPasFormeII(
+            reference_code="PFII-CUSTOM-75",
+            prestation_id="PRESTA-CUSTOM-RATE",
+            nom="Taux 75",
+            genre="F",
+            fenetre="2",
+            total_seances=4,
+            nombre_seances_declare=3,
+            formulaire_rempli_at=timezone.now(),
+        ))
+        AppelPasFormeII.objects.bulk_create(calls)
+
+        default_response = self.client.get(reverse("concordance_campaigns"))
+        default_row = default_response.context["not_formed_campaign_rows"][0]
+        self.assertEqual(default_row["formes_total"], 1)
+        self.assertEqual(default_row["pas_formes_total"], 4)
+        self.assertEqual(default_row["decision"], "_")
+
+        params = {
+            "tab": "campaigns",
+            "formation_rate_min": "50",
+            "formation_rate_max": "50",
+        }
+        response = self.client.get(reverse("concordance_campaigns"), params)
+
+        self.assertEqual(response.status_code, 200)
+        interval = response.context["formation_rate_interval"]
+        self.assertEqual((interval["minimum"], interval["maximum"]), (50, 50))
+        row = response.context["not_formed_campaign_rows"][0]
+        statuses = {item["code"]: item["statut_formation"] for item in row["apprenants"]}
+        self.assertEqual(row["formes_total"], 4)
+        self.assertEqual(row["formes_hommes"], 2)
+        self.assertEqual(row["formes_femmes"], 2)
+        self.assertEqual(row["formes_fenetre_2"], 4)
+        self.assertEqual(row["pas_formes_total"], 1)
+        self.assertEqual(row["taux_formation"], 80)
+        self.assertEqual(row["decision"], 5)
+        self.assertEqual(row["decision_hommes"], 2)
+        self.assertEqual(row["decision_femmes"], 3)
+        self.assertEqual(statuses["PFII-CUSTOM-50-1"], "Formé")
+        self.assertEqual(statuses["PFII-CUSTOM-75"], "Pas formé")
+        self.assertEqual(response.context["campaign_formed_people_summary"]["total"], 5)
+        self.assertContains(response, 'value="50"')
+        self.assertContains(
+            response, 'id="formation-rate-min-slider" type="range"'
+        )
+        self.assertContains(
+            response, 'id="formation-rate-max-slider" type="range"'
+        )
+        self.assertContains(response, 'step="5"', count=2)
+
+        export_response = self.client.get(reverse("concordance_export_ra_csv"), params)
+        exported = list(csv.reader(io.StringIO(export_response.content.decode("utf-8-sig"))))
+        exported_row = dict(zip(exported[0], exported[1]))
+        self.assertEqual(exported_row["Formés total"], "4")
+        self.assertEqual(exported_row["Pas formés total"], "1")
+        self.assertEqual(exported_row["Décision"], "5")
+
+    def test_invalid_formation_rate_interval_falls_back_to_safe_defaults(self):
+        response = self.client.get(reverse("concordance_campaigns"), {
+            "tab": "campaigns",
+            "formation_rate_min": "130",
+            "formation_rate_max": "20",
+        })
+
+        interval = response.context["formation_rate_interval"]
+        self.assertEqual(
+            (interval["minimum"], interval["maximum"]),
+            (views.DEFAULT_FORMATION_RATE_MIN, views.DEFAULT_FORMATION_RATE_MAX),
+        )
+        self.assertTrue(interval["error"])
+        self.assertContains(response, "Les valeurs par défaut 75 % – 120 % ont été appliquées.")
 
     def test_campaign_gender_summary_is_built_from_decision_hf_columns(self):
         # PRESTA-DEC2 (fenêtre 2): 4/4 formés (taux 100% > 75) -> decision = total = 4,

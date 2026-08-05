@@ -2335,7 +2335,87 @@ def _synthesis_payload_identity(payload):
     }
 
 
-def _build_pas_forme_ii_campaign():
+DEFAULT_FORMATION_RATE_MIN = 75.0
+DEFAULT_FORMATION_RATE_MAX = 120.0
+
+
+def _format_rate_filter_value(value):
+    return f"{value:.6f}".rstrip("0").rstrip(".")
+
+
+def _formation_rate_interval(params):
+    """Return a validated, presentation-ready training-rate interval."""
+    default_min = DEFAULT_FORMATION_RATE_MIN
+    default_max = DEFAULT_FORMATION_RATE_MAX
+    raw_min = params.get("formation_rate_min")
+    raw_max = params.get("formation_rate_max")
+    error = ""
+
+    if raw_min is None and raw_max is None:
+        minimum, maximum = default_min, default_max
+    else:
+        try:
+            parsed_min = Decimal(str(raw_min or "").strip().replace(",", "."))
+            parsed_max = Decimal(str(raw_max or "").strip().replace(",", "."))
+            if not parsed_min.is_finite() or not parsed_max.is_finite():
+                raise InvalidOperation
+            minimum, maximum = float(parsed_min), float(parsed_max)
+            if minimum < 0 or maximum < 0 or maximum > 1000 or minimum > maximum:
+                raise ValueError
+        except (InvalidOperation, TypeError, ValueError):
+            minimum, maximum = default_min, default_max
+            error = (
+                "Saisissez deux taux valides entre 0 et 1 000, avec un minimum "
+                "inférieur ou égal au maximum."
+            )
+
+    minimum_value = _format_rate_filter_value(minimum)
+    maximum_value = _format_rate_filter_value(maximum)
+    return {
+        "minimum": minimum,
+        "maximum": maximum,
+        "minimum_value": minimum_value,
+        "maximum_value": maximum_value,
+        "query": urlencode({
+            "formation_rate_min": minimum_value,
+            "formation_rate_max": maximum_value,
+        }),
+        "error": error,
+    }
+
+
+def _training_status_from_sessions(
+    declared_sessions,
+    planned_sessions,
+    pas_forme_du_tout,
+    formation_rate_min=DEFAULT_FORMATION_RATE_MIN,
+    formation_rate_max=DEFAULT_FORMATION_RATE_MAX,
+):
+    """Classify one learner from the configured inclusive attendance interval."""
+    attendance_rate = None
+    training_status = "Non renseigné"
+    if planned_sessions is not None and planned_sessions > 0 and declared_sessions is not None:
+        if pas_forme_du_tout:
+            attendance_rate = 0
+            training_status = "Indéterminé"
+        elif declared_sessions == 0:
+            # A declared count of 0 does not reliably mean "attended nothing"
+            # because blank legacy inputs defaulted to 0.
+            training_status = "Non déterminé"
+        else:
+            attendance_rate = declared_sessions / planned_sessions * 100
+            training_status = (
+                "Formé"
+                if formation_rate_min <= attendance_rate <= formation_rate_max
+                else "Pas formé"
+            )
+    return training_status, attendance_rate
+
+
+def _build_pas_forme_ii_campaign(
+    formation_rate_min=DEFAULT_FORMATION_RATE_MIN,
+    formation_rate_max=DEFAULT_FORMATION_RATE_MAX,
+):
     """Return every Pas Formés II prestation and its 10% call threshold status."""
     thresholded = {}
     aggregates = AppelPasFormeII.objects.filter(is_active=True).values("prestation_id").annotate(
@@ -2387,22 +2467,13 @@ def _build_pas_forme_ii_campaign():
                 audio_url = call.audio_file.url
             except Exception:
                 pass
-        attendance_rate = None
-        training_status = "Non renseigné"
-        if declared_sessions is not None and planned_sessions is not None and planned_sessions > 0:
-            if call.pas_forme_du_tout:
-                attendance_rate = 0
-                training_status = "Indéterminé"
-            elif declared_sessions == 0:
-                # A declared count of 0 does not reliably mean "attended
-                # nothing" (blank inputs default to 0); treat it as
-                # indeterminate instead of asserting "Pas formé".
-                training_status = "Non déterminé"
-            else:
-                attendance_rate = declared_sessions / planned_sessions * 100
-                training_status = (
-                    "Formé" if 75 <= attendance_rate <= 120 else "Pas formé"
-                )
+        training_status, attendance_rate = _training_status_from_sessions(
+            declared_sessions,
+            planned_sessions,
+            call.pas_forme_du_tout,
+            formation_rate_min,
+            formation_rate_max,
+        )
         if training_status == "Formé":
             segment["formes_total"] += 1
             if genre_key == "men":
@@ -2836,9 +2907,12 @@ def _concordance_export_rows(request):
     return list(headers), rows
 
 
-def _campaign_export_rows():
+def _campaign_export_rows(
+    formation_rate_min=DEFAULT_FORMATION_RATE_MIN,
+    formation_rate_max=DEFAULT_FORMATION_RATE_MAX,
+):
     """Full RA dataset (one row per prestation), matching the 'Prestations et seuil des appels' table."""
-    rows, _ = _build_pas_forme_ii_campaign()
+    rows, _ = _build_pas_forme_ii_campaign(formation_rate_min, formation_rate_max)
     headers = [
         "PRESTAID", "Prestataire", "Bénéficiaire", "Fenêtre",
         "Appelés H", "Appelés F", "Appelés", "Total",
@@ -2909,12 +2983,18 @@ def concordance_export_rc_excel(request):
 
 
 def concordance_export_ra_csv(request):
-    headers, rows = _campaign_export_rows()
+    formation_rate_interval = _formation_rate_interval(request.GET)
+    headers, rows = _campaign_export_rows(
+        formation_rate_interval["minimum"], formation_rate_interval["maximum"]
+    )
     return _csv_export_response("reconciliation_appels", headers, rows)
 
 
 def concordance_export_ra_excel(request):
-    headers, rows = _campaign_export_rows()
+    formation_rate_interval = _formation_rate_interval(request.GET)
+    headers, rows = _campaign_export_rows(
+        formation_rate_interval["minimum"], formation_rate_interval["maximum"]
+    )
     return _excel_export_response("reconciliation_appels", headers, rows)
 
 
@@ -3016,6 +3096,7 @@ def concordance_campaigns_view(request):
     # L'ordre d'import est celui de Feuil2 : en particulier, la ligne TOTAL
     # GENERAL doit rester à la fin du tableau.
     concordance = list(ConcordanceRecord.objects.order_by("id"))
+    formation_rate_interval = _formation_rate_interval(request.GET)
     selected_fenetre = (request.GET.get("fenetre") or "").strip()
     selected_prestataire = (request.GET.get("prestataire") or "").strip()
     selected_beneficiaire = (request.GET.get("beneficiaire") or "").strip()
@@ -3087,17 +3168,19 @@ def concordance_campaigns_view(request):
             bucket["reussis"] += 1
         declared_sessions = call["nombre_seances_declare"]
         planned_sessions = call["total_seances"]
-        if (
-            declared_sessions is not None
-            and planned_sessions is not None
-            and planned_sessions > 0
-            and not call["pas_forme_du_tout"]
-            and declared_sessions != 0
-            and 75 <= declared_sessions / planned_sessions * 100 <= 120
-        ):
+        training_status, _ = _training_status_from_sessions(
+            declared_sessions,
+            planned_sessions,
+            call["pas_forme_du_tout"],
+            formation_rate_interval["minimum"],
+            formation_rate_interval["maximum"],
+        )
+        if training_status == "Formé":
             bucket["formes"] += 1
     campaign_rows = sorted(campaign.values(), key=lambda row: (row["fenetre"], row["genre"]))
-    not_formed_campaign_rows, not_formed_campaign_summary = _build_pas_forme_ii_campaign()
+    not_formed_campaign_rows, not_formed_campaign_summary = _build_pas_forme_ii_campaign(
+        formation_rate_interval["minimum"], formation_rate_interval["maximum"]
+    )
     formed_people_summary = _formed_people_summary(_concordance_window_summary(concordance, headers))
     concordance_counts = {}
     for row in concordance:
@@ -3148,6 +3231,7 @@ def concordance_campaigns_view(request):
         "selected_fenetre": selected_fenetre, "selected_prestataire": selected_prestataire,
         "selected_beneficiaire": selected_beneficiaire, "selected_presta_id": selected_presta_id, "search_query": search_query,
         "campaign_rows": campaign_rows, "synthesis_rows": synthesis,
+        "formation_rate_interval": formation_rate_interval,
         "not_formed_campaign_rows": not_formed_campaign_rows,
         "not_formed_campaign_summary": not_formed_campaign_summary,
         "formed_people_summary": formed_people_summary,

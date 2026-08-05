@@ -24,8 +24,23 @@
   .table-scroll-top { overflow-x:auto; overflow-y:hidden; height:14px; margin:0 0 6px; display:none; }
   .table-scroll-top div { height:1px; }
   .export-actions { display:flex; gap:8px; margin:0 0 14px; } .btn.export { background:#fff; color:var(--accent-strong); border:1px solid var(--border); }
+  .formation-rate-filter { margin:0 0 18px; padding:16px; border:1px solid var(--border); border-radius:14px; background:#fcfaff; }
+  .formation-rate-filter fieldset { display:flex; flex-wrap:wrap; align-items:end; gap:12px; margin:0; padding:0; border:0; }
+  .formation-rate-filter legend { width:100%; margin:0 0 4px; color:var(--accent-strong); font-weight:800; }
+  .formation-rate-filter .filter-help { width:100%; margin:0 0 4px; }
+  .formation-rate-filter label { display:grid; gap:6px; min-width:180px; font-weight:700; }
+  .formation-rate-filter input { padding:10px 11px; border:1px solid var(--border); border-radius:9px; font:inherit; }
+  .rate-quick-control { display:grid; gap:10px; width:100%; max-width:760px; padding:12px; border-radius:12px; background:#f4effc; }
+  .rate-quick-title { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px; font-weight:800; color:var(--accent-strong); }
+  .rate-quick-title output { padding:4px 9px; border-radius:999px; background:#fff; color:var(--accent-strong); }
+  .rate-slider-row { display:grid; grid-template-columns:90px minmax(180px,1fr) 64px; align-items:center; gap:10px; }
+  .rate-slider-row label { min-width:0; }
+  .formation-rate-filter input[type="range"] { width:100%; padding:0; border:0; border-radius:0; accent-color:var(--accent); cursor:pointer; }
+  .rate-slider-row output { text-align:right; font-weight:800; color:var(--accent-strong); }
+  .formation-rate-filter .filter-actions { display:flex; flex-wrap:wrap; gap:8px; }
+  .filter-error { margin:10px 0 0; color:#991b1b; font-weight:700; }
   .section-title { margin:26px 0 10px; color:var(--accent-strong); font-size:1.15rem; } .method-code { display:inline-flex; min-width:32px; justify-content:center; padding:3px 7px; border-radius:999px; background:#f1ebfb; color:var(--accent-strong); font-size:.78rem; font-weight:800; letter-spacing:.04em; } .presta-link { border:0; background:transparent; color:var(--accent); font:inherit; font-weight:800; cursor:pointer; padding:0; text-decoration:underline; } .modal-backdrop { display:none; position:fixed; inset:0; z-index:1000; padding:24px; background:rgba(31,20,54,.55); align-items:center; justify-content:center; } .modal-backdrop.open { display:flex; } .campaign-modal { width:min(1120px,100%); max-height:88vh; overflow:auto; padding:22px; border-radius:18px; background:#fff; } .modal-head { display:flex; align-items:start; justify-content:space-between; gap:16px; margin-bottom:16px; } .modal-close { border:0; background:#f1ebfb; border-radius:50%; cursor:pointer; font-size:1.4rem; line-height:32px; width:32px; height:32px; } .status-formed,.status-not-formed { display:inline-block; padding:3px 8px; border-radius:999px; font-size:.82rem; font-weight:800; } .status-formed { background:#dcfce7; color:#166534; } .status-not-formed { background:#fee2e2; color:#991b1b; }
-  @media(max-width:700px) { .workspace-head{align-items:start;flex-direction:column;} .panel{padding:15px;} }
+  @media(max-width:700px) { .workspace-head{align-items:start;flex-direction:column;} .panel{padding:15px;} .rate-slider-row{grid-template-columns:72px minmax(120px,1fr) 58px;} }
 </style>
 <main class="workspace">
   <div class="tab-switch" role="tablist"><button class="active" data-tab="concordance">Reconciliation des concordance</button><button data-tab="campaigns">Reconciliation par appels</button><button data-tab="synthesis">Synthèse</button><button data-tab="pending-contacts">Récupération des contacts des apprenants des prestations en attente</button></div>
@@ -44,7 +59,30 @@
     <div class="export-actions"><a class="btn export" href="{% url 'concordance_export_rc_csv' %}?{{ request.GET.urlencode }}">Exporter CSV</a><a class="btn export" href="{% url 'concordance_export_rc_excel' %}?{{ request.GET.urlencode }}">Exporter Excel</a></div>
     <div class="table-wrap"><table>{% if is_feuil2_layout %}<thead><tr><th rowspan="2">Nbre</th><th rowspan="2">Presta ID</th><th rowspan="2">Prestataire</th><th rowspan="2">Bénéficiaire</th><th rowspan="2">Fenêtre</th><th colspan="3" class="grouped">Personnes formées selon la fiche de présence (rapport prestataire)</th><th rowspan="2">Taux de concordance</th><th colspan="3" class="grouped">Nombre formé total avec taux de concordance</th></tr><tr><th>T</th><th>H</th><th>F</th><th>H</th><th>F</th><th>T</th></tr></thead>{% else %}<thead><tr>{% for h in headers %}<th>{{ h }}</th>{% endfor %}</tr></thead>{% endif %}<tbody>{% for row in concordance_rows %}<tr>{% for value in row.values %}<td{% if forloop.counter0 >= 5 and forloop.counter0 <= 7 or forloop.counter0 >= 9 %} class="total-cell"{% endif %}>{{ value }}</td>{% endfor %}</tr>{% empty %}<tr><td colspan="20" class="muted">Aucun travail de concordance importé.</td></tr>{% endfor %}</tbody></table></div>
   </section>
-  <section class="panel" id="campaigns"><h2 class="section-title">Prestations et seuil des appels</h2><div class="stats"><div class="stat"><strong>{{ not_formed_campaign_summary.prestations }}</strong>Prestations analysées</div><div class="stat"><strong>{{ not_formed_campaign_summary.appels_effectues }}</strong>Total des appels effectués</div><div class="stat"><strong>{{ not_formed_campaign_summary.fenetre_2 }}</strong>Personnes appelées — fenêtre 2</div><div class="stat"><strong>{{ not_formed_campaign_summary.fenetre_3 }}</strong>Personnes appelées — fenêtre 3</div><div class="stat"><strong>{{ not_formed_campaign_summary.hommes }}</strong>Personnes appelées — H</div><div class="stat"><strong>{{ not_formed_campaign_summary.femmes }}</strong>Personnes appelées — F</div></div><div class="stats"><div class="stat"><strong>{{ campaign_formed_people_summary.total }}</strong>Nombre total des personnes formées</div><div class="stat"><strong>{{ campaign_formed_people_summary.hommes }}</strong>Personnes formées H</div><div class="stat"><strong>{{ campaign_formed_people_summary.femmes }}</strong>Personnes formées F</div><div class="stat"><strong>{{ campaign_formed_people_summary.fenetre_2 }}</strong>Personnes formées — fenêtre 2</div><div class="stat"><strong>{{ campaign_formed_people_summary.fenetre_3 }}</strong>Personnes formées — fenêtre 3</div></div><p class="muted">Le seuil correspond à 30 % de formulaires complétés par prestation.</p><div class="export-actions"><a class="btn export" href="{% url 'concordance_export_ra_csv' %}">Exporter CSV</a><a class="btn export" href="{% url 'concordance_export_ra_excel' %}">Exporter Excel</a></div><div class="table-wrap"><table><thead><tr><th>PRESTAID</th><th>Prestataire</th><th>Bénéficiaire</th><th>Fenêtre</th><th>Appelés H</th><th>Appelés F</th><th>Appelés / total</th><th>Seuil atteint</th></tr></thead><tbody>{% for row in not_formed_campaign_rows %}<tr><td><button class="presta-link" type="button" data-campaign-index="{{ forloop.counter0 }}">{{ row.presta_id }}</button></td><td>{{ row.prestataire }}</td><td>{{ row.beneficiaire }}</td><td>{{ row.fenetre }}</td><td>{{ row.hommes }}</td><td>{{ row.femmes }}</td><td>{{ row.appeles }} / {{ row.total }}</td><td>{% if row.seuil_atteint %}Oui{% else %}Non{% endif %}</td></tr>{% empty %}<tr><td colspan="8" class="muted">Aucune prestation appelée pour le moment.</td></tr>{% endfor %}</tbody></table></div></section>
+  <section class="panel" id="campaigns">
+    <h2 class="section-title">Prestations et seuil des appels</h2>
+    <form class="formation-rate-filter" method="get">
+      <input type="hidden" name="tab" value="campaigns">
+      <fieldset>
+        <legend>Intervalle du statut « Formé »</legend>
+        <p class="muted filter-help">Réglez rapidement les bornes avec les curseurs par pas de 5 %, ou utilisez les champs numériques pour une valeur exacte. L’application recalcule ensuite tous les statuts, totaux, taux et décisions liés.</p>
+        <div class="rate-quick-control" aria-label="Réglage rapide de l’intervalle par pas de 5 %">
+          <div class="rate-quick-title"><span>Réglage rapide — pas de 5 %</span><output id="formation-rate-preview">{{ formation_rate_interval.minimum_value }} % – {{ formation_rate_interval.maximum_value }} %</output></div>
+          <div class="rate-slider-row"><label for="formation-rate-min-slider">Minimum</label><input id="formation-rate-min-slider" type="range" min="0" max="1000" step="5" value="{{ formation_rate_interval.minimum_value }}"><output id="formation-rate-min-output">{{ formation_rate_interval.minimum_value }} %</output></div>
+          <div class="rate-slider-row"><label for="formation-rate-max-slider">Maximum</label><input id="formation-rate-max-slider" type="range" min="0" max="1000" step="5" value="{{ formation_rate_interval.maximum_value }}"><output id="formation-rate-max-output">{{ formation_rate_interval.maximum_value }} %</output></div>
+        </div>
+        <label>Taux minimum exact (%)<input id="formation-rate-min-number" type="number" name="formation_rate_min" min="0" max="1000" step="0.01" value="{{ formation_rate_interval.minimum_value }}" required></label>
+        <label>Taux maximum exact (%)<input id="formation-rate-max-number" type="number" name="formation_rate_max" min="0" max="1000" step="0.01" value="{{ formation_rate_interval.maximum_value }}" required></label>
+        <div class="filter-actions"><button class="btn" type="submit">Appliquer l’intervalle</button><a class="btn" style="background:#6b5b85" href="{% url 'concordance_campaigns' %}?tab=campaigns">Valeurs par défaut (75 % – 120 %)</a></div>
+      </fieldset>
+      {% if formation_rate_interval.error %}<p class="filter-error" role="alert">{{ formation_rate_interval.error }} Les valeurs par défaut 75 % – 120 % ont été appliquées.</p>{% endif %}
+    </form>
+    <div class="stats"><div class="stat"><strong>{{ not_formed_campaign_summary.prestations }}</strong>Prestations analysées</div><div class="stat"><strong>{{ not_formed_campaign_summary.appels_effectues }}</strong>Total des appels effectués</div><div class="stat"><strong>{{ not_formed_campaign_summary.fenetre_2 }}</strong>Personnes appelées — fenêtre 2</div><div class="stat"><strong>{{ not_formed_campaign_summary.fenetre_3 }}</strong>Personnes appelées — fenêtre 3</div><div class="stat"><strong>{{ not_formed_campaign_summary.hommes }}</strong>Personnes appelées — H</div><div class="stat"><strong>{{ not_formed_campaign_summary.femmes }}</strong>Personnes appelées — F</div></div>
+    <div class="stats"><div class="stat"><strong>{{ campaign_formed_people_summary.total }}</strong>Nombre total des personnes formées</div><div class="stat"><strong>{{ campaign_formed_people_summary.hommes }}</strong>Personnes formées H</div><div class="stat"><strong>{{ campaign_formed_people_summary.femmes }}</strong>Personnes formées F</div><div class="stat"><strong>{{ campaign_formed_people_summary.fenetre_2 }}</strong>Personnes formées — fenêtre 2</div><div class="stat"><strong>{{ campaign_formed_people_summary.fenetre_3 }}</strong>Personnes formées — fenêtre 3</div></div>
+    <p class="muted">Le seuil d’analyse correspond à 10 % de formulaires complétés par prestation. Intervalle de formation appliqué : <strong>{{ formation_rate_interval.minimum_value }} % – {{ formation_rate_interval.maximum_value }} %</strong>.</p>
+    <div class="export-actions"><a class="btn export" href="{% url 'concordance_export_ra_csv' %}?{{ formation_rate_interval.query }}">Exporter CSV</a><a class="btn export" href="{% url 'concordance_export_ra_excel' %}?{{ formation_rate_interval.query }}">Exporter Excel</a></div>
+    <div class="table-wrap"><table><thead><tr><th>PRESTAID</th><th>Prestataire</th><th>Bénéficiaire</th><th>Fenêtre</th><th>Appelés H</th><th>Appelés F</th><th>Appelés / total</th><th>Seuil atteint</th></tr></thead><tbody>{% for row in not_formed_campaign_rows %}<tr><td><button class="presta-link" type="button" data-campaign-index="{{ forloop.counter0 }}">{{ row.presta_id }}</button></td><td>{{ row.prestataire }}</td><td>{{ row.beneficiaire }}</td><td>{{ row.fenetre }}</td><td>{{ row.hommes }}</td><td>{{ row.femmes }}</td><td>{{ row.appeles }} / {{ row.total }}</td><td>{% if row.seuil_atteint %}Oui{% else %}Non{% endif %}</td></tr>{% empty %}<tr><td colspan="8" class="muted">Aucune prestation appelée pour le moment.</td></tr>{% endfor %}</tbody></table></div>
+  </section>
   <section class="panel" id="synthesis">
     <div class="stats"><div class="stat"><strong>{{ synthesis_reconciliation_summary.total }}</strong>Prestations consolidées</div><div class="stat"><strong>{{ synthesis_reconciliation_summary.RC }}</strong>RC</div><div class="stat"><strong>{{ synthesis_reconciliation_summary.RA }}</strong>RA</div><div class="stat"><strong>{{ synthesis_reconciliation_summary.R }}</strong>R</div></div>
     <div class="stats"><div class="stat"><strong>{{ formed_people_summary.total }}</strong>Personnes formées</div><div class="stat"><strong>{{ formed_people_summary.fenetre_2 }}</strong>Personnes formées — fenêtre 2</div><div class="stat"><strong>{{ formed_people_summary.fenetre_3 }}</strong>Personnes formées — fenêtre 3</div><div class="stat"><strong>{{ formed_people_summary.hommes }}</strong>Personnes formées — H</div><div class="stat"><strong>{{ formed_people_summary.femmes }}</strong>Personnes formées — F</div></div>
@@ -191,8 +229,42 @@
   }());
 </script>
 <script>
-  document.querySelector('#campaigns > p.muted')?.replaceChildren(
-    'Le seuil correspond à 10 % de formulaires complétés par prestation.'
-  );
+  (function () {
+    const minimumSlider = document.getElementById('formation-rate-min-slider');
+    const maximumSlider = document.getElementById('formation-rate-max-slider');
+    const minimumNumber = document.getElementById('formation-rate-min-number');
+    const maximumNumber = document.getElementById('formation-rate-max-number');
+    const minimumOutput = document.getElementById('formation-rate-min-output');
+    const maximumOutput = document.getElementById('formation-rate-max-output');
+    const preview = document.getElementById('formation-rate-preview');
+    if (!minimumSlider || !maximumSlider || !minimumNumber || !maximumNumber) return;
+
+    const display = value => Number(value).toLocaleString('fr-FR', { maximumFractionDigits: 2 });
+    const refreshLabels = () => {
+      minimumOutput.value = `${display(minimumNumber.value)} %`;
+      maximumOutput.value = `${display(maximumNumber.value)} %`;
+      preview.value = `${display(minimumNumber.value)} % – ${display(maximumNumber.value)} %`;
+    };
+    const updateFromSlider = changedSlider => {
+      if (Number(minimumSlider.value) > Number(maximumSlider.value)) {
+        if (changedSlider === minimumSlider) maximumSlider.value = minimumSlider.value;
+        else minimumSlider.value = maximumSlider.value;
+      }
+      minimumNumber.value = minimumSlider.value;
+      maximumNumber.value = maximumSlider.value;
+      refreshLabels();
+    };
+    const updateSliderFromNumber = (numberInput, slider) => {
+      const value = Number(numberInput.value);
+      if (Number.isFinite(value)) slider.value = String(Math.round(value / 5) * 5);
+      refreshLabels();
+    };
+
+    minimumSlider.addEventListener('input', () => updateFromSlider(minimumSlider));
+    maximumSlider.addEventListener('input', () => updateFromSlider(maximumSlider));
+    minimumNumber.addEventListener('input', () => updateSliderFromNumber(minimumNumber, minimumSlider));
+    maximumNumber.addEventListener('input', () => updateSliderFromNumber(maximumNumber, maximumSlider));
+    refreshLabels();
+  }());
 </script>
 {% endblock %}
