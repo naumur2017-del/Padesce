@@ -2412,37 +2412,134 @@ def _training_status_from_sessions(
     return training_status, attendance_rate
 
 
+def _campaign_presta_code(value):
+    """Normalize a real PRESTAID while keeping missing identifiers separate."""
+    raw_value = str(value or "").strip()
+    if _concordance_header_key(raw_value) in {"", "non renseigne", "non renseignee"}:
+        return ""
+    return raw_value.upper()
+
+
+def _preferred_campaign_label(values, default=""):
+    """Choose a stable fallback label, favouring frequency then completeness."""
+    counts = {}
+    representatives = {}
+    for value in values:
+        label = str(value or "").strip()
+        normalized = _concordance_header_key(label)
+        if not normalized or normalized in {"non renseigne", "non renseignee"}:
+            continue
+        counts[normalized] = counts.get(normalized, 0) + 1
+        if len(label) > len(representatives.get(normalized, "")):
+            representatives[normalized] = label
+    if not counts:
+        return default
+    selected = max(
+        counts,
+        key=lambda value: (counts[value], len(representatives[value]), value),
+    )
+    return representatives[selected]
+
+
+def _campaign_prestation_references(presta_codes):
+    """Load canonical labels once from the application's reference database."""
+    references = {}
+    prestations = (
+        Prestation.objects.filter(code__in=sorted(presta_codes))
+        .select_related("prestataire", "beneficiaire", "formation")
+        .prefetch_related("classes")
+    )
+    for prestation in prestations:
+        code = _campaign_presta_code(prestation.code)
+        active_class_windows = [
+            classe.fenetre
+            for classe in prestation.classes.all()
+            if classe.actif and classe.fenetre
+        ]
+        references[code] = {
+            "presta_id": str(prestation.code or "").strip() or code,
+            "prestataire": (
+                str(prestation.prestataire.raison_sociale or "").strip()
+                if prestation.prestataire_id
+                else ""
+            ),
+            "beneficiaire": (
+                str(prestation.beneficiaire.nom_structure or "").strip()
+                if prestation.beneficiaire_id
+                else ""
+            ),
+            "fenetre": _preferred_campaign_label(active_class_windows),
+        }
+    return references
+
+
 def _build_pas_forme_ii_campaign(
     formation_rate_min=DEFAULT_FORMATION_RATE_MIN,
     formation_rate_max=DEFAULT_FORMATION_RATE_MAX,
 ):
     """Return every Pas Formés II prestation and its 10% call threshold status."""
-    thresholded = {}
-    aggregates = AppelPasFormeII.objects.filter(is_active=True).values("prestation_id").annotate(
-        total=Count("id"), appeles=Count("id", filter=Q(formulaire_rempli_at__isnull=False))
-    )
-    for item in aggregates:
-        total, appeles = int(item["total"] or 0), int(item["appeles"] or 0)
-        # A prestation reaches the call-reconciliation threshold once at
-        # least 10% of its learners have completed the form (minimum one).
-        thresholded[item["prestation_id"]] = bool(
-            total and appeles >= max(1, (total * 10 + 99) // 100)
-        )
-
     calls = list(AppelPasFormeII.objects.filter(
         is_active=True
     ).order_by("prestation_id", "fenetre", "nom"))
+
+    metadata = {}
+    for call in calls:
+        presta_code = _campaign_presta_code(call.prestation_id)
+        if presta_code:
+            segment_key = ("presta", presta_code)
+        else:
+            # Records without a PRESTAID cannot safely be merged with one
+            # another merely because their identifier is blank.
+            segment_key = (
+                "missing",
+                _concordance_header_key(call.prestataire),
+                _concordance_header_key(call.beneficiaire),
+                _concordance_header_key(call.fenetre),
+            )
+        item = metadata.setdefault(segment_key, {
+            "presta_code": presta_code,
+            "presta_ids": [],
+            "prestataires": [],
+            "beneficiaires": [],
+            "fenetres": [],
+        })
+        item["presta_ids"].append(call.prestation_id)
+        item["prestataires"].append(call.prestataire)
+        item["beneficiaires"].append(call.beneficiaire)
+        item["fenetres"].append(call.fenetre)
+
+    references = _campaign_prestation_references({
+        item["presta_code"] for item in metadata.values() if item["presta_code"]
+    })
     segments = {}
     for call in calls:
-        key = (call.prestation_id or "Non renseigné", call.prestataire or "Non renseigné", call.beneficiaire or "Non renseigné", call.fenetre or "Non renseignée")
-        segment = segments.setdefault(key, {
-            "presta_id": key[0], "prestataire": key[1], "beneficiaire": key[2], "fenetre": key[3],
+        presta_code = _campaign_presta_code(call.prestation_id)
+        segment_key = (
+            ("presta", presta_code)
+            if presta_code
+            else (
+                "missing",
+                _concordance_header_key(call.prestataire),
+                _concordance_header_key(call.beneficiaire),
+                _concordance_header_key(call.fenetre),
+            )
+        )
+        source = metadata[segment_key]
+        reference = references.get(presta_code, {})
+        segment = segments.setdefault(segment_key, {
+            "presta_id": reference.get("presta_id") or _preferred_campaign_label(source["presta_ids"], "Non renseigné"),
+            "prestataire": reference.get("prestataire") or _preferred_campaign_label(source["prestataires"], "Non renseigné"),
+            "beneficiaire": reference.get("beneficiaire") or _preferred_campaign_label(source["beneficiaires"], "Non renseigné"),
+            "fenetre": reference.get("fenetre") or _preferred_campaign_label(source["fenetres"], "Non renseignée"),
             "total": 0, "appeles": 0, "hommes": 0, "femmes": 0, "apprenants": [],
             "formes_total": 0, "formes_hommes": 0, "formes_femmes": 0,
             "formes_fenetre_2": 0, "formes_fenetre_3": 0, "pas_formes_total": 0,
-            "seuil_atteint": thresholded.get(call.prestation_id, False),
+            "appeles_fenetre_2": 0, "appeles_fenetre_3": 0,
+            "formulaires_remplis": 0, "seuil_atteint": False,
         })
         segment["total"] += 1
+        if call.formulaire_rempli_at:
+            segment["formulaires_remplis"] += 1
         # A completed form proves the person was called even if an old record
         # still carries the waiting status. Otherwise keep only started calls.
         if not (
@@ -2451,6 +2548,7 @@ def _build_pas_forme_ii_campaign(
             continue
         genre = (call.genre or "Non renseigné").strip()
         genre_key = _gender_key(genre)
+        call_window = call.fenetre or segment["fenetre"]
         declared_sessions = call.nombre_seances_declare
         planned_sessions = call.total_seances
         # The reconciliation counts only a call when the form has actually
@@ -2461,6 +2559,11 @@ def _build_pas_forme_ii_campaign(
                 segment["hommes"] += 1
             elif genre_key == "women":
                 segment["femmes"] += 1
+            window = _campaign_window_key(call_window)
+            if genre_key and window == "Fenêtre 2":
+                segment["appeles_fenetre_2"] += 1
+            elif genre_key and window == "Fenêtre 3":
+                segment["appeles_fenetre_3"] += 1
         audio_url = ""
         if call.audio_file and call.audio_file.name:
             try:
@@ -2480,7 +2583,7 @@ def _build_pas_forme_ii_campaign(
                 segment["formes_hommes"] += 1
             elif genre_key == "women":
                 segment["formes_femmes"] += 1
-            window = _campaign_window_key(key[3])
+            window = _campaign_window_key(call_window)
             if window == "Fenêtre 2":
                 segment["formes_fenetre_2"] += 1
             elif window == "Fenêtre 3":
@@ -2499,8 +2602,8 @@ def _build_pas_forme_ii_campaign(
             "telephone": call.telephone,
             "membre_structure": call.membre_structure,
             "genre": genre,
-            "fenetre": key[3],
-            "presta_id": key[0],
+            "fenetre": call_window,
+            "presta_id": segment["presta_id"],
             "seances_declarees": declared_sessions,
             "seances_prevues": planned_sessions,
             "taux_presence": attendance_rate,
@@ -2514,6 +2617,10 @@ def _build_pas_forme_ii_campaign(
     # the RA source tab and must consequently also be visible in the synthesis.
     rows = list(segments.values())
     for row in rows:
+        required_forms = max(1, (row["total"] * 10 + 99) // 100)
+        row["seuil_atteint"] = bool(
+            row["total"] and row["formulaires_remplis"] >= required_forms
+        )
         denom = row["formes_total"] + row["pas_formes_total"]
         row["taux_formation"] = (row["formes_total"] / denom * 100) if denom else None
         decision_atteinte = row["taux_formation"] is not None and row["taux_formation"] > 75
@@ -2528,22 +2635,22 @@ def _build_pas_forme_ii_campaign(
             row["decision_hommes"] = "_"
             row["decision_femmes"] = "_"
     summary = {
-        "prestations": sum(1 for atteint in thresholded.values() if atteint),
+        "prestations": sum(1 for row in rows if row["seuil_atteint"]),
         "appels_effectues": 0,
         "fenetre_2": 0, "fenetre_3": 0, "hommes": 0, "femmes": 0,
     }
     for row in rows:
         # The H/F recap intentionally has no "non renseigné" column.
         # Count only the same H and F people that are displayed in it.
-        gendered_calls = row["hommes"] + row["femmes"]
         summary["appels_effectues"] += row["appeles"]
-        if _campaign_window_key(row["fenetre"]) == "Fenêtre 2":
-            summary["fenetre_2"] += gendered_calls
-        elif _campaign_window_key(row["fenetre"]) == "Fenêtre 3":
-            summary["fenetre_3"] += gendered_calls
+        summary["fenetre_2"] += row["appeles_fenetre_2"]
+        summary["fenetre_3"] += row["appeles_fenetre_3"]
         summary["hommes"] += row["hommes"]
         summary["femmes"] += row["femmes"]
-    return sorted(rows, key=lambda row: (row["presta_id"], row["fenetre"])), summary
+        row.pop("appeles_fenetre_2", None)
+        row.pop("appeles_fenetre_3", None)
+        row.pop("formulaires_remplis", None)
+    return sorted(rows, key=lambda row: row["presta_id"]), summary
 
 
 def _format_concordance_value(header, value):

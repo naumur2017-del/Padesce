@@ -10,6 +10,7 @@ from django.utils import timezone
 from openpyxl import Workbook
 
 from App_PADESCE.appels.models import AppelPasFormeII
+from App_PADESCE.formations.models import Beneficiaire, Formation, Prestataire, Prestation
 from App_PADESCE.reporting import views
 from App_PADESCE.reporting.models import (
     ConcordanceRecord,
@@ -299,6 +300,89 @@ class ConcordanceCampaignPageTests(TestCase):
         )
         self.assertTrue(interval["error"])
         self.assertContains(response, "Les valeurs par défaut 75 % – 120 % ont été appliquées.")
+
+    def test_duplicate_presta_ids_are_merged_with_canonical_database_labels(self):
+        canonical_provider = Prestataire.objects.create(
+            code="PREST-CANONICAL",
+            raison_sociale="Prestataire canonique en base",
+        )
+        canonical_beneficiary = Beneficiaire.objects.create(
+            nom_structure="Bénéficiaire canonique en base",
+        )
+        formation = Formation.objects.create(
+            code="FOR-CANONICAL",
+            nom="Formation canonique",
+        )
+        Prestation.objects.create(
+            code="PRESTA-MERGE",
+            prestataire=canonical_provider,
+            beneficiaire=canonical_beneficiary,
+            formation=formation,
+        )
+        AppelPasFormeII.objects.bulk_create([
+            AppelPasFormeII(
+                reference_code="PFII-MERGE-H",
+                prestation_id="PRESTA-MERGE",
+                nom="Apprenant formé",
+                prestataire="Ancien nom prestataire",
+                beneficiaire="Ancien bénéficiaire A",
+                genre="H",
+                fenetre="2",
+                total_seances=4,
+                nombre_seances_declare=3,
+                formulaire_rempli_at=timezone.now(),
+            ),
+            AppelPasFormeII(
+                reference_code="PFII-MERGE-F",
+                prestation_id="presta-merge",
+                nom="Apprenante pas formée",
+                prestataire="Autre variante du prestataire",
+                beneficiaire="Ancien bénéficiaire B",
+                genre="F",
+                fenetre="3",
+                total_seances=4,
+                nombre_seances_declare=2,
+                formulaire_rempli_at=timezone.now(),
+            ),
+        ])
+
+        rows, summary = views._build_pas_forme_ii_campaign()
+
+        self.assertEqual(len(rows), 1)
+        row = rows[0]
+        self.assertEqual(row["presta_id"], "PRESTA-MERGE")
+        self.assertEqual(row["prestataire"], "Prestataire canonique en base")
+        self.assertEqual(row["beneficiaire"], "Bénéficiaire canonique en base")
+        self.assertEqual(row["total"], 2)
+        self.assertEqual(row["appeles"], 2)
+        self.assertEqual((row["hommes"], row["femmes"]), (1, 1))
+        self.assertEqual(row["formes_total"], 1)
+        self.assertEqual(row["pas_formes_total"], 1)
+        self.assertEqual(row["formes_fenetre_2"], 1)
+        self.assertEqual(row["formes_fenetre_3"], 0)
+        self.assertEqual(row["taux_formation"], 50)
+        self.assertEqual(row["decision"], "_")
+        self.assertEqual(len(row["apprenants"]), 2)
+        self.assertEqual(
+            {apprenant["presta_id"] for apprenant in row["apprenants"]},
+            {"PRESTA-MERGE"},
+        )
+        self.assertEqual(summary, {
+            "prestations": 1,
+            "appels_effectues": 2,
+            "fenetre_2": 1,
+            "fenetre_3": 1,
+            "hommes": 1,
+            "femmes": 1,
+        })
+
+        headers, exported_rows = views._campaign_export_rows()
+        exported = dict(zip(headers, exported_rows[0]))
+        self.assertEqual(exported["Prestataire"], "Prestataire canonique en base")
+        self.assertEqual(exported["Bénéficiaire"], "Bénéficiaire canonique en base")
+        self.assertEqual(exported["Total"], 2)
+        self.assertEqual(exported["Formés total"], 1)
+        self.assertEqual(exported["Pas formés total"], 1)
 
     def test_campaign_gender_summary_is_built_from_decision_hf_columns(self):
         # PRESTA-DEC2 (fenêtre 2): 4/4 formés (taux 100% > 75) -> decision = total = 4,
