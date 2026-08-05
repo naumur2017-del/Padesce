@@ -23,6 +23,7 @@
   .table-wrap { overflow:auto; border:1px solid var(--border); border-radius:14px; } table { width:100%; border-collapse:collapse; font-size:.91rem; } th,td { padding:11px 12px; text-align:left; border-bottom:1px solid #eee8f8; white-space:nowrap; } th { background:#faf8ff; color:var(--accent-strong); } thead tr:first-child th.grouped { background:#eee6fb; text-align:center; white-space:normal; min-width:115px; } thead tr:nth-child(2) th { text-align:center; } td.total-cell { font-weight:700; background:#fcfaff; } tr:last-child td { border-bottom:0; }
   .table-scroll-top { overflow-x:auto; overflow-y:hidden; height:14px; margin:0 0 6px; display:none; }
   .table-scroll-top div { height:1px; }
+  .export-actions { display:flex; gap:8px; margin:0 0 14px; } .btn.export { background:#fff; color:var(--accent-strong); border:1px solid var(--border); }
   .section-title { margin:26px 0 10px; color:var(--accent-strong); font-size:1.15rem; } .method-code { display:inline-flex; min-width:32px; justify-content:center; padding:3px 7px; border-radius:999px; background:#f1ebfb; color:var(--accent-strong); font-size:.78rem; font-weight:800; letter-spacing:.04em; } .presta-link { border:0; background:transparent; color:var(--accent); font:inherit; font-weight:800; cursor:pointer; padding:0; text-decoration:underline; } .modal-backdrop { display:none; position:fixed; inset:0; z-index:1000; padding:24px; background:rgba(31,20,54,.55); align-items:center; justify-content:center; } .modal-backdrop.open { display:flex; } .campaign-modal { width:min(1120px,100%); max-height:88vh; overflow:auto; padding:22px; border-radius:18px; background:#fff; } .modal-head { display:flex; align-items:start; justify-content:space-between; gap:16px; margin-bottom:16px; } .modal-close { border:0; background:#f1ebfb; border-radius:50%; cursor:pointer; font-size:1.4rem; line-height:32px; width:32px; height:32px; } .status-formed,.status-not-formed { display:inline-block; padding:3px 8px; border-radius:999px; font-size:.82rem; font-weight:800; } .status-formed { background:#dcfce7; color:#166534; } .status-not-formed { background:#fee2e2; color:#991b1b; }
   @media(max-width:700px) { .workspace-head{align-items:start;flex-direction:column;} .panel{padding:15px;} }
 </style>
@@ -31,33 +32,39 @@
   <div class="summary-panel active" data-summary="concordance"><div class="table-wrap gender-summary"><table><caption>Répartition de la concordance par genre et fenêtre</caption><thead><tr><th></th><th>Homme</th><th>Femme</th><th>Total</th></tr></thead><tbody>{% for row in concordance_gender_summary %}<tr><td>{{ row.window }}</td><td>{{ row.men }}</td><td>{{ row.women }}</td><td>{{ row.total }}</td></tr>{% endfor %}</tbody></table></div></div>
   <div class="summary-panel" data-summary="campaigns"><div class="table-wrap gender-summary"><table><caption>Répartition des apprenants formés par genre et fenêtre</caption><thead><tr><th></th><th>Homme</th><th>Femme</th><th>Total</th></tr></thead><tbody>{% for row in campaign_gender_summary %}<tr><td>{{ row.window }}</td><td>{{ row.men }}</td><td>{{ row.women }}</td><td>{{ row.total }}</td></tr>{% endfor %}</tbody></table></div></div>
   <div class="summary-panel" data-summary="synthesis"><div class="table-wrap gender-summary"><table><caption>Répartition consolidée par genre et fenêtre</caption><thead><tr><th></th><th>Homme</th><th>Femme</th><th>Total</th></tr></thead><tbody>{% for row in synthesis_gender_summary %}<tr><td>{{ row.window }}</td><td>{{ row.men }}</td><td>{{ row.women }}</td><td>{{ row.total }}</td></tr>{% endfor %}</tbody></table></div></div>
+  <div class="summary-panel" data-summary="pending-contacts"><div class="stats"><div class="stat"><strong>{{ pending_contact_count }}</strong>Contacts importés</div><div class="stat"><strong>{% if pending_contact_import %}{{ pending_contact_headers|length }}{% else %}0{% endif %}</strong>Colonnes détectées</div></div></div>
   <div class="workspace-head"><div><h1>Concordance & évolution des appels</h1><p>Suivi des travaux importés et de la campagne active, ventilé par genre et fenêtre.</p></div></div>
   <section class="panel active" id="concordance">
+    <div class="stats"><div class="stat"><strong>{{ concordance_count }}</strong>Lignes importées</div><div class="stat"><strong>Genre + fenêtre</strong>Clés de rapprochement</div></div>
     <div class="stats"><div class="stat"><strong>{{ formed_people_summary.total }}</strong>Personnes formées</div><div class="stat"><strong>{{ formed_people_summary.fenetre_2 }}</strong>Personnes formées — fenêtre 2</div><div class="stat"><strong>{{ formed_people_summary.fenetre_3 }}</strong>Personnes formées — fenêtre 3</div><div class="stat"><strong>{{ formed_people_summary.hommes }}</strong>Personnes formées — H</div><div class="stat"><strong>{{ formed_people_summary.femmes }}</strong>Personnes formées — F</div></div>
     {% if can_manage_concordance_import %}<form class="upload-box" method="post" enctype="multipart/form-data">{% csrf_token %}<input type="hidden" name="action" value="upload"><input type="file" name="fichier" accept=".xlsx,.xlsm,.csv" required><button class="btn" type="submit">Importer et remplacer</button><span class="muted">Pour le fichier de rapprochement, la feuille <strong>Feuil2</strong> est importée automatiquement.</span></form>
     {% if concordance_count %}<form method="post" style="margin-bottom:18px">{% csrf_token %}<input type="hidden" name="action" value="clear"><button class="btn danger" type="submit" onclick="return confirm('Supprimer toutes les données importées ?')">Vider l’import</button></form>{% endif %}{% endif %}
     <form class="filters" method="get"><label>Recherche<input type="search" name="q" value="{{ search_query }}" placeholder="Prestataire, bénéficiaire…"></label><label>Fenêtre<select name="fenetre"><option value="">Toutes</option>{% for value in filter_options.fenetres %}<option value="{{ value }}" {% if value == selected_fenetre %}selected{% endif %}>{{ value }}</option>{% endfor %}</select></label><label>Prestataire<select name="prestataire"><option value="">Tous</option>{% for value in filter_options.prestataires %}<option value="{{ value }}" {% if value == selected_prestataire %}selected{% endif %}>{{ value }}</option>{% endfor %}</select></label><label>Bénéficiaire<select name="beneficiaire"><option value="">Tous</option>{% for value in filter_options.beneficiaires %}<option value="{{ value }}" {% if value == selected_beneficiaire %}selected{% endif %}>{{ value }}</option>{% endfor %}</select></label><label>Presta ID<select name="presta_id"><option value="">Tous</option>{% for value in filter_options.presta_ids %}<option value="{{ value }}" {% if value == selected_presta_id %}selected{% endif %}>{{ value }}</option>{% endfor %}</select></label><div style="display:flex;align-items:end;gap:8px"><button class="btn" type="submit">Filtrer</button><a class="btn" style="background:#6b5b85" href="{% url 'concordance_campaigns' %}">Réinitialiser</a></div></form>
     <p class="muted">Les effectifs sont présentés comme dans Feuil2 : total (T), hommes (H) et femmes (F) selon la fiche de présence, puis H, F et T après application du taux de concordance. {{ filtered_concordance_count }} ligne{{ filtered_concordance_count|pluralize }} affichée{{ filtered_concordance_count|pluralize }} sur {{ concordance_count }}. Aperçu limité à 100 lignes.</p>
+    <div class="export-actions"><a class="btn export" href="{% url 'concordance_export_rc_csv' %}?{{ request.GET.urlencode }}">Exporter CSV</a><a class="btn export" href="{% url 'concordance_export_rc_excel' %}?{{ request.GET.urlencode }}">Exporter Excel</a></div>
     <div class="table-wrap"><table>{% if is_feuil2_layout %}<thead><tr><th rowspan="2">Nbre</th><th rowspan="2">Presta ID</th><th rowspan="2">Prestataire</th><th rowspan="2">Bénéficiaire</th><th rowspan="2">Fenêtre</th><th colspan="3" class="grouped">Personnes formées selon la fiche de présence (rapport prestataire)</th><th rowspan="2">Taux de concordance</th><th colspan="3" class="grouped">Nombre formé total avec taux de concordance</th></tr><tr><th>T</th><th>H</th><th>F</th><th>H</th><th>F</th><th>T</th></tr></thead>{% else %}<thead><tr>{% for h in headers %}<th>{{ h }}</th>{% endfor %}</tr></thead>{% endif %}<tbody>{% for row in concordance_rows %}<tr>{% for value in row.values %}<td{% if forloop.counter0 >= 5 and forloop.counter0 <= 7 or forloop.counter0 >= 9 %} class="total-cell"{% endif %}>{{ value }}</td>{% endfor %}</tr>{% empty %}<tr><td colspan="20" class="muted">Aucun travail de concordance importé.</td></tr>{% endfor %}</tbody></table></div>
   </section>
-  <section class="panel" id="campaigns"><h2 class="section-title">Prestations et seuil des appels</h2><div class="stats"><div class="stat"><strong>{{ not_formed_campaign_summary.prestations }}</strong>Prestations analysées</div><div class="stat"><strong>{{ not_formed_campaign_summary.appels_effectues }}</strong>Total des appels effectués</div><div class="stat"><strong>{{ not_formed_campaign_summary.fenetre_2 }}</strong>Personnes appelées — fenêtre 2</div><div class="stat"><strong>{{ not_formed_campaign_summary.fenetre_3 }}</strong>Personnes appelées — fenêtre 3</div><div class="stat"><strong>{{ not_formed_campaign_summary.hommes }}</strong>Personnes appelées — H</div><div class="stat"><strong>{{ not_formed_campaign_summary.femmes }}</strong>Personnes appelées — F</div></div><div class="stats"><div class="stat"><strong>{{ campaign_formed_people_summary.total }}</strong>Nombre total des personnes formées</div><div class="stat"><strong>{{ campaign_formed_people_summary.hommes }}</strong>Personnes formées H</div><div class="stat"><strong>{{ campaign_formed_people_summary.femmes }}</strong>Personnes formées F</div><div class="stat"><strong>{{ campaign_formed_people_summary.fenetre_2 }}</strong>Personnes formées — fenêtre 2</div><div class="stat"><strong>{{ campaign_formed_people_summary.fenetre_3 }}</strong>Personnes formées — fenêtre 3</div></div><p class="muted">Le seuil correspond à {{ pas_forme_ii_threshold_percent }} % de formulaires complétés par prestation.</p><div class="table-wrap"><table><thead><tr><th>PRESTAID</th><th>Prestataire</th><th>Bénéficiaire</th><th>Fenêtre</th><th>Appelés H</th><th>Appelés F</th><th>Appelés / total</th><th>Seuil atteint</th></tr></thead><tbody>{% for row in not_formed_campaign_rows %}<tr><td><button class="presta-link" type="button" data-campaign-index="{{ forloop.counter0 }}">{{ row.presta_id }}</button></td><td>{{ row.prestataire }}</td><td>{{ row.beneficiaire }}</td><td>{{ row.fenetre }}</td><td>{{ row.hommes }}</td><td>{{ row.femmes }}</td><td>{{ row.appeles }} / {{ row.total }}</td><td>{% if row.seuil_atteint %}Oui{% else %}Non{% endif %}</td></tr>{% empty %}<tr><td colspan="8" class="muted">Aucune prestation appelée pour le moment.</td></tr>{% endfor %}</tbody></table></div></section>
+  <section class="panel" id="campaigns"><h2 class="section-title">Prestations et seuil des appels</h2><div class="stats"><div class="stat"><strong>{{ not_formed_campaign_summary.prestations }}</strong>Prestations analysées</div><div class="stat"><strong>{{ not_formed_campaign_summary.appels_effectues }}</strong>Total des appels effectués</div><div class="stat"><strong>{{ not_formed_campaign_summary.fenetre_2 }}</strong>Personnes appelées — fenêtre 2</div><div class="stat"><strong>{{ not_formed_campaign_summary.fenetre_3 }}</strong>Personnes appelées — fenêtre 3</div><div class="stat"><strong>{{ not_formed_campaign_summary.hommes }}</strong>Personnes appelées — H</div><div class="stat"><strong>{{ not_formed_campaign_summary.femmes }}</strong>Personnes appelées — F</div></div><div class="stats"><div class="stat"><strong>{{ campaign_formed_people_summary.total }}</strong>Nombre total des personnes formées</div><div class="stat"><strong>{{ campaign_formed_people_summary.hommes }}</strong>Personnes formées H</div><div class="stat"><strong>{{ campaign_formed_people_summary.femmes }}</strong>Personnes formées F</div><div class="stat"><strong>{{ campaign_formed_people_summary.fenetre_2 }}</strong>Personnes formées — fenêtre 2</div><div class="stat"><strong>{{ campaign_formed_people_summary.fenetre_3 }}</strong>Personnes formées — fenêtre 3</div></div><p class="muted">Le seuil correspond à 30 % de formulaires complétés par prestation.</p><div class="export-actions"><a class="btn export" href="{% url 'concordance_export_ra_csv' %}">Exporter CSV</a><a class="btn export" href="{% url 'concordance_export_ra_excel' %}">Exporter Excel</a></div><div class="table-wrap"><table><thead><tr><th>PRESTAID</th><th>Prestataire</th><th>Bénéficiaire</th><th>Fenêtre</th><th>Appelés H</th><th>Appelés F</th><th>Appelés / total</th><th>Seuil atteint</th></tr></thead><tbody>{% for row in not_formed_campaign_rows %}<tr><td><button class="presta-link" type="button" data-campaign-index="{{ forloop.counter0 }}">{{ row.presta_id }}</button></td><td>{{ row.prestataire }}</td><td>{{ row.beneficiaire }}</td><td>{{ row.fenetre }}</td><td>{{ row.hommes }}</td><td>{{ row.femmes }}</td><td>{{ row.appeles }} / {{ row.total }}</td><td>{% if row.seuil_atteint %}Oui{% else %}Non{% endif %}</td></tr>{% empty %}<tr><td colspan="8" class="muted">Aucune prestation appelée pour le moment.</td></tr>{% endfor %}</tbody></table></div></section>
   <section class="panel" id="synthesis">
     <div class="stats"><div class="stat"><strong>{{ synthesis_reconciliation_summary.total }}</strong>Prestations consolidées</div><div class="stat"><strong>{{ synthesis_reconciliation_summary.RC }}</strong>RC</div><div class="stat"><strong>{{ synthesis_reconciliation_summary.RA }}</strong>RA</div><div class="stat"><strong>{{ synthesis_reconciliation_summary.R }}</strong>R</div></div>
     <div class="stats"><div class="stat"><strong>{{ formed_people_summary.total }}</strong>Personnes formées</div><div class="stat"><strong>{{ formed_people_summary.fenetre_2 }}</strong>Personnes formées — fenêtre 2</div><div class="stat"><strong>{{ formed_people_summary.fenetre_3 }}</strong>Personnes formées — fenêtre 3</div><div class="stat"><strong>{{ formed_people_summary.hommes }}</strong>Personnes formées — H</div><div class="stat"><strong>{{ formed_people_summary.femmes }}</strong>Personnes formées — F</div></div>
     <h2 class="section-title">Réconciliation par prestation</h2>
+    <div class="export-actions"><a class="btn export" href="{% url 'concordance_export_synthesis_csv' %}">Exporter CSV</a><a class="btn export" href="{% url 'concordance_export_synthesis_excel' %}">Exporter Excel</a></div>
     <div class="table-wrap"><table><thead><tr><th>PRESTAID</th><th>Prestataire</th><th>Bénéficiaire</th><th>Fenêtre</th><th>Appelés H</th><th>Appelés F</th><th>Appelés / total</th><th>Méthode</th></tr></thead><tbody>{% for row in synthesis_reconciliation_rows %}<tr><td>{{ row.presta_id }}</td><td>{{ row.prestataire|default:"—" }}</td><td>{{ row.beneficiaire|default:"—" }}</td><td>{{ row.fenetre|default:"—" }}</td><td>{{ row.hommes }}</td><td>{{ row.femmes }}</td><td>{{ row.appeles }} / {{ row.total }}</td><td><span class="method-code">{{ row.methode }}</span></td></tr>{% empty %}<tr><td colspan="8" class="muted">Aucune prestation à réconcilier.</td></tr>{% endfor %}</tbody></table></div>
   </section>
   <section class="panel" id="pending-contacts">
+    <div class="stats"><div class="stat"><strong>{{ pending_contact_count }}</strong>Contacts disponibles</div><div class="stat"><strong>{% if pending_contact_import %}{{ pending_contact_import.source_filename }}{% else %}Aucun fichier{% endif %}</strong>Fichier courant</div></div>
     <div class="stats"><div class="stat"><strong>{{ formed_people_summary.total }}</strong>Personnes formées</div><div class="stat"><strong>{{ formed_people_summary.fenetre_2 }}</strong>Personnes formées — fenêtre 2</div><div class="stat"><strong>{{ formed_people_summary.fenetre_3 }}</strong>Personnes formées — fenêtre 3</div><div class="stat"><strong>{{ formed_people_summary.hommes }}</strong>Personnes formées — H</div><div class="stat"><strong>{{ formed_people_summary.femmes }}</strong>Personnes formées — F</div></div>
     <h2 class="section-title">Récupération des contacts des apprenants des prestations en attente</h2>
     {% if can_manage_concordance_import %}<form class="upload-box" method="post" enctype="multipart/form-data">{% csrf_token %}<input type="hidden" name="action" value="pending_contacts_upload"><input type="file" name="fichier" accept=".xlsx,.xlsm,.csv" required><button class="btn" type="submit">Importer et remplacer</button><span class="muted">La première feuille des fichiers Excel est utilisée. Les colonnes du fichier sont conservées dans leur ordre d’origine.</span></form>
     {% if pending_contact_import %}<form method="post" style="margin-bottom:18px">{% csrf_token %}<input type="hidden" name="action" value="pending_contacts_clear"><button class="btn danger" type="submit" onclick="return confirm('Supprimer tous les contacts importés ?')">Vider l’import</button></form>{% endif %}{% endif %}
     {% if pending_contact_import %}<p class="muted">Fichier <strong>{{ pending_contact_import.source_filename }}</strong> importé le {{ pending_contact_import.imported_at|date:"d/m/Y à H:i" }}. {{ pending_contact_count }} ligne{{ pending_contact_count|pluralize }} disponible{{ pending_contact_count|pluralize }}. Aperçu limité à 100 lignes.</p>{% endif %}
+    <div class="export-actions"><a class="btn export" href="{% url 'concordance_export_contacts_csv' %}">Exporter CSV</a><a class="btn export" href="{% url 'concordance_export_contacts_excel' %}">Exporter Excel</a></div>
     <div class="table-wrap"><table><thead><tr><th>#</th>{% for header in pending_contact_headers %}<th>{{ header }}</th>{% endfor %}</tr></thead><tbody>{% for row in pending_contact_rows %}<tr><td>{{ row.row_number }}</td>{% for value in row.values %}<td>{{ value }}</td>{% endfor %}</tr>{% empty %}<tr><td colspan="100" class="muted">Aucun fichier de contacts importé.</td></tr>{% endfor %}</tbody></table></div>
   </section>
 </main>
 <script>(function(){const entries=[...document.querySelectorAll('.table-wrap')].map(wrap=>{const table=wrap.querySelector('table');if(!table)return null;const topScroll=document.createElement('div');topScroll.className='table-scroll-top';const spacer=document.createElement('div');topScroll.appendChild(spacer);wrap.parentNode.insertBefore(topScroll,wrap);let syncing=false;topScroll.addEventListener('scroll',()=>{if(syncing)return;syncing=true;wrap.scrollLeft=topScroll.scrollLeft;syncing=false;});wrap.addEventListener('scroll',()=>{if(syncing)return;syncing=true;topScroll.scrollLeft=wrap.scrollLeft;syncing=false;});return{wrap,table,topScroll,spacer};}).filter(Boolean);const sync=({wrap,table,topScroll,spacer})=>{spacer.style.width=table.scrollWidth+'px';topScroll.style.display=table.scrollWidth>wrap.clientWidth+1?'block':'none';};const syncAll=()=>entries.forEach(sync);syncAll();window.addEventListener('resize',syncAll);if(window.ResizeObserver){const observer=new ResizeObserver(syncAll);entries.forEach(({table})=>observer.observe(table));}})();</script>
-<script>document.querySelectorAll('[data-tab]').forEach(button=>button.addEventListener('click',()=>{document.querySelectorAll('.summary-panel').forEach(item=>item.classList.remove('active'));document.querySelector(`[data-summary="${button.dataset.tab}"]`)?.classList.add('active')}));</script>
+<script>document.querySelectorAll('[data-tab]').forEach(button=>button.addEventListener('click',()=>{document.querySelectorAll('.summary-panel').forEach(item=>item.classList.remove('active'));document.querySelector(`[data-summary="${button.dataset.tab}"]`).classList.add('active')}));</script>
 {{ not_formed_campaign_rows|json_script:"not-formed-campaign-data" }}<div class="modal-backdrop" id="campaign-detail-modal"><div class="campaign-modal"><div class="modal-head"><div><h2>Détail des apprenants appelés</h2><p class="muted" id="campaign-modal-meta"></p></div><button class="modal-close" type="button">×</button></div><div class="table-wrap"><table><thead><tr><th>Apprenant</th><th>Code</th><th>Genre</th><th>Fenêtre</th><th>PRESTAID</th><th>Séances suivies</th><th>Séances prévues</th><th>Taux</th><th>Statut</th><th>Audio</th></tr></thead><tbody id="campaign-modal-body"></tbody></table></div></div></div><script>document.querySelectorAll('[data-tab]').forEach(button=>button.addEventListener('click',()=>{document.querySelectorAll('[data-tab],.panel').forEach(item=>item.classList.remove('active'));button.classList.add('active');document.getElementById(button.dataset.tab).classList.add('active')}));const campaignData=JSON.parse(document.getElementById('not-formed-campaign-data').textContent),modal=document.getElementById('campaign-detail-modal'),body=document.getElementById('campaign-modal-body'),meta=document.getElementById('campaign-modal-meta'),escapeHtml=value=>String(value??'').replace(/[&<>'"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char])),displayValue=value=>value??'—',displayRate=value=>value===null||value===undefined?'—':`${Number(value).toFixed(1).replace(/\.0$/,'')} %`,statusClass=status=>status==='Formé'?'status-formed':status==='Pas formé'?'status-not-formed':'muted';document.querySelectorAll('[data-campaign-index]').forEach(button=>button.addEventListener('click',()=>{const row=campaignData[Number(button.dataset.campaignIndex)];meta.textContent=`${row.presta_id} · ${row.prestataire} · ${row.beneficiaire} · Fenêtre ${row.fenetre}`;body.innerHTML=row.apprenants.map(a=>`<tr><td>${escapeHtml(a.nom)}</td><td>${escapeHtml(a.code)}</td><td>${escapeHtml(a.genre)}</td><td>${escapeHtml(a.fenetre)}</td><td>${escapeHtml(a.presta_id)}</td><td>${displayValue(a.seances_declarees)}</td><td>${displayValue(a.seances_prevues)}</td><td>${displayRate(a.taux_presence)}</td><td><span class="${statusClass(a.statut_formation)}">${escapeHtml(a.statut_formation)}</span></td><td>${a.audio_disponible?`<audio controls preload="none" src="${escapeHtml(a.audio_url)}"></audio>`:'<span class="muted">Indisponible</span>'}</td></tr>`).join('');modal.classList.add('open')}));const close=()=>modal.classList.remove('open');modal.querySelector('.modal-close').addEventListener('click',close);modal.addEventListener('click',event=>{if(event.target===modal)close()});document.addEventListener('keydown',event=>{if(event.key==='Escape')close()});const requestedTab=new URLSearchParams(window.location.search).get('tab'),requestedButton=document.querySelector(`[data-tab="${requestedTab}"]`);if(requestedButton)requestedButton.click();</script>
 <script>
   (function () {
@@ -83,7 +90,7 @@
     const rows = JSON.parse(document.getElementById('not-formed-campaign-data').textContent);
     const header = table.querySelector('thead tr');
     const thresholdHeader = [...header.children].find(cell => cell.textContent.trim() === 'Seuil atteint');
-    ['Formés total', 'Formés H', 'Formés F', 'Formés fenêtre 2', 'Formés fenêtre 3'].forEach(label => {
+    ['Formés H', 'Formés F', 'Formés fenêtre 2', 'Formés fenêtre 3', 'Total formé', 'Total pas formé', 'Taux de confirmation', 'Décision H', 'Décision F', 'Décision'].forEach(label => {
       const cell = document.createElement('th');
       cell.textContent = label;
       header.insertBefore(cell, thresholdHeader);
@@ -92,12 +99,100 @@
       const row = rows[index];
       if (!row) return;
       const thresholdCell = tableRow.lastElementChild;
-      ['formes_total', 'formes_hommes', 'formes_femmes', 'formes_fenetre_2', 'formes_fenetre_3'].forEach(key => {
+      ['formes_hommes', 'formes_femmes', 'formes_fenetre_2', 'formes_fenetre_3'].forEach(key => {
         const cell = document.createElement('td');
         cell.textContent = row[key] ?? 0;
         tableRow.insertBefore(cell, thresholdCell);
       });
+      ['formes_total', 'pas_formes_total'].forEach(key => {
+        const cell = document.createElement('td');
+        cell.textContent = row[key] ?? 0;
+        tableRow.insertBefore(cell, thresholdCell);
+      });
+      const rateCell = document.createElement('td');
+      const rate = row.taux_formation;
+      rateCell.textContent = rate === null || rate === undefined ? '—' : `${Number(rate).toFixed(1).replace(/\.0$/, '')} %`;
+      tableRow.insertBefore(rateCell, thresholdCell);
+      const decisionHommesCell = document.createElement('td');
+      decisionHommesCell.textContent = row.decision_hommes ?? '_';
+      tableRow.insertBefore(decisionHommesCell, thresholdCell);
+      const decisionFemmesCell = document.createElement('td');
+      decisionFemmesCell.textContent = row.decision_femmes ?? '_';
+      tableRow.insertBefore(decisionFemmesCell, thresholdCell);
+      const decisionCell = document.createElement('td');
+      decisionCell.textContent = row.decision ?? '_';
+      tableRow.insertBefore(decisionCell, thresholdCell);
     });
   }());
+</script>
+<script>
+  (function () {
+    const addTableFilters = (panelId, options = {}) => {
+      const panel = document.getElementById(panelId);
+      const table = panel?.querySelector('table');
+      if (!table) return;
+      const headers = [...table.querySelectorAll('thead th')].map(cell => cell.textContent.trim());
+      const windowIndex = headers.findIndex(header => header.toLowerCase() === 'fenêtre');
+      const thresholdIndex = headers.findIndex(header => header.toLowerCase() === 'seuil atteint');
+      const rows = [...table.querySelectorAll('tbody tr')].filter(row => row.cells.length === headers.length);
+      if (!rows.length) return;
+
+      const filters = document.createElement('div');
+      filters.className = 'filters';
+      filters.setAttribute('aria-label', `Filtres du tableau ${panelId}`);
+      const searchLabel = document.createElement('label');
+      searchLabel.textContent = 'Recherche';
+      const search = document.createElement('input');
+      search.type = 'search';
+      search.placeholder = 'Prestation, prestataire, bénéficiaire…';
+      searchLabel.appendChild(search);
+      filters.appendChild(searchLabel);
+
+      let windowFilter;
+      if (windowIndex >= 0) {
+        const label = document.createElement('label');
+        label.textContent = 'Fenêtre';
+        windowFilter = document.createElement('select');
+        windowFilter.innerHTML = '<option value="">Toutes</option>';
+        [...new Set(rows.map(row => row.cells[windowIndex].textContent.trim()).filter(Boolean))]
+          .sort()
+          .forEach(value => windowFilter.add(new Option(value, value)));
+        label.appendChild(windowFilter);
+        filters.appendChild(label);
+      }
+
+      let thresholdFilter;
+      if (options.threshold && thresholdIndex >= 0) {
+        const label = document.createElement('label');
+        label.textContent = 'Seuil atteint';
+        thresholdFilter = document.createElement('select');
+        thresholdFilter.innerHTML = '<option value="">Tous</option><option value="Oui">Oui</option><option value="Non">Non</option>';
+        label.appendChild(thresholdFilter);
+        filters.appendChild(label);
+      }
+
+      const applyFilters = () => rows.forEach(row => {
+        const haystack = row.textContent.toLocaleLowerCase();
+        const matchesSearch = !search.value || haystack.includes(search.value.toLocaleLowerCase());
+        const matchesWindow = !windowFilter || !windowFilter.value || row.cells[windowIndex].textContent.trim() === windowFilter.value;
+        const matchesThreshold = !thresholdFilter || !thresholdFilter.value || row.cells[thresholdIndex].textContent.trim() === thresholdFilter.value;
+        row.hidden = !(matchesSearch && matchesWindow && matchesThreshold);
+      });
+      [search, windowFilter, thresholdFilter].filter(Boolean).forEach(control => {
+        control.addEventListener('input', applyFilters);
+        control.addEventListener('change', applyFilters);
+      });
+      panel.querySelector('.table-wrap').before(filters);
+    };
+
+    addTableFilters('campaigns', { threshold: true });
+    addTableFilters('synthesis');
+    addTableFilters('pending-contacts');
+  }());
+</script>
+<script>
+  document.querySelector('#campaigns > p.muted')?.replaceChildren(
+    'Le seuil correspond à 10 % de formulaires complétés par prestation.'
+  );
 </script>
 {% endblock %}

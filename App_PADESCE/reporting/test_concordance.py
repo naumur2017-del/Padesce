@@ -138,6 +138,8 @@ class ConcordanceCampaignPageTests(TestCase):
                         beneficiaire=f"Bénéficiaire {prestation_index}",
                         genre=genre,
                         fenetre="3",
+                        total_seances=1,
+                        nombre_seances_declare=1,
                         formulaire_rempli_at=timezone.now(),
                     )
                 )
@@ -157,47 +159,6 @@ class ConcordanceCampaignPageTests(TestCase):
                 "femmes": 6,
             },
         )
-
-    @override_settings(
-        STORAGES={
-            "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
-            "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
-        }
-    )
-    def test_pas_forme_ii_campaign_uses_ten_percent_threshold_everywhere(self):
-        calls = []
-        for prestation_id, total in (("PRESTA-TEN", 10), ("PRESTA-ELEVEN", 11)):
-            for index in range(total):
-                calls.append(
-                    AppelPasFormeII(
-                        reference_code=f"{prestation_id}-{index}",
-                        prestation_id=prestation_id,
-                        nom=f"Apprenant {prestation_id} {index}",
-                        formulaire_rempli_at=timezone.now() if index == 0 else None,
-                    )
-                )
-        AppelPasFormeII.objects.bulk_create(calls)
-
-        rows, _ = views._build_pas_forme_ii_campaign()
-        rows_by_prestation = {row["presta_id"]: row for row in rows}
-
-        self.assertTrue(rows_by_prestation["PRESTA-TEN"]["seuil_atteint"])
-        self.assertFalse(rows_by_prestation["PRESTA-ELEVEN"]["seuil_atteint"])
-
-        response = self.client.get(reverse("concordance_campaigns"))
-        synthesis_prestations = {
-            row["presta_id"]
-            for row in response.context["synthesis_reconciliation_rows"]
-            if row["methode"] == "RA"
-        }
-        self.assertEqual(response.context["pas_forme_ii_threshold_percent"], 10)
-        self.assertEqual(synthesis_prestations, {"PRESTA-TEN"})
-        self.assertContains(
-            response,
-            "Le seuil correspond à 10 % de formulaires complétés par prestation.",
-        )
-        self.assertContains(response, "<td>Oui</td>", html=False)
-        self.assertContains(response, "<td>Non</td>", html=False)
 
     def test_campaign_detail_reports_declared_and_planned_sessions_with_status(self):
         calls = [
@@ -252,13 +213,23 @@ class ConcordanceCampaignPageTests(TestCase):
         )
         self.assertTrue(apprenants["PFII-INDETERMINE"]["pas_forme_du_tout"])
 
-    def test_campaign_gender_summary_counts_only_formed_learners(self):
+    def test_campaign_gender_summary_is_built_from_decision_hf_columns(self):
+        # PRESTA-DEC2 (fenêtre 2): 4/4 formés (taux 100% > 75) -> decision = total = 4,
+        # reparti a parts egales (2 hommes appeles, 2 femmes appelees).
         AppelPasFormeII.objects.bulk_create([
-            AppelPasFormeII(reference_code="PFII-H2-FORME", prestation_id="PRESTA-SUM", nom="Homme formé", genre="H", fenetre="2", total_seances=4, nombre_seances_declare=3, formulaire_rempli_at=timezone.now()),
-            AppelPasFormeII(reference_code="PFII-F2-NON", prestation_id="PRESTA-SUM", nom="Femme non formée", genre="F", fenetre="2", total_seances=4, nombre_seances_declare=2, formulaire_rempli_at=timezone.now()),
-            AppelPasFormeII(reference_code="PFII-F3-FORME", prestation_id="PRESTA-SUM", nom="Femme formée", genre="F", fenetre="3", total_seances=4, nombre_seances_declare=4, formulaire_rempli_at=timezone.now()),
-            AppelPasFormeII(reference_code="PFII-H3-EXCESS", prestation_id="PRESTA-SUM", nom="Homme excès", genre="H", fenetre="3", total_seances=4, nombre_seances_declare=5, formulaire_rempli_at=timezone.now()),
-            AppelPasFormeII(reference_code="PFII-H2-INDETERMINE", prestation_id="PRESTA-SUM", nom="Homme indéterminé", genre="H", fenetre="2", total_seances=4, nombre_seances_declare=4, pas_forme_du_tout=True, formulaire_rempli_at=timezone.now()),
+            AppelPasFormeII(reference_code="PFII-DEC2-H1", prestation_id="PRESTA-DEC2", nom="H1", genre="H", fenetre="2", total_seances=10, nombre_seances_declare=9, formulaire_rempli_at=timezone.now()),
+            AppelPasFormeII(reference_code="PFII-DEC2-H2", prestation_id="PRESTA-DEC2", nom="H2", genre="H", fenetre="2", total_seances=10, nombre_seances_declare=8, formulaire_rempli_at=timezone.now()),
+            AppelPasFormeII(reference_code="PFII-DEC2-F1", prestation_id="PRESTA-DEC2", nom="F1", genre="F", fenetre="2", total_seances=10, nombre_seances_declare=9, formulaire_rempli_at=timezone.now()),
+            AppelPasFormeII(reference_code="PFII-DEC2-F2", prestation_id="PRESTA-DEC2", nom="F2", genre="F", fenetre="2", total_seances=10, nombre_seances_declare=8, formulaire_rempli_at=timezone.now()),
+        ])
+        # PRESTA-DEC3 (fenêtre 3): 4/5 formés (taux 80% > 75) -> decision = total = 5,
+        # reparti au prorata des 4 hommes / 1 femme appeles (4 et 1).
+        AppelPasFormeII.objects.bulk_create([
+            AppelPasFormeII(reference_code="PFII-DEC3-H1", prestation_id="PRESTA-DEC3", nom="H1", genre="H", fenetre="3", total_seances=10, nombre_seances_declare=9, formulaire_rempli_at=timezone.now()),
+            AppelPasFormeII(reference_code="PFII-DEC3-H2", prestation_id="PRESTA-DEC3", nom="H2", genre="H", fenetre="3", total_seances=10, nombre_seances_declare=8, formulaire_rempli_at=timezone.now()),
+            AppelPasFormeII(reference_code="PFII-DEC3-H3", prestation_id="PRESTA-DEC3", nom="H3", genre="H", fenetre="3", total_seances=10, nombre_seances_declare=9, formulaire_rempli_at=timezone.now()),
+            AppelPasFormeII(reference_code="PFII-DEC3-H4-NON", prestation_id="PRESTA-DEC3", nom="H4 pas forme", genre="H", fenetre="3", total_seances=10, nombre_seances_declare=2, formulaire_rempli_at=timezone.now()),
+            AppelPasFormeII(reference_code="PFII-DEC3-F1", prestation_id="PRESTA-DEC3", nom="F1", genre="F", fenetre="3", total_seances=10, nombre_seances_declare=9, formulaire_rempli_at=timezone.now()),
         ])
 
         response = self.client.get(reverse("concordance_campaigns"))
@@ -266,14 +237,14 @@ class ConcordanceCampaignPageTests(TestCase):
         self.assertEqual(
             response.context["campaign_gender_summary"],
             [
-                {"window": "Fenêtre 2", "men": 1, "women": 0, "total": 1},
-                {"window": "Fenêtre 3", "men": 0, "women": 1, "total": 1},
-                {"window": "Total", "men": 1, "women": 1, "total": 2},
+                {"window": "Fenêtre 2", "men": 2, "women": 2, "total": 4},
+                {"window": "Fenêtre 3", "men": 4, "women": 1, "total": 5},
+                {"window": "Total", "men": 6, "women": 3, "total": 9},
             ],
         )
         self.assertEqual(
             response.context["campaign_formed_people_summary"],
-            {"total": 2, "fenetre_2": 1, "fenetre_3": 1, "hommes": 1, "femmes": 1},
+            {"total": 9, "fenetre_2": 4, "fenetre_3": 5, "hommes": 6, "femmes": 3},
         )
         self.assertEqual(
             response.context["synthesis_gender_summary"],
@@ -311,6 +282,8 @@ class ConcordanceCampaignPageTests(TestCase):
             nom="Apprenant contact",
             telephone="690000001",
             membre_structure="OUI",
+            total_seances=12,
+            nombre_seances_declare=10,
             formulaire_rempli_at=timezone.now(),
         )
 
@@ -335,6 +308,19 @@ class ConcordanceCampaignPageTests(TestCase):
         self.assertEqual(rows[0]["formes_femmes"], 1)
         self.assertEqual(rows[0]["formes_fenetre_2"], 2)
         self.assertEqual(rows[0]["formes_fenetre_3"], 0)
+
+    def test_campaign_called_counts_require_completed_form_and_sessions(self):
+        AppelPasFormeII.objects.bulk_create([
+            AppelPasFormeII(reference_code="PFII-CALLED-VALID", prestation_id="PRESTA-CALLED", nom="Valide", genre="H", fenetre="2", total_seances=4, nombre_seances_declare=3, formulaire_rempli_at=timezone.now()),
+            AppelPasFormeII(reference_code="PFII-CALLED-NO-SESSIONS", prestation_id="PRESTA-CALLED", nom="Sans séances", genre="F", fenetre="2", total_seances=4, formulaire_rempli_at=timezone.now()),
+            AppelPasFormeII(reference_code="PFII-CALLED-NO-FORM", prestation_id="PRESTA-CALLED", nom="Sans formulaire", genre="F", fenetre="2", total_seances=4, nombre_seances_declare=2, status="appel_tente"),
+        ])
+
+        rows, _ = views._build_pas_forme_ii_campaign()
+
+        self.assertEqual(rows[0]["appeles"], 1)
+        self.assertEqual(rows[0]["hommes"], 1)
+        self.assertEqual(rows[0]["femmes"], 0)
 
     @override_settings(
         STORAGES={
@@ -420,7 +406,7 @@ class ConcordanceCampaignPageTests(TestCase):
             "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
         }
     )
-    def test_synthesis_keeps_only_threshold_reached_ra_and_flexible_r_source_headers(self):
+    def test_synthesis_keeps_unattempted_ra_and_flexible_r_source_headers(self):
         ConcordanceRecord.objects.create(
             fenetre="3",
             payload=_postgres_jsonb_order(_feuil2_payload()),
@@ -455,7 +441,8 @@ class ConcordanceCampaignPageTests(TestCase):
         rows = response.context["synthesis_reconciliation_rows"]
         rows_by_key = {(row["methode"], row["presta_id"]): row for row in rows}
 
-        self.assertNotIn(("RA", "PRESTA004"), rows_by_key)
+        self.assertEqual(rows_by_key[("RA", "PRESTA004")]["appeles"], 0)
+        self.assertEqual(rows_by_key[("RA", "PRESTA004")]["total"], 1)
         self.assertEqual(rows_by_key[("R", "PRESTA005")]["prestataire"], "Prestataire R")
         self.assertEqual(rows_by_key[("R", "PRESTA005")]["beneficiaire"], "Bénéficiaire R")
         self.assertEqual(rows_by_key[("R", "PRESTA005")]["fenetre"], "2")

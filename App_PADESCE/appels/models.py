@@ -675,6 +675,14 @@ class AppelPasFormeII(TimeStampedModel):
     is_active = models.BooleanField(default=True, db_index=True)
     status = models.CharField(max_length=25, choices=STATUS_CHOICES, default="en_attente", db_index=True)
     formulaire_rempli_at = models.DateTimeField(null=True, blank=True)
+    modified_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="appels_pas_forme_ii_modified",
+    )
+    modified_at = models.DateTimeField(null=True, blank=True)
     locked_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="appels_pas_forme_ii_lock")
     locked_at = models.DateTimeField(null=True, blank=True)
 

@@ -5,6 +5,46 @@ from App_PADESCE.core.lazy_urls import lazy_view
 urlpatterns = [
     path("concordance-campagnes/", lazy_view("App_PADESCE.reporting.views.concordance_campaigns_view"), name="concordance_campaigns"),
     path(
+        "concordance-campagnes/export/rc.csv",
+        lazy_view("App_PADESCE.reporting.views.concordance_export_rc_csv"),
+        name="concordance_export_rc_csv",
+    ),
+    path(
+        "concordance-campagnes/export/rc.xlsx",
+        lazy_view("App_PADESCE.reporting.views.concordance_export_rc_excel"),
+        name="concordance_export_rc_excel",
+    ),
+    path(
+        "concordance-campagnes/export/ra.csv",
+        lazy_view("App_PADESCE.reporting.views.concordance_export_ra_csv"),
+        name="concordance_export_ra_csv",
+    ),
+    path(
+        "concordance-campagnes/export/ra.xlsx",
+        lazy_view("App_PADESCE.reporting.views.concordance_export_ra_excel"),
+        name="concordance_export_ra_excel",
+    ),
+    path(
+        "concordance-campagnes/export/synthese.csv",
+        lazy_view("App_PADESCE.reporting.views.concordance_export_synthesis_csv"),
+        name="concordance_export_synthesis_csv",
+    ),
+    path(
+        "concordance-campagnes/export/synthese.xlsx",
+        lazy_view("App_PADESCE.reporting.views.concordance_export_synthesis_excel"),
+        name="concordance_export_synthesis_excel",
+    ),
+    path(
+        "concordance-campagnes/export/contacts.csv",
+        lazy_view("App_PADESCE.reporting.views.concordance_export_contacts_csv"),
+        name="concordance_export_contacts_csv",
+    ),
+    path(
+        "concordance-campagnes/export/contacts.xlsx",
+        lazy_view("App_PADESCE.reporting.views.concordance_export_contacts_excel"),
+        name="concordance_export_contacts_excel",
+    ),
+    path(
         "", lazy_view("App_PADESCE.reporting.views.application_report_view"), name="reporting_index"
     ),
     path(

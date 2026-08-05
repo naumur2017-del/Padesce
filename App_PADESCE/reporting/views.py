@@ -15,6 +15,7 @@ from django.db.models import Avg, Count, Q, Sum
 from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import redirect, render
 from django.urls import reverse
+from django.utils import timezone
 from django.utils.safestring import mark_safe
 from django.utils.text import slugify
 from django.views.decorators.csrf import csrf_exempt
@@ -22,10 +23,6 @@ from django.views.decorators.http import require_POST
 from openpyxl import Workbook, load_workbook
 
 from App_PADESCE.appels.models import Appel, AppelPasFormeII, is_call_attempted_status
-from App_PADESCE.appels.thresholds import (
-    PAS_FORME_II_THRESHOLD_PERCENT,
-    pas_forme_ii_threshold_reached,
-)
 from App_PADESCE.apprenants.models import Apprenant, SmsLog
 from App_PADESCE.core.access import require_analysis_access, require_superadmin_access
 from App_PADESCE.environnement.models import EnqueteEnvironnement
@@ -2339,16 +2336,17 @@ def _synthesis_payload_identity(payload):
 
 
 def _build_pas_forme_ii_campaign():
-    """Return every Pas Formés II prestation and its configured threshold status."""
+    """Return every Pas Formés II prestation and its 10% call threshold status."""
     thresholded = {}
     aggregates = AppelPasFormeII.objects.filter(is_active=True).values("prestation_id").annotate(
         total=Count("id"), appeles=Count("id", filter=Q(formulaire_rempli_at__isnull=False))
     )
     for item in aggregates:
         total, appeles = int(item["total"] or 0), int(item["appeles"] or 0)
-        thresholded[item["prestation_id"]] = pas_forme_ii_threshold_reached(
-            total,
-            appeles,
+        # A prestation reaches the call-reconciliation threshold once at
+        # least 10% of its learners have completed the form (minimum one).
+        thresholded[item["prestation_id"]] = bool(
+            total and appeles >= max(1, (total * 10 + 99) // 100)
         )
 
     calls = list(AppelPasFormeII.objects.filter(
@@ -2361,7 +2359,7 @@ def _build_pas_forme_ii_campaign():
             "presta_id": key[0], "prestataire": key[1], "beneficiaire": key[2], "fenetre": key[3],
             "total": 0, "appeles": 0, "hommes": 0, "femmes": 0, "apprenants": [],
             "formes_total": 0, "formes_hommes": 0, "formes_femmes": 0,
-            "formes_fenetre_2": 0, "formes_fenetre_3": 0,
+            "formes_fenetre_2": 0, "formes_fenetre_3": 0, "pas_formes_total": 0,
             "seuil_atteint": thresholded.get(call.prestation_id, False),
         })
         segment["total"] += 1
@@ -2371,31 +2369,40 @@ def _build_pas_forme_ii_campaign():
             is_call_attempted_status(call.status) or call.formulaire_rempli_at
         ):
             continue
-        segment["appeles"] += 1
         genre = (call.genre or "Non renseigné").strip()
         genre_key = _gender_key(genre)
-        if genre_key == "men":
-            segment["hommes"] += 1
-        elif genre_key == "women":
-            segment["femmes"] += 1
+        declared_sessions = call.nombre_seances_declare
+        planned_sessions = call.total_seances
+        # The reconciliation counts only a call when the form has actually
+        # been completed and its number of attended sessions is provided.
+        if call.formulaire_rempli_at and declared_sessions is not None:
+            segment["appeles"] += 1
+            if genre_key == "men":
+                segment["hommes"] += 1
+            elif genre_key == "women":
+                segment["femmes"] += 1
         audio_url = ""
         if call.audio_file and call.audio_file.name:
             try:
                 audio_url = call.audio_file.url
             except Exception:
                 pass
-        declared_sessions = call.nombre_seances_declare
-        planned_sessions = call.total_seances
         attendance_rate = None
         training_status = "Non renseigné"
         if declared_sessions is not None and planned_sessions is not None and planned_sessions > 0:
-            attendance_rate = declared_sessions / planned_sessions * 100
-        if call.pas_forme_du_tout:
-            training_status = "Indéterminé"
-        elif attendance_rate is not None:
-            training_status = (
-                "Formé" if 75 <= attendance_rate <= 100 else "Pas formé"
-            )
+            if call.pas_forme_du_tout:
+                attendance_rate = 0
+                training_status = "Indéterminé"
+            elif declared_sessions == 0:
+                # A declared count of 0 does not reliably mean "attended
+                # nothing" (blank inputs default to 0); treat it as
+                # indeterminate instead of asserting "Pas formé".
+                training_status = "Non déterminé"
+            else:
+                attendance_rate = declared_sessions / planned_sessions * 100
+                training_status = (
+                    "Formé" if 75 <= attendance_rate <= 120 else "Pas formé"
+                )
         if training_status == "Formé":
             segment["formes_total"] += 1
             if genre_key == "men":
@@ -2407,6 +2414,14 @@ def _build_pas_forme_ii_campaign():
                 segment["formes_fenetre_2"] += 1
             elif window == "Fenêtre 3":
                 segment["formes_fenetre_3"] += 1
+        elif training_status == "Pas formé":
+            segment["pas_formes_total"] += 1
+        if training_status in {"Non déterminé", "Non renseigné"}:
+            # Neither an explicit 0 nor a missing declaration is a real,
+            # reviewable answer. Both stay in the underlying call record
+            # (DB) but are left out of the "Détail des apprenants appelés"
+            # list shown to the enquêteur.
+            continue
         segment["apprenants"].append({
             "nom": call.nom,
             "code": call.reference_code,
@@ -2427,6 +2442,20 @@ def _build_pas_forme_ii_campaign():
     # Keep the prestations still awaiting their first call.  They are present in
     # the RA source tab and must consequently also be visible in the synthesis.
     rows = list(segments.values())
+    for row in rows:
+        denom = row["formes_total"] + row["pas_formes_total"]
+        row["taux_formation"] = (row["formes_total"] / denom * 100) if denom else None
+        decision_atteinte = row["taux_formation"] is not None and row["taux_formation"] > 75
+        row["decision"] = row["total"] if decision_atteinte else "_"
+        gendered_calls = row["hommes"] + row["femmes"]
+        if decision_atteinte and gendered_calls:
+            # Split the prestation's total (not just the called headcount)
+            # using the H/F ratio observed among its called learners.
+            row["decision_hommes"] = round(row["total"] * row["hommes"] / gendered_calls)
+            row["decision_femmes"] = row["total"] - row["decision_hommes"]
+        else:
+            row["decision_hommes"] = "_"
+            row["decision_femmes"] = "_"
     summary = {
         "prestations": sum(1 for atteint in thresholded.values() if atteint),
         "appels_effectues": 0,
@@ -2497,18 +2526,21 @@ def _formed_people_summary(concordance_window_summary):
     }
 
 
-def _window_gender_summary(rows, *, gender_key, window_key, value_key=lambda _row: 1):
-    """Build the Fenêtre 2 / Fenêtre 3 H/F/T recap used on each tab."""
+def _decision_gender_summary(rows):
+    """Build the Fenêtre 2 / Fenêtre 3 H/F/T recap from the Decision H/F columns
+    of the 'Prestations et seuil des appels' table (one row per prestation)."""
     totals = {
         "Fenêtre 2": {"men": 0, "women": 0},
         "Fenêtre 3": {"men": 0, "women": 0},
     }
     for row in rows:
-        window = _campaign_window_key(window_key(row))
-        gender = _gender_key(gender_key(row))
-        if not window or not gender:
+        window = _campaign_window_key(row["fenetre"])
+        if not window:
             continue
-        totals[window][gender] += value_key(row) or 0
+        hommes = row["decision_hommes"]
+        femmes = row["decision_femmes"]
+        totals[window]["men"] += hommes if hommes != "_" else 0
+        totals[window]["women"] += femmes if femmes != "_" else 0
 
     summary_rows = []
     for window, values in totals.items():
@@ -2697,7 +2729,6 @@ def _build_synthesis_reconciliation_rows(concordance, headers, campaign_rows, pe
             "methode": "RA",
         }
         for row in campaign_rows
-        if row["seuil_atteint"]
     )
 
     if pending_contact_import:
@@ -2735,6 +2766,176 @@ def _build_synthesis_reconciliation_rows(concordance, headers, campaign_rows, pe
             row["fenetre"],
         ),
     )
+
+
+def _dated_export_filename(base_name, extension):
+    """Append today's date to an export filename, e.g. base_2026-08-04.csv."""
+    return f"{base_name}_{timezone.now().strftime('%Y-%m-%d')}.{extension}"
+
+
+def _csv_export_response(base_name, headers, rows):
+    response = HttpResponse(content_type="text/csv")
+    response["Content-Disposition"] = f'attachment; filename="{_dated_export_filename(base_name, "csv")}"'
+    writer = csv.writer(response)
+    writer.writerow(headers)
+    writer.writerows(rows)
+    return response
+
+
+def _excel_export_response(base_name, headers, rows):
+    workbook = Workbook()
+    worksheet = workbook.active
+    worksheet.append(list(headers))
+    for row in rows:
+        worksheet.append(list(row))
+    buffer = io.BytesIO()
+    workbook.save(buffer)
+    response = HttpResponse(
+        buffer.getvalue(),
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+    response["Content-Disposition"] = f'attachment; filename="{_dated_export_filename(base_name, "xlsx")}"'
+    return response
+
+
+def _concordance_export_rows(request):
+    """Full filtered RC dataset (headers + row values), unlike the 100-row preview."""
+    concordance = list(ConcordanceRecord.objects.order_by("id"))
+    selected_fenetre = (request.GET.get("fenetre") or "").strip()
+    selected_prestataire = (request.GET.get("prestataire") or "").strip()
+    selected_beneficiaire = (request.GET.get("beneficiaire") or "").strip()
+    selected_presta_id = (request.GET.get("presta_id") or "").strip()
+    search_query = (request.GET.get("q") or "").strip().lower()
+
+    def source_value(row, key):
+        return _concordance_payload_value(row.payload, key)
+
+    filtered = []
+    for row in concordance:
+        prestataire = source_value(row, "PRESTATAIRE")
+        beneficiaire = source_value(row, "BENEFICIAIRE")
+        presta_id = source_value(row, "PRESTA ID")
+        searchable = " ".join([row.genre, row.fenetre, prestataire, beneficiaire, presta_id, *map(str, row.payload.values())]).lower()
+        if selected_fenetre and row.fenetre != selected_fenetre:
+            continue
+        if selected_prestataire and prestataire != selected_prestataire:
+            continue
+        if selected_beneficiaire and beneficiaire != selected_beneficiaire:
+            continue
+        if selected_presta_id and presta_id != selected_presta_id:
+            continue
+        if search_query and search_query not in searchable:
+            continue
+        filtered.append(row)
+
+    headers, _ = _concordance_display_headers(concordance)
+    rows = [
+        [_format_concordance_value(header, row.payload.get(header, "")) for header in headers]
+        for row in filtered
+    ]
+    return list(headers), rows
+
+
+def _campaign_export_rows():
+    """Full RA dataset (one row per prestation), matching the 'Prestations et seuil des appels' table."""
+    rows, _ = _build_pas_forme_ii_campaign()
+    headers = [
+        "PRESTAID", "Prestataire", "Bénéficiaire", "Fenêtre",
+        "Appelés H", "Appelés F", "Appelés", "Total",
+        "Formés total", "Formés H", "Formés F", "Formés fenêtre 2", "Formés fenêtre 3",
+        "Pas formés total", "Taux de formation (%)", "Décision H", "Décision F", "Décision", "Seuil atteint",
+    ]
+    data = [
+        [
+            row["presta_id"], row["prestataire"], row["beneficiaire"], row["fenetre"],
+            row["hommes"], row["femmes"], row["appeles"], row["total"],
+            row["formes_total"], row["formes_hommes"], row["formes_femmes"],
+            row["formes_fenetre_2"], row["formes_fenetre_3"], row["pas_formes_total"],
+            round(row["taux_formation"], 1) if row["taux_formation"] is not None else "",
+            row["decision_hommes"] if row["decision_hommes"] != "_" else "",
+            row["decision_femmes"] if row["decision_femmes"] != "_" else "",
+            row["decision"] if row["decision"] != "_" else "",
+            "Oui" if row["seuil_atteint"] else "Non",
+        ]
+        for row in rows
+    ]
+    return headers, data
+
+
+def _synthesis_export_rows():
+    """Full 'Réconciliation par prestation' dataset (RC/RA/R consolidated)."""
+    concordance = list(ConcordanceRecord.objects.order_by("id"))
+    headers, _ = _concordance_display_headers(concordance)
+    not_formed_campaign_rows, _ = _build_pas_forme_ii_campaign()
+    pending_contact_import = PendingLearnerContactImport.objects.first()
+    rows = _build_synthesis_reconciliation_rows(
+        concordance, headers, not_formed_campaign_rows, pending_contact_import
+    )
+    export_headers = [
+        "PRESTAID", "Prestataire", "Bénéficiaire", "Fenêtre",
+        "Appelés H", "Appelés F", "Appelés", "Total", "Méthode",
+    ]
+    data = [
+        [
+            row["presta_id"], row["prestataire"] or "—", row["beneficiaire"] or "—", row["fenetre"] or "—",
+            row["hommes"], row["femmes"], row["appeles"], row["total"], row["methode"],
+        ]
+        for row in rows
+    ]
+    return export_headers, data
+
+
+def _pending_contacts_export_rows():
+    """Full pending-contacts dataset, unlike the 100-row preview."""
+    pending_contact_import = PendingLearnerContactImport.objects.first()
+    if not pending_contact_import:
+        return ["#"], []
+    headers = ["#"] + list(pending_contact_import.headers)
+    rows = [
+        [record.row_number] + [record.payload.get(header, "") for header in pending_contact_import.headers]
+        for record in pending_contact_import.records.all()
+    ]
+    return headers, rows
+
+
+def concordance_export_rc_csv(request):
+    headers, rows = _concordance_export_rows(request)
+    return _csv_export_response("reconciliation_concordance", headers, rows)
+
+
+def concordance_export_rc_excel(request):
+    headers, rows = _concordance_export_rows(request)
+    return _excel_export_response("reconciliation_concordance", headers, rows)
+
+
+def concordance_export_ra_csv(request):
+    headers, rows = _campaign_export_rows()
+    return _csv_export_response("reconciliation_appels", headers, rows)
+
+
+def concordance_export_ra_excel(request):
+    headers, rows = _campaign_export_rows()
+    return _excel_export_response("reconciliation_appels", headers, rows)
+
+
+def concordance_export_synthesis_csv(request):
+    headers, rows = _synthesis_export_rows()
+    return _csv_export_response("synthese_reconciliation", headers, rows)
+
+
+def concordance_export_synthesis_excel(request):
+    headers, rows = _synthesis_export_rows()
+    return _excel_export_response("synthese_reconciliation", headers, rows)
+
+
+def concordance_export_contacts_csv(request):
+    headers, rows = _pending_contacts_export_rows()
+    return _csv_export_response("contacts_en_attente", headers, rows)
+
+
+def concordance_export_contacts_excel(request):
+    headers, rows = _pending_contacts_export_rows()
+    return _excel_export_response("contacts_en_attente", headers, rows)
 
 
 def concordance_campaigns_view(request):
@@ -2891,7 +3092,8 @@ def concordance_campaigns_view(request):
             and planned_sessions is not None
             and planned_sessions > 0
             and not call["pas_forme_du_tout"]
-            and 75 <= declared_sessions / planned_sessions * 100 <= 100
+            and declared_sessions != 0
+            and 75 <= declared_sessions / planned_sessions * 100 <= 120
         ):
             bucket["formes"] += 1
     campaign_rows = sorted(campaign.values(), key=lambda row: (row["fenetre"], row["genre"]))
@@ -2937,12 +3139,7 @@ def concordance_campaigns_view(request):
     synthesis_reconciliation_summary["total"] = len(synthesis_reconciliation_rows)
 
     concordance_gender_summary = _concordance_window_summary(concordance, headers)
-    campaign_gender_summary = _window_gender_summary(
-        campaign_rows,
-        gender_key=lambda row: row["genre"],
-        window_key=lambda row: row["fenetre"],
-        value_key=lambda row: row["formes"],
-    )
+    campaign_gender_summary = _decision_gender_summary(not_formed_campaign_rows)
     campaign_formed_people_summary = _formed_people_summary(campaign_gender_summary)
 
     return render(request, "reporting/concordance_campaigns.html", {
@@ -2953,7 +3150,6 @@ def concordance_campaigns_view(request):
         "campaign_rows": campaign_rows, "synthesis_rows": synthesis,
         "not_formed_campaign_rows": not_formed_campaign_rows,
         "not_formed_campaign_summary": not_formed_campaign_summary,
-        "pas_forme_ii_threshold_percent": PAS_FORME_II_THRESHOLD_PERCENT,
         "formed_people_summary": formed_people_summary,
         "synthesis_reconciliation_rows": synthesis_reconciliation_rows,
         "synthesis_reconciliation_summary": synthesis_reconciliation_summary,

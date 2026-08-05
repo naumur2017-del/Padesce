@@ -108,19 +108,21 @@
               data-q2="{{ row.membre_structure }}"
               data-declared="{{ row.nombre_seances_declare|default:'' }}"
               data-pas-forme-du-tout="{{ row.pas_forme_du_tout|yesno:'true,false' }}"
+              data-est-forme="{{ row.est_forme|yesno:'true,false' }}"
               data-faux-nom="{{ row.faux_nom|yesno:'true,false' }}"
               data-vrai-nom="{{ row.vrai_nom }}"
+              data-modified-by="{% if row.modified_by %}{{ row.modified_by.username }}{% endif %}"
               data-status="{{ row.status }}"
               data-status-label="{{ row.get_status_display }}"
               data-audio-url="{% if row.audio_file %}{{ row.audio_file.url }}{% endif %}"
               data-form-url="{% url 'pas_forme_ii_save_form' row.id %}"
               data-action-url="{% url 'pas_forme_ii_action' row.id %}"
               data-update-url="{% url 'pas_forme_ii_update' row.id %}"
-              data-can-edit="{% if user.is_superuser or row.locked_by_id == user.id %}true{% else %}false{% endif %}">
+              data-can-edit="{% if row.can_edit_form %}true{% else %}false{% endif %}">
             <td>{{ row.nom }}</td><td>{{ row.genre|default:"—" }}</td><td>{{ row.fenetre|default:"—" }}</td><td>{{ row.telephone }}</td><td>{{ row.prestation_id }}</td><td>{{ row.total_presence }}</td><td>{{ row.total_seances }}</td><td>{{ row.nombre_seances_source }}</td>
-            <td><span class="badge">{{ row.get_status_display }}</span></td>
+            <td><span class="badge">{{ row.get_status_display }}</span>{% if row.locked_by %}<br><small>Appelé par {{ row.locked_by.username }}</small>{% endif %}{% if row.modified_by %}<br><small>Modifié par {{ row.modified_by.username }}</small>{% endif %}</td>
             <td>{% if row.audio_file %}<audio controls preload="none" src="{{ row.audio_file.url }}" style="width:180px;height:32px"></audio>{% else %}—{% endif %}</td>
-            <td>{% if row.contact_blocked and not row.formulaire_rempli_at %}<span class="badge">Quota {{ pas_forme_ii_threshold_percent }} % atteint — contact bloqué</span>{% elif not row.formulaire_rempli_at and row.status != "formulaire_rempli" and row.status != "formulaire_avec_audio" %}<button type="button" class="btn open">Démarrer</button>{% else %}<span class="badge">Consulter la ligne</span>{% endif %}</td>
+            <td>{% if row.contact_blocked and not row.formulaire_rempli_at %}<span class="badge">Quota {{ pas_forme_ii_threshold_percent }} % atteint — contact bloqué</span>{% elif not row.formulaire_rempli_at %}<button type="button" class="btn open">{% if row.status == "a_rappeler" %}Reprendre le rappel{% else %}Démarrer{% endif %}</button>{% elif row.can_edit_form %}<span class="badge">Cliquer sur la ligne pour modifier</span>{% else %}<span class="badge">Consulter la ligne</span>{% endif %}</td>
           </tr>
         {% endfor %}
       </tbody>
@@ -190,6 +192,10 @@
           <label><input type="checkbox" id="edit-faux-nom" name="faux_nom"> Faux nom</label>
           <input class="input" id="edit-vrai-nom" name="vrai_nom" type="text" maxlength="255" placeholder="Vrai nom" hidden>
         </span>
+      </div>
+      <div>
+        <strong>Dernière modification</strong><br>
+        <span id="detail-modified-by"></span>
       </div>
       <div>
         <strong>Statut</strong><br>
@@ -394,6 +400,7 @@
     document.querySelector('#detail-sessions').textContent = row.dataset.declared || '—';
     document.querySelector('#detail-pas-forme-du-tout').textContent = row.dataset.pasFormeDuTout === 'true' ? 'Oui' : 'Non';
     document.querySelector('#detail-faux-nom').textContent = row.dataset.fauxNom === 'true' ? (row.dataset.vraiNom || 'Oui') : 'Non';
+    document.querySelector('#detail-modified-by').textContent = row.dataset.modifiedBy || 'Aucune modification';
     document.querySelector('#detail-status').textContent = row.dataset.statusLabel || '—';
     const audio = document.querySelector('#detail-audio');
     audio.replaceChildren();

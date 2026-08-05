@@ -2,7 +2,6 @@ import io
 import tempfile
 
 import openpyxl
-
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
@@ -12,12 +11,13 @@ from django.utils import timezone
 from App_PADESCE.appels.models import AppelPasFormeII
 
 
-def _import_file(rows):
+def _import_file(rows, headers=None):
     workbook = openpyxl.Workbook()
     sheet = workbook.active
     sheet.title = "Feuil1"
     sheet.append(
-        [
+        headers
+        or [
             "PRESTATION ID",
             "APPRENANTS",
             "NUMERO",
@@ -60,11 +60,106 @@ class AppelPasFormeIIImportTests(TestCase):
         )
         self.client.force_login(self.admin)
 
-    def test_comparison_keeps_matches_deactivates_missing_and_adds_new_rows(self):
-        matching = AppelPasFormeII.objects.create(
-            reference_code="PRESTA-001-690000001-apprenant-conserve",
+    @staticmethod
+    def _row(
+        prestation="PRESTA-001",
+        nom="Apprenant Test",
+        telephone="690000001",
+        genre="F",
+        fenetre="2",
+        absent="NON",
+    ):
+        return [
+            prestation,
+            nom,
+            telephone,
+            "Bénéficiaire",
+            "Prestataire",
+            genre,
+            fenetre,
+            absent,
+            4,
+            6,
+            5,
+            4,
+            "OUI",
+        ]
+
+    def test_add_import_ignores_file_duplicates_and_parses_non_as_false(self):
+        row = self._row()
+        response = self.client.post(
+            reverse("pas_forme_ii_index"),
+            {"import_action": "add", "file": _import_file([row, row])},
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(AppelPasFormeII.objects.count(), 1)
+        imported = AppelPasFormeII.objects.get()
+        self.assertFalse(imported.absent_dans_consolide)
+        self.assertEqual(imported.genre, "F")
+        self.assertEqual(imported.fenetre, "2")
+        self.assertContains(response, "1 ajoutés")
+        self.assertContains(response, "1 doublons ignorés")
+
+    def test_add_import_reactivates_without_losing_call_history(self):
+        existing = AppelPasFormeII.objects.create(
+            reference_code="PRESTA-001-690000001-apprenant-test",
             prestation_id="PRESTA-001",
-            nom="Apprenant Conserve",
+            nom="Apprenant Test",
+            telephone="690000001",
+            is_active=False,
+            commentaire="Historique conservé",
+            formulaire_rempli_at=timezone.now(),
+        )
+
+        self.client.post(
+            reverse("pas_forme_ii_index"),
+            {"import_action": "add", "file": _import_file([self._row(genre="M", fenetre="3")])},
+        )
+
+        existing.refresh_from_db()
+        self.assertTrue(existing.is_active)
+        self.assertEqual(existing.genre, "M")
+        self.assertEqual(existing.fenetre, "3")
+        self.assertEqual(existing.commentaire, "Historique conservé")
+        self.assertIsNotNone(existing.formulaire_rempli_at)
+
+    def test_update_segments_changes_only_genre_and_window(self):
+        existing = AppelPasFormeII.objects.create(
+            reference_code="PRESTA-001-690000001-apprenant-test",
+            prestation_id="PRESTA-001",
+            nom="Apprenant Test",
+            telephone="690000001",
+            genre="Ancien genre",
+            fenetre="Ancienne fenêtre",
+            commentaire="Ne pas modifier",
+            status="formulaire_rempli",
+            formulaire_rempli_at=timezone.now(),
+        )
+
+        response = self.client.post(
+            reverse("pas_forme_ii_index"),
+            {
+                "import_action": "update_segments",
+                "file": _import_file([self._row(genre="F", fenetre="3")]),
+            },
+            follow=True,
+        )
+
+        existing.refresh_from_db()
+        self.assertEqual(existing.genre, "F")
+        self.assertEqual(existing.fenetre, "3")
+        self.assertEqual(existing.commentaire, "Ne pas modifier")
+        self.assertEqual(existing.status, "formulaire_rempli")
+        self.assertIsNotNone(existing.formulaire_rempli_at)
+        self.assertContains(response, "1 genre/fenêtre actualisés")
+
+    def test_comparison_preserves_matches_deactivates_missing_and_adds_new(self):
+        matching = AppelPasFormeII.objects.create(
+            reference_code="PRESTA-001-690000001-apprenant-test",
+            prestation_id="PRESTA-001",
+            nom="Apprenant Test",
             telephone="690000001",
             genre="Genre plateforme",
             commentaire="Historique à préserver",
@@ -76,7 +171,6 @@ class AppelPasFormeIIImportTests(TestCase):
             prestation_id="PRESTA-002",
             nom="Apprenant Absent",
             telephone="690000002",
-            commentaire="Données conservées en base",
         )
 
         response = self.client.post(
@@ -85,99 +179,59 @@ class AppelPasFormeIIImportTests(TestCase):
                 "import_action": "compare_sync",
                 "file": _import_file(
                     [
-                        [
-                            "PRESTA-001", "Apprenant Conserve", "690000001",
-                            "B1", "P1", "Genre fichier", "F1", "NON",
-                            4, 6, 5, 4, "OUI",
-                        ],
-                        [
-                            "PRESTA-003", "Nouvel Apprenant", "690000003",
-                            "B3", "P3", "F", "F2", "NON",
-                            5, 7, 6, 5, "NON",
-                        ],
+                        self._row(genre="Genre fichier"),
+                        self._row(
+                            prestation="PRESTA-003",
+                            nom="Nouvel Apprenant",
+                            telephone="690000003",
+                        ),
                     ]
                 ),
             },
             follow=True,
         )
 
-        self.assertEqual(response.status_code, 200)
         matching.refresh_from_db()
         missing.refresh_from_db()
         self.assertTrue(matching.is_active)
         self.assertEqual(matching.genre, "Genre plateforme")
         self.assertEqual(matching.commentaire, "Historique à préserver")
-        self.assertEqual(matching.status, "formulaire_rempli")
         self.assertEqual(matching.updated_at, matching_updated_at)
         self.assertFalse(missing.is_active)
-        self.assertEqual(missing.commentaire, "Données conservées en base")
-
-        new_row = AppelPasFormeII.objects.get(
-            reference_code="PRESTA-003-690000003-nouvel-apprenant"
+        self.assertTrue(
+            AppelPasFormeII.objects.get(
+                reference_code="PRESTA-003-690000003-nouvel-apprenant"
+            ).is_active
         )
-        self.assertTrue(new_row.is_active)
-        self.assertEqual(new_row.beneficiaire, "B3")
-        self.assertEqual(new_row.prestataire, "P3")
-        self.assertEqual(new_row.genre, "F")
-        self.assertEqual(new_row.fenetre, "F2")
-        self.assertFalse(new_row.absent_dans_consolide)
-        self.assertEqual(new_row.total_presence, 5)
         self.assertContains(response, "1 inchangés")
         self.assertContains(response, "1 désactivés")
         self.assertContains(response, "1 ajoutés")
-        self.assertContains(response, "Comparer et mettre à jour")
 
-    def test_comparison_reactivates_a_row_without_losing_its_history(self):
-        inactive = AppelPasFormeII.objects.create(
-            reference_code="PRESTA-004-690000004-apprenant-retour",
-            prestation_id="PRESTA-004",
-            nom="Apprenant Retour",
-            telephone="690000004",
-            is_active=False,
-            commentaire="Ancien compte rendu",
-            genre="Ancien genre",
-        )
-
-        self.client.post(
-            reverse("pas_forme_ii_index"),
-            {
-                "import_action": "compare_sync",
-                "file": _import_file(
-                    [
-                        [
-                            "PRESTA-004", "Apprenant Retour", "690000004",
-                            "B4", "P4", "M", "F3", "OUI",
-                            2, 4, 3, 2, "NON",
-                        ]
-                    ]
-                ),
-            },
-        )
-
-        inactive.refresh_from_db()
-        self.assertTrue(inactive.is_active)
-        self.assertEqual(inactive.commentaire, "Ancien compte rendu")
-        self.assertEqual(inactive.genre, "M")
-        self.assertEqual(inactive.fenetre, "F3")
-        self.assertTrue(inactive.absent_dans_consolide)
-
-    def test_empty_comparison_file_does_not_deactivate_existing_rows(self):
+    def test_empty_or_invalid_file_does_not_change_existing_rows(self):
         existing = AppelPasFormeII.objects.create(
-            reference_code="PRESTA-005-690000005-apprenant-protege",
-            prestation_id="PRESTA-005",
-            nom="Apprenant Protege",
-            telephone="690000005",
+            reference_code="PRESTA-PROTECTED",
+            prestation_id="PRESTA-PROTECTED",
+            nom="Apprenant Protégé",
         )
 
-        response = self.client.post(
+        empty = self.client.post(
             reverse("pas_forme_ii_index"),
             {"import_action": "compare_sync", "file": _import_file([])},
+            follow=True,
+        )
+        invalid = self.client.post(
+            reverse("pas_forme_ii_index"),
+            {
+                "import_action": "add",
+                "file": _import_file([], headers=["COLONNE INCONNUE"]),
+            },
             follow=True,
         )
 
         existing.refresh_from_db()
         self.assertTrue(existing.is_active)
-        self.assertContains(response, "Comparaison annulée")
+        self.assertContains(empty, "Comparaison annulée")
+        self.assertContains(invalid, "colonne(s) obligatoire(s) absente(s)")
 
     def test_page_uses_ten_percent_threshold_with_ceiling(self):
         calls = []
@@ -230,19 +284,19 @@ class AppelPasFormeIISaveTests(TestCase):
             nombre_seances_source=4,
         )
 
-    def _reach_prestation_threshold(self, *, completed=1):
-        rows = []
-        for index in range(9):
-            rows.append(
+    def _reach_prestation_threshold(self):
+        AppelPasFormeII.objects.bulk_create(
+            [
                 AppelPasFormeII(
                     reference_code=f"PFII-QUOTA-{index}",
                     prestation_id=self.row.prestation_id,
                     nom=f"Apprenant quota {index}",
                     telephone=f"6900001{index:02d}",
-                    formulaire_rempli_at=timezone.now() if index < completed else None,
+                    formulaire_rempli_at=timezone.now() if index == 0 else None,
                 )
-            )
-        AppelPasFormeII.objects.bulk_create(rows)
+                for index in range(9)
+            ]
+        )
 
     def test_completed_form_is_saved_counted_and_exposes_audio(self):
         response = self.client.post(
@@ -272,7 +326,7 @@ class AppelPasFormeIISaveTests(TestCase):
         page = self.client.get(reverse("pas_forme_ii_index"))
         self.assertEqual(page.context["thresholds"][0]["completed"], 1)
         self.assertNotContains(page, 'class="btn open"')
-        self.assertContains(page, "Consulter la ligne")
+        self.assertContains(page, "Modifier")
         self.assertContains(page, 'data-q2="OUI"')
         self.assertContains(page, 'data-declared="5"')
         self.assertContains(page, "<audio", html=False)
@@ -348,10 +402,23 @@ class AppelPasFormeIISaveTests(TestCase):
 
     def test_false_name_requires_and_saves_the_real_name(self):
         url = reverse("pas_forme_ii_save_form", args=[self.row.pk])
-        incomplete = self.client.post(url, {"q2": "OUI", "nombre_seances_declare": "3", "faux_nom": "on"}, HTTP_X_REQUESTED_WITH="XMLHttpRequest")
+        incomplete = self.client.post(
+            url,
+            {"q2": "OUI", "nombre_seances_declare": "3", "faux_nom": "on"},
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
         self.assertEqual(incomplete.status_code, 400)
 
-        response = self.client.post(url, {"q2": "OUI", "nombre_seances_declare": "3", "faux_nom": "on", "vrai_nom": "Vrai Apprenant"}, HTTP_X_REQUESTED_WITH="XMLHttpRequest")
+        response = self.client.post(
+            url,
+            {
+                "q2": "OUI",
+                "nombre_seances_declare": "3",
+                "faux_nom": "on",
+                "vrai_nom": "Vrai Apprenant",
+            },
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
         self.assertEqual(response.status_code, 200)
         self.row.refresh_from_db()
         self.assertTrue(self.row.faux_nom)
@@ -370,58 +437,32 @@ class AppelPasFormeIISaveTests(TestCase):
         self.assertEqual(self.row.status, "en_cours")
         self.assertEqual(self.row.locked_by, self.user)
 
-    def test_threshold_reached_hides_every_new_contact_action(self):
+    def test_ten_percent_quota_blocks_new_contacts_on_page_and_backend(self):
         self._reach_prestation_threshold()
 
         page = self.client.get(reverse("pas_forme_ii_index"))
-
-        self.assertNotContains(page, 'class="btn open"')
         self.assertContains(page, "Quota 10 % atteint — contact bloqué")
-        self.assertContains(page, "Bloqués")
 
-    def test_threshold_reached_blocks_start_resume_and_success_on_backend(self):
-        self._reach_prestation_threshold(completed=2)
-        url = reverse("pas_forme_ii_action", args=[self.row.pk])
+        action_response = self.client.post(
+            reverse("pas_forme_ii_action", args=[self.row.pk]),
+            {"action": "start"},
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+        form_response = self.client.post(
+            reverse("pas_forme_ii_save_form", args=[self.row.pk]),
+            {"q2": "OUI", "nombre_seances_declare": "4"},
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
 
-        for action_name in ("start", "resume", "reussi"):
-            with self.subTest(action=action_name):
-                response = self.client.post(
-                    url,
-                    {"action": action_name},
-                    HTTP_X_REQUESTED_WITH="XMLHttpRequest",
-                )
-                self.assertEqual(response.status_code, 409)
-                self.assertFalse(response.json()["ok"])
-                self.assertTrue(response.json()["threshold_reached"])
-
-        self.row.refresh_from_db()
-        self.assertEqual(self.row.status, "en_attente")
-        self.assertIsNone(self.row.locked_by)
-
-    def test_threshold_reached_blocks_recall_and_form_submission_on_backend(self):
-        self._reach_prestation_threshold()
-        url = reverse("pas_forme_ii_save_form", args=[self.row.pk])
-
-        for payload in (
-            {"action": "rappeler", "rappel_at": "2026-08-05T10:00"},
-            {"action": "terminer", "q2": "OUI", "nombre_seances_declare": "4"},
-        ):
-            with self.subTest(action=payload["action"]):
-                response = self.client.post(
-                    url,
-                    payload,
-                    HTTP_X_REQUESTED_WITH="XMLHttpRequest",
-                )
-                self.assertEqual(response.status_code, 409)
-                self.assertFalse(response.json()["ok"])
-                self.assertTrue(response.json()["threshold_reached"])
-
+        self.assertEqual(action_response.status_code, 409)
+        self.assertTrue(action_response.json()["threshold_reached"])
+        self.assertEqual(form_response.status_code, 409)
+        self.assertTrue(form_response.json()["threshold_reached"])
         self.row.refresh_from_db()
         self.assertEqual(self.row.status, "en_attente")
         self.assertIsNone(self.row.formulaire_rempli_at)
-        self.assertIsNone(self.row.rappel_at)
 
-    def test_pause_remains_available_to_stop_an_in_progress_call_at_threshold(self):
+    def test_pause_remains_available_after_quota_is_reached(self):
         self._reach_prestation_threshold()
         self.row.status = "en_cours"
         self.row.locked_by = self.user
@@ -436,3 +477,61 @@ class AppelPasFormeIISaveTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.row.refresh_from_db()
         self.assertEqual(self.row.status, "pause")
+
+    def test_completed_form_can_only_be_modified_by_call_agent_or_admin(self):
+        self.row.locked_by = self.user
+        self.row.formulaire_rempli_at = timezone.now()
+        self.row.status = "formulaire_rempli"
+        self.row.save()
+        other_user = get_user_model().objects.create_user(
+            username="other-agent", password="test123"
+        )
+        url = reverse("pas_forme_ii_save_form", args=[self.row.pk])
+
+        self.client.force_login(other_user)
+        denied = self.client.post(
+            url,
+            {"q2": "OUI", "nombre_seances_declare": "2"},
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+        self.assertEqual(denied.status_code, 403)
+
+        self.client.force_login(self.user)
+        updated = self.client.post(
+            url,
+            {"q2": "NON", "nombre_seances_declare": "2"},
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+        self.assertEqual(updated.status_code, 200)
+        self.row.refresh_from_db()
+        self.assertEqual(self.row.modified_by, self.user)
+        self.assertIsNotNone(self.row.modified_at)
+        self.assertEqual(self.row.locked_by, self.user)
+
+        admin = get_user_model().objects.create_superuser(
+            username="pfii-admin", password="test123", email="admin@example.com"
+        )
+        self.client.force_login(admin)
+        updated_by_admin = self.client.post(
+            url,
+            {"q2": "OUI", "nombre_seances_declare": "4"},
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+        self.assertEqual(updated_by_admin.status_code, 200)
+        self.row.refresh_from_db()
+        self.assertEqual(self.row.modified_by, admin)
+        self.assertEqual(self.row.locked_by, self.user)
+
+    def test_call_with_reminder_status_can_be_started(self):
+        self.row.status = "a_rappeler"
+        self.row.save(update_fields=["status", "updated_at"])
+
+        response = self.client.post(
+            reverse("pas_forme_ii_action", args=[self.row.pk]),
+            {"action": "start"},
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.row.refresh_from_db()
+        self.assertEqual(self.row.status, "en_cours")

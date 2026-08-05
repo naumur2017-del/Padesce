@@ -43,10 +43,28 @@ def _boolean(value):
 
 
 def _parse(file_obj):
-    ws = openpyxl.load_workbook(file_obj, read_only=True, data_only=True)["Feuil1"]
+    workbook = openpyxl.load_workbook(file_obj, read_only=True, data_only=True)
+    sheet_name = next(
+        (name for name in workbook.sheetnames if _header(name) == "feuil1"),
+        None,
+    )
+    if sheet_name is None:
+        raise ValueError("la feuille 'Feuil1' est introuvable")
+    ws = workbook[sheet_name]
     rows = ws.iter_rows(values_only=True)
     headers = next(rows, None) or []
     lookup = {_header(v): i for i, v in enumerate(headers)}
+
+    missing = [
+        label
+        for key, label in (
+            ("prestation id", "PRESTATION ID"),
+            ("apprenants", "APPRENANTS"),
+        )
+        if key not in lookup
+    ]
+    if missing:
+        raise ValueError(f"colonne(s) obligatoire(s) absente(s) : {', '.join(missing)}")
 
     def get(row, key):
         i = lookup.get(key)
@@ -100,7 +118,7 @@ _SOURCE_FIELDS = (
 
 
 def _comparison_sync(payload):
-    """Synchronize visible rows while preserving every existing call and form field."""
+    """Synchronize the active list without deleting call or form history."""
     incoming_by_reference = {}
     duplicates = 0
     for item in payload:
@@ -121,10 +139,8 @@ def _comparison_sync(payload):
         if row is None:
             to_create.append(AppelPasFormeII(**item, is_active=True))
         elif row.is_active:
-            # A row present on both sides must remain completely untouched.
             unchanged += 1
         else:
-            # Restore the source data without altering the preserved call/form history.
             for field in _SOURCE_FIELDS:
                 setattr(row, field, item[field])
             row.is_active = True
@@ -138,9 +154,10 @@ def _comparison_sync(payload):
         if row.is_active and reference not in incoming_references
     ]
     for start in range(0, len(deactivate_ids), 500):
-        AppelPasFormeII.objects.filter(
-            pk__in=deactivate_ids[start : start + 500]
-        ).update(is_active=False, updated_at=now)
+        AppelPasFormeII.objects.filter(pk__in=deactivate_ids[start : start + 500]).update(
+            is_active=False,
+            updated_at=now,
+        )
 
     if to_reactivate:
         AppelPasFormeII.objects.bulk_update(
@@ -169,36 +186,21 @@ def _thresholds():
             completed=Count("id", filter=Q(formulaire_rempli_at__isnull=False)),
         )
     )
-    result = []
-    for row in rows:
-        result.append(
-            {
-                **row,
-                "target": pas_forme_ii_threshold_target(row["total"]),
-                "pct": round(100 * row["completed"] / row["total"], 1)
-                if row["total"]
-                else 0,
-                "reached": pas_forme_ii_threshold_reached(
-                    row["total"], row["completed"]
-                ),
-            }
-        )
-    return result
+    return [
+        {
+            **row,
+            "target": pas_forme_ii_threshold_target(row["total"]),
+            "pct": round(100 * row["completed"] / row["total"], 1) if row["total"] else 0,
+            "reached": pas_forme_ii_threshold_reached(row["total"], row["completed"]),
+        }
+        for row in rows
+    ]
 
 
 def _prestation_threshold_state(prestation_id: str, *, lock: bool = False) -> dict:
-    queryset = AppelPasFormeII.objects.filter(
-        is_active=True,
-        prestation_id=prestation_id,
-    )
+    queryset = AppelPasFormeII.objects.filter(is_active=True, prestation_id=prestation_id)
     if lock:
-        # Lock every row in a stable order so two agents cannot complete the
-        # quota concurrently from different learners of the same prestation.
-        list(
-            queryset.select_for_update()
-            .order_by("pk")
-            .values_list("pk", flat=True)
-        )
+        list(queryset.select_for_update().order_by("pk").values_list("pk", flat=True))
     counts = queryset.aggregate(
         total=Count("id"),
         completed=Count("id", filter=Q(formulaire_rempli_at__isnull=False)),
@@ -225,7 +227,7 @@ def _contact_blocked_response(request, state: dict, *, wants_json: bool):
     error = _contact_blocked_error(state)
     if wants_json:
         return JsonResponse(
-            {"ok": False, "error": error, "threshold_reached": True},
+            {"ok": False, "error": error, "threshold_reached": True, **state},
             status=409,
         )
     messages.error(request, error)
@@ -237,39 +239,53 @@ def _contact_blocked_response(request, state: dict, *, wants_json: bool):
 def index(request):
     if request.method == "POST" and request.FILES.get("file"):
         if not request.user.is_superuser:
-            messages.error(request, "Seul un superadmin peut importer."); return redirect(request.path_info)
-        try: payload = _parse(io.BytesIO(request.FILES["file"].read()))
-        except Exception as exc: messages.error(request, f"Impossible de lire le fichier : {exc}"); return redirect(request.path_info)
+            messages.error(request, "Seul un superadmin peut importer.")
+            return redirect(request.path_info)
+        try:
+            payload = _parse(io.BytesIO(request.FILES["file"].read()))
+        except Exception as exc:
+            messages.error(request, f"Impossible de lire le fichier : {exc}")
+            return redirect(request.path_info)
+
         action_name = request.POST.get("import_action", "add")
+        if action_name not in {"add", "update_segments", "compare_sync"}:
+            messages.error(request, "Action d'import inconnue.")
+            return redirect(request.path_info)
+        if not payload:
+            label = "Comparaison annulée" if action_name == "compare_sync" else "Import annulé"
+            messages.warning(
+                request,
+                f"{label} : aucune ligne exploitable dans Feuil1.",
+            )
+            return redirect(request.path_info)
+
         if action_name == "compare_sync":
-            if not payload:
-                messages.error(
-                    request,
-                    "Comparaison annulée : le fichier ne contient aucune ligne exploitable.",
-                )
-                return redirect(request.path_info)
             result = _comparison_sync(payload)
             messages.success(
                 request,
-                (
-                    "Comparaison et mise à jour terminées : "
-                    f"{result['unchanged']} inchangés, "
-                    f"{result['deactivated']} désactivés, "
-                    f"{result['created']} ajoutés, "
-                    f"{result['reactivated']} réactivés"
-                    f" et {result['duplicates']} doublons du fichier ignorés."
-                ),
+                "Comparaison terminée : "
+                f"{result['unchanged']} inchangés, "
+                f"{result['reactivated']} réactivés, "
+                f"{result['deactivated']} désactivés, "
+                f"{result['created']} ajoutés, "
+                f"{result['duplicates']} doublons du fichier ignorés.",
             )
             return redirect(request.path_info)
-        created = updated = duplicates = not_found = 0
+
         existing_by_reference = {
-            row.reference_code: row
-            for row in AppelPasFormeII.objects.filter(is_active=True)
+            row.reference_code: row for row in AppelPasFormeII.objects.all()
         }
+        seen_references = set()
+        created = updated = reactivated = duplicates = not_found = 0
         for item in payload:
-            row = existing_by_reference.get(item["reference_code"])
+            reference = item["reference_code"]
+            if reference in seen_references:
+                duplicates += 1
+                continue
+            seen_references.add(reference)
+            row = existing_by_reference.get(reference)
             if action_name == "update_segments":
-                if not row:
+                if not row or not row.is_active:
                     not_found += 1
                     continue
                 if row.genre != item["genre"] or row.fenetre != item["fenetre"]:
@@ -278,38 +294,134 @@ def index(request):
                     row.save(update_fields=["genre", "fenetre", "updated_at"])
                     updated += 1
                 continue
+
             if row:
-                duplicates += 1; continue
-            AppelPasFormeII.objects.create(**item); created += 1
+                if row.is_active:
+                    duplicates += 1
+                    continue
+                for field in _SOURCE_FIELDS:
+                    setattr(row, field, item[field])
+                row.is_active = True
+                row.save(update_fields=[*_SOURCE_FIELDS, "is_active", "updated_at"])
+                reactivated += 1
+                continue
+            row = AppelPasFormeII.objects.create(**item)
+            existing_by_reference[reference] = row
+            created += 1
+
         if action_name == "update_segments":
-            messages.success(request, f"Mise à jour terminée : {updated} genre/fenêtre actualisés, {not_found} lignes non trouvées.")
+            messages.success(
+                request,
+                f"Mise à jour terminée : {updated} genre/fenêtre actualisés, "
+                f"{not_found} lignes non trouvées, {duplicates} doublons du fichier ignorés.",
+            )
         else:
-            messages.success(request, f"Import terminé : {created} ajoutés, {duplicates} doublons ignorés.")
+            messages.success(
+                request,
+                f"Import terminé : {created} ajoutés, {reactivated} réactivés, "
+                f"{duplicates} doublons ignorés.",
+            )
         return redirect(request.path_info)
-    rows = AppelPasFormeII.objects.filter(is_active=True)
-    filters = {key: request.GET.get(key, "").strip() for key in ("status", "prestation", "prestataire", "beneficiaire", "genre", "fenetre", "q")}
-    if filters["status"]: rows = rows.filter(status=filters["status"])
-    if filters["prestation"]: rows = rows.filter(prestation_id=filters["prestation"])
-    if filters["prestataire"]: rows = rows.filter(prestataire__icontains=filters["prestataire"])
-    if filters["beneficiaire"]: rows = rows.filter(beneficiaire__icontains=filters["beneficiaire"])
-    if filters["genre"]: rows = rows.filter(genre__iexact=filters["genre"])
-    if filters["fenetre"]: rows = rows.filter(fenetre__iexact=filters["fenetre"])
-    if filters["q"]: rows = rows.filter(Q(nom__icontains=filters["q"]) | Q(telephone__icontains=filters["q"]))
+
+    rows = AppelPasFormeII.objects.filter(is_active=True).select_related(
+        "locked_by", "modified_by"
+    )
+    filters = {
+        key: request.GET.get(key, "").strip()
+        for key in (
+            "status",
+            "prestation",
+            "prestataire",
+            "beneficiaire",
+            "genre",
+            "fenetre",
+            "q",
+        )
+    }
+    if filters["status"]:
+        rows = rows.filter(status=filters["status"])
+    if filters["prestation"]:
+        rows = rows.filter(prestation_id=filters["prestation"])
+    if filters["prestataire"]:
+        rows = rows.filter(prestataire__icontains=filters["prestataire"])
+    if filters["beneficiaire"]:
+        rows = rows.filter(beneficiaire__icontains=filters["beneficiaire"])
+    if filters["genre"]:
+        rows = rows.filter(genre__iexact=filters["genre"])
+    if filters["fenetre"]:
+        rows = rows.filter(fenetre__iexact=filters["fenetre"])
+    if filters["q"]:
+        rows = rows.filter(
+            Q(nom__icontains=filters["q"]) | Q(telephone__icontains=filters["q"])
+        )
+
     all_rows = AppelPasFormeII.objects.filter(is_active=True)
-    filters.update({"prestations": list(all_rows.values_list("prestation_id", flat=True).distinct().order_by("prestation_id")), "prestataires": list(all_rows.values_list("prestataire", flat=True).distinct().order_by("prestataire")), "beneficiaires": list(all_rows.values_list("beneficiaire", flat=True).distinct().order_by("beneficiaire")), "genres": list(all_rows.exclude(genre="").values_list("genre", flat=True).distinct().order_by("genre")), "fenetres": list(all_rows.exclude(fenetre="").values_list("fenetre", flat=True).distinct().order_by("fenetre"))})
-    campaign_segments = list(all_rows.values("genre", "fenetre").annotate(total=Count("id"), completed=Count("id", filter=Q(formulaire_rempli_at__isnull=False)), successful=Count("id", filter=Q(status__in=["appel_reussi", "formulaire_rempli", "formulaire_avec_audio"]))).order_by("fenetre", "genre"))
-    page_obj = Paginator(rows.order_by("prestation_id", "nom"), 50).get_page(request.GET.get("page", 1))
+    filters.update(
+        {
+            "prestations": list(
+                all_rows.values_list("prestation_id", flat=True)
+                .distinct()
+                .order_by("prestation_id")
+            ),
+            "prestataires": list(
+                all_rows.values_list("prestataire", flat=True)
+                .distinct()
+                .order_by("prestataire")
+            ),
+            "beneficiaires": list(
+                all_rows.values_list("beneficiaire", flat=True)
+                .distinct()
+                .order_by("beneficiaire")
+            ),
+            "genres": list(
+                all_rows.exclude(genre="")
+                .values_list("genre", flat=True)
+                .distinct()
+                .order_by("genre")
+            ),
+            "fenetres": list(
+                all_rows.exclude(fenetre="")
+                .values_list("fenetre", flat=True)
+                .distinct()
+                .order_by("fenetre")
+            ),
+        }
+    )
+    campaign_segments = list(
+        all_rows.values("genre", "fenetre")
+        .annotate(
+            total=Count("id"),
+            completed=Count("id", filter=Q(formulaire_rempli_at__isnull=False)),
+            successful=Count(
+                "id",
+                filter=Q(
+                    status__in=[
+                        "appel_reussi",
+                        "formulaire_rempli",
+                        "formulaire_avec_audio",
+                    ]
+                ),
+            ),
+        )
+        .order_by("fenetre", "genre")
+    )
+    page_obj = Paginator(rows.order_by("prestation_id", "nom"), 50).get_page(
+        request.GET.get("page", 1)
+    )
     threshold_map = {item["prestation_id"]: item for item in _thresholds()}
-    for row in page_obj.object_list:
+    params = request.GET.copy()
+    params.pop("page", None)
+    page_rows = list(page_obj.object_list)
+    for row in page_rows:
+        row.can_edit_form = request.user.is_superuser or row.locked_by_id == request.user.id
         row.contact_blocked = bool(
             threshold_map.get(row.prestation_id, {}).get("reached")
         )
-    params = request.GET.copy(); params.pop("page", None)
     return render(
         request,
         "appels/pas_forme_ii.html",
         {
-            "rows": page_obj.object_list,
+            "rows": page_rows,
             "page_obj": page_obj,
             "pagination_tokens": build_pagination_tokens(page_obj),
             "querystring_no_page": params.urlencode(),
@@ -329,13 +441,28 @@ def index(request):
 def save_form(request, pk):
     row = get_object_or_404(AppelPasFormeII, pk=pk, is_active=True)
     wants_json = request.headers.get("x-requested-with") == "XMLHttpRequest"
-    threshold_state = _prestation_threshold_state(row.prestation_id, lock=True)
-    if threshold_state["reached"]:
-        return _contact_blocked_response(
-            request,
-            threshold_state,
-            wants_json=wants_json,
+    was_completed = row.formulaire_rempli_at is not None
+
+    if was_completed and not (
+        request.user.is_superuser or row.locked_by_id == request.user.id
+    ):
+        error = (
+            "Seul l'agent ayant réalisé l'appel ou un administrateur peut "
+            "modifier ce formulaire."
         )
+        if wants_json:
+            return JsonResponse({"ok": False, "error": error}, status=403)
+        messages.error(request, error)
+        return redirect("pas_forme_ii_index")
+
+    if not was_completed:
+        threshold_state = _prestation_threshold_state(row.prestation_id, lock=True)
+        if threshold_state["reached"]:
+            return _contact_blocked_response(
+                request,
+                threshold_state,
+                wants_json=wants_json,
+            )
 
     if request.POST.get("action") == "rappeler":
         row.status = "a_rappeler"
@@ -377,9 +504,13 @@ def save_form(request, pk):
     row.faux_nom = faux_nom
     row.vrai_nom = vrai_nom if faux_nom else ""
     row.commentaire = str(request.POST.get("commentaire", "")).strip()
-    row.formulaire_rempli_at = timezone.now()
+    row.formulaire_rempli_at = row.formulaire_rempli_at or timezone.now()
     row.status = "formulaire_avec_audio" if request.FILES.get("audio") else "formulaire_rempli"
-    row.locked_by = request.user
+    if not row.locked_by_id:
+        row.locked_by = request.user
+    if was_completed:
+        row.modified_by = request.user
+        row.modified_at = timezone.now()
     row.locked_at = None
     row.rappel_at = None
     if request.FILES.get("audio"):
@@ -403,7 +534,9 @@ def save_form(request, pk):
 
 
 def _can_edit(request, row):
-    return request.user.is_superuser or (row.locked_by_id and row.locked_by_id == request.user.id)
+    return request.user.is_superuser or (
+        row.locked_by_id and row.locked_by_id == request.user.id
+    )
 
 
 @login_required
@@ -468,6 +601,8 @@ def update_form(request, pk):
     elif remove_audio and row.audio_file:
         row.audio_file.delete(save=False)
         row.audio_file = None
+    row.modified_by = request.user
+    row.modified_at = timezone.now()
     row.save()
 
     if wants_json:
@@ -498,6 +633,8 @@ def action(request, pk):
     action_name = request.POST.get("action")
     wants_json = request.headers.get("x-requested-with") == "XMLHttpRequest"
     if action_name not in {"start", "resume", "pause", "reussi"}:
+        if wants_json:
+            return JsonResponse({"ok": False, "error": "Action inconnue."}, status=400)
         return redirect("pas_forme_ii_index")
     if action_name != "pause":
         threshold_state = _prestation_threshold_state(row.prestation_id, lock=True)
@@ -507,9 +644,14 @@ def action(request, pk):
                 threshold_state,
                 wants_json=wants_json,
             )
-    if action_name in {"start", "resume"}: row.status, row.locked_by, row.locked_at = "en_cours", request.user, timezone.now()
-    elif action_name == "pause": row.status = "pause"
-    elif action_name == "reussi": row.status = "appel_reussi"
+    if action_name in {"start", "resume"}:
+        row.status = "en_cours"
+        row.locked_by = request.user
+        row.locked_at = timezone.now()
+    elif action_name == "pause":
+        row.status = "pause"
+    elif action_name == "reussi":
+        row.status = "appel_reussi"
     row.save(update_fields=["status", "locked_by", "locked_at", "updated_at"])
     if wants_json:
         return JsonResponse({"ok": True, "status": row.status})
