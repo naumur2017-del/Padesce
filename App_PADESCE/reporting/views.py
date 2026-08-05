@@ -2441,7 +2441,10 @@ def _build_pas_forme_ii_campaign():
     for row in rows:
         denom = row["formes_total"] + row["pas_formes_total"]
         row["taux_formation"] = (row["formes_total"] / denom * 100) if denom else None
-        row["decision"] = row["total"] if (row["taux_formation"] is not None and row["taux_formation"] > 75) else "_"
+        decision_atteinte = row["taux_formation"] is not None and row["taux_formation"] > 75
+        row["decision"] = row["total"] if decision_atteinte else "_"
+        row["decision_hommes"] = row["hommes"] if decision_atteinte else "_"
+        row["decision_femmes"] = row["femmes"] if decision_atteinte else "_"
     summary = {
         "prestations": sum(1 for atteint in thresholded.values() if atteint),
         "appels_effectues": 0,
@@ -2826,7 +2829,7 @@ def _campaign_export_rows():
         "PRESTAID", "Prestataire", "Bénéficiaire", "Fenêtre",
         "Appelés H", "Appelés F", "Appelés", "Total",
         "Formés total", "Formés H", "Formés F", "Formés fenêtre 2", "Formés fenêtre 3",
-        "Pas formés total", "Taux de formation (%)", "Décision", "Seuil atteint",
+        "Pas formés total", "Taux de formation (%)", "Décision H", "Décision F", "Décision", "Seuil atteint",
     ]
     data = [
         [
@@ -2835,6 +2838,8 @@ def _campaign_export_rows():
             row["formes_total"], row["formes_hommes"], row["formes_femmes"],
             row["formes_fenetre_2"], row["formes_fenetre_3"], row["pas_formes_total"],
             round(row["taux_formation"], 1) if row["taux_formation"] is not None else "",
+            row["decision_hommes"] if row["decision_hommes"] != "_" else "",
+            row["decision_femmes"] if row["decision_femmes"] != "_" else "",
             row["decision"] if row["decision"] != "_" else "",
             "Oui" if row["seuil_atteint"] else "Non",
         ]
