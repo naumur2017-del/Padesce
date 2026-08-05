@@ -2441,7 +2441,7 @@ def _build_pas_forme_ii_campaign():
     for row in rows:
         denom = row["formes_total"] + row["pas_formes_total"]
         row["taux_formation"] = (row["formes_total"] / denom * 100) if denom else None
-        row["decision"] = denom if (row["taux_formation"] is not None and row["taux_formation"] > 75) else "_"
+        row["decision"] = row["total"] if (row["taux_formation"] is not None and row["taux_formation"] > 75) else "_"
     summary = {
         "prestations": sum(1 for atteint in thresholded.values() if atteint),
         "appels_effectues": 0,
