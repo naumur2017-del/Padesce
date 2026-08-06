@@ -159,6 +159,8 @@ class ConcordanceCampaignPageTests(TestCase):
                 "fenetre_3": 23,
                 "hommes": 17,
                 "femmes": 6,
+                "decision_total": 23,
+                "decision_prestations": 4,
             },
         )
 
@@ -286,6 +288,25 @@ class ConcordanceCampaignPageTests(TestCase):
         self.assertEqual(exported_row["Pas formés total"], "1")
         self.assertEqual(exported_row["Décision"], "5")
 
+    def test_confirmation_rate_interval_controls_decision_and_its_total(self):
+        for index in range(4):
+            AppelPasFormeII.objects.create(
+                reference_code=f"PFII-CONFIRM-{index}", prestation_id="PRESTA-CONFIRM",
+                nom=f"Confirmé {index}", genre="F", fenetre="2", total_seances=4,
+                nombre_seances_declare=3, formulaire_rempli_at=timezone.now(),
+            )
+
+        response = self.client.get(reverse("concordance_campaigns"), {
+            "tab": "campaigns", "confirmation_rate_min": "80", "confirmation_rate_max": "100",
+        })
+
+        row = response.context["not_formed_campaign_rows"][0]
+        self.assertEqual(row["taux_formation"], 100)
+        self.assertEqual(row["decision"], 4)
+        self.assertEqual(response.context["not_formed_campaign_summary"]["decision_total"], 4)
+        self.assertEqual(response.context["not_formed_campaign_summary"]["decision_prestations"], 1)
+        self.assertContains(response, "Total au-dessus du taux de confirmation")
+
     def test_invalid_formation_rate_interval_falls_back_to_safe_defaults(self):
         response = self.client.get(reverse("concordance_campaigns"), {
             "tab": "campaigns",
@@ -374,6 +395,8 @@ class ConcordanceCampaignPageTests(TestCase):
             "fenetre_3": 1,
             "hommes": 1,
             "femmes": 1,
+            "decision_total": 0,
+            "decision_prestations": 0,
         })
 
         headers, exported_rows = views._campaign_export_rows()

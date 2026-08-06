@@ -2337,6 +2337,8 @@ def _synthesis_payload_identity(payload):
 
 DEFAULT_FORMATION_RATE_MIN = 75.0
 DEFAULT_FORMATION_RATE_MAX = 120.0
+DEFAULT_CONFIRMATION_RATE_MIN = 75.0
+DEFAULT_CONFIRMATION_RATE_MAX = 100.0
 
 
 def _format_rate_filter_value(value):
@@ -2379,6 +2381,42 @@ def _formation_rate_interval(params):
         "query": urlencode({
             "formation_rate_min": minimum_value,
             "formation_rate_max": maximum_value,
+        }),
+        "error": error,
+    }
+
+
+def _confirmation_rate_interval(params):
+    """Return the confirmation-rate interval that controls Decision values."""
+    default_min = DEFAULT_CONFIRMATION_RATE_MIN
+    default_max = DEFAULT_CONFIRMATION_RATE_MAX
+    raw_min = params.get("confirmation_rate_min")
+    raw_max = params.get("confirmation_rate_max")
+    error = ""
+    if raw_min is None and raw_max is None:
+        minimum, maximum = default_min, default_max
+    else:
+        try:
+            parsed_min = Decimal(str(raw_min or "").strip().replace(",", "."))
+            parsed_max = Decimal(str(raw_max or "").strip().replace(",", "."))
+            if not parsed_min.is_finite() or not parsed_max.is_finite():
+                raise InvalidOperation
+            minimum, maximum = float(parsed_min), float(parsed_max)
+            if minimum < 0 or maximum < 0 or maximum > 100 or minimum > maximum:
+                raise ValueError
+        except (InvalidOperation, TypeError, ValueError):
+            minimum, maximum = default_min, default_max
+            error = "Saisissez deux taux valides entre 0 et 100, avec un minimum inférieur ou égal au maximum."
+    minimum_value = _format_rate_filter_value(minimum)
+    maximum_value = _format_rate_filter_value(maximum)
+    return {
+        "minimum": minimum,
+        "maximum": maximum,
+        "minimum_value": minimum_value,
+        "maximum_value": maximum_value,
+        "query": urlencode({
+            "confirmation_rate_min": minimum_value,
+            "confirmation_rate_max": maximum_value,
         }),
         "error": error,
     }
@@ -2476,6 +2514,8 @@ def _campaign_prestation_references(presta_codes):
 def _build_pas_forme_ii_campaign(
     formation_rate_min=DEFAULT_FORMATION_RATE_MIN,
     formation_rate_max=DEFAULT_FORMATION_RATE_MAX,
+    confirmation_rate_min=DEFAULT_CONFIRMATION_RATE_MIN,
+    confirmation_rate_max=DEFAULT_CONFIRMATION_RATE_MAX,
 ):
     """Return every Pas Formés II prestation and its 10% call threshold status."""
     calls = list(AppelPasFormeII.objects.filter(
@@ -2623,7 +2663,12 @@ def _build_pas_forme_ii_campaign(
         )
         denom = row["formes_total"] + row["pas_formes_total"]
         row["taux_formation"] = (row["formes_total"] / denom * 100) if denom else None
-        decision_atteinte = row["taux_formation"] is not None and row["taux_formation"] > 75
+        # Keep the historical default (> 75 %) while allowing the reporting
+        # user to choose the confirmation-rate interval for Decision.
+        decision_atteinte = row["taux_formation"] is not None and (
+            row["taux_formation"] > confirmation_rate_min
+            and row["taux_formation"] <= confirmation_rate_max
+        )
         row["decision"] = row["total"] if decision_atteinte else "_"
         gendered_calls = row["hommes"] + row["femmes"]
         if decision_atteinte and gendered_calls:
@@ -2638,6 +2683,12 @@ def _build_pas_forme_ii_campaign(
         "prestations": sum(1 for row in rows if row["seuil_atteint"]),
         "appels_effectues": 0,
         "fenetre_2": 0, "fenetre_3": 0, "hommes": 0, "femmes": 0,
+        "decision_total": sum(
+            row["decision"] for row in rows if row["decision"] != "_"
+        ),
+        "decision_prestations": sum(
+            1 for row in rows if row["decision"] != "_"
+        ),
     }
     for row in rows:
         # The H/F recap intentionally has no "non renseigné" column.
@@ -3017,9 +3068,14 @@ def _concordance_export_rows(request):
 def _campaign_export_rows(
     formation_rate_min=DEFAULT_FORMATION_RATE_MIN,
     formation_rate_max=DEFAULT_FORMATION_RATE_MAX,
+    confirmation_rate_min=DEFAULT_CONFIRMATION_RATE_MIN,
+    confirmation_rate_max=DEFAULT_CONFIRMATION_RATE_MAX,
 ):
     """Full RA dataset (one row per prestation), matching the 'Prestations et seuil des appels' table."""
-    rows, _ = _build_pas_forme_ii_campaign(formation_rate_min, formation_rate_max)
+    rows, _ = _build_pas_forme_ii_campaign(
+        formation_rate_min, formation_rate_max,
+        confirmation_rate_min, confirmation_rate_max,
+    )
     headers = [
         "PRESTAID", "Prestataire", "Bénéficiaire", "Fenêtre",
         "Appelés H", "Appelés F", "Appelés", "Total",
@@ -3091,16 +3147,20 @@ def concordance_export_rc_excel(request):
 
 def concordance_export_ra_csv(request):
     formation_rate_interval = _formation_rate_interval(request.GET)
+    confirmation_rate_interval = _confirmation_rate_interval(request.GET)
     headers, rows = _campaign_export_rows(
-        formation_rate_interval["minimum"], formation_rate_interval["maximum"]
+        formation_rate_interval["minimum"], formation_rate_interval["maximum"],
+        confirmation_rate_interval["minimum"], confirmation_rate_interval["maximum"],
     )
     return _csv_export_response("reconciliation_appels", headers, rows)
 
 
 def concordance_export_ra_excel(request):
     formation_rate_interval = _formation_rate_interval(request.GET)
+    confirmation_rate_interval = _confirmation_rate_interval(request.GET)
     headers, rows = _campaign_export_rows(
-        formation_rate_interval["minimum"], formation_rate_interval["maximum"]
+        formation_rate_interval["minimum"], formation_rate_interval["maximum"],
+        confirmation_rate_interval["minimum"], confirmation_rate_interval["maximum"],
     )
     return _excel_export_response("reconciliation_appels", headers, rows)
 
@@ -3204,6 +3264,7 @@ def concordance_campaigns_view(request):
     # GENERAL doit rester à la fin du tableau.
     concordance = list(ConcordanceRecord.objects.order_by("id"))
     formation_rate_interval = _formation_rate_interval(request.GET)
+    confirmation_rate_interval = _confirmation_rate_interval(request.GET)
     selected_fenetre = (request.GET.get("fenetre") or "").strip()
     selected_prestataire = (request.GET.get("prestataire") or "").strip()
     selected_beneficiaire = (request.GET.get("beneficiaire") or "").strip()
@@ -3286,7 +3347,8 @@ def concordance_campaigns_view(request):
             bucket["formes"] += 1
     campaign_rows = sorted(campaign.values(), key=lambda row: (row["fenetre"], row["genre"]))
     not_formed_campaign_rows, not_formed_campaign_summary = _build_pas_forme_ii_campaign(
-        formation_rate_interval["minimum"], formation_rate_interval["maximum"]
+        formation_rate_interval["minimum"], formation_rate_interval["maximum"],
+        confirmation_rate_interval["minimum"], confirmation_rate_interval["maximum"],
     )
     formed_people_summary = _formed_people_summary(_concordance_window_summary(concordance, headers))
     concordance_counts = {}
@@ -3343,6 +3405,7 @@ def concordance_campaigns_view(request):
         "selected_beneficiaire": selected_beneficiaire, "selected_presta_id": selected_presta_id, "search_query": search_query,
         "campaign_rows": campaign_rows, "synthesis_rows": synthesis,
         "formation_rate_interval": formation_rate_interval,
+        "confirmation_rate_interval": confirmation_rate_interval,
         "not_formed_campaign_rows": not_formed_campaign_rows,
         "not_formed_campaign_summary": not_formed_campaign_summary,
         "formed_people_summary": formed_people_summary,
