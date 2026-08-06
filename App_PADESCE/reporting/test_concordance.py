@@ -445,6 +445,10 @@ class ConcordanceCampaignPageTests(TestCase):
                 {"window": "Total", "men": 17, "women": 7, "total": 24},
             ],
         )
+        self.assertEqual(
+            response.context["synthesis_formed_people_summary"],
+            {"total": 24, "fenetre_2": 1, "fenetre_3": 23, "hommes": 17, "femmes": 7},
+        )
 
     def test_campaign_detail_exposes_phone_and_structure_membership(self):
         AppelPasFormeII.objects.create(

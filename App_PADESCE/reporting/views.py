@@ -3331,6 +3331,10 @@ def concordance_campaigns_view(request):
     concordance_gender_summary = _concordance_window_summary(concordance, headers)
     campaign_gender_summary = _decision_gender_summary(not_formed_campaign_rows)
     campaign_formed_people_summary = _formed_people_summary(campaign_gender_summary)
+    synthesis_gender_summary = _combine_gender_summaries(
+        concordance_gender_summary, campaign_gender_summary
+    )
+    synthesis_formed_people_summary = _formed_people_summary(synthesis_gender_summary)
 
     return render(request, "reporting/concordance_campaigns.html", {
         "concordance_count": len(concordance), "filtered_concordance_count": len(filtered_concordance),
@@ -3355,7 +3359,6 @@ def concordance_campaigns_view(request):
         "campaign_formed_people_summary": campaign_formed_people_summary,
         # The consolidated recap combines trained people from both
         # reconciliation sources: concordance (RC) and call campaigns (RA).
-        "synthesis_gender_summary": _combine_gender_summaries(
-            concordance_gender_summary, campaign_gender_summary
-        ),
+        "synthesis_gender_summary": synthesis_gender_summary,
+        "synthesis_formed_people_summary": synthesis_formed_people_summary,
     })
