@@ -2571,13 +2571,32 @@ def _build_pas_forme_ii_campaign(
             "prestataire": reference.get("prestataire") or _preferred_campaign_label(source["prestataires"], "Non renseigné"),
             "beneficiaire": reference.get("beneficiaire") or _preferred_campaign_label(source["beneficiaires"], "Non renseigné"),
             "fenetre": reference.get("fenetre") or _preferred_campaign_label(source["fenetres"], "Non renseignée"),
-            "total": 0, "appeles": 0, "hommes": 0, "femmes": 0, "apprenants": [],
+            "total": 0, "total_hommes": 0, "total_femmes": 0,
+            "total_hommes_fenetre_2": 0, "total_femmes_fenetre_2": 0,
+            "total_hommes_fenetre_3": 0, "total_femmes_fenetre_3": 0,
+            "appeles": 0, "hommes": 0, "femmes": 0, "apprenants": [],
             "formes_total": 0, "formes_hommes": 0, "formes_femmes": 0,
             "formes_fenetre_2": 0, "formes_fenetre_3": 0, "pas_formes_total": 0,
             "appeles_fenetre_2": 0, "appeles_fenetre_3": 0,
             "formulaires_remplis": 0, "seuil_atteint": False,
         })
+        genre = (call.genre or "Non renseigné").strip()
+        genre_key = _gender_key(genre)
+        call_window = call.fenetre or segment["fenetre"]
         segment["total"] += 1
+        if genre_key == "men":
+            segment["total_hommes"] += 1
+        elif genre_key == "women":
+            segment["total_femmes"] += 1
+        window = _campaign_window_key(call_window)
+        if genre_key == "men" and window == "Fenêtre 2":
+            segment["total_hommes_fenetre_2"] += 1
+        elif genre_key == "women" and window == "Fenêtre 2":
+            segment["total_femmes_fenetre_2"] += 1
+        elif genre_key == "men" and window == "Fenêtre 3":
+            segment["total_hommes_fenetre_3"] += 1
+        elif genre_key == "women" and window == "Fenêtre 3":
+            segment["total_femmes_fenetre_3"] += 1
         if call.formulaire_rempli_at:
             segment["formulaires_remplis"] += 1
         # A completed form proves the person was called even if an old record
@@ -2586,9 +2605,6 @@ def _build_pas_forme_ii_campaign(
             is_call_attempted_status(call.status) or call.formulaire_rempli_at
         ):
             continue
-        genre = (call.genre or "Non renseigné").strip()
-        genre_key = _gender_key(genre)
-        call_window = call.fenetre or segment["fenetre"]
         declared_sessions = call.nombre_seances_declare
         planned_sessions = call.total_seances
         # The reconciliation counts only a call when the form has actually
@@ -2599,7 +2615,6 @@ def _build_pas_forme_ii_campaign(
                 segment["hommes"] += 1
             elif genre_key == "women":
                 segment["femmes"] += 1
-            window = _campaign_window_key(call_window)
             if genre_key and window == "Fenêtre 2":
                 segment["appeles_fenetre_2"] += 1
             elif genre_key and window == "Fenêtre 3":
@@ -3078,14 +3093,19 @@ def _campaign_export_rows(
     )
     headers = [
         "PRESTAID", "Prestataire", "Bénéficiaire", "Fenêtre",
-        "Appelés H", "Appelés F", "Appelés", "Total",
+        "Appelés H", "Appelés F", "Appelés", "Total H", "Total F",
+        "Total H fenêtre 2", "Total F fenêtre 2",
+        "Total H fenêtre 3", "Total F fenêtre 3", "Total",
         "Formés total", "Formés H", "Formés F", "Formés fenêtre 2", "Formés fenêtre 3",
         "Pas formés total", "Taux de formation (%)", "Décision H", "Décision F", "Décision", "Seuil atteint",
     ]
     data = [
         [
             row["presta_id"], row["prestataire"], row["beneficiaire"], row["fenetre"],
-            row["hommes"], row["femmes"], row["appeles"], row["total"],
+            row["hommes"], row["femmes"], row["appeles"],
+            row["total_hommes"], row["total_femmes"],
+            row["total_hommes_fenetre_2"], row["total_femmes_fenetre_2"],
+            row["total_hommes_fenetre_3"], row["total_femmes_fenetre_3"], row["total"],
             row["formes_total"], row["formes_hommes"], row["formes_femmes"],
             row["formes_fenetre_2"], row["formes_fenetre_3"], row["pas_formes_total"],
             round(row["taux_formation"], 1) if row["taux_formation"] is not None else "",
