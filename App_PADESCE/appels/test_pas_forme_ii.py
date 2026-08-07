@@ -43,7 +43,6 @@ def _import_file(rows, headers=None):
         content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
 
-
 @override_settings(
     MEDIA_ROOT=tempfile.mkdtemp(prefix="padesce-pas-forme-ii-import-tests-"),
     STORAGES={
@@ -84,6 +83,51 @@ class AppelPasFormeIIImportTests(TestCase):
             4,
             "OUI",
         ]
+
+    def test_export_xlsx_returns_filtered_detailed_table(self):
+        AppelPasFormeII.objects.create(
+            reference_code="PRESTA-EXPORT-1-690000011-apprenante-export",
+            prestation_id="PRESTA-EXPORT-1",
+            nom="Apprenante Export",
+            telephone="690000011",
+            beneficiaire="Beneficiaire Export",
+            prestataire="Prestataire Export",
+            genre="F",
+            fenetre="3",
+            total_presence=12,
+            total_seances=12,
+            nombre_seances_source=8,
+            membre_structure="OUI",
+            nombre_seances_declare=8,
+            status="formulaire_rempli",
+            formulaire_rempli_at=timezone.now(),
+        )
+        AppelPasFormeII.objects.create(
+            reference_code="PRESTA-EXPORT-2-690000012-apprenant-ignore",
+            prestation_id="PRESTA-EXPORT-2",
+            nom="Apprenant Ignore",
+            telephone="690000012",
+            genre="M",
+        )
+
+        response = self.client.get(
+            reverse("pas_forme_ii_export_xlsx"),
+            {"genre": "F"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response["Content-Type"],
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        workbook = openpyxl.load_workbook(io.BytesIO(response.content))
+        rows = list(workbook.active.iter_rows(values_only=True))
+        self.assertEqual(len(rows), 2)
+        exported = dict(zip(rows[0], rows[1]))
+        self.assertEqual(exported["Apprenant"], "Apprenante Export")
+        self.assertEqual(exported["Genre"], "F")
+        self.assertEqual(exported["Prestation"], "PRESTA-EXPORT-1")
+        self.assertEqual(exported["Statut"], "Formulaire Rempli")
 
     def test_add_import_ignores_file_duplicates_and_parses_non_as_false(self):
         row = self._row()

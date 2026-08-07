@@ -48,6 +48,7 @@
           <button class="btn" name="import_action" value="add">Importer pour ajouter</button>
           <button class="btn" name="import_action" value="update_segments">Mettre à jour genre et fenêtre</button>
           <button class="btn" name="import_action" value="compare_sync" onclick="return confirm('Comparer ce fichier avec la plateforme et désactiver les apprenants absents du fichier ?');">Comparer et mettre à jour</button>
+          <a class="btn" href="{% url 'pas_forme_ii_export_xlsx' %}{% if request.GET.urlencode %}?{{ request.GET.urlencode }}{% endif %}">Exporter</a>
         </div>
         <p>La mise à jour des segments utilise les colonnes <strong>GENRE</strong> et <strong>FENETRE</strong> de Feuil1 et ne modifie pas les appels ou formulaires existants.</p>
         <p><strong>Comparer et mettre à jour</strong> conserve les apprenants présents des deux côtés, désactive sans les supprimer ceux absents du fichier, et ajoute les nouveaux. Les appels, formulaires et audios déjà enregistrés restent intacts.</p>

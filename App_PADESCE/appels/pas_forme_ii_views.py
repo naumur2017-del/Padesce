@@ -5,10 +5,10 @@ from collections import defaultdict
 import openpyxl
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.core.paginator import Paginator
 from django.db import transaction
 from django.db.models import Count, Q
-from django.core.paginator import Paginator
-from django.http import JsonResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
@@ -234,6 +234,39 @@ def _contact_blocked_response(request, state: dict, *, wants_json: bool):
     return redirect("pas_forme_ii_index")
 
 
+def _filtered_rows_queryset(request):
+    rows = AppelPasFormeII.objects.filter(is_active=True)
+    filters = {
+        key: request.GET.get(key, "").strip()
+        for key in (
+            "status",
+            "prestation",
+            "prestataire",
+            "beneficiaire",
+            "genre",
+            "fenetre",
+            "q",
+        )
+    }
+    if filters["status"]:
+        rows = rows.filter(status=filters["status"])
+    if filters["prestation"]:
+        rows = rows.filter(prestation_id=filters["prestation"])
+    if filters["prestataire"]:
+        rows = rows.filter(prestataire__icontains=filters["prestataire"])
+    if filters["beneficiaire"]:
+        rows = rows.filter(beneficiaire__icontains=filters["beneficiaire"])
+    if filters["genre"]:
+        rows = rows.filter(genre__iexact=filters["genre"])
+    if filters["fenetre"]:
+        rows = rows.filter(fenetre__iexact=filters["fenetre"])
+    if filters["q"]:
+        rows = rows.filter(
+            Q(nom__icontains=filters["q"]) | Q(telephone__icontains=filters["q"])
+        )
+    return rows, filters
+
+
 @login_required
 @transaction.atomic
 def index(request):
@@ -323,37 +356,8 @@ def index(request):
             )
         return redirect(request.path_info)
 
-    rows = AppelPasFormeII.objects.filter(is_active=True).select_related(
-        "locked_by", "modified_by"
-    )
-    filters = {
-        key: request.GET.get(key, "").strip()
-        for key in (
-            "status",
-            "prestation",
-            "prestataire",
-            "beneficiaire",
-            "genre",
-            "fenetre",
-            "q",
-        )
-    }
-    if filters["status"]:
-        rows = rows.filter(status=filters["status"])
-    if filters["prestation"]:
-        rows = rows.filter(prestation_id=filters["prestation"])
-    if filters["prestataire"]:
-        rows = rows.filter(prestataire__icontains=filters["prestataire"])
-    if filters["beneficiaire"]:
-        rows = rows.filter(beneficiaire__icontains=filters["beneficiaire"])
-    if filters["genre"]:
-        rows = rows.filter(genre__iexact=filters["genre"])
-    if filters["fenetre"]:
-        rows = rows.filter(fenetre__iexact=filters["fenetre"])
-    if filters["q"]:
-        rows = rows.filter(
-            Q(nom__icontains=filters["q"]) | Q(telephone__icontains=filters["q"])
-        )
+    rows, filters = _filtered_rows_queryset(request)
+    rows = rows.select_related("locked_by", "modified_by")
 
     all_rows = AppelPasFormeII.objects.filter(is_active=True)
     filters.update(
@@ -433,6 +437,82 @@ def index(request):
             "pas_forme_ii_threshold_percent": PAS_FORME_II_THRESHOLD_PERCENT,
         },
     )
+
+
+@login_required
+def export_xlsx(request):
+    if not request.user.is_superuser:
+        messages.error(request, "Seul un superadmin peut exporter ce tableau.")
+        return redirect("pas_forme_ii_index")
+
+    rows, _filters = _filtered_rows_queryset(request)
+    rows = rows.select_related("locked_by", "modified_by").order_by("prestation_id", "nom")
+
+    workbook = openpyxl.Workbook()
+    worksheet = workbook.active
+    worksheet.title = "Appels Pas Formes II"
+    headers = [
+        "Apprenant",
+        "Genre",
+        "Fenetre",
+        "Telephone",
+        "Prestation",
+        "Beneficiaire",
+        "Prestataire",
+        "Presences",
+        "Seances prevues",
+        "Seances source",
+        "Statut",
+        "Membre structure",
+        "Seances declarees",
+        "Pas forme du tout",
+        "Faux nom",
+        "Vrai nom",
+        "Formulaire rempli le",
+        "Audio disponible",
+        "Audio URL",
+        "Appele par",
+        "Modifie par",
+    ]
+    worksheet.append(headers)
+
+    for row in rows:
+        worksheet.append(
+            [
+                row.nom,
+                row.genre,
+                row.fenetre,
+                row.telephone,
+                row.prestation_id,
+                row.beneficiaire,
+                row.prestataire,
+                row.total_presence,
+                row.total_seances,
+                row.nombre_seances_source,
+                row.get_status_display(),
+                row.membre_structure,
+                row.nombre_seances_declare,
+                "Oui" if row.pas_forme_du_tout else "Non",
+                "Oui" if row.faux_nom else "Non",
+                row.vrai_nom,
+                (
+                    timezone.localtime(row.formulaire_rempli_at).strftime("%Y-%m-%d %H:%M:%S")
+                    if row.formulaire_rempli_at
+                    else ""
+                ),
+                "Oui" if row.audio_file else "Non",
+                row.audio_file.url if row.audio_file else "",
+                row.locked_by.username if row.locked_by else "",
+                row.modified_by.username if row.modified_by else "",
+            ]
+        )
+
+    response = HttpResponse(
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+    response["Content-Disposition"] = 'attachment; filename="appels-pas-formes-ii.xlsx"'
+    workbook.save(response)
+    return response
 
 
 @login_required
