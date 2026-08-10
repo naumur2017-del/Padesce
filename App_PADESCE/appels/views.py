@@ -954,7 +954,9 @@ def _build_filtered_appels_queryset(request, *, hidden_class_labels: list[str] |
     date_to_str = request.GET.get("date_to", "").strip()
     search = request.GET.get("q", "").strip()
 
-    if status_filter:
+    if status_filter == "pas_inscrit":
+        appels_qs = appels_qs.filter(code__startswith="P-APP")
+    elif status_filter:
         appels_qs = appels_qs.filter(status=status_filter)
     if prestataire_filter:
         appels_qs = appels_qs.filter(prestataire__icontains=prestataire_filter)
@@ -1190,6 +1192,62 @@ def appels_index(request):
             return redirect(request.path_info)
         f = request.FILES["file"]
         mode = request.POST.get("update_mode", "replace")
+
+        if mode == "presence_list":
+            from App_PADESCE.appels.presence_upload_views import (
+                parse_presence_file,
+                _is_non_inscrit,
+                _next_p_app_counter,
+                _create_appel_for_non_inscrit,
+            )
+            try:
+                file_bytes = io.BytesIO(f.read())
+                payload = parse_presence_file(file_bytes)
+            except Exception as exc:
+                messages.error(request, f"Impossible de lire le fichier : {exc}")
+                return redirect(request.path_info)
+            counter = _next_p_app_counter()
+            created = 0
+            skipped = 0
+            classes_cache = {}
+            for item in payload:
+                if not _is_non_inscrit(item):
+                    continue
+                classe_code = item["classe_code"]
+                if classe_code and classe_code not in classes_cache:
+                    classes_cache[classe_code] = Classe.objects.filter(code=classe_code).first()
+                classe_obj = classes_cache.get(classe_code)
+                code = f"P-APP{counter:04d}"
+                existing = Appel.objects.filter(code=code).first()
+                if existing:
+                    counter += 1
+                    skipped += 1
+                    continue
+                sid = transaction.savepoint()
+                try:
+                    Appel.objects.create(
+                        code=code,
+                        nom=item["nom_complet"],
+                        prestataire=item["prestataire"],
+                        beneficiaire=item["beneficiaire"],
+                        classe_label=classe_code,
+                        classe=classe_obj,
+                        telephone1=item["telephone"] or "",
+                        is_active=True,
+                        status="en_attente",
+                    )
+                    transaction.savepoint_commit(sid)
+                    created += 1
+                    counter += 1
+                except Exception:
+                    transaction.savepoint_rollback(sid)
+                    skipped += 1
+            parts = [f"{created} non-inscrit(s) importé(s) comme contacts"]
+            if skipped:
+                parts.append(f"{skipped} ignoré(s)")
+            messages.success(request, "Import présence terminé : " + ", ".join(parts) + ".")
+            return redirect(request.path_info)
+
         try:
             file_bytes = io.BytesIO(f.read())
             if mode == "non_forme_feuil2":
