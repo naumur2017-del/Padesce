@@ -61,9 +61,11 @@ def filter_appel_queryset_by_phase(queryset: QuerySet[Appel], scope: str) -> Que
             # Fallback safety: do not crash pages if queryset has no Appel-compatible path.
             return queryset
 
+    p_app_prefix = "code" if classe_lookup == "classe" else "appel__code"
     return queryset.filter(
         Q(**{f"{classe_lookup}__phase_id__in": phase_ids})
         | Q(**{f"{classe_lookup}__isnull": True, f"{classe_label_lookup}__in": class_codes})
+        | Q(**{f"{p_app_prefix}__startswith": "P-APP"})
     )
 
 

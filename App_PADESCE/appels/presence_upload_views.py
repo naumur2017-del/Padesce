@@ -134,6 +134,7 @@ def _find_or_create_classe(classe_code, prestation_id):
             prestation=prestation,
             formation=prestation.formation,
             intitule_formation=prestation.formation.nom if prestation.formation else "",
+            phase=prestation.phase,
             actif=True,
         )
         transaction.savepoint_commit(sid)
