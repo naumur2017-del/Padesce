@@ -295,8 +295,34 @@ def upload_presence_list(request):
                 continue
             apprenant = Apprenant.objects.filter(code=apprenant_code).first()
             if not apprenant:
-                not_found += 1
-                continue
+                if not classe_obj:
+                    not_found += 1
+                    continue
+                tel = item["telephone"] or None
+                sid = transaction.savepoint()
+                try:
+                    apprenant = Apprenant.objects.create(
+                        code=apprenant_code,
+                        nom_complet=item["nom_complet"],
+                        classe=classe_obj,
+                        formation=classe_obj.formation,
+                        prestataire=item["prestataire"],
+                        beneficiaire=item["beneficiaire"],
+                        telephone1=tel,
+                        actif=True,
+                        **{k: v for k, v in item["presences"].items() if v},
+                    )
+                    transaction.savepoint_commit(sid)
+                    updated_presence += 1
+                    continue
+                except IntegrityError:
+                    transaction.savepoint_rollback(sid)
+                    apprenant = Apprenant.objects.filter(
+                        classe=classe_obj, nom_complet=item["nom_complet"]
+                    ).first()
+                    if not apprenant:
+                        not_found += 1
+                        continue
 
             changed = False
             for field in PRESENCE_FIELDS:
