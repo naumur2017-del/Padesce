@@ -11,7 +11,7 @@ from django.views.decorators.http import require_POST
 
 from App_PADESCE.appels.models import Appel
 from App_PADESCE.apprenants.models import Apprenant
-from App_PADESCE.formations.models import Classe
+from App_PADESCE.formations.models import Classe, Prestation
 
 logger = logging.getLogger(__name__)
 
@@ -114,6 +114,34 @@ def parse_presence_file(file_obj):
 
 
 PRESENCE_FIELDS = [f"c{i}" for i in range(1, 11)]
+
+
+def _find_or_create_classe(classe_code, prestation_id):
+    if not classe_code:
+        return None
+    classe_obj = Classe.objects.filter(code=classe_code).first()
+    if classe_obj:
+        return classe_obj
+    if not prestation_id:
+        return None
+    prestation = Prestation.objects.filter(code=prestation_id).first()
+    if not prestation:
+        return None
+    sid = transaction.savepoint()
+    try:
+        classe_obj = Classe.objects.create(
+            code=classe_code,
+            prestation=prestation,
+            formation=prestation.formation,
+            intitule_formation=prestation.formation.nom if prestation.formation else "",
+            actif=True,
+        )
+        transaction.savepoint_commit(sid)
+        logger.info("Classe %s auto-créée via prestation %s", classe_code, prestation_id)
+        return classe_obj
+    except IntegrityError:
+        transaction.savepoint_rollback(sid)
+        return Classe.objects.filter(code=classe_code).first()
 
 
 def _is_non_inscrit(item):
@@ -238,8 +266,9 @@ def upload_presence_list(request):
 
     for item in payload:
         classe_code = item["classe_code"]
+        prestation_id = item.get("prestation_id", "")
         if classe_code and classe_code not in classes_cache:
-            classes_cache[classe_code] = Classe.objects.filter(code=classe_code).first()
+            classes_cache[classe_code] = _find_or_create_classe(classe_code, prestation_id)
         classe_obj = classes_cache.get(classe_code)
 
         if _is_non_inscrit(item):

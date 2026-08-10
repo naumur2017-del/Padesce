@@ -367,7 +367,6 @@
     <input type="datetime-local" name="date_to" class="input" placeholder="Au (date/heure)" value="{{ filters.date_to }}">
     <select name="status" class="input">
       <option value="">Statut</option>
-      <option value="pas_inscrit" {% if filters.status == "pas_inscrit" %}selected{% endif %}>Pas inscrit (P-APP)</option>
       <option value="en_attente" {% if filters.status == "en_attente" %}selected{% endif %}>En attente</option>
       <option value="appel_tente" {% if filters.status == "appel_tente" %}selected{% endif %}>Appel Tenté</option>
       <option value="appel_reussi" {% if filters.status == "appel_reussi" %}selected{% endif %}>Appel Réussi</option>
@@ -419,6 +418,11 @@
       {% for p in filters.modified_bys %}
         <option value="{{ p }}" {% if filters.modified_by == p %}selected{% endif %}>{{ p }}</option>
       {% endfor %}
+    </select>
+    <select name="inscription" class="input">
+      <option value="">Inscription</option>
+      <option value="inscrit" {% if filters.inscription == "inscrit" %}selected{% endif %}>Inscrit</option>
+      <option value="pas_inscrit" {% if filters.inscription == "pas_inscrit" %}selected{% endif %}>Pas inscrit</option>
     </select>
     <button type="submit" class="btn btn-primary btn-sm" style="padding:10px 14px;">Filtrer <span class="help-dot" title="Les filtres reduisent le tableau affiche et les exports du tableau filtre.">?</span></button>
     <a class="btn btn-ghost btn-sm" style="padding:10px 14px;" href="/appels/">Réinitialiser</a>

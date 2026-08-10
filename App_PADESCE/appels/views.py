@@ -954,9 +954,12 @@ def _build_filtered_appels_queryset(request, *, hidden_class_labels: list[str] |
     date_to_str = request.GET.get("date_to", "").strip()
     search = request.GET.get("q", "").strip()
 
-    if status_filter == "pas_inscrit":
+    inscription_filter = request.GET.get("inscription") or ""
+    if inscription_filter == "pas_inscrit":
         appels_qs = appels_qs.filter(code__startswith="P-APP")
-    elif status_filter:
+    elif inscription_filter == "inscrit":
+        appels_qs = appels_qs.exclude(code__startswith="P-APP")
+    if status_filter:
         appels_qs = appels_qs.filter(status=status_filter)
     if prestataire_filter:
         appels_qs = appels_qs.filter(prestataire__icontains=prestataire_filter)
@@ -1103,6 +1106,7 @@ def _build_filtered_appels_queryset(request, *, hidden_class_labels: list[str] |
         "agent": agent_filter,
         "formulaire": formulaire_filter,
         "modified_by": modified_by_filter,
+        "inscription": inscription_filter,
         "q": search,
         "prestataires": sorted(_prestataires),
         "beneficiaires": sorted(_beneficiaires),
@@ -1199,6 +1203,7 @@ def appels_index(request):
                 _is_non_inscrit,
                 _next_p_app_counter,
                 _create_appel_for_non_inscrit,
+                _find_or_create_classe,
             )
             try:
                 file_bytes = io.BytesIO(f.read())
@@ -1214,8 +1219,9 @@ def appels_index(request):
                 if not _is_non_inscrit(item):
                     continue
                 classe_code = item["classe_code"]
+                prestation_id = item.get("prestation_id", "")
                 if classe_code and classe_code not in classes_cache:
-                    classes_cache[classe_code] = Classe.objects.filter(code=classe_code).first()
+                    classes_cache[classe_code] = _find_or_create_classe(classe_code, prestation_id)
                 classe_obj = classes_cache.get(classe_code)
                 code = f"P-APP{counter:04d}"
                 existing = Appel.objects.filter(code=code).first()
