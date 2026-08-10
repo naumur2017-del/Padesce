@@ -14,7 +14,9 @@ from django.contrib.auth.decorators import login_required
 from django.core.cache import cache
 from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
 from django.db import transaction
-from django.db.models import Case, Count, DecimalField, ExpressionWrapper, F, Q, When
+from django.db.models import (
+    Case, Count, DecimalField, ExpressionWrapper, F, OuterRef, Q, Subquery, When,
+)
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -1050,6 +1052,12 @@ def _build_filtered_appels_queryset(request, *, hidden_class_labels: list[str] |
             pass
 
     appels_qs = appels_qs.annotate(
+        apprenant_id=Subquery(
+            Apprenant.objects.filter(
+                classe=OuterRef("classe"),
+                nom_complet=OuterRef("nom"),
+            ).values("code")[:1]
+        ),
         taux_presence_display=Case(
             When(
                 taux_presence__lte=1,
