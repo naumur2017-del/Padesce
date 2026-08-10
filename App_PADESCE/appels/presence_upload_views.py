@@ -11,7 +11,7 @@ from django.views.decorators.http import require_POST
 
 from App_PADESCE.appels.models import Appel
 from App_PADESCE.apprenants.models import Apprenant
-from App_PADESCE.formations.models import Classe, Prestation
+from App_PADESCE.formations.models import Classe, Phase, Prestation
 
 logger = logging.getLogger(__name__)
 
@@ -127,6 +127,9 @@ def _find_or_create_classe(classe_code, prestation_id):
     prestation = Prestation.objects.filter(code=prestation_id).first()
     if not prestation:
         return None
+    phase = prestation.phase
+    if not phase:
+        phase = Phase.objects.filter(id_phase=2).first() or Phase.objects.first()
     sid = transaction.savepoint()
     try:
         classe_obj = Classe.objects.create(
@@ -134,7 +137,7 @@ def _find_or_create_classe(classe_code, prestation_id):
             prestation=prestation,
             formation=prestation.formation,
             intitule_formation=prestation.formation.nom if prestation.formation else "",
-            phase=prestation.phase,
+            phase=phase,
             actif=True,
         )
         transaction.savepoint_commit(sid)
