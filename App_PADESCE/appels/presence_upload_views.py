@@ -321,11 +321,9 @@ def upload_presence_list(request):
             if not apprenant_code:
                 skipped += 1
                 continue
+
             apprenant = Apprenant.objects.filter(code=apprenant_code).first()
-            if not apprenant:
-                if not classe_obj:
-                    not_found += 1
-                    continue
+            if not apprenant and classe_obj:
                 tel = item["telephone"] or None
                 sid = transaction.savepoint()
                 try:
@@ -346,21 +344,19 @@ def upload_presence_list(request):
                     apprenant = Apprenant.objects.filter(
                         classe=classe_obj, nom_complet=item["nom_complet"]
                     ).first()
-                    if not apprenant:
-                        not_found += 1
-                        continue
 
-            changed = False
-            for field in PRESENCE_FIELDS:
-                new_val = item["presences"].get(field, "")
-                if new_val and getattr(apprenant, field, "") != new_val:
-                    setattr(apprenant, field, new_val)
-                    changed = True
-            if changed:
-                apprenant.save(
-                    update_fields=[f for f in PRESENCE_FIELDS if f in item["presences"]] + ["updated_at"]
-                )
-                updated_presence += 1
+            if apprenant:
+                changed = False
+                for field in PRESENCE_FIELDS:
+                    new_val = item["presences"].get(field, "")
+                    if new_val and getattr(apprenant, field, "") != new_val:
+                        setattr(apprenant, field, new_val)
+                        changed = True
+                if changed:
+                    apprenant.save(
+                        update_fields=[f for f in PRESENCE_FIELDS if f in item["presences"]] + ["updated_at"]
+                    )
+                    updated_presence += 1
 
             if _ensure_appel(item, apprenant_code, classe_obj):
                 appels_created += 1
