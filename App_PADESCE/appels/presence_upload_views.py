@@ -209,27 +209,51 @@ def _create_apprenant_for_non_inscrit(item, classe_obj, counter):
         return None, f"{item['nom_complet']}: {exc}"
 
 
-def _create_appel_for_non_inscrit(item, p_app_code, classe_obj):
-    existing = Appel.objects.filter(code=p_app_code).first()
+def _ensure_appel(item, appel_code, classe_obj):
+    existing = Appel.objects.filter(code=appel_code).first()
     if existing:
-        return
+        changed = False
+        for field, value in [
+            ("prestataire", item["prestataire"]),
+            ("beneficiaire", item["beneficiaire"]),
+            ("telephone1", item["telephone"] or ""),
+            ("classe_label", item["classe_code"]),
+            ("fenetre", getattr(classe_obj, "fenetre", "") if classe_obj else ""),
+        ]:
+            if value and not getattr(existing, field, ""):
+                setattr(existing, field, value)
+                changed = True
+        if classe_obj and not existing.classe:
+            existing.classe = classe_obj
+            changed = True
+        if changed:
+            existing.save()
+        return False
 
+    fenetre = getattr(classe_obj, "fenetre", "") if classe_obj else ""
     sid = transaction.savepoint()
     try:
         Appel.objects.create(
-            code=p_app_code,
+            code=appel_code,
             nom=item["nom_complet"],
             prestataire=item["prestataire"],
             beneficiaire=item["beneficiaire"],
             classe_label=item["classe_code"],
             classe=classe_obj,
             telephone1=item["telephone"] or "",
+            fenetre=fenetre,
             is_active=True,
             status="en_attente",
         )
         transaction.savepoint_commit(sid)
+        return True
     except IntegrityError:
         transaction.savepoint_rollback(sid)
+        return False
+
+
+def _create_appel_for_non_inscrit(item, p_app_code, classe_obj):
+    _ensure_appel(item, p_app_code, classe_obj)
 
 
 @login_required
@@ -314,8 +338,6 @@ def upload_presence_list(request):
                         **{k: v for k, v in item["presences"].items() if v},
                     )
                     transaction.savepoint_commit(sid)
-                    updated_presence += 1
-                    continue
                 except IntegrityError:
                     transaction.savepoint_rollback(sid)
                     apprenant = Apprenant.objects.filter(
@@ -336,6 +358,9 @@ def upload_presence_list(request):
                     update_fields=[f for f in PRESENCE_FIELDS if f in item["presences"]] + ["updated_at"]
                 )
                 updated_presence += 1
+
+            if _ensure_appel(item, apprenant_code, classe_obj):
+                appels_created += 1
 
     parts = []
     if created_ids:
