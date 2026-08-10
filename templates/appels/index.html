@@ -318,6 +318,22 @@
     </form>
     <p class="subtitle" style="color:var(--muted); margin:6px 0 0;">Ces imports mettent à jour les enregistrements existants par code (sans suppression).</p>
   </div>
+  <div class="panel import-panel">
+    <div class="import-title">Importer une liste de présence</div>
+    <p class="subtitle" style="color:var(--muted); margin:0 0 8px;">Uploadez un fichier Excel de présence (ex: liste de présence prestataire). Les apprenants « Non inscrit » sans ID recevront un code auto-généré (P-APP0001, P-APP0002…). Les présences (C1-C10) des inscrits seront mises à jour.</p>
+    <form method="post" action="{% url 'upload_presence_list' %}" enctype="multipart/form-data" class="form-inline" style="gap:12px; flex-wrap:wrap;">
+      {% csrf_token %}
+      <div class="input-file">
+        <span class="file-label">Liste de présence (.xlsx)</span>
+        <div class="file-input-fr">
+          <input type="file" id="fr-import-presence" name="presence_file" accept=".xlsx,.xlsm" required class="file-input-fr-native js-fr-file-input" />
+          <label for="fr-import-presence" class="file-input-fr-btn">Parcourir</label>
+          <span class="file-input-fr-name js-fr-file-name">Aucun fichier sélectionné</span>
+        </div>
+      </div>
+      <button type="submit" class="btn btn-primary btn-sm">Importer la liste de présence</button>
+    </form>
+  </div>
   <div class="panel">
     <p class="subtitle" style="color:var(--muted); margin-bottom:8px;">Nettoyage global des doublons de numéros sur toutes les tables d'appels. Les doublons détectés sont désactivés pour conserver l'historique.</p>
     <form method="post" action="{% url 'deduplicate_all_call_tables' %}">

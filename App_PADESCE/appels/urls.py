@@ -69,6 +69,11 @@ urlpatterns = [
         name="call_alert_update",
     ),
     path(
+        "upload-presence-list/",
+        lazy_view("App_PADESCE.appels.presence_upload_views.upload_presence_list"),
+        name="upload_presence_list",
+    ),
+    path(
         "tools/deduplicate/",
         lazy_view("App_PADESCE.appels.views.deduplicate_all_call_tables"),
         name="deduplicate_all_call_tables",
