@@ -1,15 +1,18 @@
 import io
+import logging
 import re
 
 import openpyxl
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.shortcuts import redirect
 from django.views.decorators.http import require_POST
 
 from App_PADESCE.apprenants.models import Apprenant
 from App_PADESCE.formations.models import Classe
+
+logger = logging.getLogger(__name__)
 
 
 def _normalize_header(value):
@@ -140,6 +143,7 @@ def upload_presence_list(request):
     updated_presence = 0
     not_found = 0
     skipped = 0
+    errors = []
 
     classes_cache = {}
 
@@ -149,18 +153,35 @@ def upload_presence_list(request):
             classes_cache[classe_code] = Classe.objects.filter(code=classe_code).first()
         classe_obj = classes_cache.get(classe_code)
 
-        is_non_inscrit = "non" in item["statut"].lower()
+        is_non_inscrit = "non" in item["statut"].lower() or not item["apprenant_id"]
 
         if is_non_inscrit:
             if not classe_obj:
+                errors.append(f"Classe {classe_code} introuvable pour {item['nom_complet']}")
                 skipped += 1
                 continue
 
             code = f"P-APP{counter:04d}"
             tel = item["telephone"] or None
 
+            existing = Apprenant.objects.filter(
+                classe=classe_obj,
+                nom_complet=item["nom_complet"],
+            ).first()
+            if existing:
+                for field in PRESENCE_FIELDS:
+                    new_val = item["presences"].get(field, "")
+                    if new_val:
+                        setattr(existing, field, new_val)
+                existing.save(
+                    update_fields=[f for f in PRESENCE_FIELDS if item["presences"].get(f)] + ["updated_at"]
+                )
+                updated_presence += 1
+                continue
+
+            sid = transaction.savepoint()
             try:
-                apprenant = Apprenant.objects.create(
+                Apprenant.objects.create(
                     code=code,
                     nom_complet=item["nom_complet"],
                     classe=classe_obj,
@@ -171,11 +192,38 @@ def upload_presence_list(request):
                     actif=True,
                     **{k: v for k, v in item["presences"].items() if v},
                 )
+                transaction.savepoint_commit(sid)
                 created_ids.append(code)
                 counter += 1
-            except Exception:
+            except IntegrityError as exc:
+                transaction.savepoint_rollback(sid)
+                tel_conflict = "unique_tel1_par_formation" in str(exc)
+                if tel_conflict and tel:
+                    sid2 = transaction.savepoint()
+                    try:
+                        Apprenant.objects.create(
+                            code=code,
+                            nom_complet=item["nom_complet"],
+                            classe=classe_obj,
+                            formation=classe_obj.formation,
+                            prestataire=item["prestataire"],
+                            beneficiaire=item["beneficiaire"],
+                            telephone1=None,
+                            actif=True,
+                            **{k: v for k, v in item["presences"].items() if v},
+                        )
+                        transaction.savepoint_commit(sid2)
+                        created_ids.append(code)
+                        counter += 1
+                        continue
+                    except IntegrityError:
+                        transaction.savepoint_rollback(sid2)
+                logger.warning(
+                    "Presence upload: impossible de creer %s pour %s: %s",
+                    code, item["nom_complet"], exc,
+                )
+                errors.append(f"{item['nom_complet']}: {exc}")
                 skipped += 1
-                continue
         else:
             apprenant_code = item["apprenant_id"]
             if not apprenant_code:
@@ -213,4 +261,6 @@ def upload_presence_list(request):
         parts.append("Aucune modification effectuée")
 
     messages.success(request, "Import présence terminé : " + ", ".join(parts) + ".")
+    if errors:
+        messages.warning(request, "Détails des erreurs : " + " | ".join(errors[:10]))
     return redirect("appels_index")
