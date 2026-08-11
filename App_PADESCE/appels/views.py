@@ -1273,6 +1273,20 @@ def appels_index(request):
             return redirect(request.path_info)
 
         if mode in {"replace", "non_forme_feuil2", "capef_sheet1"}:
+            valid_codes = {
+                str(item.get("code") or "").strip()
+                for item in payload
+                if str(item.get("code") or "").strip()
+            }
+            if not valid_codes:
+                messages.error(
+                    request,
+                    (
+                        "Import annulé : aucune colonne code exploitable n'a été trouvée. "
+                        "Aucun appel actif n'a été désactivé."
+                    ),
+                )
+                return redirect(request.path_info)
             Appel.objects.update(is_active=False)
             created = 0
             updated = 0
