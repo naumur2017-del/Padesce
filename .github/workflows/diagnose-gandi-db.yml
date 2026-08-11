@@ -74,7 +74,7 @@ jobs:
               "root_files": list_dir(sftp, remote_root),
               "candidate_files": [],
               "databases": {},
-              "env_local": "",
+              "env_files": {},
           }
 
           for rel in ["db.sqlite3", "backup.sqlite3", "backups/backup_20260810_174258.sqlite3", "backups/backup_20260811_091943.sqlite3"]:
@@ -95,25 +95,49 @@ jobs:
                           db_report["appels_active"] = conn.execute("select count(*) from appels_appel where is_active = 1").fetchone()[0]
                           db_report["appels_inactive"] = conn.execute("select count(*) from appels_appel where is_active = 0").fetchone()[0]
                           db_report["p_app"] = conn.execute("select count(*) from appels_appel where code like 'P-APP%'").fetchone()[0]
-                          db_report["phase2_active"] = conn.execute(
-                              "select count(*) from appels_appel a left join formations_classe c on a.classe_id = c.id where a.is_active = 1 and (c.phase_id = 2 or a.code like 'P-APP%')"
-                          ).fetchone()[0]
+                          appel_cols = [row[1] for row in conn.execute("pragma table_info(appels_appel)").fetchall()]
+                          classe_cols = [row[1] for row in conn.execute("pragma table_info(formations_classe)").fetchall()] if "formations_classe" in tables else []
+                          db_report["appels_columns_has"] = {
+                              "is_active": "is_active" in appel_cols,
+                              "classe_id": "classe_id" in appel_cols,
+                          }
+                          db_report["classe_columns_has"] = {
+                              "phase_id": "phase_id" in classe_cols,
+                              "phase": "phase" in classe_cols,
+                          }
+                          phase_column = "phase_id" if "phase_id" in classe_cols else ""
+                          if phase_column:
+                              db_report["phase2_active"] = conn.execute(
+                                  f"select count(*) from appels_appel a left join formations_classe c on a.classe_id = c.id where a.is_active = 1 and (c.{phase_column} = 2 or a.code like 'P-APP%')"
+                              ).fetchone()[0]
                       report["databases"][rel] = db_report
               except Exception as exc:
                   report["databases"][rel] = {"error": str(exc)}
 
-          env_path = remote_join(remote_root, ".env.local")
-          if exists(sftp, env_path):
+          for env_name in [".env", ".env.local", ".runtime.env", ".postgres_migration.json"]:
+              env_path = remote_join(remote_root, env_name)
+              if not exists(sftp, env_path):
+                  continue
               with sftp.open(env_path, "r") as handle:
                   content = handle.read()
               if isinstance(content, bytes):
                   content = content.decode("utf-8", errors="replace")
               safe_lines = []
-              for line in content.splitlines():
-                  key = line.split("=", 1)[0].strip()
-                  if key in {"DB_ENGINE", "DATABASE_URL", "SQLITE_PATH", "SQLITE_NAME", "POSTGRES_DB", "POSTGRES_HOST", "POSTGRES_USER"}:
-                      safe_lines.append(line if key not in {"DATABASE_URL"} else "DATABASE_URL=<present>")
-              report["env_local"] = "\n".join(safe_lines)
+              if env_name.endswith(".json"):
+                  try:
+                      payload = json.loads(content)
+                      safe_lines.append(json.dumps(payload, indent=2))
+                  except Exception:
+                      safe_lines.append("<json unreadable>")
+              else:
+                  for line in content.splitlines():
+                      key = line.split("=", 1)[0].strip()
+                      if key in {"DB_ENGINE", "DATABASE_URL", "SQLITE_PATH", "SQLITE_NAME", "POSTGRES_DB", "POSTGRES_HOST", "POSTGRES_USER", "POSTGRES_PORT"}:
+                          if key in {"DATABASE_URL", "POSTGRES_PASSWORD"}:
+                              safe_lines.append(f"{key}=<present>")
+                          else:
+                              safe_lines.append(line)
+              report["env_files"][env_name] = "\n".join(safe_lines)
 
           Path("diagnose-report.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
           print(json.dumps(report, indent=2))
