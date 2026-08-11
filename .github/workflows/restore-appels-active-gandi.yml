@@ -176,7 +176,14 @@ jobs:
 
               fixed_remote = remote_join(remote_root, f"db.sqlite3.restore_appels_{timestamp}")
               sftp.put(str(current_db), fixed_remote)
-              sftp.rename(fixed_remote, remote_db)
+              try:
+                  sftp.rename(fixed_remote, remote_db)
+              except OSError:
+                  sftp.put(str(current_db), remote_db)
+                  try:
+                      sftp.remove(fixed_remote)
+                  except OSError:
+                      pass
 
               remote_wsgi = remote_join(remote_root, "wsgi.py")
               if exists(sftp, remote_wsgi):
