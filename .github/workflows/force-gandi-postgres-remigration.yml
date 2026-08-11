@@ -1,0 +1,113 @@
+name: Force Gandi PostgreSQL Remigration
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type FORCE_POSTGRES_REMIGRATION to reload PostgreSQL from db.sqlite3"
+        required: true
+        default: "FORCE_POSTGRES_REMIGRATION"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gandi-production-db-maintenance
+  cancel-in-progress: false
+
+jobs:
+  force-remigration:
+    name: Force production PostgreSQL reload from SQLite
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://call.naumur.com/appels/
+    env:
+      GANDI_SFTP_HOST: ${{ secrets.GANDI_SFTP_HOST }}
+      GANDI_SFTP_PORT: ${{ secrets.GANDI_SFTP_PORT }}
+      GANDI_SFTP_USERNAME: ${{ secrets.GANDI_SFTP_USERNAME }}
+      GANDI_SFTP_TOKEN: ${{ secrets.GANDI_SFTP_TOKEN }}
+      GANDI_SFTP_REMOTE_PATH: ${{ secrets.GANDI_SFTP_REMOTE_PATH }}
+    steps:
+      - name: Confirm remigration
+        run: |
+          if [ "${{ github.event.inputs.confirm }}" != "FORCE_POSTGRES_REMIGRATION" ]; then
+            echo "::error::Confirmation invalide."
+            exit 1
+          fi
+
+      - name: Install dependencies
+        run: python -m pip install --upgrade paramiko
+
+      - name: Remove migration marker and reload ASGI
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          import posixpath
+          import time
+          from pathlib import Path
+
+          import paramiko
+
+          host = os.environ["GANDI_SFTP_HOST"]
+          port = int(os.environ.get("GANDI_SFTP_PORT") or "22")
+          username = os.environ["GANDI_SFTP_USERNAME"]
+          token = os.environ["GANDI_SFTP_TOKEN"]
+          remote_root = os.environ["GANDI_SFTP_REMOTE_PATH"].rstrip("/")
+
+          def remote_join(root, *parts):
+              return posixpath.join(str(root).rstrip("/"), *[str(part).strip("/") for part in parts if str(part)])
+
+          def exists(sftp, path):
+              try:
+                  sftp.stat(path)
+                  return True
+              except OSError:
+                  return False
+
+          transport = paramiko.Transport((host, port))
+          transport.connect(username=username, password=token)
+          sftp = paramiko.SFTPClient.from_transport(transport)
+
+          try:
+              done_path = remote_join(remote_root, ".postgres_migration.done")
+              error_path = remote_join(remote_root, ".postgres_migration.error")
+              lock_path = remote_join(remote_root, "logs", "runtime", ".django-auto-migrate.lock")
+              removed = []
+              for path in [done_path, error_path, lock_path]:
+                  if exists(sftp, path):
+                      sftp.remove(path)
+                      removed.append(path)
+
+              now = int(time.time())
+              touched = []
+              for path in [
+                  remote_join(remote_root, "App_PADESCE", "asgi.py"),
+                  remote_join(remote_root, "App_PADESCE", "wsgi.py"),
+                  remote_join(remote_root, "wsgi.py"),
+              ]:
+                  if exists(sftp, path):
+                      sftp.utime(path, (now, now))
+                      touched.append(path)
+
+              marker = {
+                  "forced_at": now,
+                  "removed": removed,
+                  "touched": touched,
+                  "message": "PostgreSQL remigration requested from restored db.sqlite3.",
+              }
+              Path("force-remigration-report.json").write_text(
+                  json.dumps(marker, indent=2), encoding="utf-8"
+              )
+              print(json.dumps(marker, indent=2))
+          finally:
+              sftp.close()
+              transport.close()
+          PY
+
+      - name: Upload report
+        uses: actions/upload-artifact@v4
+        with:
+          name: force-gandi-postgres-remigration-report
+          path: force-remigration-report.json
