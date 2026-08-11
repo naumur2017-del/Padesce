@@ -344,6 +344,12 @@
       {% csrf_token %}
       <button type="submit" class="btn btn-ghost btn-sm">Détecter et supprimer les doublons de numéros</button>
     </form>
+    <div class="import-divider"></div>
+    <form method="post" action="{% url 'reactivate_all_appels' %}">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-ghost btn-sm" onclick="return confirm('Réactiver tous les appels désactivés et nettoyer les doublons P-APP ?')">Restaurer tous les appels masqués</button>
+    </form>
+    <p class="subtitle" style="color:var(--muted); margin:6px 0 0;">Réactive tous les appels désactivés par erreur et supprime les doublons P-APP (garde celui avec téléphone).</p>
   </div>
 {% endif %}
 

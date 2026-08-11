@@ -2072,6 +2072,46 @@ def download_appel_audios(request):
 @login_required
 @require_POST
 @transaction.atomic
+def reactivate_all_appels(request):
+    if not request.user.is_superuser:
+        messages.error(request, "Seul un superadmin peut effectuer cette action.")
+        return redirect("/appels/")
+    reactivated = Appel.objects.filter(is_active=False).update(is_active=True)
+    _deactivate_duplicate_rows(Appel.objects.filter(is_active=True), _appel_duplicate_key)
+    papp_dupes = _deduplicate_papp_by_name()
+    messages.success(
+        request,
+        f"Restauration terminee : {reactivated} appel(s) reactive(s), "
+        f"{papp_dupes} doublon(s) P-APP desactive(s).",
+    )
+    return redirect("/appels/")
+
+
+def _deduplicate_papp_by_name():
+    papp_qs = Appel.objects.filter(is_active=True, code__startswith="P-APP")
+    groups: dict[tuple, list[int]] = {}
+    for row in papp_qs.values("id", "nom", "classe_label", "telephone1"):
+        key = (
+            _normalize_name(row["nom"]),
+            _normalize_name(row["classe_label"]),
+        )
+        if not key[0]:
+            continue
+        groups.setdefault(key, []).append(row)
+    deactivate_ids = []
+    for rows in groups.values():
+        if len(rows) < 2:
+            continue
+        best = max(rows, key=lambda r: (bool(r["telephone1"]), r["id"]))
+        deactivate_ids.extend(r["id"] for r in rows if r["id"] != best["id"])
+    if deactivate_ids:
+        Appel.objects.filter(pk__in=deactivate_ids).update(is_active=False)
+    return len(deactivate_ids)
+
+
+@login_required
+@require_POST
+@transaction.atomic
 def deduplicate_all_call_tables(request):
     if not request.user.is_superuser:
         messages.error(request, "Seul un superadmin peut nettoyer les doublons.")
