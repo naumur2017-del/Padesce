@@ -221,7 +221,11 @@ def _ensure_appel(item, appel_code, classe_obj):
     existing = Appel.objects.filter(code=appel_code).first()
     if existing:
         changed = False
+        if not existing.is_active:
+            existing.is_active = True
+            changed = True
         for field, value in [
+            ("nom", item["nom_complet"]),
             ("prestataire", item["prestataire"]),
             ("beneficiaire", item["beneficiaire"]),
             ("telephone1", item["telephone"] or ""),
@@ -318,8 +322,6 @@ def upload_presence_list(request):
             )
             if status == "created":
                 created_ids.append(result_code)
-                _create_appel_for_non_inscrit(item, result_code, classe_obj)
-                appels_created += 1
                 counter += 1
             elif status == "updated":
                 updated_presence += 1
@@ -328,6 +330,10 @@ def upload_presence_list(request):
             else:
                 errors.append(status)
                 skipped += 1
+                continue
+
+            if result_code and _ensure_appel(item, result_code, classe_obj):
+                appels_created += 1
         else:
             apprenant_code = item["apprenant_id"]
             if not apprenant_code:
