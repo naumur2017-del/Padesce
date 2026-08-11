@@ -975,6 +975,7 @@ def _build_filtered_appels_queryset(request, *, hidden_class_labels: list[str] |
     status_filter = request.GET.get("status") or ""
     prestataire_filter = request.GET.get("prestataire") or ""
     beneficiaire_filter = request.GET.get("beneficiaire") or ""
+    prestation_filter = request.GET.get("prestation") or ""
     classe_filter = request.GET.get("classe") or ""
     fenetre_filter = request.GET.get("fenetre") or ""
     agent_filter = request.GET.get("agent") or ""
@@ -1004,6 +1005,8 @@ def _build_filtered_appels_queryset(request, *, hidden_class_labels: list[str] |
         appels_qs = appels_qs.filter(prestataire__icontains=prestataire_filter)
     if beneficiaire_filter:
         appels_qs = appels_qs.filter(beneficiaire__icontains=beneficiaire_filter)
+    if prestation_filter:
+        appels_qs = appels_qs.filter(classe__prestation__code__icontains=prestation_filter)
     if classe_filter:
         appels_qs = appels_qs.filter(classe_label__icontains=classe_filter)
     normalized_fenetre_filter = _normalize_dashboard_fenetre(fenetre_filter)
@@ -1117,13 +1120,15 @@ def _build_filtered_appels_queryset(request, *, hidden_class_labels: list[str] |
 
     # Collect all dropdown values in a single query instead of 5 separate ones.
     _dropdown_rows = appels_qs.values(
-        "prestataire", "beneficiaire", "classe_label", "fenetre", "locked_by__username"
+        "prestataire", "beneficiaire", "classe_label", "fenetre",
+        "locked_by__username", "classe__prestation__code",
     ).distinct()
     _prestataires: set[str] = set()
     _beneficiaires: set[str] = set()
     _classes: set[str] = set()
     _fenetres: set[str] = set()
     _agents: set[str] = set()
+    _prestations: set[str] = set()
     for _row in _dropdown_rows:
         if _row["prestataire"]:
             _prestataires.add(_row["prestataire"].strip())
@@ -1137,6 +1142,8 @@ def _build_filtered_appels_queryset(request, *, hidden_class_labels: list[str] |
                 _fenetres.add(_nf)
         if _row["locked_by__username"]:
             _agents.add(_row["locked_by__username"].strip())
+        if _row["classe__prestation__code"]:
+            _prestations.add(_row["classe__prestation__code"].strip())
 
     # modified_by requires a join on answers – keep as a separate lightweight query.
     _modified_bys: set[str] = {
@@ -1153,6 +1160,7 @@ def _build_filtered_appels_queryset(request, *, hidden_class_labels: list[str] |
         "status": status_filter,
         "prestataire": prestataire_filter,
         "beneficiaire": beneficiaire_filter,
+        "prestation": prestation_filter,
         "classe": classe_filter,
         "fenetre": normalized_fenetre_filter or fenetre_filter,
         "agent": agent_filter,
@@ -1162,6 +1170,7 @@ def _build_filtered_appels_queryset(request, *, hidden_class_labels: list[str] |
         "q": search,
         "prestataires": sorted(_prestataires),
         "beneficiaires": sorted(_beneficiaires),
+        "prestations_ids": sorted(_prestations),
         "classes": sorted(_classes),
         "fenetres": sorted(_fenetres),
         "agents": sorted(_agents),

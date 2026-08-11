@@ -384,6 +384,12 @@
         <option value="{{ p }}" {% if filters.beneficiaire == p %}selected{% endif %}>{{ p }}</option>
       {% endfor %}
     </select>
+    <select name="prestation" class="input">
+      <option value="">Prestation ID</option>
+      {% for p in filters.prestations_ids %}
+        <option value="{{ p }}" {% if filters.prestation == p %}selected{% endif %}>{{ p }}</option>
+      {% endfor %}
+    </select>
     <select name="classe" class="input" id="js-classe-filter">
       <option value="">Classe</option>
       {% for p in filters.classes_enriched %}
@@ -420,6 +426,7 @@
       <option value="pas_inscrit" {% if filters.inscription == "pas_inscrit" %}selected{% endif %}>Pas inscrit</option>
     </select>
     <button type="submit" class="btn btn-primary btn-sm" style="padding:10px 14px;">Filtrer <span class="help-dot" title="Les filtres reduisent le tableau affiche et les exports du tableau filtre.">?</span></button>
+    <a class="btn btn-secondary btn-sm" style="padding:10px 14px;" href="{% url 'appels_export_filtered_csv' %}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}">Exporter</a>
     <a class="btn btn-ghost btn-sm" style="padding:10px 14px;" href="/appels/">Réinitialiser</a>
   </form>
 
