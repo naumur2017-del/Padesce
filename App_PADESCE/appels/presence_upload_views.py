@@ -35,19 +35,18 @@ def _presence_marker(value):
 
 
 def _next_p_app_counter():
-    last = (
-        Apprenant.objects.filter(code__startswith="P-APP")
-        .order_by("-code")
-        .values_list("code", flat=True)
-        .first()
-    )
-    if not last:
-        return 1
-    digits = re.sub(r"\D", "", last.replace("P-APP", "", 1))
-    try:
-        return int(digits) + 1
-    except (ValueError, TypeError):
-        return 1
+    # A lexical ordering breaks as soon as we reach P-APP10000 (it would put
+    # P-APP9999 after it).  Extract the numeric suffixes instead so a new
+    # upload always continues the visible provisional-number sequence.
+    suffixes = list(
+        Apprenant.objects.filter(code__startswith="P-APP").values_list("code", flat=True)
+    ) + list(Appel.objects.filter(code__startswith="P-APP").values_list("code", flat=True))
+    highest = 0
+    for code in suffixes:
+        match = re.fullmatch(r"P-APP(\d+)", code or "")
+        if match:
+            highest = max(highest, int(match.group(1)))
+    return highest + 1
 
 
 def parse_presence_file(file_obj):
@@ -86,6 +85,10 @@ def parse_presence_file(file_obj):
         if not nom:
             continue
         statut = str(get(row, "statut") or "").strip()
+        # Some exported attendance sheets repeat their header after a page
+        # break.  It is data-shaped, so discard it explicitly.
+        if _normalize_header(nom) == "nom complet" and _normalize_header(statut) == "statut":
+            continue
         apprenant_id = str(get(row, "apprenant id") or "").strip() or None
         telephone = _phone(get(row, "numero de telephone", "telephone", "numero"))
         prestataire = str(get(row, "prestataire") or "").strip()
@@ -152,7 +155,7 @@ def _is_non_inscrit(item):
     return "non" in item["statut"].lower() or not item["apprenant_id"]
 
 
-def _create_apprenant_for_non_inscrit(item, classe_obj, counter):
+def _create_apprenant_for_non_inscrit(item, classe_obj, counter, update_existing=False):
     code = f"P-APP{counter:04d}"
     tel = item["telephone"] or None
 
@@ -161,6 +164,8 @@ def _create_apprenant_for_non_inscrit(item, classe_obj, counter):
         nom_complet=item["nom_complet"],
     ).first()
     if existing:
+        if not update_existing:
+            return existing.code, "unchanged"
         for field in PRESENCE_FIELDS:
             new_val = item["presences"].get(field, "")
             if new_val:
@@ -282,6 +287,9 @@ def upload_presence_list(request):
         messages.warning(request, "Aucune ligne exploitable dans le fichier.")
         return redirect("appels_index")
 
+    # This must be opt-in: a second upload is often a correction, but an
+    # accidental file must not overwrite an already validated attendance log.
+    update_existing = request.POST.get("update_existing") == "on"
     counter = _next_p_app_counter()
     created_ids = []
     updated_presence = 0
@@ -305,7 +313,9 @@ def upload_presence_list(request):
                 skipped += 1
                 continue
 
-            result_code, status = _create_apprenant_for_non_inscrit(item, classe_obj, counter)
+            result_code, status = _create_apprenant_for_non_inscrit(
+                item, classe_obj, counter, update_existing=update_existing
+            )
             if status == "created":
                 created_ids.append(result_code)
                 _create_appel_for_non_inscrit(item, result_code, classe_obj)
@@ -313,6 +323,8 @@ def upload_presence_list(request):
                 counter += 1
             elif status == "updated":
                 updated_presence += 1
+            elif status == "unchanged":
+                skipped += 1
             else:
                 errors.append(status)
                 skipped += 1
@@ -345,7 +357,7 @@ def upload_presence_list(request):
                         classe=classe_obj, nom_complet=item["nom_complet"]
                     ).first()
 
-            if apprenant:
+            if apprenant and update_existing:
                 changed = False
                 for field in PRESENCE_FIELDS:
                     new_val = item["presences"].get(field, "")
