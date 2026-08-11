@@ -313,8 +313,17 @@ def upload_presence_list(request):
 
         if _is_non_inscrit(item):
             if not classe_obj:
-                errors.append(f"Classe {classe_code} introuvable pour {item['nom_complet']}")
-                skipped += 1
+                result_code = f"P-APP{counter:04d}"
+                counter += 1
+                if _ensure_appel(item, result_code, None):
+                    created_ids.append(result_code)
+                    appels_created += 1
+                errors.append(
+                    (
+                        f"Classe {classe_code} introuvable pour {item['nom_complet']} : "
+                        f"contact {result_code} ajouté sans fiche apprenant"
+                    )
+                )
                 continue
 
             result_code, status = _create_apprenant_for_non_inscrit(

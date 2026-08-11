@@ -967,10 +967,11 @@ def _build_filtered_appels_queryset(request, *, hidden_class_labels: list[str] |
         Appel.objects.filter(is_active=True),
         phase_scope,
     )
+    inscription_filter = request.GET.get("inscription") or ""
     hidden_class_labels = [
         label for label in (hidden_class_labels or []) if str(label or "").strip()
     ]
-    if hidden_class_labels:
+    if hidden_class_labels and inscription_filter != "pas_inscrit":
         appels_qs = appels_qs.exclude(classe_label__in=hidden_class_labels)
     completed_answers_filter = appel_answers_completed_q("answers__")
     modified_answers_filter = appel_answers_modified_completion_q("answers__")
@@ -990,7 +991,6 @@ def _build_filtered_appels_queryset(request, *, hidden_class_labels: list[str] |
     date_to_str = request.GET.get("date_to", "").strip()
     search = request.GET.get("q", "").strip()
 
-    inscription_filter = request.GET.get("inscription") or ""
     if inscription_filter == "pas_inscrit":
         appels_qs = appels_qs.filter(code__startswith="P-APP")
     elif inscription_filter == "inscrit":
