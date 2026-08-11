@@ -1,0 +1,209 @@
+name: Restore Appels Active On Gandi
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type RESTORE_APPELS_ACTIVE to restore production appels visibility"
+        required: true
+        default: "RESTORE_APPELS_ACTIVE"
+      backup_file:
+        description: "Backup file name under production backups/"
+        required: true
+        default: "backup_20260810_174258.sqlite3"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gandi-production-db-maintenance
+  cancel-in-progress: false
+
+jobs:
+  restore:
+    name: Restore production appels active flags
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://call.naumur.com/appels/
+    env:
+      GANDI_SFTP_HOST: ${{ secrets.GANDI_SFTP_HOST }}
+      GANDI_SFTP_PORT: ${{ secrets.GANDI_SFTP_PORT }}
+      GANDI_SFTP_USERNAME: ${{ secrets.GANDI_SFTP_USERNAME }}
+      GANDI_SFTP_TOKEN: ${{ secrets.GANDI_SFTP_TOKEN }}
+      GANDI_SFTP_REMOTE_PATH: ${{ secrets.GANDI_SFTP_REMOTE_PATH }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Confirm restore
+        run: |
+          if [ "${{ github.event.inputs.confirm }}" != "RESTORE_APPELS_ACTIVE" ]; then
+            echo "::error::Confirmation invalide."
+            exit 1
+          fi
+
+      - name: Install dependencies
+        run: python -m pip install --upgrade paramiko
+
+      - name: Restore active flags
+        env:
+          BACKUP_FILE: ${{ github.event.inputs.backup_file }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          import posixpath
+          import shutil
+          import sqlite3
+          import time
+          from pathlib import Path
+
+          import paramiko
+
+          host = os.environ["GANDI_SFTP_HOST"]
+          port = int(os.environ.get("GANDI_SFTP_PORT") or "22")
+          username = os.environ["GANDI_SFTP_USERNAME"]
+          token = os.environ["GANDI_SFTP_TOKEN"]
+          remote_root = os.environ["GANDI_SFTP_REMOTE_PATH"].rstrip("/")
+          backup_file = os.environ["BACKUP_FILE"]
+
+          if not remote_root:
+              raise SystemExit("GANDI_SFTP_REMOTE_PATH is required.")
+
+          def remote_join(root, *parts):
+              return posixpath.join(str(root).rstrip("/"), *[str(part).strip("/") for part in parts if str(part)])
+
+          def chunks(values, size=500):
+              values = list(values)
+              for index in range(0, len(values), size):
+                  yield values[index:index + size]
+
+          def exists(sftp, path):
+              try:
+                  sftp.stat(path)
+                  return True
+              except OSError:
+                  return False
+
+          def mkdir_p(sftp, path):
+              if not path or path == "/":
+                  return
+              parent = posixpath.dirname(path)
+              if parent and parent != path:
+                  mkdir_p(sftp, parent)
+              try:
+                  sftp.stat(path)
+              except OSError:
+                  sftp.mkdir(path)
+
+          transport = paramiko.Transport((host, port))
+          transport.connect(username=username, password=token)
+          sftp = paramiko.SFTPClient.from_transport(transport)
+
+          try:
+              remote_db = remote_join(remote_root, "db.sqlite3")
+              remote_backup = remote_join(remote_root, "backups", backup_file)
+              if not exists(sftp, remote_db):
+                  raise SystemExit(f"Production DB not found: {remote_db}")
+              if not exists(sftp, remote_backup):
+                  raise SystemExit(f"Backup not found: {remote_backup}")
+
+              work = Path("restore-work")
+              work.mkdir(exist_ok=True)
+              current_db = work / "prod-current.sqlite3"
+              backup_db = work / backup_file
+
+              sftp.get(remote_db, str(current_db))
+              sftp.get(remote_backup, str(backup_db))
+
+              timestamp = time.strftime("%Y%m%d_%H%M%S")
+              pre_restore = f"prod_pre_restore_appels_active_{timestamp}.sqlite3"
+              pre_restore_local = work / pre_restore
+              shutil.copy2(current_db, pre_restore_local)
+              mkdir_p(sftp, remote_join(remote_root, "backups"))
+              sftp.put(str(pre_restore_local), remote_join(remote_root, "backups", pre_restore))
+
+              with sqlite3.connect(str(backup_db)) as source:
+                  active_rows = source.execute(
+                      "select id, code from appels_appel where is_active = 1"
+                  ).fetchall()
+
+              active_ids = {row[0] for row in active_rows if row[0] is not None}
+              active_codes = {str(row[1]).strip() for row in active_rows if str(row[1] or "").strip()}
+
+              with sqlite3.connect(str(current_db)) as target:
+                  before_active = target.execute(
+                      "select count(*) from appels_appel where is_active = 1"
+                  ).fetchone()[0]
+                  total = target.execute("select count(*) from appels_appel").fetchone()[0]
+
+                  ids_to_restore = set()
+                  for active_id_chunk in chunks(active_ids):
+                      placeholders = ",".join("?" for _ in active_id_chunk)
+                      ids_to_restore.update(
+                          row[0]
+                          for row in target.execute(
+                              f"select id from appels_appel where is_active = 0 and id in ({placeholders})",
+                              tuple(active_id_chunk),
+                          )
+                      )
+                  for active_code_chunk in chunks(active_codes):
+                      placeholders = ",".join("?" for _ in active_code_chunk)
+                      ids_to_restore.update(
+                          row[0]
+                          for row in target.execute(
+                              f"select id from appels_appel where is_active = 0 and code in ({placeholders})",
+                              tuple(active_code_chunk),
+                          )
+                      )
+
+                  for restore_chunk in chunks(ids_to_restore):
+                      placeholders = ",".join("?" for _ in restore_chunk)
+                      target.execute(
+                          f"update appels_appel set is_active = 1 where id in ({placeholders})",
+                          tuple(restore_chunk),
+                      )
+                  if ids_to_restore:
+                      target.commit()
+
+                  after_active = target.execute(
+                      "select count(*) from appels_appel where is_active = 1"
+                  ).fetchone()[0]
+                  integrity = target.execute("pragma integrity_check").fetchone()[0]
+
+              if integrity != "ok":
+                  raise SystemExit(f"Integrity check failed: {integrity}")
+
+              fixed_remote = remote_join(remote_root, f"db.sqlite3.restore_appels_{timestamp}")
+              sftp.put(str(current_db), fixed_remote)
+              sftp.rename(fixed_remote, remote_db)
+
+              remote_wsgi = remote_join(remote_root, "wsgi.py")
+              if exists(sftp, remote_wsgi):
+                  now = int(time.time())
+                  sftp.utime(remote_wsgi, (now, now))
+
+              report = {
+                  "backup_file": backup_file,
+                  "pre_restore_backup": pre_restore,
+                  "total_appels": total,
+                  "active_before": before_active,
+                  "active_in_backup": len(active_ids),
+                  "reactivated": len(ids_to_restore),
+                  "active_after": after_active,
+                  "integrity_check": integrity,
+              }
+              Path("restore-report.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
+              print(json.dumps(report, indent=2))
+          finally:
+              sftp.close()
+              transport.close()
+          PY
+
+      - name: Upload restore report
+        uses: actions/upload-artifact@v4
+        with:
+          name: restore-appels-active-report
+          path: |
+            restore-report.json
+            restore-work/prod_pre_restore_appels_active_*.sqlite3
