@@ -1,6 +1,7 @@
 import io
 import logging
 import re
+import unicodedata
 
 import openpyxl
 from django.contrib import messages
@@ -17,7 +18,9 @@ logger = logging.getLogger(__name__)
 
 
 def _normalize_header(value):
-    return " ".join(str(value or "").strip().lower().replace("_", " ").split())
+    normalized = unicodedata.normalize("NFKD", str(value or ""))
+    without_accents = "".join(ch for ch in normalized if not unicodedata.combining(ch))
+    return " ".join(without_accents.strip().lower().replace("_", " ").split())
 
 
 def _phone(value):

@@ -968,11 +968,6 @@ def _build_filtered_appels_queryset(request, *, hidden_class_labels: list[str] |
         phase_scope,
     )
     inscription_filter = request.GET.get("inscription") or ""
-    hidden_class_labels = [
-        label for label in (hidden_class_labels or []) if str(label or "").strip()
-    ]
-    if hidden_class_labels and inscription_filter != "pas_inscrit":
-        appels_qs = appels_qs.exclude(classe_label__in=hidden_class_labels)
     completed_answers_filter = appel_answers_completed_q("answers__")
     modified_answers_filter = appel_answers_modified_completion_q("answers__")
     tracked_audio_filter = Q(audio_file__isnull=False) & ~Q(audio_file="")
@@ -990,6 +985,13 @@ def _build_filtered_appels_queryset(request, *, hidden_class_labels: list[str] |
     date_from_str = request.GET.get("date_from", "").strip()
     date_to_str = request.GET.get("date_to", "").strip()
     search = request.GET.get("q", "").strip()
+
+    hidden_class_labels = [
+        label for label in (hidden_class_labels or []) if str(label or "").strip()
+    ]
+    hide_completed_classes = request.GET.get("hide_completed_classes") == "1"
+    if hidden_class_labels and hide_completed_classes and inscription_filter != "pas_inscrit":
+        appels_qs = appels_qs.exclude(classe_label__in=hidden_class_labels)
 
     if inscription_filter == "pas_inscrit":
         appels_qs = appels_qs.filter(code__startswith="P-APP")
