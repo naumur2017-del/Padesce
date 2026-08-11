@@ -82,6 +82,14 @@ class Command(BaseCommand):
         self.stdout.write(f"Source SQLite : {source_path}")
         self.stdout.write(f"Cible PostgreSQL : alias '{target_alias}'")
 
+        self.stdout.write("Application des migrations SQLite source...")
+        call_command(
+            "migrate",
+            database=source_alias,
+            interactive=False,
+            verbosity=max(options["verbosity"] - 1, 0),
+        )
+
         if not options["skip_migrate"]:
             self.stdout.write("Application des migrations PostgreSQL...")
             call_command(

@@ -76,10 +76,29 @@ jobs:
               done_path = remote_join(remote_root, ".postgres_migration.done")
               error_path = remote_join(remote_root, ".postgres_migration.error")
               lock_path = remote_join(remote_root, "logs", "runtime", ".django-auto-migrate.lock")
-              helper_path = remote_join(remote_root, "App_PADESCE", "core", "db_migration.py")
-              if not exists(sftp, helper_path):
-                  raise SystemExit(f"Migration helper not found: {helper_path}")
-              sftp.put("App_PADESCE/core/db_migration.py", helper_path)
+              patch_files = [
+                  (
+                      "App_PADESCE/core/db_migration.py",
+                      remote_join(remote_root, "App_PADESCE", "core", "db_migration.py"),
+                  ),
+                  (
+                      "App_PADESCE/core/management/commands/migrate_sqlite_to_postgres.py",
+                      remote_join(
+                          remote_root,
+                          "App_PADESCE",
+                          "core",
+                          "management",
+                          "commands",
+                          "migrate_sqlite_to_postgres.py",
+                      ),
+                  ),
+              ]
+              patched = []
+              for local_path, remote_path in patch_files:
+                  if not exists(sftp, remote_path):
+                      raise SystemExit(f"Migration file not found: {remote_path}")
+                  sftp.put(local_path, remote_path)
+                  patched.append(remote_path)
 
               removed = []
               for path in [done_path, error_path, lock_path]:
@@ -100,7 +119,7 @@ jobs:
 
               marker = {
                   "forced_at": now,
-                  "patched": helper_path,
+                  "patched": patched,
                   "removed": removed,
                   "touched": touched,
                   "message": "PostgreSQL remigration requested from restored db.sqlite3.",
