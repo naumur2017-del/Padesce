@@ -477,17 +477,34 @@ def _parse_excel_sheet(file_obj, sheet_name: str):
             return row[idx] or ""
         return ""
 
+    _NOM_KEYS = [
+        "nom et prenom 0 name & first name",
+        "nom et prénom 0 name & first name",
+        "nom et prenom",
+        "nom et prénom",
+        "nom complet",
+        "nom",
+    ]
+    _CODE_KEYS = ["code", "apprenant id"]
+    has_nom_col = any(_normalize_header(k) in header_map for k in _NOM_KEYS)
+    has_code_col = any(_normalize_header(k) in header_map for k in _CODE_KEYS)
+    if not has_nom_col or not has_code_col:
+        missing = []
+        if not has_nom_col:
+            missing.append("Nom et prénom")
+        if not has_code_col:
+            missing.append("Code")
+        found = [col for col in header if col]
+        found_str = ", ".join(str(c) for c in found[:15])
+        raise ValueError(
+            f"Colonnes requises manquantes : {', '.join(missing)}. "
+            f"Colonnes trouvées dans le fichier : {found_str}"
+        )
+
     data = []
     for row in rows:
-        nom = get(
-            row,
-            "nom et prenom 0 name & first name",
-            "nom et prénom 0 name & first name",
-            "nom et prenom",
-            "nom et prénom",
-            "nom",
-        )
-        code = get(row, "code")
+        nom = get(row, *_NOM_KEYS)
+        code = get(row, *_CODE_KEYS)
         if not nom or not code:
             continue
         prestataire = get(row, "prestataire")
@@ -499,13 +516,30 @@ def _parse_excel_sheet(file_obj, sheet_name: str):
             row,
             "1er no tel 0 tel no apprenant",
             "1er no tel 0 tel no",
-            "1er no tel 0 tel no apprenant",
+            "1er no tel apprenant",
+            "n° tel",
+            "n° tel",
+            "n°tel",
+            "n°tel",
+            "telephone",
+            "telephone",
+            "tel",
+            "tel",
+            "numero de telephone",
+            "numero de telephone",
+            "n° de telephone",
+            "n° de telephone",
         )
         tel2 = get(
             row,
             "2e no tel 0 tel no apprenant (si disponible)",
             "2e no tel 0 tel no",
-            "2e no tel 0 tel no apprenant (si disponible)",
+            "2e no tel apprenant",
+            "2e no tel apprenant (si disponible)",
+            "telephone 2",
+            "telephone 2",
+            "tel 2",
+            "tel 2",
         )
         type_formation = get(row, "type de formation declaree", "type de formation déclarée")
         formation_padesce = get(row, "formation padesce")
