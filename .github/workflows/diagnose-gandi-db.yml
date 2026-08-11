@@ -1,0 +1,128 @@
+name: Diagnose Gandi Database
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    name: Diagnose production database
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://call.naumur.com/appels/
+    env:
+      GANDI_SFTP_HOST: ${{ secrets.GANDI_SFTP_HOST }}
+      GANDI_SFTP_PORT: ${{ secrets.GANDI_SFTP_PORT }}
+      GANDI_SFTP_USERNAME: ${{ secrets.GANDI_SFTP_USERNAME }}
+      GANDI_SFTP_TOKEN: ${{ secrets.GANDI_SFTP_TOKEN }}
+      GANDI_SFTP_REMOTE_PATH: ${{ secrets.GANDI_SFTP_REMOTE_PATH }}
+    steps:
+      - name: Install dependencies
+        run: python -m pip install --upgrade paramiko
+
+      - name: Inspect remote database files
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          import posixpath
+          import sqlite3
+          from pathlib import Path
+
+          import paramiko
+
+          host = os.environ["GANDI_SFTP_HOST"]
+          port = int(os.environ.get("GANDI_SFTP_PORT") or "22")
+          username = os.environ["GANDI_SFTP_USERNAME"]
+          token = os.environ["GANDI_SFTP_TOKEN"]
+          remote_root = os.environ["GANDI_SFTP_REMOTE_PATH"].rstrip("/")
+
+          def remote_join(root, *parts):
+              return posixpath.join(str(root).rstrip("/"), *[str(part).strip("/") for part in parts if str(part)])
+
+          def exists(sftp, path):
+              try:
+                  sftp.stat(path)
+                  return True
+              except OSError:
+                  return False
+
+          def stat_payload(sftp, path):
+              try:
+                  stat = sftp.stat(path)
+              except OSError:
+                  return {"path": path, "exists": False}
+              return {"path": path, "exists": True, "size": stat.st_size, "mtime": stat.st_mtime}
+
+          def list_dir(sftp, path):
+              try:
+                  return sorted(item.filename for item in sftp.listdir_attr(path))
+              except OSError as exc:
+                  return [f"<error: {exc}>"]
+
+          transport = paramiko.Transport((host, port))
+          transport.connect(username=username, password=token)
+          sftp = paramiko.SFTPClient.from_transport(transport)
+
+          work = Path("diagnose-work")
+          work.mkdir(exist_ok=True)
+          report = {
+              "remote_root": remote_root,
+              "root_files": list_dir(sftp, remote_root),
+              "candidate_files": [],
+              "databases": {},
+              "env_local": "",
+          }
+
+          for rel in ["db.sqlite3", "backup.sqlite3", "backups/backup_20260810_174258.sqlite3", "backups/backup_20260811_091943.sqlite3"]:
+              remote_path = remote_join(remote_root, rel)
+              report["candidate_files"].append(stat_payload(sftp, remote_path))
+              if not exists(sftp, remote_path):
+                  continue
+              local_path = work / rel.replace("/", "__")
+              sftp.get(remote_path, str(local_path))
+              try:
+                  with sqlite3.connect(str(local_path)) as conn:
+                      tables = {row[0] for row in conn.execute("select name from sqlite_master where type='table'")}
+                      db_report = {"tables_count": len(tables)}
+                      for table in ["appels_appel", "appels_appelanswers", "apprenants_apprenant", "formations_classe"]:
+                          if table in tables:
+                              db_report[table] = conn.execute(f"select count(*) from {table}").fetchone()[0]
+                      if "appels_appel" in tables:
+                          db_report["appels_active"] = conn.execute("select count(*) from appels_appel where is_active = 1").fetchone()[0]
+                          db_report["appels_inactive"] = conn.execute("select count(*) from appels_appel where is_active = 0").fetchone()[0]
+                          db_report["p_app"] = conn.execute("select count(*) from appels_appel where code like 'P-APP%'").fetchone()[0]
+                          db_report["phase2_active"] = conn.execute(
+                              "select count(*) from appels_appel a left join formations_classe c on a.classe_id = c.id where a.is_active = 1 and (c.phase_id = 2 or a.code like 'P-APP%')"
+                          ).fetchone()[0]
+                      report["databases"][rel] = db_report
+              except Exception as exc:
+                  report["databases"][rel] = {"error": str(exc)}
+
+          env_path = remote_join(remote_root, ".env.local")
+          if exists(sftp, env_path):
+              with sftp.open(env_path, "r") as handle:
+                  content = handle.read()
+              if isinstance(content, bytes):
+                  content = content.decode("utf-8", errors="replace")
+              safe_lines = []
+              for line in content.splitlines():
+                  key = line.split("=", 1)[0].strip()
+                  if key in {"DB_ENGINE", "DATABASE_URL", "SQLITE_PATH", "SQLITE_NAME", "POSTGRES_DB", "POSTGRES_HOST", "POSTGRES_USER"}:
+                      safe_lines.append(line if key not in {"DATABASE_URL"} else "DATABASE_URL=<present>")
+              report["env_local"] = "\n".join(safe_lines)
+
+          Path("diagnose-report.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
+          print(json.dumps(report, indent=2))
+          sftp.close()
+          transport.close()
+          PY
+
+      - name: Upload diagnose report
+        uses: actions/upload-artifact@v4
+        with:
+          name: diagnose-gandi-db-report
+          path: diagnose-report.json
