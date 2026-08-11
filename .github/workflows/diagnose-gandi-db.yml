@@ -139,6 +139,14 @@ jobs:
                               safe_lines.append(line)
               report["env_files"][env_name] = "\n".join(safe_lines)
 
+          error_path = remote_join(remote_root, ".postgres_migration.error")
+          if exists(sftp, error_path):
+              with sftp.open(error_path, "r") as handle:
+                  error_content = handle.read()
+              if isinstance(error_content, bytes):
+                  error_content = error_content.decode("utf-8", errors="replace")
+              report["postgres_migration_error_tail"] = error_content[-5000:]
+
           Path("diagnose-report.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
           print(json.dumps(report, indent=2))
           sftp.close()
