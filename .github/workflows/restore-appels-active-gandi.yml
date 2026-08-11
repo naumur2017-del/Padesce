@@ -8,9 +8,13 @@ on:
         required: true
         default: "RESTORE_APPELS_ACTIVE"
       backup_file:
-        description: "Backup file name under production backups/"
+        description: "Backup file used as source of active appels under production backups/"
         required: true
         default: "backup_20260810_174258.sqlite3"
+      target_backup_file:
+        description: "Optional full database backup to restore before applying active flags"
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -48,6 +52,7 @@ jobs:
       - name: Restore active flags
         env:
           BACKUP_FILE: ${{ github.event.inputs.backup_file }}
+          TARGET_BACKUP_FILE: ${{ github.event.inputs.target_backup_file }}
         run: |
           python - <<'PY'
           import json
@@ -66,6 +71,7 @@ jobs:
           token = os.environ["GANDI_SFTP_TOKEN"]
           remote_root = os.environ["GANDI_SFTP_REMOTE_PATH"].rstrip("/")
           backup_file = os.environ["BACKUP_FILE"]
+          target_backup_file = os.environ.get("TARGET_BACKUP_FILE", "").strip()
 
           if not remote_root:
               raise SystemExit("GANDI_SFTP_REMOTE_PATH is required.")
@@ -107,6 +113,11 @@ jobs:
                   raise SystemExit(f"Production DB not found: {remote_db}")
               if not exists(sftp, remote_backup):
                   raise SystemExit(f"Backup not found: {remote_backup}")
+              remote_target_backup = ""
+              if target_backup_file:
+                  remote_target_backup = remote_join(remote_root, "backups", target_backup_file)
+                  if not exists(sftp, remote_target_backup):
+                      raise SystemExit(f"Target restore backup not found: {remote_target_backup}")
 
               work = Path("restore-work")
               work.mkdir(exist_ok=True)
@@ -115,6 +126,9 @@ jobs:
 
               sftp.get(remote_db, str(current_db))
               sftp.get(remote_backup, str(backup_db))
+              if target_backup_file:
+                  target_backup_db = work / target_backup_file
+                  sftp.get(remote_target_backup, str(target_backup_db))
 
               timestamp = time.strftime("%Y%m%d_%H%M%S")
               pre_restore = f"prod_pre_restore_appels_active_{timestamp}.sqlite3"
@@ -122,6 +136,8 @@ jobs:
               shutil.copy2(current_db, pre_restore_local)
               mkdir_p(sftp, remote_join(remote_root, "backups"))
               sftp.put(str(pre_restore_local), remote_join(remote_root, "backups", pre_restore))
+              if target_backup_file:
+                  current_db = target_backup_db
 
               with sqlite3.connect(str(backup_db)) as source:
                   active_rows = source.execute(
@@ -192,6 +208,7 @@ jobs:
 
               report = {
                   "backup_file": backup_file,
+                  "target_backup_file": target_backup_file,
                   "pre_restore_backup": pre_restore,
                   "total_appels": total,
                   "active_before": before_active,
