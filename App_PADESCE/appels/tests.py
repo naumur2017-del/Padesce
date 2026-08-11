@@ -1369,7 +1369,7 @@ class AppelFinalizeSaveTests(TestCase):
             is_active=True,
         )
         appel = Appel.objects.create(
-            code="APP-FINAL-001",
+            code="P-APP-FINAL-001",
             nom="Apprenant Test",
             classe_label="CLA-FINAL",
             telephone1="690000002",
@@ -1398,6 +1398,10 @@ class AppelFinalizeSaveTests(TestCase):
         self.assertEqual(appel.status, "formulaire_rempli")
         self.assertEqual(payload["status"], "formulaire_rempli")
         self.assertFalse(payload["satisfaction_saved"])
+        self.assertEqual(
+            payload["questionnaire"],
+            {"saved": True, "answered_questions": 9, "q9": 5},
+        )
         self.assertEqual(answers.q1_clarte_exposes, 4)
         self.assertEqual(answers.q9_satisfaction_globale, 5)
         self.assertEqual(answers.commentaire, "Formulaire PADESCE bien renseigne")
@@ -1406,6 +1410,16 @@ class AppelFinalizeSaveTests(TestCase):
         self.assertEqual(payload["class_progress"]["termines"], 1)
         self.assertEqual(payload["class_progress"]["target"], 1)
         self.assertTrue(payload["class_progress"]["reached"])
+
+        detail_response = self.client.get(reverse("appel_answers_detail", args=[appel.pk]))
+        self.assertEqual(detail_response.status_code, 200)
+        self.assertEqual(detail_response.json()["answers"]["q1"], 4)
+        self.assertEqual(detail_response.json()["answers"]["q9"], 5)
+
+        with patch("App_PADESCE.appels.views._safe_build_padesce_source_index", return_value=None):
+            index_response = self.client.get(reverse("appels_index"), {"q": appel.code})
+        self.assertContains(index_response, "Enregistré")
+        self.assertContains(index_response, "9/9 réponses")
 
     def test_finalize_without_questionnaire_answers_marks_call_successful(self):
         appel = Appel.objects.create(
@@ -1435,6 +1449,47 @@ class AppelFinalizeSaveTests(TestCase):
         self.assertEqual(payload["status"], "appel_reussi")
         self.assertFalse(payload["satisfaction_saved"])
         self.assertFalse(SatisfactionApprenant.objects.filter(appel=appel).exists())
+
+    def test_finalize_stores_audio_and_questionnaire_together(self):
+        temp_media_root = tempfile.mkdtemp(prefix="appel-finalize-audio-test-")
+        try:
+            with override_settings(MEDIA_ROOT=temp_media_root):
+                appel = Appel.objects.create(
+                    code="P-APP-FINAL-AUDIO",
+                    nom="Apprenant Audio",
+                    status="en_cours",
+                    is_active=True,
+                )
+                response = self.client.post(
+                    reverse("appel_finalize", args=[appel.pk]),
+                    {
+                        "action": "terminer",
+                        "q1": "4",
+                        "q2": "5",
+                        "q3": "4",
+                        "q4": "5",
+                        "q5": "4",
+                        "q6": "5",
+                        "q7": "4",
+                        "q8": "5",
+                        "q9": "5",
+                        "audio": SimpleUploadedFile(
+                            "appel.webm", b"test-audio", content_type="audio/webm"
+                        ),
+                    },
+                )
+
+                self.assertEqual(response.status_code, 200)
+                payload = response.json()
+                appel.refresh_from_db()
+                self.assertTrue(payload["audio_saved"])
+                self.assertEqual(payload["status"], "formulaire_avec_audio")
+                self.assertEqual(payload["questionnaire"]["answered_questions"], 9)
+                self.assertEqual(appel.answers.q9_satisfaction_globale, 5)
+                self.assertTrue(appel.audio_file.name)
+                self.assertTrue(os.path.exists(os.path.join(temp_media_root, appel.audio_file.name)))
+        finally:
+            shutil.rmtree(temp_media_root, ignore_errors=True)
 
 
 class CgaAudioAndTemplateTests(TestCase):

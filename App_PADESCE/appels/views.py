@@ -142,6 +142,28 @@ def _bind_audio_state(rows):
     return rows
 
 
+def _questionnaire_summary(answers: AppelAnswers | None) -> dict:
+    """Return the small, safe-to-render proof that an appel form was saved."""
+    if not answers:
+        return {"saved": False, "answered_questions": 0, "q9": None}
+
+    answered_questions = sum(
+        getattr(answers, field_name, None) is not None for field_name in APPEL_QUESTION_FIELDS
+    )
+    return {
+        "saved": answered_questions > 0,
+        "answered_questions": answered_questions,
+        "q9": answers.q9_satisfaction_globale,
+    }
+
+
+def _bind_questionnaire_state(rows):
+    """Attach display-only form state without issuing one query per appel."""
+    for row in rows:
+        row.questionnaire = _questionnaire_summary(getattr(row, "answers", None))
+    return rows
+
+
 def _coerce_note_value(value, default=None):
     try:
         note = int(value)
@@ -1441,7 +1463,7 @@ def appels_index(request):
 
     appels_count = appels_qs.count()
     stats = _build_progress_metrics(appels_qs)
-    appels_qs = appels_qs.select_related("locked_by").order_by("status", "nom")
+    appels_qs = appels_qs.select_related("locked_by", "answers").order_by("status", "nom")
 
     # ── Pagination: 30 lignes par page ──
     paginator = Paginator(appels_qs, 30)
@@ -1452,6 +1474,7 @@ def appels_index(request):
         page_obj = paginator.page(1)
 
     appels = _bind_audio_state(list(page_obj.object_list))
+    _bind_questionnaire_state(appels)
     page_obj.object_list = appels
     params = request.GET.copy()
     params.pop("page", None)
@@ -1854,6 +1877,7 @@ def finalize_appel(request, pk: int):
 
             satisfaction_saved = False
             satisfaction_message = ""
+            answers = None
             if action == "terminer" and _has_real_form:
                 commentaire_val = request.POST.get("commentaire", "") or "RAS"
                 recommandations_val = request.POST.get("recommandations", "") or "RAS"
@@ -1874,7 +1898,7 @@ def finalize_appel(request, pk: int):
                 # La fiche de l'appel est l'enregistrement de référence pour ce
                 # flux. On la sauvegarde directement, sans créer une enquête
                 # apprenant séparée (qui peut ne pas correspondre au contact).
-                _save_appel_answers(appel, request.user, manual_data, apply_defaults=True)
+                answers = _save_appel_answers(appel, request.user, manual_data, apply_defaults=True)
                 satisfaction_message = "Questionnaire enregistre."
                 satisfaction_id = None
             else:
@@ -1914,6 +1938,7 @@ def finalize_appel(request, pk: int):
                     "audio_url": audio_url,
                     "satisfaction_saved": satisfaction_saved,
                     "satisfaction_message": satisfaction_message,
+                    "questionnaire": _questionnaire_summary(answers),
                     "class_progress": class_info,
                 }
             )
