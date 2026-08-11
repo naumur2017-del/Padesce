@@ -29,6 +29,8 @@ jobs:
       GANDI_SFTP_TOKEN: ${{ secrets.GANDI_SFTP_TOKEN }}
       GANDI_SFTP_REMOTE_PATH: ${{ secrets.GANDI_SFTP_REMOTE_PATH }}
     steps:
+      - uses: actions/checkout@v4
+
       - name: Confirm remigration
         run: |
           if [ "${{ github.event.inputs.confirm }}" != "FORCE_POSTGRES_REMIGRATION" ]; then
@@ -39,7 +41,7 @@ jobs:
       - name: Install dependencies
         run: python -m pip install --upgrade paramiko
 
-      - name: Remove migration marker and reload ASGI
+      - name: Patch migration helper, remove marker and reload ASGI
         run: |
           python - <<'PY'
           import json
@@ -74,6 +76,11 @@ jobs:
               done_path = remote_join(remote_root, ".postgres_migration.done")
               error_path = remote_join(remote_root, ".postgres_migration.error")
               lock_path = remote_join(remote_root, "logs", "runtime", ".django-auto-migrate.lock")
+              helper_path = remote_join(remote_root, "App_PADESCE", "core", "db_migration.py")
+              if not exists(sftp, helper_path):
+                  raise SystemExit(f"Migration helper not found: {helper_path}")
+              sftp.put("App_PADESCE/core/db_migration.py", helper_path)
+
               removed = []
               for path in [done_path, error_path, lock_path]:
                   if exists(sftp, path):
@@ -93,6 +100,7 @@ jobs:
 
               marker = {
                   "forced_at": now,
+                  "patched": helper_path,
                   "removed": removed,
                   "touched": touched,
                   "message": "PostgreSQL remigration requested from restored db.sqlite3.",
