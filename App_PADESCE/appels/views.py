@@ -15,7 +15,7 @@ from django.core.cache import cache
 from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
 from django.db import transaction
 from django.db.models import (
-    Case, Count, DecimalField, ExpressionWrapper, F, OuterRef, Q, Subquery, Value, When,
+    Case, CharField, Count, DecimalField, ExpressionWrapper, F, OuterRef, Q, Subquery, Value, When,
 )
 from django.db.models.functions import Coalesce
 from django.http import HttpResponse, JsonResponse
@@ -1096,7 +1096,11 @@ def _build_filtered_appels_queryset(request, *, hidden_class_labels: list[str] |
                     nom_complet=OuterRef("nom"),
                 ).values("code")[:1]
             ),
-            F("code"),
+            Case(
+                When(code__startswith="P-APP", then=F("code")),
+                When(code__startswith="APP", then=F("code")),
+            ),
+            output_field=CharField(),
         ),
         taux_presence_display=Case(
             When(
