@@ -529,7 +529,7 @@
           <th class="checkbox-cell">
             <input type="checkbox" id="js-select-all" aria-label="Sélectionner tous les audios">
           </th>
-          <th>Nom</th><th>Apprenant ID</th><th>Prestataire</th><th>Bénéficiaire</th><th>Lieu</th><th>Classe <span class="help-dot" title="Cliquez sur le code classe pour ouvrir la page d'analyse de cette classe.">?</span></th><th>Fenêtre</th><th>Type formation déclarée</th><th>Formation Padesce</th><th>Tél <span class="help-dot" title="Les lignes sans numero exploitable ne doivent pas etre importees dans les listes d'appel.">?</span></th><th>Taux présence</th><th>Statut</th><th>Questionnaire</th><th>Action</th><th>Audio</th>
+          <th>Code</th><th>Nom</th><th>Apprenant ID</th><th>Prestataire</th><th>Bénéficiaire</th><th>Lieu</th><th>Classe <span class="help-dot" title="Cliquez sur le code classe pour ouvrir la page d'analyse de cette classe.">?</span></th><th>Fenêtre</th><th>Type formation déclarée</th><th>Formation Padesce</th><th>Tél <span class="help-dot" title="Les lignes sans numero exploitable ne doivent pas etre importees dans les listes d'appel.">?</span></th><th>Taux présence</th><th>Statut</th><th>Questionnaire</th><th>Action</th><th>Audio</th>
         </tr>
       </thead>
       <tbody>
@@ -544,6 +544,7 @@
               {% if not a.has_audio_file %}disabled title="{% if a.audio_file_missing %}Audio introuvable{% else %}Pas d'audio disponible{% endif %}"{% endif %}
             />
           </td>
+          <td>{{ a.code|default:"-" }}</td>
           <td>{{ a.nom }}</td>
           <td>{{ a.apprenant_id|default:"-" }}</td>
           <td>{{ a.prestataire }}</td>
@@ -623,7 +624,7 @@
           </td>
         </tr>
         {% empty %}
-        <tr><td colspan="16" style="text-align:center; color:var(--muted);">Aucun appel.</td></tr>
+        <tr><td colspan="17" style="text-align:center; color:var(--muted);">Aucun appel.</td></tr>
         {% endfor %}
       </tbody>
     </table>
