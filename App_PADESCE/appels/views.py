@@ -546,10 +546,12 @@ def _parse_excel_sheet(file_obj, sheet_name: str):
         taux_presence = get(row, "taux de presence", "taux de présence", "présence (%)", "presence (%)") or 0
         tel1 = get(
             row,
+            "1er no tel apprenant / learner's 1st phone number",
+            "1er no tel apprenant",
             "1er no tel / tel no apprenant",
             "1er no tel 0 tel no apprenant",
             "1er no tel 0 tel no",
-            "1er no tel apprenant",
+            "learner's 1st phone number",
             "n° tel",
             "n° tel",
             "n°tel",
@@ -565,11 +567,14 @@ def _parse_excel_sheet(file_obj, sheet_name: str):
         )
         tel2 = get(
             row,
+            "2e no tel apprenant (si disponible) / learner's 2nd phone number (if available)",
+            "2e no tel apprenant (si disponible)",
+            "2e no tel apprenant / learner's 2nd phone number",
             "2e no tel / tel no apprenant (si disponible)",
             "2e no tel 0 tel no apprenant (si disponible)",
             "2e no tel 0 tel no",
             "2e no tel apprenant",
-            "2e no tel apprenant (si disponible)",
+            "learner's 2nd phone number",
             "telephone 2",
             "telephone 2",
             "tel 2",
@@ -1449,13 +1454,17 @@ def appels_index(request):
             updated = 0
             skipped = 0
             for item in payload:
+                code = str(item.get("code") or "").strip()
                 nom = str(item.get("nom") or "").strip()
-                if not nom:
-                    skipped += 1
-                    continue
                 tel1 = str(item.get("telephone1") or "").strip() or None
                 tel2 = str(item.get("telephone2") or "").strip() or None
-                appel = Appel.objects.filter(nom__iexact=nom, is_active=True).first()
+
+                appel = None
+                if code:
+                    appel = Appel.objects.filter(code=code, is_active=True).first()
+                if not appel and nom:
+                    appel = Appel.objects.filter(nom__iexact=nom, is_active=True).first()
+
                 if not appel:
                     skipped += 1
                     continue
