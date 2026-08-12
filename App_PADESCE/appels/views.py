@@ -15,8 +15,9 @@ from django.core.cache import cache
 from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
 from django.db import transaction
 from django.db.models import (
-    Case, Count, DecimalField, ExpressionWrapper, F, OuterRef, Q, Subquery, When,
+    Case, CharField, Count, DecimalField, ExpressionWrapper, F, OuterRef, Q, Subquery, Value, When,
 )
+from django.db.models.functions import Coalesce
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -138,6 +139,28 @@ def _bind_audio_state(rows):
         row.has_audio_file = has_audio_file
         row.audio_file_url = audio_file_url
         row.audio_file_missing = audio_file_missing
+    return rows
+
+
+def _questionnaire_summary(answers: AppelAnswers | None) -> dict:
+    """Return the small, safe-to-render proof that an appel form was saved."""
+    if not answers:
+        return {"saved": False, "answered_questions": 0, "q9": None}
+
+    answered_questions = sum(
+        getattr(answers, field_name, None) is not None for field_name in APPEL_QUESTION_FIELDS
+    )
+    return {
+        "saved": answered_questions > 0,
+        "answered_questions": answered_questions,
+        "q9": answers.q9_satisfaction_globale,
+    }
+
+
+def _bind_questionnaire_state(rows):
+    """Attach display-only form state without issuing one query per appel."""
+    for row in rows:
+        row.questionnaire = _questionnaire_summary(getattr(row, "answers", None))
     return rows
 
 
@@ -991,6 +1014,7 @@ def _build_filtered_appels_queryset(request, *, hidden_class_labels: list[str] |
     status_filter = request.GET.get("status") or ""
     prestataire_filter = request.GET.get("prestataire") or ""
     beneficiaire_filter = request.GET.get("beneficiaire") or ""
+    prestation_filter = request.GET.get("prestation") or ""
     classe_filter = request.GET.get("classe") or ""
     fenetre_filter = request.GET.get("fenetre") or ""
     agent_filter = request.GET.get("agent") or ""
@@ -1020,6 +1044,8 @@ def _build_filtered_appels_queryset(request, *, hidden_class_labels: list[str] |
         appels_qs = appels_qs.filter(prestataire__icontains=prestataire_filter)
     if beneficiaire_filter:
         appels_qs = appels_qs.filter(beneficiaire__icontains=beneficiaire_filter)
+    if prestation_filter:
+        appels_qs = appels_qs.filter(classe__prestation__code__icontains=prestation_filter)
     if classe_filter:
         appels_qs = appels_qs.filter(classe_label__icontains=classe_filter)
     normalized_fenetre_filter = _normalize_dashboard_fenetre(fenetre_filter)
@@ -1105,11 +1131,18 @@ def _build_filtered_appels_queryset(request, *, hidden_class_labels: list[str] |
             pass
 
     appels_qs = appels_qs.annotate(
-        apprenant_id=Subquery(
-            Apprenant.objects.filter(
-                classe=OuterRef("classe"),
-                nom_complet=OuterRef("nom"),
-            ).values("code")[:1]
+        apprenant_id=Coalesce(
+            Subquery(
+                Apprenant.objects.filter(
+                    classe=OuterRef("classe"),
+                    nom_complet=OuterRef("nom"),
+                ).values("code")[:1]
+            ),
+            Case(
+                When(code__startswith="P-APP", then=F("code")),
+                When(code__startswith="APP", then=F("code")),
+            ),
+            output_field=CharField(),
         ),
         taux_presence_display=Case(
             When(
@@ -1126,13 +1159,15 @@ def _build_filtered_appels_queryset(request, *, hidden_class_labels: list[str] |
 
     # Collect all dropdown values in a single query instead of 5 separate ones.
     _dropdown_rows = appels_qs.values(
-        "prestataire", "beneficiaire", "classe_label", "fenetre", "locked_by__username"
+        "prestataire", "beneficiaire", "classe_label", "fenetre",
+        "locked_by__username", "classe__prestation__code",
     ).distinct()
     _prestataires: set[str] = set()
     _beneficiaires: set[str] = set()
     _classes: set[str] = set()
     _fenetres: set[str] = set()
     _agents: set[str] = set()
+    _prestations: set[str] = set()
     for _row in _dropdown_rows:
         if _row["prestataire"]:
             _prestataires.add(_row["prestataire"].strip())
@@ -1146,6 +1181,8 @@ def _build_filtered_appels_queryset(request, *, hidden_class_labels: list[str] |
                 _fenetres.add(_nf)
         if _row["locked_by__username"]:
             _agents.add(_row["locked_by__username"].strip())
+        if _row["classe__prestation__code"]:
+            _prestations.add(_row["classe__prestation__code"].strip())
 
     # modified_by requires a join on answers – keep as a separate lightweight query.
     _modified_bys: set[str] = {
@@ -1162,6 +1199,7 @@ def _build_filtered_appels_queryset(request, *, hidden_class_labels: list[str] |
         "status": status_filter,
         "prestataire": prestataire_filter,
         "beneficiaire": beneficiaire_filter,
+        "prestation": prestation_filter,
         "classe": classe_filter,
         "fenetre": normalized_fenetre_filter or fenetre_filter,
         "agent": agent_filter,
@@ -1171,6 +1209,7 @@ def _build_filtered_appels_queryset(request, *, hidden_class_labels: list[str] |
         "q": search,
         "prestataires": sorted(_prestataires),
         "beneficiaires": sorted(_beneficiaires),
+        "prestations_ids": sorted(_prestations),
         "classes": sorted(_classes),
         "fenetres": sorted(_fenetres),
         "agents": sorted(_agents),
@@ -1441,7 +1480,7 @@ def appels_index(request):
 
     appels_count = appels_qs.count()
     stats = _build_progress_metrics(appels_qs)
-    appels_qs = appels_qs.select_related("locked_by").order_by("status", "nom")
+    appels_qs = appels_qs.select_related("locked_by", "answers").order_by("status", "nom")
 
     # ── Pagination: 30 lignes par page ──
     paginator = Paginator(appels_qs, 30)
@@ -1452,6 +1491,7 @@ def appels_index(request):
         page_obj = paginator.page(1)
 
     appels = _bind_audio_state(list(page_obj.object_list))
+    _bind_questionnaire_state(appels)
     page_obj.object_list = appels
     params = request.GET.copy()
     params.pop("page", None)
@@ -1854,6 +1894,7 @@ def finalize_appel(request, pk: int):
 
             satisfaction_saved = False
             satisfaction_message = ""
+            answers = None
             if action == "terminer" and _has_real_form:
                 commentaire_val = request.POST.get("commentaire", "") or "RAS"
                 recommandations_val = request.POST.get("recommandations", "") or "RAS"
@@ -1874,7 +1915,7 @@ def finalize_appel(request, pk: int):
                 # La fiche de l'appel est l'enregistrement de référence pour ce
                 # flux. On la sauvegarde directement, sans créer une enquête
                 # apprenant séparée (qui peut ne pas correspondre au contact).
-                _save_appel_answers(appel, request.user, manual_data, apply_defaults=True)
+                answers = _save_appel_answers(appel, request.user, manual_data, apply_defaults=True)
                 satisfaction_message = "Questionnaire enregistre."
                 satisfaction_id = None
             else:
@@ -1914,6 +1955,7 @@ def finalize_appel(request, pk: int):
                     "audio_url": audio_url,
                     "satisfaction_saved": satisfaction_saved,
                     "satisfaction_message": satisfaction_message,
+                    "questionnaire": _questionnaire_summary(answers),
                     "class_progress": class_info,
                 }
             )
@@ -2080,6 +2122,46 @@ def download_appel_audios(request):
     response = HttpResponse(buffer.read(), content_type="application/zip")
     response["Content-Disposition"] = 'attachment; filename="appels-audios.zip"'
     return response
+
+
+@login_required
+@require_POST
+@transaction.atomic
+def reactivate_all_appels(request):
+    if not request.user.is_superuser:
+        messages.error(request, "Seul un superadmin peut effectuer cette action.")
+        return redirect("/appels/")
+    reactivated = Appel.objects.filter(is_active=False).update(is_active=True)
+    _deactivate_duplicate_rows(Appel.objects.filter(is_active=True), _appel_duplicate_key)
+    papp_dupes = _deduplicate_papp_by_name()
+    messages.success(
+        request,
+        f"Restauration terminee : {reactivated} appel(s) reactive(s), "
+        f"{papp_dupes} doublon(s) P-APP desactive(s).",
+    )
+    return redirect("/appels/")
+
+
+def _deduplicate_papp_by_name():
+    papp_qs = Appel.objects.filter(is_active=True, code__startswith="P-APP")
+    groups: dict[tuple, list[int]] = {}
+    for row in papp_qs.values("id", "nom", "classe_label", "telephone1"):
+        key = (
+            _normalize_name(row["nom"]),
+            _normalize_name(row["classe_label"]),
+        )
+        if not key[0]:
+            continue
+        groups.setdefault(key, []).append(row)
+    deactivate_ids = []
+    for rows in groups.values():
+        if len(rows) < 2:
+            continue
+        best = max(rows, key=lambda r: (bool(r["telephone1"]), r["id"]))
+        deactivate_ids.extend(r["id"] for r in rows if r["id"] != best["id"])
+    if deactivate_ids:
+        Appel.objects.filter(pk__in=deactivate_ids).update(is_active=False)
+    return len(deactivate_ids)
 
 
 @login_required

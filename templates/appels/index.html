@@ -344,6 +344,12 @@
       {% csrf_token %}
       <button type="submit" class="btn btn-ghost btn-sm">Détecter et supprimer les doublons de numéros</button>
     </form>
+    <div class="import-divider"></div>
+    <form method="post" action="{% url 'reactivate_all_appels' %}">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-ghost btn-sm" onclick="return confirm('Réactiver tous les appels désactivés et nettoyer les doublons P-APP ?')">Restaurer tous les appels masqués</button>
+    </form>
+    <p class="subtitle" style="color:var(--muted); margin:6px 0 0;">Réactive tous les appels désactivés par erreur et supprime les doublons P-APP (garde celui avec téléphone).</p>
   </div>
 {% endif %}
 
@@ -376,6 +382,12 @@
       <option value="">Bénéficiaire</option>
       {% for p in filters.beneficiaires %}
         <option value="{{ p }}" {% if filters.beneficiaire == p %}selected{% endif %}>{{ p }}</option>
+      {% endfor %}
+    </select>
+    <select name="prestation" class="input">
+      <option value="">Prestation ID</option>
+      {% for p in filters.prestations_ids %}
+        <option value="{{ p }}" {% if filters.prestation == p %}selected{% endif %}>{{ p }}</option>
       {% endfor %}
     </select>
     <select name="classe" class="input" id="js-classe-filter">
@@ -414,6 +426,7 @@
       <option value="pas_inscrit" {% if filters.inscription == "pas_inscrit" %}selected{% endif %}>Pas inscrit</option>
     </select>
     <button type="submit" class="btn btn-primary btn-sm" style="padding:10px 14px;">Filtrer <span class="help-dot" title="Les filtres reduisent le tableau affiche et les exports du tableau filtre.">?</span></button>
+    <a class="btn btn-secondary btn-sm" style="padding:10px 14px;" href="{% url 'appels_export_filtered_csv' %}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}">Exporter</a>
     <a class="btn btn-ghost btn-sm" style="padding:10px 14px;" href="/appels/">Réinitialiser</a>
   </form>
 
@@ -516,7 +529,7 @@
           <th class="checkbox-cell">
             <input type="checkbox" id="js-select-all" aria-label="Sélectionner tous les audios">
           </th>
-          <th>Nom</th><th>Apprenant ID</th><th>Prestataire</th><th>Bénéficiaire</th><th>Lieu</th><th>Classe <span class="help-dot" title="Cliquez sur le code classe pour ouvrir la page d'analyse de cette classe.">?</span></th><th>Fenêtre</th><th>Type formation déclarée</th><th>Formation Padesce</th><th>Tél <span class="help-dot" title="Les lignes sans numero exploitable ne doivent pas etre importees dans les listes d'appel.">?</span></th><th>Taux présence</th><th>Statut</th><th>Action</th><th>Audio</th>
+          <th>Nom</th><th>Apprenant ID</th><th>Prestataire</th><th>Bénéficiaire</th><th>Lieu</th><th>Classe <span class="help-dot" title="Cliquez sur le code classe pour ouvrir la page d'analyse de cette classe.">?</span></th><th>Fenêtre</th><th>Type formation déclarée</th><th>Formation Padesce</th><th>Tél <span class="help-dot" title="Les lignes sans numero exploitable ne doivent pas etre importees dans les listes d'appel.">?</span></th><th>Taux présence</th><th>Statut</th><th>Questionnaire</th><th>Action</th><th>Audio</th>
         </tr>
       </thead>
       <tbody>
@@ -551,6 +564,15 @@
           <td>
             <span class="badge {% if a.status == 'en_cours' %}run{% elif a.status == 'pause' %}pause{% elif a.status == 'termine' %}done{% else %}wait{% endif %}" data-badge>{{ a.get_status_display }}</span>
             {% if a.locked_by %}<div class="subtitle">Par {{ a.locked_by.username }}</div>{% endif %}
+          </td>
+          <td class="js-questionnaire-summary">
+            {% if a.questionnaire.saved %}
+              <strong>Enregistré</strong>
+              <div class="subtitle">{{ a.questionnaire.answered_questions }}/9 réponses{% if a.questionnaire.q9 %} · Q9 : {{ a.questionnaire.q9 }}/5{% endif %}</div>
+              <div class="subtitle">Cliquez la ligne pour consulter</div>
+            {% else %}
+              <span class="subtitle">Non renseigné</span>
+            {% endif %}
           </td>
           <td>
             <div class="actions js-actions">
@@ -601,7 +623,7 @@
           </td>
         </tr>
         {% empty %}
-        <tr><td colspan="15" style="text-align:center; color:var(--muted);">Aucun appel.</td></tr>
+        <tr><td colspan="16" style="text-align:center; color:var(--muted);">Aucun appel.</td></tr>
         {% endfor %}
       </tbody>
     </table>
@@ -1483,7 +1505,20 @@
         if (checkbox) { checkbox.disabled = false; checkbox.removeAttribute("title"); }
         ensureDownloadLink(row, data.audio_url);
       }
+      updateQuestionnaireSummary(row, data.questionnaire);
       syncAudioControls(row);
+    }
+
+    function updateQuestionnaireSummary(row, questionnaire) {
+      if (!questionnaire) return;
+      const summary = row.querySelector(".js-questionnaire-summary");
+      if (!summary) return;
+      if (!questionnaire.saved) {
+        summary.innerHTML = '<span class="subtitle">Non renseigné</span>';
+        return;
+      }
+      const q9 = questionnaire.q9 ? ` · Q9 : ${questionnaire.q9}/5` : "";
+      summary.innerHTML = `<strong>Enregistré</strong><div class="subtitle">${questionnaire.answered_questions}/9 réponses${q9}</div><div class="subtitle">Cliquez la ligne pour consulter</div>`;
     }
 
     const recordState = new Map();
