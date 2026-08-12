@@ -501,6 +501,8 @@ def _parse_excel_sheet(file_obj, sheet_name: str):
         return ""
 
     _NOM_KEYS = [
+        "nom et prenom / name & first name",
+        "nom et prénom / name & first name",
         "nom et prenom 0 name & first name",
         "nom et prénom 0 name & first name",
         "nom et prenom",
@@ -508,7 +510,7 @@ def _parse_excel_sheet(file_obj, sheet_name: str):
         "nom complet",
         "nom",
     ]
-    _CODE_KEYS = ["code", "apprenant id"]
+    _CODE_KEYS = ["code", "apprenant id", "n / no", "no"]
     has_nom_col = any(_normalize_header(k) in header_map for k in _NOM_KEYS)
     has_code_col = any(_normalize_header(k) in header_map for k in _CODE_KEYS)
     if not has_nom_col or not has_code_col:
@@ -530,13 +532,21 @@ def _parse_excel_sheet(file_obj, sheet_name: str):
         code = get(row, *_CODE_KEYS)
         if not nom or not code:
             continue
-        prestataire = get(row, "prestataire")
-        beneficiaire = get(row, "beneficiaires", "bénéficiaires", "beneficiaire")
-        lieu = get(row, "lieux")
-        classe_label = get(row, "classe")
-        taux_presence = get(row, "taux de presence", "taux de présence", "présence (%)") or 0
+        prestataire = get(row, "prestataire / training provider", "prestataire")
+        beneficiaire = get(
+            row,
+            "beneficiaires / beneficiary",
+            "bénéficiaires / beneficiary",
+            "beneficiaires",
+            "bénéficiaires",
+            "beneficiaire",
+        )
+        lieu = get(row, "lieux", "lieu")
+        classe_label = get(row, "classe", "class")
+        taux_presence = get(row, "taux de presence", "taux de présence", "présence (%)", "presence (%)") or 0
         tel1 = get(
             row,
+            "1er no tel / tel no apprenant",
             "1er no tel 0 tel no apprenant",
             "1er no tel 0 tel no",
             "1er no tel apprenant",
@@ -555,6 +565,7 @@ def _parse_excel_sheet(file_obj, sheet_name: str):
         )
         tel2 = get(
             row,
+            "2e no tel / tel no apprenant (si disponible)",
             "2e no tel 0 tel no apprenant (si disponible)",
             "2e no tel 0 tel no",
             "2e no tel apprenant",
@@ -564,9 +575,15 @@ def _parse_excel_sheet(file_obj, sheet_name: str):
             "tel 2",
             "tel 2",
         )
-        type_formation = get(row, "type de formation declaree", "type de formation déclarée")
-        formation_padesce = get(row, "formation padesce")
-        fenetre = get(row, "fenêtre", "fenetre")
+        type_formation = get(
+            row,
+            "type de formation declaree / type of declared training",
+            "type de formation déclarée / type of declared training",
+            "type de formation declaree",
+            "type de formation déclarée",
+        )
+        formation_padesce = get(row, "formation padesce", "padesce training")
+        fenetre = get(row, "fenêtre / window", "fenetre", "window")
         try:
             taux_presence = Decimal(str(taux_presence))
         except Exception:
