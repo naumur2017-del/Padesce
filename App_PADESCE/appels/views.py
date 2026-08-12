@@ -1445,6 +1445,34 @@ def appels_index(request):
                 request,
                 f"Fichier importe. {created} nouveau(x) appel(s), {updated} appel(s) mis a jour.",
             )
+        elif mode == "update_phones_only":
+            updated = 0
+            skipped = 0
+            for item in payload:
+                nom = str(item.get("nom") or "").strip()
+                if not nom:
+                    skipped += 1
+                    continue
+                tel1 = str(item.get("telephone1") or "").strip() or None
+                tel2 = str(item.get("telephone2") or "").strip() or None
+                appel = Appel.objects.filter(nom__iexact=nom, is_active=True).first()
+                if not appel:
+                    skipped += 1
+                    continue
+                if appel.telephone1 or appel.telephone2:
+                    skipped += 1
+                    continue
+                if tel1 or tel2:
+                    appel.telephone1 = tel1 or ""
+                    appel.telephone2 = tel2 or ""
+                    appel.save(update_fields=["telephone1", "telephone2", "updated_at"])
+                    updated += 1
+                else:
+                    skipped += 1
+            messages.success(
+                request,
+                f"Mise a jour des numeros : {updated} appel(s) mis a jour, {skipped} non modifié(s).",
+            )
         else:
             updated = 0
             for item in payload:

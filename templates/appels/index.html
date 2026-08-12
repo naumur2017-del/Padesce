@@ -287,6 +287,22 @@
       <button type="submit" class="btn btn-ghost btn-sm">Mettre à jour les formations</button>
     </form>
   </div>
+  <div class="panel">
+    <p class="subtitle" style="color:var(--muted); margin-bottom:8px;">Importer un fichier pour mettre à jour les numéros de téléphone uniquement pour les apprenants qui n'en ont pas (recherche par nom). Les apprenants ayant déjà un numéro seront ignorés.</p>
+    <form method="post" enctype="multipart/form-data" class="form-inline" style="gap:12px; flex-wrap:wrap;">
+      {% csrf_token %}
+      <input type="hidden" name="update_mode" value="update_phones_only">
+      <div class="input-file">
+        <span class="file-label">Choisir un fichier (Feuil1)</span>
+        <div class="file-input-fr">
+          <input type="file" id="fr-import-phones" name="file" accept=".xlsx,.xlsm" required class="file-input-fr-native js-fr-file-input" />
+          <label for="fr-import-phones" class="file-input-fr-btn">Parcourir</label>
+          <span class="file-input-fr-name js-fr-file-name">Aucun fichier sélectionné</span>
+        </div>
+      </div>
+      <button type="submit" class="btn btn-primary btn-sm">Mettre à jour les numéros de téléphone</button>
+    </form>
+  </div>
   <div class="panel import-panel">
     <div class="import-title">Imports spécifiques</div>
     <form method="post" enctype="multipart/form-data" class="form-inline" style="gap:12px; flex-wrap:wrap;">
