@@ -126,6 +126,19 @@
   .modal-hint { font-size: 0.8rem; color: var(--muted); }
   .modal-backdrop[hidden] { display: none; }
   .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px; }
+  .call-script-modal { width: min(860px, 94vw); max-height: 92vh; overflow: auto; padding: 0; }
+  .call-script-head { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; padding:22px 26px 16px; border-bottom:1px solid var(--border); position:sticky; top:0; background:var(--panel); z-index:1; }
+  .call-script-head h2 { margin:0 0 4px; font-size:1.25rem; }
+  .call-script-body { display:grid; grid-template-columns:minmax(0, 1.35fr) minmax(260px, .85fr); gap:20px; padding:22px 26px 26px; }
+  .call-script { display:grid; gap:12px; }
+  .call-script p { margin:0; line-height:1.55; padding:12px 14px; border-radius:10px; background:#faf7ff; border-left:3px solid var(--accent); }
+  .call-script p.question { background:rgba(24,176,172,.08); border-left-color:#18b0ac; font-weight:600; }
+  .call-outcome { align-self:start; padding:16px; border:1px solid var(--border); border-radius:14px; background:#fff; display:grid; gap:12px; }
+  .call-outcome h3 { margin:0; font-size:1rem; }
+  .call-outcome label { display:flex; align-items:center; gap:8px; cursor:pointer; }
+  .call-outcome .modal-field { margin:0; }
+  .call-script-close { border:0; background:transparent; font-size:1.5rem; cursor:pointer; color:var(--muted); line-height:1; }
+  @media (max-width: 720px) { .call-script-body { grid-template-columns:1fr; padding:16px; } .call-script-head { padding:16px; } }
   .transcript-box { max-height: 320px; overflow: auto; white-space: pre-wrap; border: 1px solid var(--border); border-radius: 12px; padding: 12px; background: #fff; }
   .bulk-progress-wrap { display:none; flex-direction:column; gap:8px; margin-bottom:10px; padding:10px 12px; border-radius:12px; border:1px solid rgba(15,139,141,0.2); background: rgba(15,139,141,0.05); }
   .bulk-progress-head { display:flex; align-items:center; justify-content:space-between; gap:10px; }
@@ -378,7 +391,7 @@
       </thead>
       <tbody>
         {% for a in rows %}
-        <tr data-id="{{ a.id }}" data-status="{{ a.status }}" data-locked-by="{{ a.locked_by.username|default:'' }}" data-name="{{ a.raison_sociale }}" data-phone="{{ a.telephone|default:'' }}" data-audio-name="cga-{{ a.niu }}">
+        <tr data-id="{{ a.id }}" data-status="{{ a.status }}" data-locked-by="{{ a.locked_by.username|default:'' }}" data-name="{{ a.raison_sociale }}" data-activity="{{ a.activite_principale|default:'' }}" data-phone="{{ a.telephone|default:'' }}" data-audio-name="cga-{{ a.niu }}">
           <td class="checkbox-cell">
             <input
               type="checkbox"
@@ -509,6 +522,42 @@
     </div>
   {% endif %}
 </div>
+
+{% if active_source == "suivi" %}
+<div id="js-call-script-modal" class="modal-backdrop" hidden aria-hidden="true">
+  <section class="modal-panel call-script-modal" role="dialog" aria-modal="true" aria-labelledby="js-call-script-title">
+    <div class="call-script-head">
+      <div>
+        <h2 id="js-call-script-title">Argumentaire de suivi</h2>
+        <div class="subtitle" id="js-call-script-contact">-</div>
+      </div>
+      <button type="button" class="call-script-close" data-call-script-action="minimize" aria-label="Réduire la fenêtre">×</button>
+    </div>
+    <div class="call-script-body">
+      <div class="call-script">
+        <p>Bonjour <strong id="js-script-name">[Nom de l’adhérent]</strong>, c'est <strong>{{ request.user.first_name|default:request.user.username }}</strong>, votre conseiller au CGA NAUMUR.<br>Je prends un petit moment pour vous appeler, tout simplement pour prendre de vos nouvelles et voir comment se passe votre activité en ce moment.</p>
+        <p class="question">On sait que votre secteur (<strong id="js-script-activity">[préciser l'activité]</strong>) demande beaucoup d'énergie. Comment ça se passe pour vous sur le terrain et avec vos clients en ce moment&nbsp;?</p>
+        <p>Pour aller plus loin que les simples échanges à distance, on se demandait si on ne pourrait pas passer vous rendre une petite visite dans vos locaux / à votre atelier.<br>L'idée, c'est vraiment de se poser tranquillement pour échanger sur la réalité de votre quotidien, comprendre vos enjeux actuels et voir si vous avez des besoins.</p>
+        <p class="question">Est-ce que c'est une démarche qui vous conviendrait&nbsp;? On calerait un moment qui ne vous dérange pas dans votre planning.</p>
+        <p><strong>Si l'adhérent est d'accord :</strong> « Super, est-ce que vous auriez un creux la semaine prochaine, par exemple le [Jour] ou le [Jour] ? »</p>
+        <p><strong>Si l'adhérent est indisponible :</strong> « Aucun problème ! L'important, c'est que vous sachiez qu'on est là. Je vous laisse travailler et je vous souhaite une excellente continuation. À très bientôt ! »</p>
+      </div>
+      <aside class="call-outcome">
+        <h3>Éléments de l'appel</h3>
+        <label><input type="radio" name="call-interest" value="OUI"> Adhérent intéressé</label>
+        <label><input type="radio" name="call-interest" value="NON"> Pas intéressé</label>
+        <label><input type="checkbox" id="js-script-bad-number"> Mauvais numéro</label>
+        <label><input type="checkbox" id="js-script-unavailable"> Indisponible</label>
+        <label class="modal-field"><span>Rappeler le :</span><input type="datetime-local" id="js-script-rappel-at"></label>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost btn-sm" data-call-script-action="minimize">Continuer plus tard</button>
+          <button type="button" class="btn btn-primary btn-sm" data-call-script-action="finish">Arrêter l'appel et enregistrer</button>
+        </div>
+      </aside>
+    </div>
+  </section>
+</div>
+{% endif %}
 
 <div id="js-termination-modal" class="modal-backdrop" hidden>
   <div class="modal-panel">
@@ -642,6 +691,9 @@
         form.append("action", job.action);
         if (job.extra?.rappel_at) form.append("rappel_at", job.extra.rappel_at);
         if (job.extra?.déjà_forme !== undefined) form.append("déjà_forme", job.extra.déjà_forme ? "1" : "0");
+        if (job.extra?.interet !== undefined) form.append("interet", job.extra.interet);
+        if (job.extra?.mauvais_numero !== undefined) form.append("mauvais_numero", job.extra.mauvais_numero);
+        if (job.extra?.indisponible !== undefined) form.append("indisponible", job.extra.indisponible);
         const res = await fetch(job.url, { method: "POST", headers: { "X-CSRFToken": csrfToken }, body: form });
         if (!res.ok) throw new Error("sync action failed");
         const data = await res.json();
@@ -695,6 +747,14 @@
     const modalCancelBtn = document.querySelector("[data-modal-action=\"cancel\"]");
     const modalName = document.getElementById("js-modal-nom");
     const modalPhone = document.getElementById("js-modal-phone");
+    const callScriptModal = document.getElementById("js-call-script-modal");
+    const callScriptContact = document.getElementById("js-call-script-contact");
+    const callScriptName = document.getElementById("js-script-name");
+    const callScriptActivity = document.getElementById("js-script-activity");
+    const callScriptBadNumber = document.getElementById("js-script-bad-number");
+    const callScriptUnavailable = document.getElementById("js-script-unavailable");
+    const callScriptRappelAt = document.getElementById("js-script-rappel-at");
+    let callScriptRow = null;
     let modalResolve = null;
     let currentRow = null;
     const SNAPSHOT_INTERVAL_MS = 5000;
@@ -755,6 +815,64 @@
     modalCancelBtn?.addEventListener("click", () => closeTerminationModal(null));
     terminationModal?.addEventListener("click", (event) => {
       if (event.target === terminationModal) closeTerminationModal(null);
+    });
+
+    function openCallScript(row) {
+      if (!callScriptModal) return;
+      callScriptRow = row;
+      const name = row.dataset.name || "[Nom de l’adhérent]";
+      const activity = row.dataset.activity || "[préciser l'activité]";
+      if (callScriptName) callScriptName.textContent = name;
+      if (callScriptActivity) callScriptActivity.textContent = activity;
+      if (callScriptContact) callScriptContact.textContent = `${name} · ${row.dataset.phone || "Téléphone non renseigné"}`;
+      document.querySelectorAll('input[name="call-interest"]').forEach((input) => { input.checked = false; });
+      if (callScriptBadNumber) callScriptBadNumber.checked = false;
+      if (callScriptUnavailable) callScriptUnavailable.checked = false;
+      if (callScriptRappelAt) callScriptRappelAt.value = "";
+      callScriptModal.hidden = false;
+      callScriptModal.setAttribute("aria-hidden", "false");
+    }
+
+    function closeCallScript() {
+      if (!callScriptModal) return;
+      callScriptModal.hidden = true;
+      callScriptModal.setAttribute("aria-hidden", "true");
+      callScriptRow = null;
+    }
+
+    callScriptModal?.addEventListener("click", (event) => {
+      if (event.target === callScriptModal) closeCallScript();
+    });
+    document.querySelectorAll("[data-call-script-action='minimize']").forEach((button) => {
+      button.addEventListener("click", closeCallScript);
+    });
+    document.querySelector("[data-call-script-action='finish']")?.addEventListener("click", async () => {
+      const row = callScriptRow;
+      if (!row) return;
+      const interest = document.querySelector('input[name="call-interest"]:checked')?.value || "";
+      const badNumber = !!callScriptBadNumber?.checked;
+      const unavailable = !!callScriptUnavailable?.checked;
+      const rappelAt = callScriptRappelAt?.value || "";
+      if (!interest && !badNumber && !unavailable && !rappelAt) {
+        alert("Renseignez au moins un élément de l'appel avant d'enregistrer.");
+        return;
+      }
+      try {
+        const state = getRecordState(row);
+        if (state?.recorder && state.recorder.state !== "inactive") {
+          state.recorder.stop();
+          state.stream?.getTracks().forEach((track) => track.stop());
+        }
+        const action = rappelAt ? "rappeler" : "terminer";
+        const data = await sendAction(row, action, {
+          rappel_at: rappelAt,
+          interet: interest,
+          mauvais_numero: badNumber ? "OUI" : "NON",
+          indisponible: unavailable ? "OUI" : "NON",
+        });
+        updateRow(row, data);
+        closeCallScript();
+      } catch (err) { alert("Enregistrement impossible."); }
     });
 
     async function sendAction(row, action, extra = {}) {
@@ -1015,6 +1133,7 @@
           if (!getRecordState(row)) {
             await startRecording(row);
           }
+          openCallScript(row);
         } catch (err) { alert("Action impossible."); }
       });
       pause?.addEventListener("click", async () => {

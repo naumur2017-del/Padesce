@@ -943,6 +943,15 @@ def cga_action(request, pk: int):
         row.status = "a_rappeler"
         row.locked_by = request.user
         row.locked_at = now
+        # The follow-up call modal can save its outcome while scheduling a
+        # visit/reminder.  Keep the legacy reminder flow unchanged when no
+        # outcome fields were submitted.
+        if "interet" in request.POST:
+            row.interet = interet_val
+        if "mauvais_numero" in request.POST:
+            row.mauvais_numero = mauvais_val
+        if "indisponible" in request.POST:
+            row.indisponible = indisponible_val
         if rappel_at:
             try:
                 row.rappel_at = datetime.datetime.fromisoformat(rappel_at)
