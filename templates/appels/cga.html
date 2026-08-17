@@ -152,7 +152,7 @@
   .help-dot { display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px; border-radius:999px; border:1px solid rgba(111,60,195,.3); color:var(--accent-strong); background:rgba(111,60,195,.08); font-size:.74rem; font-weight:900; cursor:help; margin-left:6px; vertical-align:middle; }
 </style>
 
-<h1 class="h4 mb-2">CGA <span class="help-dot" title="Call center CGA avec sources Entreprise et Cabinet, filtres, resultats et exports.">?</span></h1>
+<h1 class="h4 mb-2">CGA <span class="help-dot" title="Call center CGA avec sources Entreprise, Cabinet et suivi mensuel, filtres, resultats et exports.">?</span></h1>
 <nav class="source-tabs" aria-label="Source des appels CGA">
   {% for tab in source_tabs %}
     <a class="source-tab {% if tab.active %}active{% endif %}" href="{{ tab.url }}">
@@ -161,7 +161,19 @@
     </a>
   {% endfor %}
 </nav>
-{% if user.is_superuser %}
+{% if user.is_superuser and active_source == "suivi" %}
+  <div class="panel import-panel">
+    <div class="import-title">Nouvelle campagne mensuelle - Suivi CGA <span class="help-dot" title="La campagne copie la base Entreprise active pour le mois choisi. Aucun appel ni resultat des mois precedents n'est ecrase.">?</span></div>
+    <p class="subtitle" style="color:var(--muted); margin:0;">Chaque mois dispose de sa propre liste d'appels et conserve son historique.</p>
+    <form method="post" class="form-inline" style="gap:12px; flex-wrap:wrap;">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="create_monthly_campaign">
+      <label for="campaign-month-create">Mois de suivi</label>
+      <input id="campaign-month-create" type="month" name="campaign_month" required class="input">
+      <button type="submit" class="btn btn-primary btn-sm">Créer la campagne</button>
+    </form>
+  </div>
+{% elif user.is_superuser %}
   <p class="subtitle" style="color:var(--muted);">{{ import_hint }}</p>
   <div class="panel import-panel">
     <div class="import-title">Importation CGA - {{ active_source_label }} <span class="help-dot" title="Ajouter combine avec la source active; remplacer recharge seulement cette source. Les doublons sont rapproches par NIU/code.">?</span></div>
@@ -227,6 +239,14 @@
 
   <form method="get" class="form-inline" style="gap:8px; margin-bottom:10px; flex-wrap:wrap;">
     <input type="hidden" name="source" value="{{ active_source }}">
+    {% if active_source == "suivi" %}
+      <select name="campaign_month" class="input">
+        <option value="">Toutes les campagnes</option>
+        {% for month in campaign_months %}
+          <option value="{{ month|date:'Y-m-d' }}" {% if filters.campaign_month == month|date:'Y-m-d' %}selected{% endif %}>{{ month|date:"m/Y" }}</option>
+        {% endfor %}
+      </select>
+    {% endif %}
     <input type="text" name="q" class="input search-bar" placeholder="Recherche raison sociale / NIU / tel..." value="{{ filters.q }}">
     <input type="datetime-local" name="date_from" class="input" placeholder="Du" value="{{ filters.date_from }}">
     <input type="datetime-local" name="date_to" class="input" placeholder="Au" value="{{ filters.date_to }}">
@@ -288,7 +308,7 @@
 
   <div class="selection-bar">
     <p class="subtitle" style="color:var(--muted); margin:0;">
-      Lignes CGA {{ active_source_label }} affichees : <strong>{{ rows_count }}</strong>
+      Lignes CGA {{ active_source_label }}{% if active_source == "suivi" and filters.campaign_month %} — {{ filters.campaign_month }}{% endif %} affichees : <strong>{{ rows_count }}</strong>
       {% if page_obj %} | Page {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}{% endif %}
     </p>
     <div style="display:flex; gap:8px; flex-wrap:wrap;">
@@ -394,6 +414,20 @@
                 <span class="time-label">0:00</span>
               </div>
               <audio class="js-audio" style="display:none;" {% if a.has_audio_file %}src="{{ a.audio_file_url }}"{% endif %}></audio>
+              {% if a.audio_history.all %}
+                <details style="width:100%; margin-top:6px; font-size:.82rem;">
+                  <summary>Audios ({{ a.audio_history.all|length }})</summary>
+                  <div style="display:grid; gap:5px; margin-top:5px;">
+                    {% for recording in a.audio_history.all %}
+                      <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+                        <audio controls preload="none" src="{{ recording.audio_file.url }}" style="height:28px; max-width:210px;"></audio>
+                        <a href="{{ recording.audio_file.url }}" download="cga-{{ a.niu }}-{{ recording.created_at|date:'Ymd-Hi' }}" title="Télécharger cet audio"><i class="fa-solid fa-download"></i></a>
+                        <span>{{ recording.created_at|date:"d/m/Y H:i" }}</span>
+                      </div>
+                    {% endfor %}
+                  </div>
+                </details>
+              {% endif %}
             </div>
           </td>
           <td>

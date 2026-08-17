@@ -32,6 +32,7 @@ CGA_EXPORT_HEADERS = (
     "CREATED_AT",
     "UPDATED_AT",
     "SOURCE",
+    "CAMPAGNE_MOIS",
 )
 
 
@@ -68,10 +69,13 @@ def _row_to_values(row: AppelCGA) -> list[str | int]:
         row.created_at.isoformat() if getattr(row, "created_at", None) else "",
         row.updated_at.isoformat() if getattr(row, "updated_at", None) else "",
         row.get_source_display(),
+        row.campaign_month.isoformat() if row.campaign_month else "",
     ]
 
 
-def build_cga_calls_report_workbook(source: str | None = None) -> bytes:
+def build_cga_calls_report_workbook(
+    source: str | None = None, campaign_month=None
+) -> bytes:
     workbook = Workbook()
     summary_sheet = workbook.active
     summary_sheet.title = "Synthese"
@@ -80,6 +84,8 @@ def build_cga_calls_report_workbook(source: str | None = None) -> bytes:
     qs = AppelCGA.objects.select_related("locked_by")
     if source:
         qs = qs.filter(source=source)
+    if campaign_month:
+        qs = qs.filter(campaign_month=campaign_month)
     rows = list(qs.order_by("raison_sociale", "niu"))
     status_counter = Counter(row.status for row in rows if row.status)
     interest_counter = Counter(row.interet for row in rows if row.interet)
@@ -98,6 +104,9 @@ def build_cga_calls_report_workbook(source: str | None = None) -> bytes:
     summary_sheet["B5"] = len(rows)
     summary_sheet["A6"] = "Appels avec audio"
     summary_sheet["B6"] = audio_count
+    if campaign_month:
+        summary_sheet["A7"] = "Campagne"
+        summary_sheet["B7"] = campaign_month.strftime("%m/%Y")
 
     summary_sheet["A8"] = "Statut"
     summary_sheet["B8"] = "Nombre"

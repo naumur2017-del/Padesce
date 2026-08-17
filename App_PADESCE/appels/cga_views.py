@@ -10,6 +10,7 @@ from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
+from django.db import IntegrityError, transaction
 from django.db.models import Count, Q
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -24,7 +25,7 @@ from App_PADESCE.appels.cga_report import (
     build_cga_calls_report_workbook,
     get_cga_calls_report_filename,
 )
-from App_PADESCE.appels.models import CALL_COMPLETED_STATUSES, AppelCGA
+from App_PADESCE.appels.models import CALL_COMPLETED_STATUSES, AppelCGA, AppelCGAAudio
 from App_PADESCE.appels.pagination import build_pagination_tokens
 from App_PADESCE.appels.views import (
     _bind_audio_state,
@@ -334,7 +335,17 @@ def _serialize_cga_public_row(row):
 
 def _build_filtered_cga_queryset(request):
     active_source = _get_active_cga_source(request)
-    qs = AppelCGA.objects.filter(is_active=True, source=active_source).select_related("locked_by")
+    qs = (
+        AppelCGA.objects.filter(is_active=True, source=active_source)
+        .select_related("locked_by")
+        .prefetch_related("audio_history")
+    )
+    campaign_month = (request.GET.get("campaign_month") or "").strip()
+    if active_source == AppelCGA.SOURCE_SUIVI and campaign_month:
+        try:
+            qs = qs.filter(campaign_month=datetime.date.fromisoformat(campaign_month))
+        except ValueError:
+            campaign_month = ""
     status_filter = (request.GET.get("status") or "").strip()
     resultat_filter = (request.GET.get("resultat") or "").strip()
     regime_filter = (request.GET.get("regime") or "").strip()
@@ -389,6 +400,7 @@ def _build_filtered_cga_queryset(request):
 
     filters = {
         "source": active_source,
+        "campaign_month": campaign_month,
         "status": status_filter,
         "resultat": resultat_filter,
         "regime": regime_filter,
@@ -448,9 +460,14 @@ def _sync_cga_append_batch(batch_items, *, source=AppelCGA.SOURCE_ENTREPRISE):
     if not batch_items:
         return 0, 0
 
-    existing_by_niu = AppelCGA.objects.filter(source=source).in_bulk(
-        [item["niu"].strip() for item in batch_items], field_name="niu"
-    )
+    # NIU is repeated by the monthly follow-up snapshots, so it is no longer a
+    # database-wide unique field.  Limit the lookup to the imported source.
+    existing_by_niu = {
+        row.niu: row
+        for row in AppelCGA.objects.filter(
+            source=source, niu__in=[item["niu"].strip() for item in batch_items]
+        )
+    }
     rows_to_create = []
     rows_to_update = []
 
@@ -475,10 +492,64 @@ def _sync_cga_append_batch(batch_items, *, source=AppelCGA.SOURCE_ENTREPRISE):
     return len(rows_to_create), len(rows_to_update)
 
 
+def _parse_campaign_month(value):
+    """Return the first day of the requested month, or raise ValueError."""
+    try:
+        raw_value = str(value or "").strip()
+        parsed = datetime.datetime.strptime(raw_value, "%Y-%m").date()
+    except ValueError:
+        raise ValueError("Choisissez un mois valide pour la campagne.")
+    return parsed.replace(day=1)
+
+
+def _create_monthly_cga_campaign(month):
+    """Create an immutable calling list from the active Entreprise source."""
+    source_rows = AppelCGA.objects.filter(
+        source=AppelCGA.SOURCE_ENTREPRISE, is_active=True
+    ).order_by("id")
+    if not source_rows.exists():
+        return 0
+
+    fields = (
+        "numero", "raison_sociale", "sigle", "niu", "activite_principale", "regime",
+        "cri", "centre_de_rattachement", "ville", "telephone",
+    )
+    batch = []
+    created = 0
+    with transaction.atomic():
+        if AppelCGA.objects.filter(source=AppelCGA.SOURCE_SUIVI, campaign_month=month).exists():
+            raise ValueError("Cette campagne mensuelle existe deja et ses donnees sont conservees.")
+        for row in source_rows.iterator(chunk_size=IMPORT_BATCH_SIZE):
+            values = {field: getattr(row, field) for field in fields}
+            batch.append(
+                AppelCGA(
+                    **values,
+                    source=AppelCGA.SOURCE_SUIVI,
+                    campaign_month=month,
+                    is_active=True,
+                )
+            )
+            if len(batch) >= IMPORT_BATCH_SIZE:
+                AppelCGA.objects.bulk_create(batch, batch_size=IMPORT_BATCH_SIZE)
+                created += len(batch)
+                batch.clear()
+        if batch:
+            AppelCGA.objects.bulk_create(batch, batch_size=IMPORT_BATCH_SIZE)
+            created += len(batch)
+    return created
+
+
 @login_required
 def cga_export_xlsx(request):
     source = _get_active_cga_source(request)
-    payload = build_cga_calls_report_workbook(source=source)
+    campaign_month = None
+    if source == AppelCGA.SOURCE_SUIVI and request.GET.get("campaign_month"):
+        try:
+            campaign_month = datetime.date.fromisoformat(request.GET["campaign_month"])
+        except ValueError:
+            messages.error(request, "Mois de campagne invalide pour l'export.")
+            return redirect(f"{request.path_info}?source={source}")
+    payload = build_cga_calls_report_workbook(source=source, campaign_month=campaign_month)
     response = HttpResponse(
         payload, content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
@@ -602,11 +673,30 @@ def cga_export_filtered_csv(request):
 
 @login_required
 def cga_index(request):
+    if request.method == "POST" and request.POST.get("action") == "create_monthly_campaign":
+        if not request.user.is_superuser:
+            messages.error(request, "Seul un superadmin peut creer une campagne mensuelle CGA.")
+            return redirect(f"{request.path_info}?source={AppelCGA.SOURCE_SUIVI}")
+        try:
+            month = _parse_campaign_month(request.POST.get("campaign_month"))
+            created = _create_monthly_cga_campaign(month)
+            messages.success(
+                request,
+                f"Campagne Suivi CGA {month:%m/%Y} creee : {created} appel(s) a traiter.",
+            )
+            return redirect(f"{request.path_info}?source=suivi&campaign_month={month.isoformat()}")
+        except (ValueError, IntegrityError) as exc:
+            messages.error(request, str(exc))
+            return redirect(f"{request.path_info}?source={AppelCGA.SOURCE_SUIVI}")
+
     if request.method == "POST" and request.FILES.get("file"):
         if not request.user.is_superuser:
             messages.error(request, "Seul un superadmin peut importer des fichiers CGA.")
             return redirect(request.path_info)
         source = _get_active_cga_source(request)
+        if source == AppelCGA.SOURCE_SUIVI:
+            messages.error(request, "Le Suivi CGA se cree depuis la base Entreprise afin de conserver chaque mois.")
+            return redirect(f"{request.path_info}?source={source}")
         source_label = _cga_source_label(source)
         mode = request.POST.get("update_mode", "replace")
         file_obj = io.BytesIO(request.FILES["file"].read())
@@ -723,6 +813,16 @@ def cga_index(request):
         )
     reset_query = "" if active_source == AppelCGA.SOURCE_ENTREPRISE else f"?source={active_source}"
     export_query = f"?source={active_source}"
+    campaign_months = []
+    if active_source == AppelCGA.SOURCE_SUIVI:
+        campaign_months = list(
+            AppelCGA.objects.filter(source=AppelCGA.SOURCE_SUIVI, campaign_month__isnull=False)
+            .values_list("campaign_month", flat=True)
+            .distinct()
+            .order_by("-campaign_month")
+        )
+        if filters["campaign_month"]:
+            export_query += f"&campaign_month={filters['campaign_month']}"
     import_hint = (
         "Importer le Tableau ONECCA 2023 pour charger les cabinets par section."
         if active_source == AppelCGA.SOURCE_CABINET
@@ -750,6 +850,7 @@ def cga_index(request):
             "reset_query": reset_query,
             "export_query": export_query,
             "import_hint": import_hint,
+            "campaign_months": campaign_months,
         },
     )
 
@@ -833,16 +934,19 @@ def cga_upload_audio(request, pk: int):
     file_obj = request.FILES.get("audio")
     if not file_obj:
         return JsonResponse({"ok": False, "error": "Aucun fichier audio."}, status=400)
-    previous_name = getattr(getattr(row, "audio_file", None), "name", "") or ""
-    row.audio_file = file_obj
+    recording = AppelCGAAudio.objects.create(appel=row, audio_file=file_obj, uploaded_by=request.user)
+    # Keep the latest recording in the existing player while the complete list
+    # remains available through audio_history. Never delete an earlier file.
+    row.audio_file.name = recording.audio_file.name
     row.save(update_fields=["audio_file", "updated_at"])
-    current_name = getattr(getattr(row, "audio_file", None), "name", "") or ""
-    if previous_name and previous_name != current_name:
-        try:
-            row.audio_file.storage.delete(previous_name)
-        except Exception:
-            pass
-    return JsonResponse({"ok": True, "audio_saved": True, "audio_url": _safe_audio_url(row)})
+    return JsonResponse(
+        {
+            "ok": True,
+            "audio_saved": True,
+            "audio_url": _safe_audio_url(row),
+            "audio_count": row.audio_history.count(),
+        }
+    )
 
 
 @login_required

@@ -359,6 +359,12 @@ def appel_cga_audio_upload(instance: "AppelCGA", filename: str) -> str:
     return f"cga/{now:%Y}/{now:%m}/{now:%d}/{niu_slug}-{raison_slug}-{ts}.{ext}"
 
 
+def appel_cga_history_audio_upload(instance: "AppelCGAAudio", filename: str) -> str:
+    now = timezone.now()
+    ext = filename.split(".")[-1] if "." in filename else "mp3"
+    return f"cga/history/{instance.appel_id}/{now:%Y}/{now:%m}/{now:%d}/{now:%H%M%S%f}.{ext}"
+
+
 def appel_formateur_audio_upload(instance: "AppelFormateur", filename: str) -> str:
     now = timezone.now()
     ts = now.strftime("%Y%m%d_%H%M%S")
@@ -455,9 +461,11 @@ class AppelCGA(TimeStampedModel):
     STATUS_CHOICES = Appel.STATUS_CHOICES
     SOURCE_ENTREPRISE = "entreprise"
     SOURCE_CABINET = "cabinet"
+    SOURCE_SUIVI = "suivi"
     SOURCE_CHOICES = [
         (SOURCE_ENTREPRISE, "Entreprise"),
         (SOURCE_CABINET, "Cabinet"),
+        (SOURCE_SUIVI, "Suivi CGA"),
     ]
 
     source = models.CharField(
@@ -469,7 +477,15 @@ class AppelCGA(TimeStampedModel):
     numero = models.PositiveIntegerField(null=True, blank=True)
     raison_sociale = models.CharField(max_length=255)
     sigle = models.CharField(max_length=255, blank=True)
-    niu = models.CharField(max_length=64, unique=True)
+    # A company can legitimately be called again in a later monthly campaign.
+    # The identifier is therefore unique only inside a source/campaign.
+    niu = models.CharField(max_length=64)
+    campaign_month = models.DateField(
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text="Premier jour du mois pour les campagnes Suivi CGA.",
+    )
     activite_principale = models.CharField(max_length=255, blank=True)
     regime = models.CharField(max_length=120, blank=True)
     cri = models.CharField(max_length=120, blank=True)
@@ -520,10 +536,37 @@ class AppelCGA(TimeStampedModel):
             models.Index(fields=["cri"]),
             models.Index(fields=["centre_de_rattachement"]),
             models.Index(fields=["ville"]),
+            models.Index(fields=["source", "campaign_month"], name="appelcga_source_month_idx"),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["source", "campaign_month", "niu"],
+                name="appelcga_source_month_niu_uniq",
+            )
         ]
 
     def __str__(self) -> str:
         return f"CGA {self.niu} - {self.raison_sociale}"
+
+
+class AppelCGAAudio(TimeStampedModel):
+    """A recording history for a CGA call row (one person can be called repeatedly)."""
+
+    appel = models.ForeignKey(AppelCGA, on_delete=models.CASCADE, related_name="audio_history")
+    audio_file = models.FileField(upload_to=appel_cga_history_audio_upload, max_length=255)
+    uploaded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="cga_audio_uploads",
+    )
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+
+    def __str__(self) -> str:
+        return f"Audio CGA #{self.pk} - {self.appel.niu}"
 
 
 class AppelFormateur(TimeStampedModel):
