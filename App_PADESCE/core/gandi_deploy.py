@@ -1265,11 +1265,32 @@ def compute_diff(
         remote_paths = set(remote_manifest)
         additions = sorted(local_paths - remote_paths)
         deletions = sorted(remote_paths - local_paths)
-        modifications = sorted(
-            path
-            for path in (local_paths & remote_paths)
-            if local_manifest[path]["sha256"] != str(remote_manifest[path].get("sha256", ""))
-        )
+        modifications: list[str] = []
+        common_paths = sorted(local_paths & remote_paths)
+        for index, relative in enumerate(common_paths, start=1):
+            local_hash = local_manifest[relative]["sha256"]
+            manifest_hash = str(remote_manifest[relative].get("sha256", ""))
+
+            # The manifest is an optimisation, not proof that the file is
+            # still present with the same contents. Files can be modified
+            # directly on Gandi between two deployments. Read the remote
+            # content as well, so a successful deployment genuinely means
+            # that the served files match the local revision.
+            if local_hash != manifest_hash:
+                modifications.append(relative)
+            else:
+                remote_hash = remote_file_sha256(sftp, remote_join(remote_root, relative))
+                if remote_hash != local_hash:
+                    modifications.append(relative)
+
+            if index % 20 == 0:
+                progress = 44 + int((index / max(len(common_paths), 1)) * 6)
+                state.update_step(
+                    "diff",
+                    message=f"Verification du contenu distant {index}/{len(common_paths)}",
+                    progress=progress,
+                )
+        modifications.sort()
         return additions, modifications, deletions, []
 
     remote_scan = remote_scan or {}

@@ -53,6 +53,26 @@ class GandiDeployHelpersTests(SimpleTestCase):
         self.assertEqual(deletions, [])
         self.assertEqual(remote_untracked, ["legacy/old.txt"])
 
+    def test_compute_diff_rechecks_remote_content_when_manifest_says_unchanged(self) -> None:
+        with patch("App_PADESCE.core.gandi_deploy.remote_file_sha256", return_value="remote-hash"):
+            additions, modifications, deletions, remote_untracked = compute_diff(
+                local_manifest={
+                    "templates/appels/cga.html": {"size": 10, "sha256": "local-hash"},
+                },
+                remote_manifest={
+                    "templates/appels/cga.html": {"size": 10, "sha256": "local-hash"},
+                },
+                remote_scan={"templates/appels/cga.html": {"size": 10, "mtime": 1}},
+                remote_root="/vhosts/default",
+                sftp=object(),
+                state=_DummyState(),
+            )
+
+        self.assertEqual(additions, [])
+        self.assertEqual(modifications, ["templates/appels/cga.html"])
+        self.assertEqual(deletions, [])
+        self.assertEqual(remote_untracked, [])
+
     def test_build_local_manifest_skips_sensitive_and_runtime_files(self) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
