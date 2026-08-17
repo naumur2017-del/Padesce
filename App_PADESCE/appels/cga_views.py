@@ -1,6 +1,8 @@
 import csv
 import datetime
 import io
+import subprocess
+import tempfile
 import unicodedata
 import zipfile
 from pathlib import Path
@@ -9,6 +11,7 @@ import openpyxl
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.core.files.base import ContentFile
 from django.core.paginator import Paginator
 from django.db import IntegrityError, transaction
 from django.db.models import Count, Q
@@ -266,6 +269,28 @@ def _parse_bool_flag(value):
     return str(value).strip().lower() in {"1", "true", "yes", "on"}
 
 
+def _make_cga_audio_playable(file_obj):
+    """Convert browser WebM recordings to MP3 so every browser can play them."""
+    filename = getattr(file_obj, "name", "recording.webm")
+    if Path(filename).suffix.lower() != ".webm":
+        return file_obj
+    try:
+        with tempfile.TemporaryDirectory(prefix="cga-audio-") as directory:
+            source_path = Path(directory) / "recording.webm"
+            target_path = Path(directory) / "recording.mp3"
+            with source_path.open("wb") as target:
+                for chunk in file_obj.chunks():
+                    target.write(chunk)
+            subprocess.run(
+                ["ffmpeg", "-y", "-v", "error", "-i", str(source_path), "-vn", "-q:a", "4", str(target_path)],
+                check=True,
+                timeout=120,
+            )
+            return ContentFile(target_path.read_bytes(), name=f"{Path(filename).stem}.mp3")
+    except (OSError, subprocess.SubprocessError):
+        return file_obj
+
+
 def _expected_cga_public_api_key() -> str:
     return str(
         getattr(settings, "CGA_PUBLIC_API_KEY", "") or getattr(settings, "EXPORT_API_KEY", "") or ""
@@ -456,7 +481,9 @@ def _apply_cga_import_values(row, item):
         setattr(row, field, item[field])
 
 
-def _sync_cga_append_batch(batch_items, *, source=AppelCGA.SOURCE_ENTREPRISE):
+def _sync_cga_append_batch(
+    batch_items, *, source=AppelCGA.SOURCE_ENTREPRISE, campaign_month=None
+):
     if not batch_items:
         return 0, 0
 
@@ -465,7 +492,9 @@ def _sync_cga_append_batch(batch_items, *, source=AppelCGA.SOURCE_ENTREPRISE):
     existing_by_niu = {
         row.niu: row
         for row in AppelCGA.objects.filter(
-            source=source, niu__in=[item["niu"].strip() for item in batch_items]
+            source=source,
+            campaign_month=campaign_month,
+            niu__in=[item["niu"].strip() for item in batch_items],
         )
     }
     rows_to_create = []
@@ -475,7 +504,11 @@ def _sync_cga_append_batch(batch_items, *, source=AppelCGA.SOURCE_ENTREPRISE):
         niu = item["niu"].strip()
         row = existing_by_niu.get(niu)
         if row is None:
-            rows_to_create.append(AppelCGA(**item, source=source, is_active=True))
+            rows_to_create.append(
+                AppelCGA(
+                    **item, source=source, campaign_month=campaign_month, is_active=True
+                )
+            )
             continue
         _apply_cga_import_values(row, item)
         row.is_active = True
@@ -694,15 +727,22 @@ def cga_index(request):
             messages.error(request, "Seul un superadmin peut importer des fichiers CGA.")
             return redirect(request.path_info)
         source = _get_active_cga_source(request)
-        if source == AppelCGA.SOURCE_SUIVI:
-            messages.error(request, "Le Suivi CGA se cree depuis la base Entreprise afin de conserver chaque mois.")
-            return redirect(f"{request.path_info}?source={source}")
         source_label = _cga_source_label(source)
         mode = request.POST.get("update_mode", "replace")
+        campaign_month = None
+        if source == AppelCGA.SOURCE_SUIVI:
+            try:
+                campaign_month = _parse_campaign_month(request.POST.get("campaign_month"))
+            except ValueError as exc:
+                messages.error(request, str(exc))
+                return redirect(f"{request.path_info}?source={source}")
         file_obj = io.BytesIO(request.FILES["file"].read())
         try:
             if mode == "replace":
-                AppelCGA.objects.filter(source=source).delete()
+                replacement_qs = AppelCGA.objects.filter(source=source)
+                if campaign_month:
+                    replacement_qs = replacement_qs.filter(campaign_month=campaign_month)
+                replacement_qs.delete()
                 batch = []
                 seen = set()
                 created = 0
@@ -713,12 +753,22 @@ def cga_index(request):
                         skipped += 1
                         continue
                     seen.add(niu)
-                    batch.append(AppelCGA(**item, source=source, is_active=True))
+                    batch.append(
+                        AppelCGA(
+                            **item,
+                            source=source,
+                            campaign_month=campaign_month,
+                            is_active=True,
+                        )
+                    )
                     if len(batch) >= IMPORT_BATCH_SIZE:
                         created += _flush_cga_batch(batch)
                 created += _flush_cga_batch(batch)
                 deduped = _deactivate_duplicate_rows(
-                    AppelCGA.objects.filter(is_active=True, source=source), _cga_duplicate_key
+                    AppelCGA.objects.filter(
+                        is_active=True, source=source, campaign_month=campaign_month
+                    ),
+                    _cga_duplicate_key,
                 )
                 messages.success(
                     request,
@@ -742,19 +792,22 @@ def cga_index(request):
                     batch.append(item)
                     if len(batch) >= IMPORT_BATCH_SIZE:
                         batch_created, batch_updated = _sync_cga_append_batch(
-                            list(batch), source=source
+                            list(batch), source=source, campaign_month=campaign_month
                         )
                         created += batch_created
                         updated += batch_updated
                         batch.clear()
                 if batch:
                     batch_created, batch_updated = _sync_cga_append_batch(
-                        list(batch), source=source
+                        list(batch), source=source, campaign_month=campaign_month
                     )
                     created += batch_created
                     updated += batch_updated
                 deduped = _deactivate_duplicate_rows(
-                    AppelCGA.objects.filter(is_active=True, source=source), _cga_duplicate_key
+                    AppelCGA.objects.filter(
+                        is_active=True, source=source, campaign_month=campaign_month
+                    ),
+                    _cga_duplicate_key,
                 )
                 messages.success(
                     request,
@@ -768,7 +821,10 @@ def cga_index(request):
                 messages.error(request, "Mode d'import CGA inconnu.")
         except Exception as exc:
             messages.error(request, f"Impossible de lire le fichier CGA : {exc}")
-        return redirect(f"{request.path_info}?source={source}")
+        redirect_url = f"{request.path_info}?source={source}"
+        if campaign_month:
+            redirect_url += f"&campaign_month={campaign_month.isoformat()}"
+        return redirect(redirect_url)
 
     qs, filters = _build_filtered_cga_queryset(request)
     active_source = filters["source"]
@@ -934,7 +990,11 @@ def cga_upload_audio(request, pk: int):
     file_obj = request.FILES.get("audio")
     if not file_obj:
         return JsonResponse({"ok": False, "error": "Aucun fichier audio."}, status=400)
-    recording = AppelCGAAudio.objects.create(appel=row, audio_file=file_obj, uploaded_by=request.user)
+    recording = AppelCGAAudio.objects.create(
+        appel=row,
+        audio_file=_make_cga_audio_playable(file_obj),
+        uploaded_by=request.user,
+    )
     # Keep the latest recording in the existing player while the complete list
     # remains available through audio_history. Never delete an earlier file.
     row.audio_file.name = recording.audio_file.name

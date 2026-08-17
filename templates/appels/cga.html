@@ -172,6 +172,39 @@
       <input id="campaign-month-create" type="month" name="campaign_month" required class="input">
       <button type="submit" class="btn btn-primary btn-sm">Créer la campagne</button>
     </form>
+    <div class="import-divider"></div>
+    <div class="import-title">Importation dédiée - Suivi CGA <span class="help-dot" title="Cet import est indépendant des bases Entreprise et Cabinet. Le mois sélectionné constitue sa propre campagne.">?</span></div>
+    <form method="post" enctype="multipart/form-data" class="form-inline" style="gap:12px; flex-wrap:wrap;">
+      {% csrf_token %}
+      <input type="hidden" name="source" value="suivi">
+      <input type="hidden" name="update_mode" value="append">
+      <label>Mois de suivi <input type="month" name="campaign_month" required class="input"></label>
+      <div class="input-file">
+        <span class="file-label">Choisir fichier</span>
+        <div class="file-input-fr">
+          <input type="file" id="cga-suivi-import-append" name="file" accept=".xlsx,.xlsm" required class="file-input-fr-native js-fr-file-input" />
+          <label for="cga-suivi-import-append" class="file-input-fr-btn">Parcourir</label>
+          <span class="file-input-fr-name js-fr-file-name">Aucun fichier sélectionné</span>
+        </div>
+      </div>
+      <button type="submit" class="btn btn-primary btn-sm">Importer (ajouter/combiner)</button>
+    </form>
+    <form method="post" enctype="multipart/form-data" class="form-inline" style="gap:12px; flex-wrap:wrap;">
+      {% csrf_token %}
+      <input type="hidden" name="source" value="suivi">
+      <input type="hidden" name="update_mode" value="replace">
+      <label>Mois de suivi <input type="month" name="campaign_month" required class="input"></label>
+      <div class="input-file">
+        <span class="file-label">Choisir fichier</span>
+        <div class="file-input-fr">
+          <input type="file" id="cga-suivi-import-replace" name="file" accept=".xlsx,.xlsm" required class="file-input-fr-native js-fr-file-input" />
+          <label for="cga-suivi-import-replace" class="file-input-fr-btn">Parcourir</label>
+          <span class="file-input-fr-name js-fr-file-name">Aucun fichier sélectionné</span>
+        </div>
+      </div>
+      <button type="submit" class="btn btn-secondary btn-sm">Importer (écrase uniquement ce mois)</button>
+    </form>
+    <p class="subtitle" style="color:var(--muted); margin:0;">Les campagnes des autres mois et les onglets Entreprise/Cabinet ne sont jamais modifiés.</p>
   </div>
 {% elif user.is_superuser %}
   <p class="subtitle" style="color:var(--muted);">{{ import_hint }}</p>
@@ -953,11 +986,6 @@
       recordState.forEach((state) => {
         if (!state?.recorder || state.recorder.state === "inactive") return;
         try {
-          state.recorder.requestData();
-        } catch (err) {
-          // ignore snapshot errors during teardown
-        }
-        try {
           state.recorder.stop();
         } catch (err) {
           // ignore stop races during teardown
@@ -1030,11 +1058,6 @@
         try {
           const state = getRecordState(row);
           if (state?.recorder && state.recorder.state !== "inactive") {
-            try {
-              state.recorder.requestData();
-            } catch (err) {
-              // ignore flush failures before stop
-            }
             state.recorder.stop();
             state.stream?.getTracks().forEach(t => t.stop());
           }
@@ -1102,18 +1125,11 @@
         canvas,
         audioCtx,
         mimeType,
-        lastUploadedSize: 0,
-        uploadPromise: null,
-        pendingSnapshot: false,
-        snapshotTimer: null,
         blob: null,
       };
       recorder.ondataavailable = (event) => {
         const activeState = getRecordState(row) || state;
         if (event.data.size > 0) activeState.chunks.push(event.data);
-        if (activeState.chunks.length) {
-          void persistRecordingSnapshot(row, activeState);
-        }
       };
       recorder.onstop = async () => {
         const activeState = getRecordState(row) || state;
@@ -1126,16 +1142,9 @@
         recordState.delete(id);
         syncAudioControls(row);
       };
-      recorder.start(SNAPSHOT_INTERVAL_MS);
-      state.snapshotTimer = window.setInterval(() => {
-        const activeState = getRecordState(row);
-        if (!activeState?.recorder || activeState.recorder.state !== "recording") return;
-        try {
-          activeState.recorder.requestData();
-        } catch (err) {
-          // ignore timer races when recorder is shutting down
-        }
-      }, SNAPSHOT_INTERVAL_MS);
+      // One completed call produces exactly one audio file.  Do not use a
+      // timeslice here: it would turn recorder chunks into extra history rows.
+      recorder.start();
       recordState.set(id, state);
     }
 
