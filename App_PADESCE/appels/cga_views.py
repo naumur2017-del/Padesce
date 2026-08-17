@@ -86,6 +86,13 @@ def _normalize_cga_source(value):
     valid_sources = {choice[0] for choice in AppelCGA.SOURCE_CHOICES}
     if source in valid_sources:
         return source
+    # Some browsers/users can accidentally append copied page-title text to
+    # the query value (for example ``source=suivi Connexion | PADESCE``).
+    # Keep the intended source when the first token is valid instead of
+    # silently falling back to the Entreprise tab.
+    first_token = source.split(maxsplit=1)[0] if source else ""
+    if first_token in valid_sources:
+        return first_token
     return AppelCGA.SOURCE_ENTREPRISE
 
 

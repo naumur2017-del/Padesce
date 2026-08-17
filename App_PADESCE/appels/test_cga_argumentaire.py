@@ -4,10 +4,17 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
 
+from App_PADESCE.appels.cga_views import _normalize_cga_source
 from App_PADESCE.appels.models import AppelCGA
 
 
 class CGAArgumentaireTests(TestCase):
+    def test_polluted_suivi_query_value_keeps_the_suivi_source(self):
+        self.assertEqual(
+            _normalize_cga_source("suivi Connexion | PADESCE, plateforme de suivi"),
+            AppelCGA.SOURCE_SUIVI,
+        )
+
     def setUp(self):
         self.user = get_user_model().objects.create_user(
             username="conseiller",
