@@ -108,6 +108,14 @@ DEFAULT_INCLUDE_PATHS = (
     "start-command",
     "Decompte et facturation.xlsm",
 )
+# These files drive the CGA follow-up workflow and are checked against their
+# real SFTP contents on every deployment. The remaining files continue to use
+# the signed manifest unless their local hash changed, keeping deployments
+# fast while protecting this business-critical path from manifest drift.
+REMOTE_CONTENT_VERIFICATION_PATHS = {
+    "App_PADESCE/appels/cga_views.py",
+    "templates/appels/cga.html",
+}
 APP_ENV_SYNC_KEYS = (
     # Django runtime — toujours synchronisés pour garantir la config de prod
     "DJANGO_DEBUG",
@@ -1271,25 +1279,15 @@ def compute_diff(
             local_hash = local_manifest[relative]["sha256"]
             manifest_hash = str(remote_manifest[relative].get("sha256", ""))
 
-            # The manifest is an optimisation, not proof that the file is
-            # still present with the same contents. Files can be modified
-            # directly on Gandi between two deployments. Read the remote
-            # content as well, so a successful deployment genuinely means
-            # that the served files match the local revision.
             if local_hash != manifest_hash:
                 modifications.append(relative)
-            else:
+            elif relative in REMOTE_CONTENT_VERIFICATION_PATHS:
                 remote_hash = remote_file_sha256(sftp, remote_join(remote_root, relative))
                 if remote_hash != local_hash:
                     modifications.append(relative)
 
-            if index % 20 == 0:
-                progress = 44 + int((index / max(len(common_paths), 1)) * 6)
-                state.update_step(
-                    "diff",
-                    message=f"Verification du contenu distant {index}/{len(common_paths)}",
-                    progress=progress,
-                )
+            if index % 200 == 0:
+                state.update_step("diff", message=f"Comparaison {index}/{len(common_paths)}")
         modifications.sort()
         return additions, modifications, deletions, []
 

@@ -954,7 +954,12 @@ def cga_action(request, pk: int):
             row.indisponible = indisponible_val
         if rappel_at:
             try:
-                row.rappel_at = datetime.datetime.fromisoformat(rappel_at)
+                parsed_rappel_at = datetime.datetime.fromisoformat(rappel_at)
+                if timezone.is_naive(parsed_rappel_at):
+                    parsed_rappel_at = timezone.make_aware(
+                        parsed_rappel_at, timezone.get_current_timezone()
+                    )
+                row.rappel_at = parsed_rappel_at
             except ValueError:
                 row.rappel_at = None
     elif action == "terminer":

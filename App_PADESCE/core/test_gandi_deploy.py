@@ -73,6 +73,20 @@ class GandiDeployHelpersTests(SimpleTestCase):
         self.assertEqual(deletions, [])
         self.assertEqual(remote_untracked, [])
 
+    def test_compute_diff_uses_manifest_for_noncritical_unchanged_file(self) -> None:
+        with patch("App_PADESCE.core.gandi_deploy.remote_file_sha256") as remote_hash:
+            _additions, modifications, _deletions, _remote_untracked = compute_diff(
+                local_manifest={"docs/guide.md": {"size": 10, "sha256": "same-hash"}},
+                remote_manifest={"docs/guide.md": {"size": 10, "sha256": "same-hash"}},
+                remote_scan={"docs/guide.md": {"size": 10, "mtime": 1}},
+                remote_root="/vhosts/default",
+                sftp=object(),
+                state=_DummyState(),
+            )
+
+        self.assertEqual(modifications, [])
+        remote_hash.assert_not_called()
+
     def test_build_local_manifest_skips_sensitive_and_runtime_files(self) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

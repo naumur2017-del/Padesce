@@ -443,6 +443,13 @@
                 class="btn-small danger js-terminer"
                 {% if a.status != "en_cours" and a.status != "pause" %}hidden{% endif %}
               ><i class="fa-solid fa-circle-stop"></i><span>Terminer</span></button>
+              {% if active_source == "suivi" %}
+              <button
+                type="button"
+                class="btn-small js-script-open"
+                {% if a.status != "en_cours" and a.status != "pause" %}hidden{% endif %}
+              ><i class="fa-solid fa-file-lines"></i><span>Argumentaire</span></button>
+              {% endif %}
             </div>
           </td>
           <td>
@@ -1009,7 +1016,9 @@
         const pause = actions.querySelector(".js-pause");
         const resume = actions.querySelector(".js-resume");
         const terminer = actions.querySelector(".js-terminer");
+        const scriptOpen = actions.querySelector(".js-script-open");
         const canStart = ["en_attente", "a_rappeler"].includes(data.status);
+        if (scriptOpen) scriptOpen.hidden = !["en_cours", "pause"].includes(data.status);
         if (canStart) {
           start.hidden = false;
           pause.hidden = true;
@@ -1125,17 +1134,25 @@
       const pause = wrap.querySelector(".js-pause");
       const resume = wrap.querySelector(".js-resume");
       const terminer = wrap.querySelector(".js-terminer");
+      const scriptOpen = wrap.querySelector(".js-script-open");
 
       start?.addEventListener("click", async () => {
+        // L'argumentaire doit apparaître dès le clic. La demande d'accès au
+        // microphone ne doit jamais bloquer l'ouverture de la fenêtre.
+        openCallScript(row);
         try {
           const data = await sendAction(row, "start");
+          if (!data?.ok) throw new Error(data?.error || "Impossible de démarrer l'appel.");
           updateRow(row, data);
           if (!getRecordState(row)) {
-            await startRecording(row);
+            void startRecording(row);
           }
-          openCallScript(row);
-        } catch (err) { alert("Action impossible."); }
+        } catch (err) {
+          closeCallScript();
+          alert(err?.message || "Action impossible.");
+        }
       });
+      scriptOpen?.addEventListener("click", () => openCallScript(row));
       pause?.addEventListener("click", async () => {
         try {
           const data = await sendAction(row, "pause");
