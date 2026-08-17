@@ -34,6 +34,8 @@ class CGAArgumentaireTests(TestCase):
         self.assertContains(response, "votre conseiller au CGA NAUMUR")
         self.assertContains(response, "openCallScript(row);")
         self.assertContains(response, "Argumentaire</span>")
+        self.assertIn("no-store", response["Cache-Control"])
+        self.assertEqual(response["X-PADESCE-CGA-UI-Version"], "argumentaire-v2")
 
     def test_other_cga_sources_do_not_show_follow_up_script(self):
         response = self.client.get(reverse("cga_index"), {"source": "entreprise"})

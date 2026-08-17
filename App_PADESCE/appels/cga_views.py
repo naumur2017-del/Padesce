@@ -704,6 +704,7 @@ def cga_export_filtered_csv(request):
     return response
 
 
+@never_cache
 @login_required
 def cga_index(request):
     if request.method == "POST" and request.POST.get("action") == "create_monthly_campaign":
@@ -888,7 +889,7 @@ def cga_index(request):
         )
     )
 
-    return render(
+    response = render(
         request,
         "appels/cga.html",
         {
@@ -909,6 +910,11 @@ def cga_index(request):
             "campaign_months": campaign_months,
         },
     )
+    response["Cache-Control"] = "private, no-store, no-cache, must-revalidate, max-age=0"
+    response["Pragma"] = "no-cache"
+    response["Expires"] = "0"
+    response["X-PADESCE-CGA-UI-Version"] = "argumentaire-v2"
+    return response
 
 
 @login_required

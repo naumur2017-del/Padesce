@@ -11,7 +11,7 @@ from django.test import SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 
 from App_PADESCE import settings as project_settings
-from App_PADESCE.core.deployment_live import LIVE_MARKER_FILENAME
+from App_PADESCE.core.deployment_live import LIVE_MARKER_FILENAME, live_status_payload
 from App_PADESCE.core.gandi_deploy import (
     _app_env_values_from_env,
     _cache_busted_url,
@@ -31,6 +31,18 @@ class _DummyState:
 
 
 class GandiDeployHelpersTests(SimpleTestCase):
+    def test_live_status_reports_cga_argumentaire_template(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            template = Path(temp_dir) / "templates" / "appels" / "cga.html"
+            template.parent.mkdir(parents=True)
+            template.write_text('<div id="js-call-script-modal"></div>', encoding="utf-8")
+
+            payload = live_status_payload(Path(temp_dir))
+
+        self.assertEqual(payload["cga_ui"]["version"], "argumentaire-v2")
+        self.assertTrue(payload["cga_ui"]["argumentaire_present"])
+        self.assertEqual(len(payload["cga_ui"]["template_sha256"]), 64)
+
     @override_settings(BASE_DIR="C:/tmp")
     def test_compute_diff_keeps_remote_only_files_untracked_without_manifest(self) -> None:
         with patch("App_PADESCE.core.gandi_deploy.remote_file_sha256", return_value="same-hash"):
