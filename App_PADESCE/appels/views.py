@@ -510,7 +510,15 @@ def _parse_excel_sheet(file_obj, sheet_name: str):
         "nom complet",
         "nom",
     ]
-    _CODE_KEYS = ["code", "apprenant id", "n / no", "no"]
+    _CODE_KEYS = [
+        "code",
+        "apprenant id",
+        "n / no",
+        "n° / no",
+        "no",
+        "n°",
+        "numero",
+    ]
     has_nom_col = any(_normalize_header(k) in header_map for k in _NOM_KEYS)
     has_code_col = any(_normalize_header(k) in header_map for k in _CODE_KEYS)
     if not has_nom_col or not has_code_col:
