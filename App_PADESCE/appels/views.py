@@ -81,6 +81,9 @@ def _normalize_header(value):
     if value is None:
         return ""
     text = " ".join(str(value).strip().lower().split())
+    # Replace curly quotes with regular quotes for matching
+    text = text.replace('‘', "'").replace('’', "'")  # ' and '
+    text = text.replace('“', '"').replace('”', '"')  # " and "
     # Strip accents for stable matching across encodings.
     normalized = unicodedata.normalize("NFKD", text)
     return "".join(ch for ch in normalized if not unicodedata.combining(ch))
