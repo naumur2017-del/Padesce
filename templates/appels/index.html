@@ -596,7 +596,7 @@
               <button
                 type="button"
                 class="btn-small primary js-start"
-                {% if a.status != "en_attente" and a.status != "a_rappeler" %}hidden{% endif %}
+                {% if a.status != "en_attente" and a.status != "appel_tente" and a.status != "a_rappeler" %}hidden{% endif %}
               ><i class="fa-solid fa-phone"></i><span>Démarrer</span></button>
               <button
                 type="button"
@@ -1511,7 +1511,8 @@
         const pause = actions.querySelector(".js-pause");
         const resume = actions.querySelector(".js-resume");
         const terminer = actions.querySelector(".js-terminer");
-        const canStart = ["en_attente", "a_rappeler"].includes(data.status);
+        // Un appel tenté est réessayable : il doit garder un accès explicite au démarrage.
+        const canStart = ["en_attente", "appel_tente", "a_rappeler"].includes(data.status);
         if (canStart) {
           start.hidden = false;
           pause.hidden = true;
