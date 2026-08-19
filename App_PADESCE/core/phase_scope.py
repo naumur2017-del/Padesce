@@ -62,12 +62,21 @@ def filter_appel_queryset_by_phase(queryset: QuerySet[Appel], scope: str) -> Que
             return queryset
 
     p_app_prefix = "code" if classe_lookup == "classe" else "appel__code"
+    # Les imports de contacts peuvent contenir une classe connue sous son code,
+    # sans objet Classe correspondant dans le référentiel. Ils ne peuvent pas
+    # être attribués à une vague précise ; la vue combinée doit néanmoins les
+    # montrer, sinon ni les lignes ni leurs prestataires n'apparaissent après
+    # l'import.
+    unlinked_class_filter = Q(**{f"{classe_lookup}__isnull": True, f"{classe_label_lookup}": ""})
+    if scope == PHASE_SCOPE_V1_COMBINED:
+        unlinked_class_filter = Q(**{f"{classe_lookup}__isnull": True})
+
     return queryset.filter(
         Q(**{f"{classe_lookup}__phase_id__in": phase_ids})
         | Q(**{f"{classe_lookup}__isnull": True, f"{classe_label_lookup}__in": class_codes})
         | Q(**{f"{p_app_prefix}__startswith": "P-APP"})
         | Q(**{f"{classe_lookup}__phase_id__isnull": True, f"{classe_lookup}__isnull": False})
-        | Q(**{f"{classe_lookup}__isnull": True, f"{classe_label_lookup}": ""})  # Include unclassified appels
+        | unlinked_class_filter
     )
 
 
