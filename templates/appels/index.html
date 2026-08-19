@@ -1009,6 +1009,26 @@
           syncAudioControls(row);
           updateDownloadButtonState();
         }
+        return;
+      }
+      if (job.kind === "finalize") {
+        const form = new FormData();
+        form.append("action", job.action);
+        for (const [key, value] of (job.formEntries || [])) {
+          form.append(key, value);
+        }
+        if (job.audioBlob) {
+          form.append("audio", job.audioBlob, job.audioFilename || `appel-${job.rowId}.webm`);
+        }
+        const res = await fetch(job.url, {
+          method: "POST",
+          headers: { "X-CSRFToken": csrfToken },
+          body: form,
+        });
+        const payload = await res.json().catch(() => ({}));
+        if (!res.ok || !payload.ok) throw new Error(payload.error || "sync finalize failed");
+        const row = document.querySelector(`tr[data-id="${job.rowId}"]`);
+        if (row) updateRow(row, payload);
       }
     }
 
@@ -1277,6 +1297,11 @@
 
         // Send everything atomically via finalize endpoint
         const data = await finalizeAction(row, action, satForm, audioBlob);
+        if (!data?.ok) {
+            alert(data?.error || "La finalisation de l'appel n'a pas été enregistrée. Veuillez réessayer.");
+            satModal.hidden = false;
+            return;
+        }
         updateRow(row, data);
         if (data.satisfaction_message) alert(data.satisfaction_message);
 
@@ -1338,7 +1363,7 @@
           body: form 
         });
         const data = await res.json().catch(() => ({}));
-        if (!res.ok) {
+        if (!res.ok || !data.ok) {
           console.error("Finalize error:", data);
           return data || { ok: false, error: "Erreur serveur" };
         }
@@ -1359,13 +1384,16 @@
         return data;
       } catch (err) {
         console.error("Finalize offline/error:", err);
-        await queueOfflineJob({ 
+        const blobType = (audioBlob?.type || "").toLowerCase();
+        const audioFilename = `appel-${id}.${blobType.includes("webm") ? "webm" : "mp3"}`;
+        await queueOfflineJob({
           kind: "finalize", 
           rowId: id, 
           url, 
           action,
-          satFormData,
-          audioBlob
+          formEntries: Array.from(satFormData.entries()),
+          audioBlob,
+          audioFilename,
         });
         const status = optimisticStatusFromAction(action);
         return { ok: true, queued: true, status, status_label: buildStatusLabel(status) };
@@ -1633,25 +1661,7 @@
 
     async function startRecording(row) {
       const id = row.dataset.id;
-      
-      const satModal = document.getElementById("js-satisfaction-modal");
-      if (satModal) {
-          await hydrateSatisfactionModal(id);
-          const smr = document.getElementById("js-sat-modal-rappel");
-          if (smr) smr.checked = false;
-          const smrat = document.getElementById("js-sat-modal-rappel-at");
-          if (smrat) {
-              smrat.value = "";
-              smrat.disabled = true;
-          }
-          
-          const satNom = document.getElementById("js-sat-modal-nom");
-          if (satNom) satNom.textContent = row.dataset.name || "-";
-          satModal.dataset.rowId = id;
-          document.getElementById("js-sat-modal-phone").textContent = row.dataset.phone || "-";
-          satModal.hidden = false;
-      }
-      
+
       let stream;
       try {
         stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -1704,6 +1714,26 @@
       };
       recorder.start();
       recordState.set(id, { recorder, chunks, stream, raf, ctx, canvas, audioCtx });
+
+      // La fiche ne doit devenir utilisable qu'une fois l'enregistreur réellement
+      // démarré. Sinon un rappel peut être validé pendant la demande d'accès micro,
+      // sans qu'aucun blob audio n'existe encore.
+      const satModal = document.getElementById("js-satisfaction-modal");
+      if (satModal) {
+          await hydrateSatisfactionModal(id);
+          const smr = document.getElementById("js-sat-modal-rappel");
+          if (smr) smr.checked = false;
+          const smrat = document.getElementById("js-sat-modal-rappel-at");
+          if (smrat) {
+              smrat.value = "";
+              smrat.disabled = true;
+          }
+          const satNom = document.getElementById("js-sat-modal-nom");
+          if (satNom) satNom.textContent = row.dataset.name || "-";
+          satModal.dataset.rowId = id;
+          document.getElementById("js-sat-modal-phone").textContent = row.dataset.phone || "-";
+          satModal.hidden = false;
+      }
     }
 
     async function uploadAudio(row, blob) {

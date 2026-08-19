@@ -1491,6 +1491,38 @@ class AppelFinalizeSaveTests(TestCase):
         finally:
             shutil.rmtree(temp_media_root, ignore_errors=True)
 
+    def test_finalize_callback_keeps_callback_status_and_saves_audio(self):
+        temp_media_root = tempfile.mkdtemp(prefix="appel-callback-audio-test-")
+        try:
+            with override_settings(MEDIA_ROOT=temp_media_root):
+                appel = Appel.objects.create(
+                    code="P-APP-CALLBACK-AUDIO",
+                    nom="Apprenant A Rappeler",
+                    status="en_cours",
+                    is_active=True,
+                )
+                response = self.client.post(
+                    reverse("appel_finalize", args=[appel.pk]),
+                    {
+                        "action": "rappeler",
+                        "rappel_at": "2026-08-20T10:30",
+                        "audio": SimpleUploadedFile(
+                            "rappel.webm", b"callback-audio", content_type="audio/webm"
+                        ),
+                    },
+                )
+
+                self.assertEqual(response.status_code, 200)
+                payload = response.json()
+                appel.refresh_from_db()
+                self.assertEqual(payload["status"], "a_rappeler")
+                self.assertTrue(payload["audio_saved"])
+                self.assertEqual(appel.status, "a_rappeler")
+                self.assertTrue(appel.audio_file.name)
+                self.assertIsNotNone(appel.rappel_at)
+        finally:
+            shutil.rmtree(temp_media_root, ignore_errors=True)
+
 
 class CgaAudioAndTemplateTests(TestCase):
     def setUp(self):
