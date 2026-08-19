@@ -35,6 +35,7 @@ app_urlpatterns = [
         name="download_export",
     ),
     path("dashboard/", lazy_view("App_PADESCE.core.views.home"), name="home"),
+    path("recherche/", lazy_view("App_PADESCE.core.views.data_search"), name="data_search"),
     path(
         "suivi-utilisateurs/",
         lazy_view("App_PADESCE.core.views.user_tracking_view"),

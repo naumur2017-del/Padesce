@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+
+{% block title %}Recherche des données{% endblock %}
+
+{% block content %}
+<style>
+  .search-page { max-width: 1180px; margin: 26px auto 48px; padding: 0 18px; }
+  .search-card, .results-card { background: var(--panel); border: 1px solid var(--border); border-radius: 20px; box-shadow: var(--shadow); padding: 22px; }
+  .search-form { display: grid; grid-template-columns: minmax(0, 1fr) 190px auto; gap: 12px; align-items: end; }
+  label { display: grid; gap: 6px; color: var(--muted); font-size: .88rem; font-weight: 700; }
+  input, select { width: 100%; min-height: 42px; padding: 9px 12px; border: 1px solid var(--border); border-radius: 11px; background: #fff; color: var(--text); font: inherit; }
+  .btn-search { min-height: 42px; border: 0; border-radius: 11px; padding: 0 18px; background: var(--accent); color: #fff; font-weight: 800; cursor: pointer; }
+  .intro { color: var(--muted); margin: 6px 0 20px; }
+  .results { display: grid; gap: 18px; margin-top: 22px; }
+  .results-card h2 { margin: 0 0 12px; font-size: 1.08rem; color: var(--accent-strong); }
+  .result-table { width: 100%; border-collapse: collapse; font-size: .91rem; }
+  .result-table th, .result-table td { padding: 10px 8px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; }
+  .result-table th { color: var(--muted); font-size: .78rem; text-transform: uppercase; letter-spacing: .04em; }
+  .wave { display: inline-block; padding: 3px 8px; border-radius: 999px; background: rgba(124,58,237,.1); color: var(--accent-strong); font-weight: 800; font-size: .8rem; }
+  .empty { color: var(--muted); margin: 0; }
+  @media (max-width: 720px) { .search-form { grid-template-columns: 1fr; } .result-table { display: block; overflow-x: auto; white-space: nowrap; } }
+</style>
+<section class="search-page">
+  <div class="search-card">
+    <h1>Recherche des données</h1>
+    <p class="intro">Recherchez une prestation, un prestataire, un bénéficiaire ou un apprenant. Le filtre « vague » limite les résultats à la campagne concernée.</p>
+    <form class="search-form" method="get">
+      <label>Recherche
+        <input name="q" value="{{ query }}" placeholder="Nom, code, téléphone, prestation, bénéficiaire…" autofocus>
+      </label>
+      <label>Vague
+        <select name="vague">
+          <option value="">Toutes les vagues</option>
+          {% for phase in phases %}<option value="{{ phase.vague }}" {% if selected_vague == phase.vague %}selected{% endif %}>Vague {{ phase.vague }} — {{ phase.nom }}</option>{% endfor %}
+        </select>
+      </label>
+      <button class="btn-search" type="submit">Rechercher</button>
+    </form>
+  </div>
+
+  {% if has_search %}
+  <div class="results">
+    <section class="results-card"><h2>Prestations</h2>{% if prestations %}<table class="result-table"><tr><th>Code</th><th>Prestataire</th><th>Bénéficiaire</th><th>Formation</th><th>Vague</th></tr>{% for item in prestations %}<tr><td>{{ item.code }}</td><td>{{ item.prestataire.raison_sociale }}</td><td>{{ item.beneficiaire.nom_structure|default:"-" }}</td><td>{{ item.formation.nom }}</td><td>{% if item.phase %}<span class="wave">Vague {{ item.phase.vague }}</span>{% else %}-{% endif %}</td></tr>{% endfor %}</table>{% else %}<p class="empty">Aucune prestation trouvée.</p>{% endif %}</section>
+    <section class="results-card"><h2>Prestataires</h2>{% if prestataires %}<table class="result-table"><tr><th>Code</th><th>Raison sociale</th><th>Téléphone</th><th>Vagues</th></tr>{% for item in prestataires %}<tr><td>{{ item.code }}</td><td>{{ item.raison_sociale }}</td><td>{{ item.telephone|default:"-" }}</td><td>{% for wave in item.search_waves %}<span class="wave">Vague {{ wave }}</span> {% empty %}-{% endfor %}</td></tr>{% endfor %}</table>{% else %}<p class="empty">Aucun prestataire trouvé.</p>{% endif %}</section>
+    <section class="results-card"><h2>Bénéficiaires</h2>{% if beneficiaires %}<table class="result-table"><tr><th>Bénéficiaire</th><th>Région</th><th>Ville</th><th>Vagues</th></tr>{% for item in beneficiaires %}<tr><td>{{ item.nom_structure }}</td><td>{{ item.region|default:"-" }}</td><td>{{ item.ville|default:"-" }}</td><td>{% for wave in item.search_waves %}<span class="wave">Vague {{ wave }}</span> {% empty %}-{% endfor %}</td></tr>{% endfor %}</table>{% else %}<p class="empty">Aucun bénéficiaire trouvé.</p>{% endif %}</section>
+    <section class="results-card"><h2>Apprenants</h2>{% if apprenants %}<table class="result-table"><tr><th>Code</th><th>Apprenant</th><th>Classe</th><th>Prestation</th><th>Téléphone</th><th>Vague</th></tr>{% for item in apprenants %}<tr><td>{{ item.code }}</td><td>{{ item.nom_complet }}</td><td>{{ item.classe.code }}</td><td>{{ item.classe.prestation.code }}</td><td>{{ item.telephone1|default:item.telephone2|default:"-" }}</td><td>{% if item.phase %}<span class="wave">Vague {{ item.phase.vague }}</span>{% elif item.classe.phase %}<span class="wave">Vague {{ item.classe.phase.vague }}</span>{% else %}-{% endif %}</td></tr>{% endfor %}</table>{% else %}<p class="empty">Aucun apprenant trouvé.</p>{% endif %}</section>
+  </div>
+  {% endif %}
+</section>
+{% endblock %}

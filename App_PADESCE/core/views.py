@@ -78,13 +78,102 @@ from App_PADESCE.core.phase_scope import (
     phase_scope_options,
 )
 from App_PADESCE.environnement.models import EnqueteEnvironnement
-from App_PADESCE.formations.models import Classe
+from App_PADESCE.formations.models import Beneficiaire, Classe, Phase, Prestation, Prestataire
 from App_PADESCE.presences.control_utils import CONTROL_KEYS
 from App_PADESCE.presences.models import Presence
 from App_PADESCE.satisfaction_apprenants.models import SatisfactionApprenant
 from App_PADESCE.satisfaction_formateurs.models import SatisfactionFormateur
 
 logger = logging.getLogger(__name__)
+
+
+@require_analysis_access
+def data_search(request):
+    """Recherche transversale des référentiels PADESCE, filtrable par vague."""
+    query = (request.GET.get("q") or "").strip()
+    vague = (request.GET.get("vague") or "").strip()
+
+    phases = list(Phase.objects.order_by("vague", "nom"))
+    selected_vague = None
+    if vague.isdigit():
+        selected_vague = int(vague)
+
+    def text_filter(fields):
+        condition = Q()
+        for field in fields:
+            condition |= Q(**{f"{field}__icontains": query})
+        return condition
+
+    prestations = Prestation.objects.select_related("prestataire", "beneficiaire", "formation", "phase")
+    prestataires = Prestataire.objects.all()
+    beneficiaires = Beneficiaire.objects.all()
+    apprenants = Apprenant.objects.select_related(
+        "phase", "classe__prestation", "classe__phase", "formation"
+    )
+
+    if selected_vague is not None:
+        prestations = prestations.filter(phase__vague=selected_vague)
+        apprenants = apprenants.filter(
+            Q(phase__vague=selected_vague) | Q(classe__phase__vague=selected_vague)
+        ).distinct()
+        # Prestataires et bénéficiaires sont reliés aux prestations de la vague.
+        prestataires = prestataires.filter(prestations__phase__vague=selected_vague).distinct()
+        beneficiaires = beneficiaires.filter(prestations__phase__vague=selected_vague).distinct()
+
+    if query:
+        prestations = prestations.filter(
+            text_filter((
+                "code", "prestataire__raison_sociale", "beneficiaire__nom_structure",
+                "formation__nom", "formation__code", "ville",
+            ))
+        )
+        prestataires = prestataires.filter(text_filter(("code", "raison_sociale", "telephone", "email")))
+        beneficiaires = beneficiaires.filter(text_filter(("nom_structure", "region", "ville", "contact", "email")))
+        apprenants = apprenants.filter(
+            text_filter((
+                "code", "nom_complet", "telephone1", "telephone2", "beneficiaire",
+                "prestataire", "classe__code", "formation__nom",
+            ))
+        )
+
+    limit = 50
+    prestations = list(prestations.order_by("code")[:limit])
+    prestataires = list(prestataires.order_by("raison_sociale")[:limit])
+    beneficiaires = list(beneficiaires.order_by("nom_structure")[:limit])
+    apprenants = list(apprenants.order_by("nom_complet")[:limit])
+
+    def attach_waves(rows, field_name: str):
+        row_ids = [row.pk for row in rows]
+        waves_by_id = defaultdict(set)
+        if row_ids:
+            for row_id, wave in (
+                Prestation.objects.filter(**{f"{field_name}__in": row_ids})
+                .exclude(phase__isnull=True)
+                .values_list(field_name, "phase__vague")
+                .distinct()
+            ):
+                waves_by_id[row_id].add(wave)
+        for row in rows:
+            row.search_waves = sorted(waves_by_id[row.pk])
+
+    attach_waves(prestataires, "prestataire_id")
+    attach_waves(beneficiaires, "beneficiaire_id")
+
+    return render(
+        request,
+        "core/data_search.html",
+        {
+            "query": query,
+            "selected_vague": selected_vague,
+            "phases": phases,
+            "has_search": bool(query or selected_vague is not None),
+            "prestations": prestations,
+            "prestataires": prestataires,
+            "beneficiaires": beneficiaires,
+            "apprenants": apprenants,
+            "result_limit": limit,
+        },
+    )
 
 
 def _storage_file_exists(file_field, exists_cache: dict[str, bool] | None = None) -> bool:
