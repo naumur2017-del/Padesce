@@ -39,7 +39,15 @@ def _connection_env() -> tuple[list[str], dict[str, str]]:
         name = str(os.getenv("POSTGRES_DB", "") or "").strip()
         if not name:
             raise NativeBackupError("Configuration PostgreSQL absente.")
-        args = ["--host", str(os.getenv("POSTGRES_HOST", "localhost") or "localhost"), "--port", str(os.getenv("POSTGRES_PORT", "5432") or "5432"), "--username", str(os.getenv("POSTGRES_USER", "") or ""), name]
+        args = [
+            "--host",
+            str(os.getenv("POSTGRES_HOST", "localhost") or "localhost"),
+            "--port",
+            str(os.getenv("POSTGRES_PORT", "5432") or "5432"),
+            "--username",
+            str(os.getenv("POSTGRES_USER", "") or ""),
+            name,
+        ]
         password = str(os.getenv("POSTGRES_PASSWORD", "") or "")
     env = os.environ.copy()
     if password:
@@ -69,7 +77,15 @@ def create_native_backup() -> dict[str, object]:
         args, env = _connection_env()
         with tempfile.NamedTemporaryFile(dir=directory, suffix=".partial", delete=False) as temp:
             temp_path = Path(temp.name)
-        command = ["pg_dump", "--format=custom", "--compress=9", "--no-owner", "--file", str(temp_path), *args]
+        command = [
+            "pg_dump",
+            "--format=custom",
+            "--compress=9",
+            "--no-owner",
+            "--file",
+            str(temp_path),
+            *args,
+        ]
         result = subprocess.run(command, env=env, capture_output=True, text=True, timeout=3600)
         if result.returncode != 0:
             temp_path.unlink(missing_ok=True)
@@ -88,7 +104,9 @@ def create_native_backup() -> dict[str, object]:
 
 def purge_native_backups(retention_days: int) -> list[str]:
     """Conserve toujours le plus récent backup natif validé."""
-    files = sorted(_backup_dir().glob("padesce-postgres-*.dump"), key=lambda item: item.stat().st_mtime)
+    files = sorted(
+        _backup_dir().glob("padesce-postgres-*.dump"), key=lambda item: item.stat().st_mtime
+    )
     if len(files) < 2:
         return []
     cutoff = datetime.now(timezone.utc) - timedelta(days=retention_days)

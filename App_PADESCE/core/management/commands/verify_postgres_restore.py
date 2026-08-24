@@ -20,14 +20,39 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         database = str(options["database"]).strip()
         production = str(os.getenv("POSTGRES_DB", "") or "").strip()
-        if not database or database == production or any(word in database.lower() for word in ("prod", "production")):
-            raise CommandError("Refus : la restauration doit cibler une base isolée non liée à la production.")
+        if (
+            not database
+            or database == production
+            or any(word in database.lower() for word in ("prod", "production"))
+        ):
+            raise CommandError(
+                "Refus : la restauration doit cibler une base isolée non liée à la production."
+            )
         dump = Path(options["dump"])
         if not dump.is_file() or dump.stat().st_size == 0:
             raise CommandError("Dump absent ou vide.")
         env = os.environ.copy()
-        command = ["pg_restore", "--exit-on-error", "--clean", "--if-exists", "--no-owner", "--host", options["host"], "--port", str(options["port"]), "--username", options["user"], "--dbname", database, str(dump)]
+        command = [
+            "pg_restore",
+            "--exit-on-error",
+            "--clean",
+            "--if-exists",
+            "--no-owner",
+            "--host",
+            options["host"],
+            "--port",
+            str(options["port"]),
+            "--username",
+            options["user"],
+            "--dbname",
+            database,
+            str(dump),
+        ]
         result = subprocess.run(command, env=env, capture_output=True, text=True, timeout=3600)
         if result.returncode:
             raise CommandError("pg_restore a échoué sur la base isolée.")
-        self.stdout.write(self.style.SUCCESS("Restauration isolée terminée; exécutez ensuite migrations/check/tests contre cette base."))
+        self.stdout.write(
+            self.style.SUCCESS(
+                "Restauration isolée terminée; exécutez ensuite migrations/check/tests contre cette base."
+            )
+        )

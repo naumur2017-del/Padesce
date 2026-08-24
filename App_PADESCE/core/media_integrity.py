@@ -20,13 +20,22 @@ def audit_media_integrity() -> dict[str, object]:
             if not isinstance(field, FileField):
                 continue
             fields_checked += 1
-            for pk, name in model._default_manager.exclude(**{f"{field.name}__isnull": True}).values_list("pk", field.name):
+            for pk, name in model._default_manager.exclude(
+                **{f"{field.name}__isnull": True}
+            ).values_list("pk", field.name):
                 value = str(name or "").lstrip("/")
                 if not value:
                     continue
                 referenced.add(value)
                 if not (root / value).is_file():
-                    missing.append({"model": model._meta.label, "pk": str(pk), "field": field.name, "path": value})
+                    missing.append(
+                        {
+                            "model": model._meta.label,
+                            "pk": str(pk),
+                            "field": field.name,
+                            "path": value,
+                        }
+                    )
     present: set[str] = set()
     total_size = 0
     if root.exists():
@@ -36,7 +45,11 @@ def audit_media_integrity() -> dict[str, object]:
                 present.add(str(path.relative_to(root)))
                 total_size += path.stat().st_size
     return {
-        "media_root": str(root), "fields_checked": fields_checked, "referenced_count": len(referenced),
-        "files_count": len(present), "total_size": total_size, "missing_references": missing,
+        "media_root": str(root),
+        "fields_checked": fields_checked,
+        "referenced_count": len(referenced),
+        "files_count": len(present),
+        "total_size": total_size,
+        "missing_references": missing,
         "orphan_files": sorted(present - referenced),
     }
