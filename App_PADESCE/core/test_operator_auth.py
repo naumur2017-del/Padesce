@@ -3,6 +3,7 @@ from io import StringIO
 from unittest.mock import Mock, patch
 
 from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Group
 from django.core.management import call_command
 from django.core.management.base import CommandError
 from django.db import OperationalError
@@ -24,6 +25,24 @@ class NormalizeLoginIdentifierTests(TestCase):
 
 
 class AuditOperatorAccountsCommandTests(TestCase):
+    def test_recognizes_the_official_operator_group(self):
+        user = get_user_model().objects.create_user(
+            username="operator-1", password="safe-test-password"
+        )
+        user.groups.add(Group.objects.create(name="operatrice"))
+
+        output = StringIO()
+        call_command("audit_operator_accounts", format="json", stdout=output)
+
+        report = json.loads(output.getvalue())
+        issue_codes = [
+            code
+            for issue in report["issues"]
+            if issue["user_pk"] == user.pk
+            for code in issue["codes"]
+        ]
+        self.assertNotIn("AUTH_ROLE_UNRECOGNIZED", issue_codes)
+
     def test_reports_normalized_collisions_without_password_data(self):
         user_model = get_user_model()
         first = user_model.objects.create_user(username="Operatrice", password="safe-test-password")
