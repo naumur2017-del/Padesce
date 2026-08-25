@@ -127,18 +127,21 @@ PUBLIC_CONSULTANT_ACCESS = os.getenv("PUBLIC_CONSULTANT_ACCESS", "False").lower(
     "true",
     "yes",
 )
-PUBLIC_ANALYSIS_AUTO_LOGIN = os.getenv("PUBLIC_ANALYSIS_AUTO_LOGIN", "True").lower() in (
+# This exceptional bypass must only be enabled explicitly for a controlled
+# environment. It must never grant a session merely because an environment
+# variable was omitted.
+PUBLIC_ANALYSIS_AUTO_LOGIN = os.getenv("PUBLIC_ANALYSIS_AUTO_LOGIN", "False").lower() in (
     "1",
     "true",
     "yes",
 )
 PUBLIC_ANALYSIS_AUTO_LOGIN_USERNAME = os.getenv(
     "PUBLIC_ANALYSIS_AUTO_LOGIN_USERNAME",
-    "yanava",
+    "",
 ).strip()
 PUBLIC_ANALYSIS_AUTO_LOGIN_PASSWORD = os.getenv(
     "PUBLIC_ANALYSIS_AUTO_LOGIN_PASSWORD",
-    "PADESCE1234",
+    "",
 )
 PUBLIC_ANALYSIS_AUTO_LOGIN_PREFIXES = (
     "/satisfaction-apprenants/analyse/",
