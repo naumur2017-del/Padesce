@@ -160,3 +160,14 @@ Les trois commits initiaux sont indépendants et réversibles :
 Pour revenir en arrière, effectuer un `git revert` du commit concerné. Aucun
 de ces commits ne modifie les comptes, les mots de passe ou le schéma de la
 base de données.
+
+## Validation PostgreSQL des tests d'authentification
+
+Le 2026-08-25, la suite ciblée a été exécutée sur le serveur PostgreSQL local
+restauré depuis le dump. Django a créé puis supprimé sa base de test séparée.
+Résultat : **20 tests réussis**.
+
+Les scénarios validés couvrent la normalisation Unicode, les collisions, les
+comptes sans rôle, le refus d'une configuration de rôles vide, la limitation
+par paire identifiant/IP, les sessions et les logs techniques sans identifiant
+brut.
