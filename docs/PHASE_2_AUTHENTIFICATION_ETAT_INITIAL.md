@@ -94,6 +94,28 @@ Pour examiner un identifiant de manière non destructive :
 python manage.py diagnose_operator_login --identifier 'valeur saisie'
 ```
 
+## Résultat de l'audit sur la copie PostgreSQL
+
+Audit exécuté le 2026-08-25 sur la restauration locale du dump PostgreSQL
+`padesce-1787577049.dump` (créé le 2026-08-24). Mode : `--dry-run`, aucune
+écriture sur les comptes.
+
+| Indicateur | Résultat |
+| --- | ---: |
+| Comptes analysés | 27 |
+| Collisions après normalisation | 0 |
+| Comptes dans une collision | 0 |
+| Identifiants modifiés par normalisation | 23 |
+| Comptes sans groupe | 19 |
+| Autres codes d'incohérence | 0 |
+
+Les 23 identifiants modifiés doivent être interprétés avec prudence : la
+normalisation inclut le `casefold()` Unicode et ne signifie pas, à elle seule,
+une erreur de donnée. L'absence de collision autorise l'implémentation d'un
+backend normalisé sous feature flag, mais son activation reste bloquée par les
+19 comptes sans rôle : on ne peut pas déduire automatiquement si chacun doit
+être une opératrice, un compte technique ou un compte à désactiver.
+
 ## Vérifications PostgreSQL requises avant la suite
 
 À exécuter sur une copie restaurée ou avec un compte SQL en lecture seule :
