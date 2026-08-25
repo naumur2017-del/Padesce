@@ -127,18 +127,21 @@ PUBLIC_CONSULTANT_ACCESS = os.getenv("PUBLIC_CONSULTANT_ACCESS", "False").lower(
     "true",
     "yes",
 )
-PUBLIC_ANALYSIS_AUTO_LOGIN = os.getenv("PUBLIC_ANALYSIS_AUTO_LOGIN", "True").lower() in (
+# This exceptional bypass must only be enabled explicitly for a controlled
+# environment. It must never grant a session merely because an environment
+# variable was omitted.
+PUBLIC_ANALYSIS_AUTO_LOGIN = os.getenv("PUBLIC_ANALYSIS_AUTO_LOGIN", "False").lower() in (
     "1",
     "true",
     "yes",
 )
 PUBLIC_ANALYSIS_AUTO_LOGIN_USERNAME = os.getenv(
     "PUBLIC_ANALYSIS_AUTO_LOGIN_USERNAME",
-    "yanava",
+    "",
 ).strip()
 PUBLIC_ANALYSIS_AUTO_LOGIN_PASSWORD = os.getenv(
     "PUBLIC_ANALYSIS_AUTO_LOGIN_PASSWORD",
-    "PADESCE1234",
+    "",
 )
 PUBLIC_ANALYSIS_AUTO_LOGIN_PREFIXES = (
     "/satisfaction-apprenants/analyse/",
@@ -150,6 +153,26 @@ PUBLIC_ANALYSIS_AUTO_LOGIN_PREFIXES = (
     "/analyse/appels/formateur/",
     "/apprenants/",
 )
+PADESCE_OPERATOR_AUTH_ENABLED = os.getenv("PADESCE_OPERATOR_AUTH_ENABLED", "False").lower() in (
+    "1",
+    "true",
+    "yes",
+)
+PADESCE_OPERATOR_LOGIN_REQUIRED_GROUPS = tuple(
+    group.strip()
+    for group in os.getenv("PADESCE_OPERATOR_LOGIN_REQUIRED_GROUPS", "").split(",")
+    if group.strip()
+)
+PADESCE_AUTH_THROTTLE_ENABLED = os.getenv("PADESCE_AUTH_THROTTLE_ENABLED", "False").lower() in (
+    "1",
+    "true",
+    "yes",
+)
+PADESCE_AUTH_THROTTLE_MAX_FAILURES = _int_env("PADESCE_AUTH_THROTTLE_MAX_FAILURES", 5, minimum=1)
+PADESCE_AUTH_THROTTLE_WINDOW_SECONDS = _int_env(
+    "PADESCE_AUTH_THROTTLE_WINDOW_SECONDS", 900, minimum=1
+)
+PADESCE_AUTH_LOG_HASH_KEY = str(os.getenv("PADESCE_AUTH_LOG_HASH_KEY", "") or "")
 
 ALLOWED_HOSTS_ENV = os.getenv("DJANGO_ALLOWED_HOSTS", "")
 ALLOWED_HOSTS = [host.strip() for host in ALLOWED_HOSTS_ENV.split(",") if host.strip()]
@@ -554,7 +577,8 @@ if HAS_CHANNELS:
 # ---------------------------------------------------------------------------
 # Sessions :
 # - SQLite local : signed_cookies pour éviter un 500 au login si la base est verrouillée
-# - autres backends : cached_db pour garder les sessions persistantes
+# - PostgreSQL + Redis : cached_db pour accélérer les lectures avec un cache partagé
+# - PostgreSQL sans Redis : db pour éviter un cache mémoire différent par worker
 # ---------------------------------------------------------------------------
 def _session_engine_from_env() -> str:
     explicit_engine = str(os.getenv("PADESCE_SESSION_ENGINE", "") or "").strip()
@@ -563,7 +587,9 @@ def _session_engine_from_env() -> str:
     default_db = DATABASES.get("default", {})
     if default_db.get("ENGINE") == "django.db.backends.sqlite3":
         return "django.contrib.sessions.backends.signed_cookies"
-    return "django.contrib.sessions.backends.cached_db"
+    if _cache_backend_key_from_env() == "redis":
+        return "django.contrib.sessions.backends.cached_db"
+    return "django.contrib.sessions.backends.db"
 
 
 SESSION_ENGINE = _session_engine_from_env()
@@ -572,6 +598,7 @@ SESSION_COOKIE_AGE = 28800  # 8 heures (en secondes)
 SESSION_SAVE_EVERY_REQUEST = False  # ne sauvegarder que si modifiée
 SESSION_EXPIRE_AT_BROWSER_CLOSE = False  # session survit à la fermeture du navigateur
 SESSION_COOKIE_HTTPONLY = True  # non accessible via JavaScript
+SESSION_COOKIE_SAMESITE = "Lax"
 
 
 def _activity_tracking_enabled_from_env() -> bool:
@@ -585,7 +612,11 @@ def _activity_tracking_enabled_from_env() -> bool:
 
 PADESCE_ENABLE_ACTIVITY_TRACKING = _activity_tracking_enabled_from_env()
 
-if DATABASES.get("default", {}).get("ENGINE") == "django.db.backends.sqlite3":
+if PADESCE_OPERATOR_AUTH_ENABLED:
+    AUTHENTICATION_BACKENDS = [
+        "App_PADESCE.core.operator_auth_backends.OperatorAuthenticationBackend",
+    ]
+elif DATABASES.get("default", {}).get("ENGINE") == "django.db.backends.sqlite3":
     AUTHENTICATION_BACKENDS = [
         "App_PADESCE.core.auth_backends.SQLiteSafeModelBackend",
     ]

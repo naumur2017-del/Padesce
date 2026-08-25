@@ -3,6 +3,8 @@
 from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand, CommandError
 
+from App_PADESCE.core.operator_auth import normalize_login_identifier
+
 
 class Command(BaseCommand):
     help = "Diagnostique un identifiant sans afficher de mot de passe ni hash."
@@ -12,17 +14,23 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         raw = str(options["identifier"])
-        normalized = raw.strip()
+        normalized = normalize_login_identifier(raw)
         if not normalized:
             raise CommandError("Identifiant vide après normalisation.")
         User = get_user_model()
         field = User.USERNAME_FIELD
-        matches = list(
-            User._default_manager.filter(**{f"{field}__iexact": normalized}).prefetch_related(
-                "groups"
-            )
+        # This is a diagnostic command, not a login query. Comparing normalized
+        # Python values makes its result independent from SQLite/PostgreSQL
+        # differences in Unicode case-insensitive lookups.
+        matches = [
+            user
+            for user in User._default_manager.all().prefetch_related("groups")
+            if normalize_login_identifier(getattr(user, field, "")) == normalized
+        ]
+        self.stdout.write(
+            "normalisation: unicode_nfkc; suppression_caracteres_invisibles; "
+            f"casse_unicode; identifiant_non_vide={bool(normalized)}"
         )
-        self.stdout.write(f"normalisation: trim; identifiant_non_vide={bool(normalized)}")
         self.stdout.write(f"comptes_correspondants: {len(matches)}")
         if not matches:
             self.stdout.write("raison_probable: identifiant_inexistant_ou_difference_unicode")
@@ -36,7 +44,7 @@ class Command(BaseCommand):
         if len(matches) > 1:
             self.stdout.write("raison_probable: doublon_d_identifiant_insensible_a_la_casse")
         elif raw != normalized:
-            self.stdout.write("raison_probable: espaces_avant_ou_apres_l_identifiant")
+            self.stdout.write("raison_probable: identifiant_normalise_modifie")
         elif matches[0].is_active is False:
             self.stdout.write("raison_probable: compte_inactif")
         else:

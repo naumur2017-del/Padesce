@@ -11,6 +11,8 @@ from django.http import HttpResponseRedirect
 from django.middleware.csrf import rotate_token
 from django.utils.crypto import constant_time_compare
 
+from App_PADESCE.core.operator_login_forms import OperatorLoginForm
+
 
 def _sqlite_safe_auth_login(request, user, backend=None):
     session_auth_hash = ""
@@ -54,6 +56,11 @@ def _sqlite_safe_auth_login(request, user, backend=None):
 
 
 class SQLiteSafeLoginView(LoginView):
+    def get_form_class(self):
+        if getattr(settings, "PADESCE_OPERATOR_AUTH_ENABLED", False):
+            return OperatorLoginForm
+        return super().get_form_class()
+
     def form_valid(self, form):
         user = form.get_user()
         default_db = settings.DATABASES.get("default", {})
