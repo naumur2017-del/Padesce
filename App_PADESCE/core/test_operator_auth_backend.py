@@ -27,6 +27,24 @@ class OperatorAuthenticationBackendTests(TestCase):
 
         self.assertEqual(authenticated, user)
 
+    def test_success_log_has_a_technical_code_and_no_raw_identifier(self):
+        user = get_user_model().objects.create_user(
+            username="Opératrice", password="safe-test-password"
+        )
+        user.groups.add(self.operator_group)
+
+        with self.assertLogs("App_PADESCE.auth", level="INFO") as logs:
+            authenticated = self.backend.authenticate(
+                request=None, username="Opératrice", password="safe-test-password"
+            )
+
+        self.assertEqual(authenticated, user)
+        message = "\n".join(logs.output)
+        self.assertIn("code=AUTH_SUCCESS", message)
+        self.assertIn("correlation_id=", message)
+        self.assertIn("duration_ms=", message)
+        self.assertNotIn("Opératrice", message)
+
     def test_rejects_a_normalized_identifier_collision(self):
         first = get_user_model().objects.create_user(
             username="Operatrice", password="safe-test-password"
