@@ -62,3 +62,31 @@ class RepairOperatorAccountsCommandTests(TestCase):
 
         self.demoted.refresh_from_db()
         self.assertTrue(self.demoted.is_superuser)
+
+    def test_can_assign_all_currently_unassigned_accounts_to_operator_group(self):
+        operator = get_user_model().objects.create_user(
+            username="operator-without-group", password="safe-test-password"
+        )
+        output = StringIO()
+
+        call_command(
+            "repair_operator_accounts",
+            create_operator_group=True,
+            assign_all_users_without_groups=True,
+            format="json",
+            stdout=output,
+        )
+
+        report = json.loads(output.getvalue())
+        self.assertIn(operator.pk, report["operator_user_pks_to_add"])
+        self.assertFalse(operator.groups.exists())
+
+        call_command(
+            "repair_operator_accounts",
+            create_operator_group=True,
+            assign_all_users_without_groups=True,
+            dry_run=False,
+        )
+
+        operator.refresh_from_db()
+        self.assertTrue(operator.groups.filter(name="operatrice").exists())
