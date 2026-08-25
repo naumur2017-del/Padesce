@@ -11,6 +11,7 @@ from typing import Any
 
 from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand, CommandError
+from django.db import OperationalError, ProgrammingError
 
 from App_PADESCE.core.operator_auth import normalize_login_identifier
 
@@ -46,7 +47,13 @@ class Command(BaseCommand):
         if supplied_identifier is not None and not normalized_filter:
             raise CommandError("L'identifiant est vide après normalisation.")
 
-        users = list(user_model._default_manager.all().prefetch_related("groups"))
+        try:
+            users = list(user_model._default_manager.all().prefetch_related("groups"))
+        except (OperationalError, ProgrammingError) as exc:
+            raise CommandError(
+                "Audit impossible : les tables utilisateurs sont indisponibles. "
+                "Verifiez la connexion a la base et appliquez les migrations sur la copie cible."
+            ) from exc
         if normalized_filter:
             users = [
                 user

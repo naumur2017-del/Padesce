@@ -1,8 +1,11 @@
 import json
 from io import StringIO
+from unittest.mock import Mock, patch
 
 from django.contrib.auth import get_user_model
 from django.core.management import call_command
+from django.core.management.base import CommandError
+from django.db import OperationalError
 from django.test import TestCase
 
 from App_PADESCE.core.operator_auth import normalize_login_identifier
@@ -53,3 +56,13 @@ class AuditOperatorAccountsCommandTests(TestCase):
         self.assertEqual(report["filtered_user_count"], 1)
         user.refresh_from_db()
         self.assertEqual(user.password, initial_password)
+
+    @patch("App_PADESCE.core.management.commands.audit_operator_accounts.get_user_model")
+    def test_reports_a_clear_error_when_user_tables_are_unavailable(self, get_user_model_mock):
+        user_model = Mock()
+        user_model.USERNAME_FIELD = "username"
+        user_model._default_manager.all.side_effect = OperationalError("no such table: auth_user")
+        get_user_model_mock.return_value = user_model
+
+        with self.assertRaisesMessage(CommandError, "tables utilisateurs sont indisponibles"):
+            call_command("audit_operator_accounts", format="json")
