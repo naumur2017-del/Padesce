@@ -163,6 +163,16 @@ PADESCE_OPERATOR_LOGIN_REQUIRED_GROUPS = tuple(
     for group in os.getenv("PADESCE_OPERATOR_LOGIN_REQUIRED_GROUPS", "").split(",")
     if group.strip()
 )
+PADESCE_AUTH_THROTTLE_ENABLED = os.getenv("PADESCE_AUTH_THROTTLE_ENABLED", "False").lower() in (
+    "1",
+    "true",
+    "yes",
+)
+PADESCE_AUTH_THROTTLE_MAX_FAILURES = _int_env("PADESCE_AUTH_THROTTLE_MAX_FAILURES", 5, minimum=1)
+PADESCE_AUTH_THROTTLE_WINDOW_SECONDS = _int_env(
+    "PADESCE_AUTH_THROTTLE_WINDOW_SECONDS", 900, minimum=1
+)
+PADESCE_AUTH_LOG_HASH_KEY = str(os.getenv("PADESCE_AUTH_LOG_HASH_KEY", "") or "")
 
 ALLOWED_HOSTS_ENV = os.getenv("DJANGO_ALLOWED_HOSTS", "")
 ALLOWED_HOSTS = [host.strip() for host in ALLOWED_HOSTS_ENV.split(",") if host.strip()]

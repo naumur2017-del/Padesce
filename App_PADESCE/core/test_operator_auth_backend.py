@@ -92,3 +92,24 @@ class OperatorLoginFormTests(TestCase):
         view = SQLiteSafeLoginView()
 
         self.assertIs(view.get_form_class(), OperatorLoginForm)
+
+    @override_settings(
+        PADESCE_AUTH_THROTTLE_ENABLED=True,
+        PADESCE_AUTH_THROTTLE_ALLOW_LOCAL_CACHE_FOR_TESTS=True,
+        PADESCE_AUTH_THROTTLE_MAX_FAILURES=1,
+    )
+    def test_form_temporarily_blocks_only_after_a_failed_attempt(self):
+        request = RequestFactory().post("/login/", REMOTE_ADDR="203.0.113.8")
+        invalid_form = OperatorLoginForm(
+            request=request,
+            data={"username": "Opératrice", "password": "wrong-password"},
+        )
+        self.assertFalse(invalid_form.is_valid())
+
+        blocked_form = OperatorLoginForm(
+            request=request,
+            data={"username": "Opératrice", "password": "safe-test-password"},
+        )
+
+        self.assertFalse(blocked_form.is_valid())
+        self.assertIn("Identifiant ou mot de passe incorrect.", blocked_form.non_field_errors())
