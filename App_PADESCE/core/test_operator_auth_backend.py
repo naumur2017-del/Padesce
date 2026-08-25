@@ -1,0 +1,94 @@
+from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Group
+from django.test import RequestFactory, TestCase, override_settings
+
+from App_PADESCE.core.operator_auth_backends import OperatorAuthenticationBackend
+from App_PADESCE.core.auth_views import SQLiteSafeLoginView
+from App_PADESCE.core.operator_login_forms import OperatorLoginForm
+
+
+@override_settings(PADESCE_OPERATOR_LOGIN_REQUIRED_GROUPS=("operatrice",))
+class OperatorAuthenticationBackendTests(TestCase):
+    def setUp(self):
+        self.backend = OperatorAuthenticationBackend()
+        self.operator_group = Group.objects.create(name="operatrice")
+
+    def test_authenticates_a_normalized_identifier_for_an_authorized_operator(self):
+        user = get_user_model().objects.create_user(
+            username="Opératrice", password="safe-test-password"
+        )
+        user.groups.add(self.operator_group)
+
+        authenticated = self.backend.authenticate(
+            request=None,
+            username="\u00a0OPÉRATRICE\u200b",
+            password="safe-test-password",
+        )
+
+        self.assertEqual(authenticated, user)
+
+    def test_rejects_a_normalized_identifier_collision(self):
+        first = get_user_model().objects.create_user(
+            username="Operatrice", password="safe-test-password"
+        )
+        second = get_user_model().objects.create_user(
+            username=" operatrice ", password="another-test-password"
+        )
+        first.groups.add(self.operator_group)
+        second.groups.add(self.operator_group)
+
+        authenticated = self.backend.authenticate(
+            request=None, username="operatrice", password="safe-test-password"
+        )
+
+        self.assertIsNone(authenticated)
+
+    def test_rejects_an_account_without_an_authorized_group(self):
+        get_user_model().objects.create_user(username="operatrice", password="safe-test-password")
+
+        authenticated = self.backend.authenticate(
+            request=None, username="operatrice", password="safe-test-password"
+        )
+
+        self.assertIsNone(authenticated)
+
+    @override_settings(PADESCE_OPERATOR_LOGIN_REQUIRED_GROUPS=())
+    def test_fails_closed_when_no_authorized_group_is_configured(self):
+        user = get_user_model().objects.create_user(
+            username="operatrice", password="safe-test-password"
+        )
+        user.groups.add(self.operator_group)
+
+        authenticated = self.backend.authenticate(
+            request=None, username="operatrice", password="safe-test-password"
+        )
+
+        self.assertIsNone(authenticated)
+
+
+@override_settings(
+    AUTHENTICATION_BACKENDS=("App_PADESCE.core.operator_auth_backends.OperatorAuthenticationBackend",),
+    PADESCE_OPERATOR_AUTH_ENABLED=True,
+    PADESCE_OPERATOR_LOGIN_REQUIRED_GROUPS=("operatrice",),
+)
+class OperatorLoginFormTests(TestCase):
+    def setUp(self):
+        operator_group = Group.objects.create(name="operatrice")
+        self.user = get_user_model().objects.create_user(
+            username="Opératrice", password="safe-test-password"
+        )
+        self.user.groups.add(operator_group)
+
+    def test_form_authenticates_with_the_shared_normalization(self):
+        form = OperatorLoginForm(
+            request=RequestFactory().post("/login/"),
+            data={"username": "\u00a0OPÉRATRICE\u200b", "password": "safe-test-password"},
+        )
+
+        self.assertTrue(form.is_valid())
+        self.assertEqual(form.get_user(), self.user)
+
+    def test_login_view_uses_the_operator_form_only_when_feature_is_enabled(self):
+        view = SQLiteSafeLoginView()
+
+        self.assertIs(view.get_form_class(), OperatorLoginForm)

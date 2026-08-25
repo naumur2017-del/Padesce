@@ -153,6 +153,16 @@ PUBLIC_ANALYSIS_AUTO_LOGIN_PREFIXES = (
     "/analyse/appels/formateur/",
     "/apprenants/",
 )
+PADESCE_OPERATOR_AUTH_ENABLED = os.getenv("PADESCE_OPERATOR_AUTH_ENABLED", "False").lower() in (
+    "1",
+    "true",
+    "yes",
+)
+PADESCE_OPERATOR_LOGIN_REQUIRED_GROUPS = tuple(
+    group.strip()
+    for group in os.getenv("PADESCE_OPERATOR_LOGIN_REQUIRED_GROUPS", "").split(",")
+    if group.strip()
+)
 
 ALLOWED_HOSTS_ENV = os.getenv("DJANGO_ALLOWED_HOSTS", "")
 ALLOWED_HOSTS = [host.strip() for host in ALLOWED_HOSTS_ENV.split(",") if host.strip()]
@@ -588,7 +598,11 @@ def _activity_tracking_enabled_from_env() -> bool:
 
 PADESCE_ENABLE_ACTIVITY_TRACKING = _activity_tracking_enabled_from_env()
 
-if DATABASES.get("default", {}).get("ENGINE") == "django.db.backends.sqlite3":
+if PADESCE_OPERATOR_AUTH_ENABLED:
+    AUTHENTICATION_BACKENDS = [
+        "App_PADESCE.core.operator_auth_backends.OperatorAuthenticationBackend",
+    ]
+elif DATABASES.get("default", {}).get("ENGINE") == "django.db.backends.sqlite3":
     AUTHENTICATION_BACKENDS = [
         "App_PADESCE.core.auth_backends.SQLiteSafeModelBackend",
     ]
