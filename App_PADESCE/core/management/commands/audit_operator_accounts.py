@@ -72,6 +72,7 @@ class Command(BaseCommand):
             "manager_padesce",
             "manager_cga",
             "consultant",
+            "operatrice",
         }
 
         for user in users:
