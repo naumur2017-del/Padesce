@@ -1,0 +1,102 @@
+{
+  "Moyenne naive": {
+    "metrics": {
+      "MAE": 5.093558183457399,
+      "RMSE": 6.459709811033316,
+      "R2": -0.08260978452911716,
+      "Spearman": -0.4183590544428861
+    },
+    "ci_mae_95": [
+      4.372369041508335,
+      5.727900438054712
+    ],
+    "best_params": {}
+  },
+  "Ridge": {
+    "metrics": {
+      "MAE": 5.260366660647467,
+      "RMSE": 6.686159258007969,
+      "R2": -0.15984342344889768,
+      "Spearman": -0.40027768137254616
+    },
+    "ci_mae_95": [
+      4.55830783474715,
+      5.904386882342913
+    ],
+    "best_params": {
+      "model__alpha": 100.0
+    }
+  },
+  "Foret aleatoire": {
+    "metrics": {
+      "MAE": 5.750608922679919,
+      "RMSE": 7.192994582534788,
+      "R2": -0.34234885589456243,
+      "Spearman": -0.537564407145722
+    },
+    "ci_mae_95": [
+      4.9508511317092205,
+      6.484836236912979
+    ],
+    "best_params": {
+      "model__max_depth": 3,
+      "model__max_features": 0.5,
+      "model__min_samples_leaf": 8
+    }
+  },
+  "Gradient Boosting": {
+    "metrics": {
+      "MAE": 6.555383954413578,
+      "RMSE": 8.156902146569353,
+      "R2": -0.7262211576970401,
+      "Spearman": -0.3594989053097944
+    },
+    "ci_mae_95": [
+      5.68547432243698,
+      7.387552443669504
+    ],
+    "best_params": {
+      "model__learning_rate": 0.05,
+      "model__max_depth": 2,
+      "model__min_samples_leaf": 4,
+      "model__n_estimators": 100
+    }
+  },
+  "SVR": {
+    "metrics": {
+      "MAE": 5.613429791491009,
+      "RMSE": 7.27935067682901,
+      "R2": -0.374773695552314,
+      "Spearman": -0.46639669869103123
+    },
+    "ci_mae_95": [
+      4.675003226132351,
+      6.446392521694092
+    ],
+    "best_params": {
+      "model__C": 0.1,
+      "model__epsilon": 1.0,
+      "model__kernel": "rbf"
+    }
+  },
+  "XGBoost": {
+    "metrics": {
+      "MAE": 6.147046676816966,
+      "RMSE": 7.734951889004349,
+      "R2": -0.5522481970251967,
+      "Spearman": -0.37437618112109106
+    },
+    "ci_mae_95": [
+      5.213521693070598,
+      6.981557525409
+    ],
+    "best_params": {
+      "model__colsample_bytree": 0.7,
+      "model__learning_rate": 0.05,
+      "model__max_depth": 2,
+      "model__min_child_weight": 3,
+      "model__n_estimators": 100,
+      "model__subsample": 0.8
+    }
+  }
+}
