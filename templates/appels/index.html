@@ -462,14 +462,14 @@
 
   <div class="ops-summary">
     <div class="ops-tile">
-      <div class="ops-kicker">Classes masquées</div>
+      <div class="ops-kicker">Classes objectif atteint</div>
       <strong>{{ hidden_class_summary.hidden_class_count }}</strong>
-      <div class="subtitle" style="margin:6px 0 0;">Objectif d'appels déjà atteint (≥50 %), retirées de la table et du filtre.</div>
+      <div class="subtitle" style="margin:6px 0 0;">Objectif d'appels déjà atteint (≥{{ analysis_threshold_label }}) — restent affichées dans la table et le filtre.</div>
     </div>
     <div class="ops-tile">
-      <div class="ops-kicker">Lignes allégées</div>
+      <div class="ops-kicker">Lignes concernées</div>
       <strong>{{ hidden_class_summary.hidden_appel_count }}</strong>
-      <div class="subtitle" style="margin:6px 0 0;">Lignes masquées pour garder visibles les classes encore à appeler.</div>
+      <div class="subtitle" style="margin:6px 0 0;">Lignes des classes ayant atteint l'objectif, toujours visibles.</div>
     </div>
     <div class="ops-tile" style="border-color: rgba(15,139,141,0.3); background: linear-gradient(180deg, rgba(15,139,141,0.1), rgba(255,255,255,0.97));">
       <div class="ops-kicker" style="color: #0f5f61;">Classes analysées ✅</div>

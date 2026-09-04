@@ -884,7 +884,7 @@ def _compute_appel_class_progress_snapshot(
         progress_by_key[classe_key] = progress
         if callable_total <= 0:
             classes_without_callable_phone += 1
-        if float(progress["pct"]) >= 25:
+        if float(progress["pct"]) >= ANALYSIS_THRESHOLD_PERCENT:
             hidden_class_keys.add(classe_key)
             hidden_class_labels.update(raw_labels_by_key.get(classe_key) or {display_label})
             hidden_appel_count += sum(
@@ -980,8 +980,8 @@ def _compute_appel_class_progress_snapshot(
     for item in recommended_classes:
         item.pop("score", None)
 
-    # classe_progress only contains classes NOT yet at 50% (shown in the UI filter)
-    # classe_progress_all contains ALL classes including those already hidden (50% reached)
+    # classe_progress and classe_progress_all both contain every class; nothing is excluded
+    # once a class reaches the objective, they only stop being flagged as "recommended".
     classe_progress_all = list(progress_by_key.values())
 
     # Count prestations where all classes reached the analysis threshold
@@ -1014,7 +1014,7 @@ def _compute_appel_class_progress_snapshot(
     }
 
 
-def _build_filtered_appels_queryset(request, *, hidden_class_labels: list[str] | None = None):
+def _build_filtered_appels_queryset(request):
     phase_scope = normalize_phase_scope(
         request.GET.get("phase_scope"),
         default=PHASE_SCOPE_V1_COMBINED,
@@ -1042,13 +1042,6 @@ def _build_filtered_appels_queryset(request, *, hidden_class_labels: list[str] |
     date_from_str = request.GET.get("date_from", "").strip()
     date_to_str = request.GET.get("date_to", "").strip()
     search = request.GET.get("q", "").strip()
-
-    hidden_class_labels = [
-        label for label in (hidden_class_labels or []) if str(label or "").strip()
-    ]
-    hide_completed_classes = request.GET.get("hide_completed_classes") == "1"
-    if hidden_class_labels and hide_completed_classes and inscription_filter != "pas_inscrit":
-        appels_qs = appels_qs.exclude(classe_label__in=hidden_class_labels)
 
     if inscription_filter == "pas_inscrit":
         appels_qs = appels_qs.filter(code__startswith="P-APP")
@@ -1521,10 +1514,7 @@ def appels_index(request):
         _safe_build_padesce_source_index(),
         phase_scope=phase_scope,
     )
-    appels_qs, filters = _build_filtered_appels_queryset(
-        request,
-        hidden_class_labels=optimization_snapshot["hidden_class_labels"],
-    )
+    appels_qs, filters = _build_filtered_appels_queryset(request)
 
     appels_count = appels_qs.count()
     stats = _build_progress_metrics(appels_qs)
@@ -1607,18 +1597,7 @@ def appels_index(request):
 
 @login_required
 def appels_export_filtered_csv(request):
-    phase_scope = normalize_phase_scope(
-        request.GET.get("phase_scope"),
-        default=PHASE_SCOPE_V1_COMBINED,
-    )
-    optimization_snapshot = _build_appel_class_progress_snapshot(
-        _safe_build_padesce_source_index(),
-        phase_scope=phase_scope,
-    )
-    appels_qs, _ = _build_filtered_appels_queryset(
-        request,
-        hidden_class_labels=optimization_snapshot["hidden_class_labels"],
-    )
+    appels_qs, _ = _build_filtered_appels_queryset(request)
     appels = appels_qs.select_related("locked_by").order_by("status", "nom")
 
     response = HttpResponse(content_type="text/csv; charset=utf-8")

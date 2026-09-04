@@ -835,7 +835,7 @@ class AppelsIndexFilterTests(TestCase):
         self.assertNotContains(response, "missing-audio.webm")
 
     @patch("App_PADESCE.appels.views.build_padesce_source_index")
-    def test_appels_index_hides_reached_classes_and_ignores_learners_without_phone(
+    def test_appels_index_keeps_reached_classes_visible_and_ignores_learners_without_phone(
         self, mock_build_source_index
     ):
         mock_build_source_index.return_value = {
@@ -897,10 +897,10 @@ class AppelsIndexFilterTests(TestCase):
         self.assertEqual(response.status_code, 200)
         mock_build_source_index.assert_any_call(source_key="cutoff")
         visible_classes = {row.classe_label for row in response.context["appels"]}
-        self.assertEqual(visible_classes, {"CLA002"})
+        self.assertEqual(visible_classes, {"CLA001", "CLA002"})
         self.assertEqual(
-            [item["value"] for item in response.context["filters"]["classes_enriched"]],
-            ["CLA002"],
+            sorted(item["value"] for item in response.context["filters"]["classes_enriched"]),
+            ["CLA001", "CLA002"],
         )
         classe_progress = {item["classe"]: item for item in response.context["classe_progress"]}
         self.assertEqual(classe_progress["CLA001"]["total"], 2)
@@ -1073,7 +1073,7 @@ class AppelsIndexFilterTests(TestCase):
         response = self.client.get(reverse("appels_index"))
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(list(response.context["appels"]), [])
+        self.assertEqual([a.code for a in response.context["appels"]], ["APP210A"])
         self.assertEqual(response.context["hidden_class_summary"]["hidden_class_count"], 1)
         classe_progress = {item["classe"]: item for item in response.context["classe_progress"]}
         self.assertEqual(classe_progress["CLA210"]["termines"], 1)
