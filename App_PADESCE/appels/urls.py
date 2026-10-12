@@ -74,6 +74,11 @@ urlpatterns = [
         name="upload_presence_list",
     ),
     path(
+        "upload-contacts-list/",
+        lazy_view("App_PADESCE.appels.presence_upload_views.upload_contacts_list"),
+        name="upload_contacts_list",
+    ),
+    path(
         "tools/reactivate-all/",
         lazy_view("App_PADESCE.appels.views.reactivate_all_appels"),
         name="reactivate_all_appels",

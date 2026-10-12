@@ -411,3 +411,94 @@ def upload_presence_list(request):
     if errors:
         messages.warning(request, "Détails des erreurs : " + " | ".join(errors[:10]))
     return redirect("appels_index")
+
+
+def parse_contacts_file(file_obj):
+    """Lit une liste simple de contacts à appeler (une ligne = un apprenant)."""
+    wb = openpyxl.load_workbook(file_obj, read_only=True, data_only=True)
+    if not wb.sheetnames:
+        raise ValueError("Le fichier ne contient aucune feuille.")
+    rows = wb[wb.sheetnames[0]].iter_rows(values_only=True)
+    headers = next(rows, None) or []
+    lookup = {_normalize_header(v): i for i, v in enumerate(headers)}
+
+    def get(row, *keys):
+        for key in keys:
+            idx = lookup.get(_normalize_header(key))
+            if idx is not None and idx < len(row):
+                return row[idx]
+        return None
+
+    if not any(k in lookup for k in ("apprenant", "nom complet", "nom")):
+        raise ValueError("Colonne obligatoire absente : Apprenant")
+    if not any(k in lookup for k in ("telephone", "numero de telephone")):
+        raise ValueError("Colonne obligatoire absente : Telephone")
+
+    result = []
+    for row in rows:
+        nom = " ".join(str(get(row, "apprenant", "nom complet", "nom") or "").split())
+        if not nom:
+            continue
+        result.append(
+            {
+                "nom": nom,
+                "telephone": _phone(get(row, "telephone", "numero de telephone")),
+                "prestataire": str(get(row, "prestataire") or "").strip(),
+                "beneficiaire": str(get(row, "beneficiaire", "beneficiaires") or "").strip(),
+                "prestation_id": str(get(row, "prestation id") or "").strip(),
+            }
+        )
+    return result
+
+
+@login_required
+@require_POST
+@transaction.atomic
+def upload_contacts_list(request):
+    if not request.user.is_superuser:
+        messages.error(request, "Seul un superadmin peut importer une liste de contacts.")
+        return redirect("appels_index")
+
+    uploaded = request.FILES.get("contacts_file")
+    if not uploaded:
+        messages.error(request, "Aucun fichier sélectionné.")
+        return redirect("appels_index")
+
+    try:
+        payload = parse_contacts_file(io.BytesIO(uploaded.read()))
+    except Exception as exc:
+        messages.error(request, f"Impossible de lire le fichier : {exc}")
+        return redirect("appels_index")
+
+    # Import additif : on ne touche jamais aux appels existants. Un contact est
+    # ignoré s'il existe déjà (même nom normalisé + même téléphone).
+    existing = {
+        (_normalize_header(nom), _phone(tel))
+        for nom, tel in Appel.objects.values_list("nom", "telephone1")
+    }
+    counter = _next_p_app_counter()
+    created = 0
+    skipped = 0
+    for item in payload:
+        key = (_normalize_header(item["nom"]), item["telephone"])
+        if key in existing:
+            skipped += 1
+            continue
+        Appel.objects.create(
+            code=f"P-APP{counter:04d}",
+            nom=item["nom"],
+            prestataire=item["prestataire"],
+            beneficiaire=item["beneficiaire"],
+            telephone1=item["telephone"],
+            is_active=True,
+            status="en_attente",
+        )
+        existing.add(key)
+        counter += 1
+        created += 1
+
+    parts = [f"{created} contact(s) ajouté(s)"]
+    if skipped:
+        parts.append(f"{skipped} déjà présent(s)")
+    messages.success(request, "Import contacts terminé : " + ", ".join(parts) + ".")
+    return redirect("appels_index")
