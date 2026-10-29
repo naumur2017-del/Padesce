@@ -20,6 +20,21 @@ def _is_authenticated(user) -> bool:
     return bool(user and getattr(user, "is_authenticated", False))
 
 
+def user_group_names(user) -> frozenset[str]:
+    """Read roles once for the current request, never in a shared user cache."""
+    if not _is_authenticated(user):
+        return frozenset()
+    cached = getattr(user, "_padesce_group_names", None)
+    if cached is not None:
+        return cached
+    groups = getattr(user, "groups", None)
+    if groups is None:
+        return frozenset()
+    names = frozenset(groups.values_list("name", flat=True))
+    user._padesce_group_names = names
+    return names
+
+
 def public_consultant_access_enabled() -> bool:
     return bool(getattr(settings, "PUBLIC_CONSULTANT_ACCESS", False))
 
@@ -29,11 +44,8 @@ def has_analysis_access(user) -> bool:
         return False
     if getattr(user, "is_superuser", False):
         return True
-    groups = getattr(user, "groups", None)
-    if groups is None:
-        return False
     try:
-        return groups.filter(name__in=ANALYSIS_GROUP_NAMES).exists()
+        return bool(user_group_names(user).intersection(ANALYSIS_GROUP_NAMES))
     except Exception:
         return False
 
@@ -47,11 +59,8 @@ def has_consultant_access(user) -> bool:
         return False
     if getattr(user, "is_superuser", False):
         return True
-    groups = getattr(user, "groups", None)
-    if groups is None:
-        return False
     try:
-        return groups.filter(name="consultant").exists()
+        return "consultant" in user_group_names(user)
     except Exception:
         return False
 

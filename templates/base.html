@@ -563,6 +563,7 @@
     });
   })();
   </script>
+  {% if activity_tracking_enabled %}
   <script>
   (function () {
     const trackUrl = "{% url 'activity_track_api' %}";
@@ -716,6 +717,7 @@
     }, true);
   })();
   </script>
+  {% endif %}
   {% include "partials/chat_widget.html" %}
   {% endif %}
 

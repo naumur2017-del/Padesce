@@ -1,0 +1,11 @@
+<form method="get" class="fa-filters" aria-label="Filtres de l’enquête">
+  <label class="fa-field fa-search">Rechercher<input type="search" name="q" placeholder="Entreprise, numéro, répondant…" value="{{ filters.q }}"></label>
+  <label class="fa-field">Statut<select name="status"><option value="">Tous les statuts</option>{% for value,label in statuses %}<option value="{{ value }}" {% if filters.status == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+  <label class="fa-field">Ville<select name="city"><option value="">Toutes les villes</option>{% for city in cities %}<option {% if filters.city == city %}selected{% endif %}>{{ city }}</option>{% endfor %}</select></label>
+  <label class="fa-field">Secteur<select name="sector"><option value="">Tous les secteurs</option>{% for sector in sectors %}<option {% if filters.sector == sector %}selected{% endif %}>{{ sector }}</option>{% endfor %}</select></label>
+  <label class="fa-field">Opérateur<select name="agent"><option value="">Tous les opérateurs</option>{% for agent in agents %}<option value="{{ agent.pk }}" {% if filters.agent == agent.pk|stringformat:"s" %}selected{% endif %}>{{ agent.get_full_name|default:agent.username }}</option>{% endfor %}</select></label>
+  <label class="fa-field">Depuis le<input type="date" name="date_from" value="{{ filters.date_from }}"></label>
+  <label class="fa-field">Jusqu’au<input type="date" name="date_to" value="{{ filters.date_to }}"></label>
+  <label class="fa-field">Enregistrement<select name="audio"><option value="">Tous</option><option value="yes" {% if filters.audio == "yes" %}selected{% endif %}>Avec audio</option><option value="no" {% if filters.audio == "no" %}selected{% endif %}>Sans audio</option></select></label>
+  <div class="fa-actions fa-filter-actions"><button class="fa-btn" type="submit">Filtrer</button><a class="fa-btn fa-secondary" href="{{ request.path }}">Réinitialiser</a></div>
+</form>

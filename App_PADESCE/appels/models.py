@@ -537,6 +537,11 @@ class AppelCGA(TimeStampedModel):
             models.Index(fields=["centre_de_rattachement"]),
             models.Index(fields=["ville"]),
             models.Index(fields=["source", "campaign_month"], name="appelcga_source_month_idx"),
+            models.Index(
+                fields=["source", "status", "raison_sociale"],
+                condition=models.Q(is_active=True),
+                name="cga_active_navigation_idx",
+            ),
         ]
         constraints = [
             models.UniqueConstraint(

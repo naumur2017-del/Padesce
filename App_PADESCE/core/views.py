@@ -17,7 +17,7 @@ from django.db import OperationalError, ProgrammingError
 from django.db.models import Count, Q
 from django.http import Http404, HttpResponse, JsonResponse, QueryDict
 from django.shortcuts import get_object_or_404, render
-from django.urls import reverse
+from django.urls import get_script_prefix, reverse
 from django.utils import timezone
 from django.views.decorators.cache import cache_page
 from django.views.decorators.clickjacking import xframe_options_sameorigin
@@ -1219,6 +1219,22 @@ def _build_cga_regime_pie(rows: list[dict[str, object]]) -> str:
 
 @require_analysis_access
 def cga_analysis_dashboard(request):
+    # Store only aggregate data; the page, identity and CSRF token are rendered
+    # for every request. Call lists always retain their live status/lock reads.
+    cache_key = (
+        "cga-analysis:context:v1:"
+        + get_analysis_cache_version("model:appels.appelcga")
+        + ":"
+        + get_script_prefix()
+    )
+    context = cache.get(cache_key)
+    if context is None:
+        context = _build_cga_analysis_context()
+        cache.set(cache_key, context, timeout=15)
+    return render(request, "core/cga_analysis.html", context)
+
+
+def _build_cga_analysis_context():
     since_24h = timezone.now() - timedelta(hours=24)
     base_qs = AppelCGA.objects.filter(is_active=True)
     called_qs = base_qs.exclude(status="en_attente")
@@ -1434,7 +1450,7 @@ def cga_analysis_dashboard(request):
         "cga_user_rows": cga_user_rows,
         "cga_index_url": reverse("cga_index"),
     }
-    return render(request, "core/cga_analysis.html", context)
+    return context
 
 
 def _consultant_dashboard_target(request):

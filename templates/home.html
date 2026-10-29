@@ -248,6 +248,16 @@
     </div>
     <a class="btn" href="{% url 'cga_index' %}">Ouvrir CGA</a>
   </article>
+  <article class="card" style="border-top: 4px solid var(--accent);">
+    <h2>FA</h2>
+    <p class="big">Fond d’amortissement</p>
+    <p class="muted">Étude NAUMUR / APME sur le financement des startups et PME.</p>
+    <div class="metric-list">
+      <a class="metric-row" href="{% url 'fa_index' %}"><span>Entreprises et appels</span><strong>Ouvrir</strong></a>
+      <a class="metric-row" href="{% url 'fa_analytics' %}"><span>Analyses de l’enquête</span><strong>Consulter</strong></a>
+    </div>
+    <a class="btn" href="{% url 'fa_index' %}">Ouvrir FA</a>
+  </article>
   {% endif %}
 </section>
 

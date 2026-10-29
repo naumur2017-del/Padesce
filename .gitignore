@@ -29,3 +29,6 @@ backup_20260402_161523.sqlite3
 *.pem
 certificates/
 ssl/
+
+# Private FA company register.
+data/fa/enterprises.json

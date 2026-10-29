@@ -466,7 +466,7 @@
                 <div class="progress"><div class="progress-fill"></div></div>
                 <span class="time-label">0:00</span>
               </div>
-              <audio class="js-audio" style="display:none;" {% if a.has_audio_file %}src="{{ a.audio_file_url }}"{% endif %}></audio>
+              <audio class="js-audio" preload="none" style="display:none;" {% if a.has_audio_file %}src="{{ a.audio_file_url }}"{% endif %}></audio>
               {% if a.audio_history.all %}
                 <details style="width:100%; margin-top:6px; font-size:.82rem;">
                   <summary>Audios ({{ a.audio_history.all|length }})</summary>

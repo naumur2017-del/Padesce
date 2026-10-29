@@ -1,4 +1,5 @@
 import csv
+import hashlib
 import datetime
 import io
 import subprocess
@@ -11,6 +12,7 @@ import openpyxl
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.core.cache import cache
 from django.core.files.base import ContentFile
 from django.core.paginator import Paginator
 from django.db import IntegrityError, transaction
@@ -41,7 +43,7 @@ from App_PADESCE.appels.views import (
 )
 
 IMPORT_BATCH_SIZE = 2000
-PAGE_SIZE_DEFAULT = 100
+PAGE_SIZE_DEFAULT = 50
 PAGE_SIZE_MAX = 500
 CGA_PUBLIC_API_PAGE_SIZE_DEFAULT = 100
 CGA_PUBLIC_API_PAGE_SIZE_MAX = 500
@@ -289,7 +291,18 @@ def _make_cga_audio_playable(file_obj):
                 for chunk in file_obj.chunks():
                     target.write(chunk)
             subprocess.run(
-                ["ffmpeg", "-y", "-v", "error", "-i", str(source_path), "-vn", "-q:a", "4", str(target_path)],
+                [
+                    "ffmpeg",
+                    "-y",
+                    "-v",
+                    "error",
+                    "-i",
+                    str(source_path),
+                    "-vn",
+                    "-q:a",
+                    "4",
+                    str(target_path),
+                ],
                 check=True,
                 timeout=120,
             )
@@ -443,33 +456,38 @@ def _build_filtered_cga_queryset(request):
         "q": search,
         "date_from": date_from_str,
         "date_to": date_to_str,
-        "regimes": sorted(
-            {v.strip() for v in qs.exclude(regime="").values_list("regime", flat=True) if v}
-        ),
-        "cris": sorted({v.strip() for v in qs.exclude(cri="").values_list("cri", flat=True) if v}),
-        "centres": sorted(
-            {
-                v.strip()
-                for v in qs.exclude(centre_de_rattachement="").values_list(
-                    "centre_de_rattachement", flat=True
-                )
-                if v
-            }
-        ),
-        "villes": sorted(
-            {v.strip() for v in qs.exclude(ville="").values_list("ville", flat=True) if v}
-        ),
-        "agents": sorted(
-            {
-                u.strip()
-                for u in qs.exclude(locked_by__isnull=True).values_list(
-                    "locked_by__username", flat=True
-                )
-                if u
-            }
-        ),
+        **_cga_filter_choices(qs),
     }
     return qs, filters
+
+
+def _cga_filter_choices(qs):
+    # Only dropdown labels are briefly cached. Rows, statuses, locks and counts
+    # are always read afresh; the complete SQL+parameters isolate every filter.
+    sql, params = qs.query.sql_with_params()
+    digest = hashlib.sha256(repr((sql, params)).encode("utf-8")).hexdigest()
+    key = f"cga:filter-choices:v1:{digest}"
+    choices = cache.get(key)
+    if choices is None:
+        fields = {
+            "regimes": "regime",
+            "cris": "cri",
+            "centres": "centre_de_rattachement",
+            "villes": "ville",
+            "agents": "locked_by__username",
+        }
+        choices = {}
+        for label, field in fields.items():
+            values = qs.exclude(**{f"{field}__isnull": True}).exclude(**{field: ""})
+            choices[label] = sorted(
+                {
+                    value.strip()
+                    for value in values.order_by().values_list(field, flat=True).distinct()
+                    if value
+                }
+            )
+        cache.set(key, choices, timeout=30)
+    return choices
 
 
 def _flush_cga_batch(batch, *, ignore_conflicts=False):
@@ -488,9 +506,7 @@ def _apply_cga_import_values(row, item):
         setattr(row, field, item[field])
 
 
-def _sync_cga_append_batch(
-    batch_items, *, source=AppelCGA.SOURCE_ENTREPRISE, campaign_month=None
-):
+def _sync_cga_append_batch(batch_items, *, source=AppelCGA.SOURCE_ENTREPRISE, campaign_month=None):
     if not batch_items:
         return 0, 0
 
@@ -512,9 +528,7 @@ def _sync_cga_append_batch(
         row = existing_by_niu.get(niu)
         if row is None:
             rows_to_create.append(
-                AppelCGA(
-                    **item, source=source, campaign_month=campaign_month, is_active=True
-                )
+                AppelCGA(**item, source=source, campaign_month=campaign_month, is_active=True)
             )
             continue
         _apply_cga_import_values(row, item)
@@ -551,8 +565,16 @@ def _create_monthly_cga_campaign(month):
         return 0
 
     fields = (
-        "numero", "raison_sociale", "sigle", "niu", "activite_principale", "regime",
-        "cri", "centre_de_rattachement", "ville", "telephone",
+        "numero",
+        "raison_sociale",
+        "sigle",
+        "niu",
+        "activite_principale",
+        "regime",
+        "cri",
+        "centre_de_rattachement",
+        "ville",
+        "telephone",
     )
     batch = []
     created = 0
@@ -837,8 +859,8 @@ def cga_index(request):
     qs, filters = _build_filtered_cga_queryset(request)
     active_source = filters["source"]
     active_source_label = _cga_source_label(active_source)
-    total_count = qs.count()
     stats = _build_progress_metrics(qs)
+    total_count = int(stats["total"] or 0)
 
     try:
         page_size = int(request.GET.get("page_size") or PAGE_SIZE_DEFAULT)
@@ -847,6 +869,7 @@ def cga_index(request):
     page_size = max(25, min(page_size, PAGE_SIZE_MAX))
 
     paginator = Paginator(qs.order_by("status", "raison_sociale"), page_size)
+    paginator.count = total_count
     page_obj = paginator.get_page(request.GET.get("page"))
     rows = _bind_audio_state(list(page_obj.object_list))
     page_obj.object_list = rows

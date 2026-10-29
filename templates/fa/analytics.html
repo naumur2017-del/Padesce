@@ -1,0 +1,24 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Analyses FA{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="{% static 'fa/fa.css' %}">
+<div class="fa-app">
+  <header class="fa-heading"><div><p class="fa-eyebrow">ÉTUDE NAUMUR / APME</p><h1>Analyses FA</h1><p class="fa-muted">Avancement des appels et besoins de financement des entreprises.</p></div><div class="fa-actions"><a class="fa-btn fa-secondary" href="{% url 'fa_index' %}">Retour aux appels</a><a class="fa-btn" href="{% url 'fa_export' %}?{{ query_string }}">Exporter les réponses</a></div></header>
+  <section class="fa-panel">{% include 'fa/filters.html' %}</section>
+  <section class="fa-metrics" aria-label="Indicateurs de l’enquête">
+    <article><span>Entreprises filtrées</span><strong>{{ metrics.total|default:0 }}</strong></article>
+    <article><span>Entreprises appelées</span><strong>{{ metrics.attempted|default:0 }}</strong></article>
+    <article class="fa-success"><span>Questionnaires complets</span><strong>{{ metrics.completed|default:0 }}</strong></article>
+    <article><span>Taux de complétion</span><strong>{{ completion_rate|default:0|floatformat:1 }} %</strong></article>
+    <article><span>À rappeler</span><strong>{{ metrics.callbacks|default:0 }}</strong></article>
+  </section>
+  <div class="fa-analysis-grid">
+    <section class="fa-panel"><h2>Statuts des appels</h2>{% for item in status_counts %}<div class="fa-bar-row"><span>{{ item.label }}</span><div class="fa-bar-track">{% widthratio item.count metrics.total 100 as width %}<div class="fa-bar-fill" style="width:{{ width }}%"></div></div><strong>{{ item.count }}</strong></div>{% empty %}<p class="fa-muted">Aucun appel dans cette sélection.</p>{% endfor %}</section>
+    <section class="fa-panel"><h2>Besoins de financement</h2><p class="fa-muted">Réponses des questionnaires complets. Montants en FCFA.</p>{% for item in funding_counts %}<div class="fa-bar-row"><span>{{ item.label }}</span><div class="fa-bar-track">{% widthratio item.count metrics.completed 100 as width %}<div class="fa-bar-fill" style="width:{{ width }}%"></div></div><strong>{{ item.count }}</strong></div>{% empty %}<p class="fa-muted">Aucune réponse recueillie.</p>{% endfor %}<p>Besoin total exprimé : <strong>{{ funding_total|default:0|floatformat:0 }} FCFA</strong></p><p>Besoin moyen : <strong>{{ funding_average|default:0|floatformat:0 }} FCFA</strong></p><small class="fa-muted">Calcul sur {{ funding_amount_count|default:0 }} montant{{ funding_amount_count|pluralize }} renseigné{{ funding_amount_count|pluralize }}.</small></section>
+    <section class="fa-panel"><h2>Couverture par secteur</h2><div class="fa-table-wrap"><table class="fa-table"><thead><tr><th>Secteur</th><th>Entreprises</th><th>Questionnaires complets</th></tr></thead><tbody>{% for item in sector_counts %}<tr><td>{{ item.sector|default:"Non renseigné" }}</td><td>{{ item.count }}</td><td>{{ item.completed }}</td></tr>{% empty %}<tr><td colspan="3">Aucune donnée.</td></tr>{% endfor %}</tbody></table></div></section>
+    <section class="fa-panel"><h2>Activité des opérateurs</h2><div class="fa-table-wrap"><table class="fa-table"><thead><tr><th>Opérateur</th><th>Tentatives</th><th>Terminées</th><th>Enregistrements</th></tr></thead><tbody>{% for item in agent_counts %}<tr><td>{{ item.label }}</td><td>{{ item.count }}</td><td>{{ item.completed }}</td><td>{{ item.recordings }}</td></tr>{% empty %}<tr><td colspan="4">Aucune tentative pour cette sélection.</td></tr>{% endfor %}</tbody></table></div></section>
+    {% for group in answer_breakdowns %}<section class="fa-panel"><h2>{{ group.label }}</h2>{% for item in group.rows %}<div class="fa-bar-row"><span>{{ item.label }}</span><div class="fa-bar-track">{% widthratio item.count group.respondents 100 as width %}<div class="fa-bar-fill" style="width:{{ width }}%"></div></div><strong>{{ item.count }}</strong></div>{% endfor %}<small class="fa-muted">{{ group.respondents }} répondant{{ group.respondents|pluralize }}. {% if group.multiple %}Plusieurs choix possibles.{% endif %}</small></section>{% endfor %}
+  </div>
+</div>
+{% endblock %}
