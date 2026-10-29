@@ -140,6 +140,7 @@ app_urlpatterns = [
         include("App_PADESCE.appels.prestataire_demarrage_urls"),
     ),
     path("cga/", include("App_PADESCE.appels.cga_urls")),
+    path("fa/", include("App_PADESCE.fa.urls")),
     path("reporting/", include("App_PADESCE.reporting.urls")),
     path("beneficiaire/", include("App_PADESCE.beneficiaires.urls")),
     path(

@@ -16,7 +16,6 @@ import tempfile
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 
-
 ENV_FILE_OVERRIDE_KEYS = {
     "ANTHROPIC_API_KEY",
     "BACKUP_RETENTION_DAYS",
@@ -205,6 +204,7 @@ INSTALLED_APPS = [
     "App_PADESCE.reporting",
     "App_PADESCE.beneficiaires",
     "App_PADESCE.appels",
+    "App_PADESCE.fa",
 ]
 
 HAS_CHANNELS = importlib.util.find_spec("channels") is not None

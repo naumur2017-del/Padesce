@@ -1,0 +1,33 @@
+<div data-fa-detail-root data-detail-url="{{ detail_url }}" data-start-url="{{ start_url }}" data-attempt-id="{{ current_attempt_id|default:'' }}" data-upload-url="{{ attempt_upload_url }}" data-save-url="{{ attempt_save_url }}" data-finish-url="{{ attempt_finish_url }}" data-state-url="{{ attempt_state_url }}" data-next-sequence="{{ current_attempt_next_sequence|default:1 }}" data-can-edit="{{ can_edit|yesno:'true,false' }}">
+  <header class="fa-dialog-header"><div><h2>{{ enterprise.name }}</h2><span class="fa-muted">{{ enterprise.reference }} · {{ enterprise.city|default:"Ville non renseignée" }} · {{ enterprise.sector }}</span></div><button type="button" class="fa-close" data-fa-close aria-label="Fermer le formulaire">×</button></header>
+  <div class="fa-dialog-body">
+    <div class="fa-notice" role="status" aria-live="polite" id="fa-feedback" hidden></div>
+    <div class="fa-recording-bar"><span class="fa-recording-dot" id="fa-recording-dot"></span><span class="fa-recording-label" id="fa-recording-label">{% if attempt %}Appel ouvert · reprise de l’enregistrement nécessaire{% else %}Prêt à démarrer · audio obligatoire{% endif %}</span><span class="fa-timer" id="fa-timer">00:00</span><button type="button" class="fa-btn" id="fa-start">{% if attempt %}Reprendre l’enregistrement{% else %}Démarrer l’appel{% endif %}</button><button type="button" class="fa-btn fa-secondary" id="fa-pause" hidden>Mettre en pause</button></div>
+    <div class="fa-actions" id="fa-audio-settings"><label class="fa-muted"><input type="checkbox" id="fa-share-audio"> Ajouter l’audio de l’onglet ou de la fenêtre d’appel</label></div>
+    <div class="fa-actions" id="fa-dial-controls" hidden></div>
+    <p class="fa-muted">Le microphone est enregistré automatiquement. Pour enregistrer les deux interlocuteurs avec un casque, partagez aussi l’audio de votre outil d’appel. Informez le répondant de l’enregistrement avant l’entretien.</p>
+    <p class="fa-muted">Étude NAUMUR / APME sur la mise en place d’un fonds d’amorçage · entretien de 5 à 10 minutes. Référence : {{ enterprise.reference }} · Enquêteur : {{ user.get_full_name|default:user.username }} · Canal : téléphone · Date : {% now "d/m/Y" %}. Les champs marqués * sont nécessaires pour classer le questionnaire comme complet.</p>
+    <form id="fa-questionnaire" novalidate>{% csrf_token %}
+      <div class="fa-section-tabs" role="tablist" aria-label="Sections du questionnaire">
+        {% for section in form_sections %}<button type="button" role="tab" id="fa-tab-{{ forloop.counter0 }}" aria-controls="fa-section-{{ forloop.counter0 }}" aria-selected="{% if forloop.first %}true{% else %}false{% endif %}" tabindex="{% if forloop.first %}0{% else %}-1{% endif %}" data-fa-section="{{ forloop.counter0 }}">{{ section.title }}</button>{% endfor %}
+      </div>
+      {% for section in form_sections %}
+      <fieldset class="fa-question-section" id="fa-section-{{ forloop.counter0 }}" role="tabpanel" aria-labelledby="fa-tab-{{ forloop.counter0 }}" {% if not forloop.first %}hidden{% endif %}>
+        <legend>{{ section.title }}</legend><div class="fa-question-grid">
+          {% for field in section.fields %}<div class="fa-field" data-fa-field="{{ field.name }}">{{ field.label_tag }}{{ field }}{% if field.help_text %}<span class="helptext">{{ field.help_text }}</span>{% endif %}<span class="fa-field-error" data-error-for="{{ field.name }}" aria-live="polite"></span></div>{% endfor %}
+        </div>
+      </fieldset>
+      {% endfor %}
+      <div class="fa-actions" style="justify-content:space-between;margin-top:18px"><button class="fa-btn fa-secondary" type="button" id="fa-prev-section">Section précédente</button><span class="fa-muted" id="fa-section-position"></span><button class="fa-btn fa-secondary" type="button" id="fa-next-section">Section suivante</button></div>
+      <div class="fa-outcome">
+        <label class="fa-field">Résultat de l’appel<select name="status" id="fa-outcome"><option value="">Choisir un résultat…</option>{% for value,label in outcomes %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select></label>
+        <label class="fa-field" id="fa-callback-field" hidden>Date et heure du rappel<input type="datetime-local" name="callback_at" id="fa-callback"><span class="fa-field-error" data-error-for="callback_at"></span></label>
+        <label class="fa-field">Notes de l’opérateur<textarea name="notes" rows="2">{{ attempt.notes }}</textarea></label>
+      </div>
+    </form>
+    <details class="fa-history"><summary>Historique des appels et des enregistrements ({{ attempts|length }})</summary>
+      {% for item in attempts %}<article class="fa-history-item"><strong>{{ item.started_at|date:"d/m/Y H:i" }}</strong> · {% if item.agent %}{{ item.agent.get_full_name|default:item.agent.username }}{% else %}Opérateur supprimé{% endif %} · {{ item.get_status_display }}<span class="fa-muted"> · {{ item.duration_seconds }} s</span>{% if item.notes %}<p>{{ item.notes }}</p>{% endif %}{% for recording in item.audio_history %}<details><summary>Audio {{ recording.sequence }}{% if recording.is_final %} · enregistrement final{% else %} · sauvegarde intermédiaire{% endif %}</summary><audio controls preload="none" src="{{ recording.audio_url }}" aria-label="Enregistrement de l’appel du {{ item.started_at|date:'d/m/Y H:i' }}"></audio><a href="{{ recording.audio_url }}?download=1">Télécharger l’audio</a></details>{% empty %}<p class="fa-muted">L’écoute est réservée à l’opérateur et aux responsables autorisés.</p>{% endfor %}</article>{% empty %}<p class="fa-muted">Aucun appel démarré pour cette entreprise.</p>{% endfor %}
+    </details>
+  </div>
+  <footer class="fa-dialog-footer"><span class="fa-muted" id="fa-save-state">Brouillon enregistré pendant l’entretien</span><div class="fa-actions"><button type="button" class="fa-btn fa-secondary" id="fa-discard" hidden>Abandonner les réponses et fermer</button><button type="button" class="fa-btn fa-secondary" id="fa-save">Enregistrer le brouillon</button><button type="button" class="fa-btn" id="fa-finish" disabled>Terminer et sauvegarder l’audio</button></div></footer>
+</div>

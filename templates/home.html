@@ -248,6 +248,19 @@
     </div>
     <a class="btn" href="{% url 'cga_index' %}">Ouvrir CGA</a>
   </article>
+  <article class="card" style="border-top: 4px solid var(--accent);">
+    <h2>FA</h2>
+    <div class="summary-value">
+      <strong>{{ fa_pme_effectues|add:fa_funds_effectues }} / {{ fa_pme_total|add:fa_funds_total }}</strong>
+      <span>appels effectués</span>
+    </div>
+    <p class="muted">PME et Fonds d’amorçage : des données et des questionnaires distincts.</p>
+    <div class="metric-list">
+      <a class="metric-row" href="{% url 'fa_index' %}"><span>PME</span><strong>{{ fa_pme_effectues }} / {{ fa_pme_total }}</strong></a>
+      <a class="metric-row" href="{% url 'fa_funds' %}"><span>Fonds d’amorçage</span><strong>{{ fa_funds_effectues }} / {{ fa_funds_total }}</strong></a>
+    </div>
+    <a class="btn" href="{% url 'fa_home' %}">Ouvrir FA</a>
+  </article>
   {% endif %}
 </section>
 

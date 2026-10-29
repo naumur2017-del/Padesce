@@ -1,0 +1,13 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}FA · Campagnes d’appels{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="{% static 'fa/fa.css' %}">
+<div class="fa-app">
+  <header class="fa-heading"><div><p class="fa-eyebrow">CALL CENTER NAUMUR / APME</p><h1>FA</h1><p class="fa-muted">Choisissez la campagne d’appels.</p></div></header>
+  <div class="fa-analysis-grid">
+    <section class="fa-panel"><p class="fa-eyebrow">CAMPAGNE DISPONIBLE</p><h2>PME</h2><p>Appels aux PME avec la liste des entreprises et le questionnaire déjà fournis.</p><div class="fa-actions"><a class="fa-btn" href="{% url 'fa_index' %}">Ouvrir les appels PME</a>{% if can_analyze %}<a class="fa-btn fa-secondary" href="{% url 'fa_analytics' %}">Analyses PME</a>{% endif %}</div></section>
+    <section class="fa-panel"><p class="fa-eyebrow">À VENIR</p><h2>Fonds d’amorçage</h2><p>Une campagne distincte, avec sa propre liste de contacts et son propre questionnaire.</p><p class="fa-muted">Les données et le formulaire seront ajoutés ultérieurement.</p><a class="fa-btn fa-secondary" href="{% url 'fa_funds' %}">Voir cet espace</a></section>
+  </div>
+</div>
+{% endblock %}

@@ -823,7 +823,7 @@
               {% if row.has_audio %}
                 <span class="badge badge-ok">Oui</span>
                 {% if row.audio_url %}
-                  <audio controls style="max-width:180px;height:32px;margin-top:4px;" src="{{ row.audio_url }}"></audio>
+                  <audio controls preload="none" style="max-width:180px;height:32px;margin-top:4px;" src="{{ row.audio_url }}"></audio>
                 {% endif %}
               {% else %}
                 <span style="color:var(--muted);">—</span>
@@ -903,7 +903,7 @@
               {% if row.has_audio %}
                 <span class="badge badge-ok">Oui</span>
                 {% if row.audio_url %}
-                  <audio controls style="max-width:180px;height:32px;margin-top:4px;" src="{{ row.audio_url }}"></audio>
+                  <audio controls preload="none" style="max-width:180px;height:32px;margin-top:4px;" src="{{ row.audio_url }}"></audio>
                 {% endif %}
               {% else %}
                 <span style="color:var(--muted);">—</span>

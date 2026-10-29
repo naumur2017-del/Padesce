@@ -1,10 +1,11 @@
 import logging
 from typing import Any
 
+from django.db import transaction
 from django.db.models.signals import post_delete, post_save
 from django.dispatch import receiver
 
-from App_PADESCE.appels.models import Appel, AppelAnswers
+from App_PADESCE.appels.models import Appel, AppelAnswers, AppelCGA
 from App_PADESCE.core.cache_versions import bump_analysis_cache_version
 from App_PADESCE.core.middleware import get_current_user
 from App_PADESCE.core.models import AuditLog
@@ -73,6 +74,12 @@ def audit_appel_save(sender, instance: Appel, created: bool, **kwargs):
 @receiver(post_delete, sender=Appel)
 def audit_appel_delete(sender, instance: Appel, **kwargs):
     _touch_analysis_runtime_cache(instance)
+
+
+@receiver(post_save, sender=AppelCGA)
+@receiver(post_delete, sender=AppelCGA)
+def invalidate_cga_analysis(sender, instance, **kwargs):
+    transaction.on_commit(lambda: bump_analysis_cache_version("model:appels.appelcga"))
 
 
 @receiver(post_save, sender=AppelAnswers)

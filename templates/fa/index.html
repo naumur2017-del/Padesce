@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}FA · Appels PME{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="{% static 'fa/fa.css' %}">
+<div class="fa-app" data-fa-app data-user-id="{{ user.pk }}">
+  {% csrf_token %}
+  <div class="fa-notice" id="fa-global-feedback" role="status" hidden></div>
+  <header class="fa-heading">
+    <div><p class="fa-eyebrow">FA · CALL CENTER NAUMUR / APME</p><h1>Appels PME</h1><p class="fa-muted">Enquête sur les besoins de financement des startups et PME.</p></div>
+    <div class="fa-actions"><a class="fa-btn fa-secondary" href="{% url 'fa_home' %}">Campagnes FA</a>{% if can_analyze %}<a class="fa-btn" href="{% url 'fa_analytics' %}">Analyses PME</a><a class="fa-btn fa-secondary" href="{% url 'fa_export' %}?{{ query_string }}">Exporter les résultats</a>{% endif %}</div>
+  </header>
+  <section class="fa-metrics" aria-label="Suivi de la campagne">
+    <article><span>Entreprises filtrées</span><strong>{{ metrics.total|default:0 }}</strong></article>
+    <article><span>En attente</span><strong>{{ metrics.pending|default:0 }}</strong></article>
+    <article><span>Appels en cours</span><strong>{{ metrics.active|default:0 }}</strong></article>
+    <article class="fa-success"><span>Questionnaires complets</span><strong>{{ metrics.completed|default:0 }}</strong></article>
+    <article><span>À rappeler</span><strong>{{ metrics.callbacks|default:0 }}</strong></article>
+  </section>
+  <section class="fa-panel">
+    {% include 'fa/filters.html' %}
+  </section>
+  <section class="fa-panel fa-list-panel">
+    <div class="fa-section-title"><h2>Entreprises à contacter</h2><span class="fa-muted">{{ page_obj.paginator.count }} entreprise{{ page_obj.paginator.count|pluralize }} · page {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span></div>
+    <div class="fa-table-wrap"><table class="fa-table"><thead><tr><th>Entreprise</th><th>Contact</th><th>Ville / secteur</th><th>Statut de l’appel</th><th>Suivi</th><th>Action</th></tr></thead><tbody>
+      {% for enterprise in enterprises %}
+      <tr>
+        <td><strong>{{ enterprise.name }}</strong><small>{{ enterprise.reference }}</small></td>
+        <td>{% for phone in enterprise.phone_numbers %}{{ phone }}{% if not forloop.last %}<br>{% endif %}{% empty %}<span class="fa-warning">Numéro à compléter</span>{% endfor %}</td>
+        <td>{{ enterprise.city|default:"Non renseignée" }}<small>{{ enterprise.sector|default:"Secteur non renseigné" }}</small></td>
+        <td><span class="fa-status" data-status="{{ enterprise.status }}">{{ enterprise.get_status_display }}</span>{% if enterprise.callback_at %}<small>Rappel : {{ enterprise.callback_at|date:"d/m/Y H:i" }}</small>{% endif %}</td>
+        <td>{{ enterprise.attempt_count|default:0 }} tentative{{ enterprise.attempt_count|pluralize }}<small>{% if enterprise.assigned_to %}{{ enterprise.assigned_to.get_full_name|default:enterprise.assigned_to.username }}{% else %}Non attribuée{% endif %}</small></td>
+        <td><button type="button" class="fa-btn fa-secondary" data-fa-detail="{% url 'fa_detail' enterprise.pk %}">Ouvrir le formulaire</button></td>
+      </tr>
+      {% empty %}<tr><td colspan="6" class="fa-empty"><strong>Aucune entreprise pour ces filtres.</strong><p>Réinitialisez les filtres ou importez la liste des entreprises.</p><a href="{% url 'fa_index' %}">Réinitialiser</a></td></tr>{% endfor %}
+    </tbody></table></div>
+    {% if page_obj.has_other_pages %}<nav class="fa-pagination" aria-label="Pagination des entreprises">
+      {% if page_obj.has_previous %}<a class="fa-btn fa-secondary" href="?{{ query_string }}&page={{ page_obj.previous_page_number }}">Précédent</a>{% endif %}
+      <span>{{ page_obj.start_index }}–{{ page_obj.end_index }} / {{ page_obj.paginator.count }}</span>
+      {% if page_obj.has_next %}<a class="fa-btn fa-secondary" href="?{{ query_string }}&page={{ page_obj.next_page_number }}">Suivant</a>{% endif %}
+    </nav>{% endif %}
+  </section>
+  {% if can_import %}
+  <details class="fa-panel"><summary>Importer des entreprises</summary><p class="fa-muted">Import Excel ou JSON. Les entreprises existantes et leur historique sont conservés.</p><form method="post" action="{% url 'fa_import' %}" enctype="multipart/form-data" class="fa-actions">{% csrf_token %}<label class="fa-field">Liste des entreprises<input type="file" name="file" accept=".xlsx,.json" required></label><button class="fa-btn" type="submit">Importer la liste</button></form></details>
+  {% endif %}
+  <dialog class="fa-dialog" id="fa-dialog" aria-label="Formulaire et appel FA"><div id="fa-modal-content"></div></dialog>
+</div>
+<script src="{% static 'fa/fa.js' %}" defer></script>
+{% endblock %}

@@ -5,8 +5,9 @@ from urllib.parse import urlsplit
 from django.conf import settings
 from django.contrib.auth import authenticate, login
 from django.contrib.auth.views import redirect_to_login
+from django.core.cache import cache
 from django.core.exceptions import PermissionDenied, SuspiciousOperation
-from django.db import OperationalError, ProgrammingError, connection
+from django.db import OperationalError, ProgrammingError, close_old_connections, connection
 from django.http import Http404, HttpRequest, HttpResponseRedirect
 from django.shortcuts import resolve_url
 from django.urls import get_script_prefix, reverse, set_script_prefix
@@ -151,8 +152,10 @@ class CurrentUserMiddleware:
 
     def __call__(self, request: HttpRequest):
         set_current_user(getattr(request, "user", None))
-        response = self.get_response(request)
-        return response
+        try:
+            return self.get_response(request)
+        finally:
+            set_current_user(None)
 
 
 class FriendlyErrorPagesMiddleware:
@@ -218,11 +221,18 @@ class LoginRequiredMiddleware:
 
         if request.user.is_authenticated:
             user = request.user
+            # Authentication loads a fresh user for normal requests. Clear this
+            # request-local value as well when tests/integrations reuse a user.
+            if hasattr(user, "_padesce_group_names"):
+                delattr(user, "_padesce_group_names")
             try:
+                from App_PADESCE.core.access import user_group_names
+
+                groups = user_group_names(user) if not user.is_superuser else frozenset()
                 is_consultant_only = (
                     not getattr(user, "is_superuser", False)
-                    and user.groups.filter(name="consultant").exists()
-                    and not user.groups.filter(name__in=["manager_padesce", "manager_cga"]).exists()
+                    and "consultant" in groups
+                    and not groups.intersection({"manager_padesce", "manager_cga"})
                 )
             except Exception:
                 is_consultant_only = False
@@ -234,6 +244,9 @@ class LoginRequiredMiddleware:
                     "/deploiement/live-status/",
                     "/reporting/documentation/",
                     "/satisfaction-apprenants/analyse/",
+                    "/fa/analyses/",
+                    "/fa/export/",
+                    "/fa/recordings/",
                     "/accounts/logout/",
                     "/messages/support/",
                     "/guide-operateur/",
@@ -340,6 +353,7 @@ def _fetch_ip_geolocation(ip: str) -> dict:
 
 def _update_activity_with_geo(user_id: int, ip: str, now):
     """Mise à jour en arrière-plan : géolocalisation + sauvegarde."""
+    close_old_connections()
     try:
         geo = _fetch_ip_geolocation(ip)
         activity = UserActivity.objects.filter(user_id=user_id).first()
@@ -372,6 +386,8 @@ def _update_activity_with_geo(user_id: int, ip: str, now):
         logger.debug("UserActivity geo update skipped because the database is busy.")
     except Exception:
         pass
+    finally:
+        close_old_connections()
 
 
 class UserActivityMiddleware:
@@ -394,6 +410,14 @@ class UserActivityMiddleware:
 
         user = getattr(request, "user", None)
         if user and user.is_authenticated:
+            throttle_key = f"user-activity:heartbeat:{user.pk}"
+            try:
+                # Navigation and polling must not read/write activity on every
+                # request. Explicit activity events still use their normal API.
+                if not cache.add(throttle_key, True, timeout=60):
+                    return self.get_response(request)
+            except Exception:
+                logger.debug("Activity heartbeat cache unavailable.")
             try:
                 now = timezone.now()
                 ip = _get_client_ip(request)
@@ -420,6 +444,10 @@ class UserActivityMiddleware:
                         )
                         t.start()
             except (OperationalError, ProgrammingError):
+                try:
+                    cache.delete(throttle_key)
+                except Exception:
+                    pass
                 logger.warning(
                     "UserActivity tracking skipped because the SQLite database is busy.",
                     exc_info=False,

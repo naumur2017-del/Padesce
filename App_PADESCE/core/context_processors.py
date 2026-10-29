@@ -3,7 +3,7 @@ from __future__ import annotations
 from django.conf import settings
 from django.urls import NoReverseMatch, reverse
 
-from App_PADESCE.core.access import has_analysis_access, has_consultant_access
+from App_PADESCE.core.access import has_analysis_access, has_consultant_access, user_group_names
 from App_PADESCE.core.middleware import strip_path_prefix
 
 PAGE_TITLE_BY_PREFIX: tuple[tuple[str, str], ...] = (
@@ -21,6 +21,10 @@ PAGE_TITLE_BY_PREFIX: tuple[tuple[str, str], ...] = (
     ("/suivi-utilisateurs/", "Suivi utilisateurs"),
     ("/analyses-cga/", "Analyses CGA"),
     ("/cga/", "CGA"),
+    ("/fa/analyses/", "Analyses FA · PME"),
+    ("/fa/pme/", "FA · Appels PME"),
+    ("/fa/fonds-amorcage/", "FA · Fonds d’amorçage"),
+    ("/fa/", "FA · Centre d’appels"),
     ("/consultant/", "Espace PADESCE"),
     ("/guide-operateur/", "Guide opérateur"),
     ("/messages/support/", "Support"),
@@ -47,9 +51,9 @@ def _is_consultant_only(user) -> bool:
         return False
 
     try:
-        return (
-            groups.filter(name="consultant").exists()
-            and not groups.filter(name__in=("manager_padesce", "manager_cga")).exists()
+        group_names = user_group_names(user)
+        return "consultant" in group_names and not group_names.intersection(
+            {"manager_padesce", "manager_cga"}
         )
     except Exception:
         return False
@@ -85,6 +89,10 @@ def _build_menu_items(user, path: str, consultant_only: bool) -> list[dict[str, 
         )
 
     add_item("Call Center", _safe_reverse("home"), "/dashboard/")
+    if not consultant_only:
+        add_item("Appels FA", _safe_reverse("fa_home"), "/fa/")
+    if analysis_access or "manager_fa" in user_group_names(user):
+        add_item("Analyses FA · PME", _safe_reverse("fa_analytics"), "/fa/analyses/")
 
     if superadmin_access:
         add_item("Backup", _safe_reverse("backup_dashboard"), "/backup/")

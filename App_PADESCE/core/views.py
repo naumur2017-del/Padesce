@@ -17,7 +17,7 @@ from django.db import OperationalError, ProgrammingError
 from django.db.models import Count, Q
 from django.http import Http404, HttpResponse, JsonResponse, QueryDict
 from django.shortcuts import get_object_or_404, render
-from django.urls import reverse
+from django.urls import get_script_prefix, reverse
 from django.utils import timezone
 from django.views.decorators.cache import cache_page
 from django.views.decorators.clickjacking import xframe_options_sameorigin
@@ -68,7 +68,6 @@ from App_PADESCE.core.models import (
     UserActivityEvent,
     UserLoginLog,
 )
-from App_PADESCE.core.presence_bulk_cache import get_bulk_presence_controls
 from App_PADESCE.core.phase_scope import (
     PHASE_SCOPE_V1,
     PHASE_SCOPE_V1_COMBINED,
@@ -77,8 +76,10 @@ from App_PADESCE.core.phase_scope import (
     normalize_phase_scope,
     phase_scope_options,
 )
+from App_PADESCE.core.presence_bulk_cache import get_bulk_presence_controls
 from App_PADESCE.environnement.models import EnqueteEnvironnement
-from App_PADESCE.formations.models import Beneficiaire, Classe, Phase, Prestation, Prestataire
+from App_PADESCE.fa.models import Enterprise as FAEnterprise
+from App_PADESCE.formations.models import Beneficiaire, Classe, Phase, Prestataire, Prestation
 from App_PADESCE.presences.control_utils import CONTROL_KEYS
 from App_PADESCE.presences.models import Presence
 from App_PADESCE.satisfaction_apprenants.models import SatisfactionApprenant
@@ -104,7 +105,9 @@ def data_search(request):
             condition |= Q(**{f"{field}__icontains": query})
         return condition
 
-    prestations = Prestation.objects.select_related("prestataire", "beneficiaire", "formation", "phase")
+    prestations = Prestation.objects.select_related(
+        "prestataire", "beneficiaire", "formation", "phase"
+    )
     prestataires = Prestataire.objects.all()
     beneficiaires = Beneficiaire.objects.all()
     apprenants = Apprenant.objects.select_related(
@@ -122,18 +125,36 @@ def data_search(request):
 
     if query:
         prestations = prestations.filter(
-            text_filter((
-                "code", "prestataire__raison_sociale", "beneficiaire__nom_structure",
-                "formation__nom", "formation__code", "ville",
-            ))
+            text_filter(
+                (
+                    "code",
+                    "prestataire__raison_sociale",
+                    "beneficiaire__nom_structure",
+                    "formation__nom",
+                    "formation__code",
+                    "ville",
+                )
+            )
         )
-        prestataires = prestataires.filter(text_filter(("code", "raison_sociale", "telephone", "email")))
-        beneficiaires = beneficiaires.filter(text_filter(("nom_structure", "region", "ville", "contact", "email")))
+        prestataires = prestataires.filter(
+            text_filter(("code", "raison_sociale", "telephone", "email"))
+        )
+        beneficiaires = beneficiaires.filter(
+            text_filter(("nom_structure", "region", "ville", "contact", "email"))
+        )
         apprenants = apprenants.filter(
-            text_filter((
-                "code", "nom_complet", "telephone1", "telephone2", "beneficiaire",
-                "prestataire", "classe__code", "formation__nom",
-            ))
+            text_filter(
+                (
+                    "code",
+                    "nom_complet",
+                    "telephone1",
+                    "telephone2",
+                    "beneficiaire",
+                    "prestataire",
+                    "classe__code",
+                    "formation__nom",
+                )
+            )
         )
 
     limit = 50
@@ -684,6 +705,27 @@ def home(request):
             }
         )
 
+        fa_stats = FAEnterprise.objects.aggregate(
+            pme_total=Count("id", filter=Q(campaign=FAEnterprise.CAMPAIGN_PME)),
+            pme_effectues=Count(
+                "id",
+                filter=Q(campaign=FAEnterprise.CAMPAIGN_PME) & ~Q(status="en_attente"),
+            ),
+            funds_total=Count("id", filter=Q(campaign=FAEnterprise.CAMPAIGN_FUNDS)),
+            funds_effectues=Count(
+                "id",
+                filter=Q(campaign=FAEnterprise.CAMPAIGN_FUNDS) & ~Q(status="en_attente"),
+            ),
+        )
+        counts.update(
+            {
+                "fa_pme_total": fa_stats["pme_total"],
+                "fa_pme_effectues": fa_stats["pme_effectues"],
+                "fa_funds_total": fa_stats["funds_total"],
+                "fa_funds_effectues": fa_stats["funds_effectues"],
+            }
+        )
+
         # AppelFormateur counts
         formateur_stats = AppelFormateur.objects.filter(is_active=True).aggregate(
             total=Count("id"), not_waiting=Count("id", filter=~Q(status="en_attente"))
@@ -793,6 +835,10 @@ def home(request):
         "cga_pas_interesses": cached_counts.get("cga_pas_interesses", 0),
         "cga_indisponibles": cached_counts.get("cga_indisponibles", 0),
         "cga_faux_numeros": cached_counts.get("cga_faux_numeros", 0),
+        "fa_pme_total": cached_counts.get("fa_pme_total", 0),
+        "fa_pme_effectues": cached_counts.get("fa_pme_effectues", 0),
+        "fa_funds_total": cached_counts.get("fa_funds_total", 0),
+        "fa_funds_effectues": cached_counts.get("fa_funds_effectues", 0),
         "progress_pct": progress_pct,
         "countdown_days": countdown_days,
         "deadline_iso": end_date.isoformat(),
@@ -1219,6 +1265,22 @@ def _build_cga_regime_pie(rows: list[dict[str, object]]) -> str:
 
 @require_analysis_access
 def cga_analysis_dashboard(request):
+    # Store only aggregate data; the page, identity and CSRF token are rendered
+    # for every request. Call lists always retain their live status/lock reads.
+    cache_key = (
+        "cga-analysis:context:v1:"
+        + get_analysis_cache_version("model:appels.appelcga")
+        + ":"
+        + get_script_prefix()
+    )
+    context = cache.get(cache_key)
+    if context is None:
+        context = _build_cga_analysis_context()
+        cache.set(cache_key, context, timeout=15)
+    return render(request, "core/cga_analysis.html", context)
+
+
+def _build_cga_analysis_context():
     since_24h = timezone.now() - timedelta(hours=24)
     base_qs = AppelCGA.objects.filter(is_active=True)
     called_qs = base_qs.exclude(status="en_attente")
@@ -1434,7 +1496,7 @@ def cga_analysis_dashboard(request):
         "cga_user_rows": cga_user_rows,
         "cga_index_url": reverse("cga_index"),
     }
-    return render(request, "core/cga_analysis.html", context)
+    return context
 
 
 def _consultant_dashboard_target(request):
