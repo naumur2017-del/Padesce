@@ -1,10 +1,12 @@
 # FA : mise en service et vérification
 
-Le module FA (« Fond d’amortissement », nom demandé) reprend le questionnaire NAUMUR/APME consacré aux fonds d’amorçage : 36 questions, six sections et une déclaration orale du répondant. Les réponses conditionnelles et les choix d’accompagnement de la question 27 sont repris. Les champs nécessaires à un questionnaire complet sont signalés ; les autres résultats d’appel acceptent un brouillon.
+Le module FA regroupe deux campagnes distinctes : **PME** et **Fonds d’amorçage**. Les données et le questionnaire déjà fournis appartiennent à PME : 36 questions, six sections et une déclaration orale du répondant. Les réponses conditionnelles et les choix d’accompagnement de la question 27 sont repris. Les champs nécessaires à un questionnaire complet sont signalés ; les autres résultats d’appel acceptent un brouillon. Le formulaire, les contacts et les analyses de la future campagne Fonds d’amorçage seront ajoutés ultérieurement ; son espace reste en attente.
 
 ## Parcours
 
-- `/fa/` : entreprises, recherche, filtres de statut, ville, secteur, opérateur, dates de tentative et présence d’audio ; pagination de 50 lignes.
+- `/fa/` : choix entre les campagnes PME et Fonds d’amorçage.
+- `/fa/pme/` : entreprises PME, recherche, filtres de statut, ville, secteur, opérateur, dates de tentative et présence d’audio ; pagination de 50 lignes.
+- `/fa/fonds-amorcage/` : espace réservé, en attente de ses propres données et de son propre formulaire. Aucun formulaire PME ni bouton d’appel n’y est proposé.
 - Le bouton ouvre la fiche et le questionnaire dans une modale. Le téléphone peut être corrigé avant le démarrage, notamment pour les contacts absents du registre.
 - Le microphone doit fonctionner et un premier audio doit parvenir au serveur avant la création d’un appel. La composition du numéro devient disponible ensuite. Une source audio partagée peut compléter le microphone pour capter l’autre interlocuteur ; l’application ne passe pas elle-même d’appel téléphonique et ne dispose pas d’un fournisseur de téléphonie.
 - Les sauvegardes audio intermédiaires sont cumulatives, lisibles et conservées avec leur séquence. Le navigateur garde temporairement les uploads non acquittés dans IndexedDB et les réessaie après reconnexion. Les sauvegardes réussies sont retirées du stockage local.
@@ -22,7 +24,7 @@ python manage.py import_fa_enterprises /chemin/prive/entreprises.xlsx --dry-run
 python manage.py import_fa_enterprises /chemin/prive/entreprises.xlsx
 ```
 
-Le même import accepte le registre JSON préparé. Les références `FA-001` à `FA-070` proviennent des numéros source. L’import est additif et réexécutable : réponses, appels, audios et corrections de téléphone effectuées dans le questionnaire sont conservés. Il signale quatre téléphones absents et trois numéros de huit chiffres à vérifier. Les numéros partagés ne provoquent ni fusion ni suppression.
+Le même import accepte le registre JSON préparé. Il alimente exclusivement la campagne PME. Les entreprises déjà enregistrées sont classées PME par la migration `fa.0002_enterprise_campaign`, sans changer leurs références, leurs réponses ou leurs appels. Les références `FA-001` à `FA-070` proviennent des numéros source. L’import est additif et réexécutable : réponses, appels, audios et corrections de téléphone effectuées dans le questionnaire sont conservés. Il signale quatre téléphones absents et trois numéros de huit chiffres à vérifier. Les numéros partagés ne provoquent ni fusion ni suppression.
 
 ## Déploiement
 

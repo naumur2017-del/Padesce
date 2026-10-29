@@ -7,6 +7,16 @@ from App_PADESCE.core.media_access import secure_media_upload_path
 
 
 class Enterprise(models.Model):
+    CAMPAIGN_PME = "pme"
+    CAMPAIGN_FUNDS = "fonds_amorcage"
+    CAMPAIGN_CHOICES = [(CAMPAIGN_PME, "PME"), (CAMPAIGN_FUNDS, "Fonds d’amorçage")]
+    campaign = models.CharField(
+        max_length=30,
+        choices=CAMPAIGN_CHOICES,
+        default=CAMPAIGN_PME,
+        db_index=True,
+        editable=False,
+    )
     STATUS_CHOICES = [
         ("en_attente", "En attente"),
         ("en_cours", "En cours"),

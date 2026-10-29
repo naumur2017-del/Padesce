@@ -78,6 +78,7 @@ from App_PADESCE.core.phase_scope import (
 )
 from App_PADESCE.core.presence_bulk_cache import get_bulk_presence_controls
 from App_PADESCE.environnement.models import EnqueteEnvironnement
+from App_PADESCE.fa.models import Enterprise as FAEnterprise
 from App_PADESCE.formations.models import Beneficiaire, Classe, Phase, Prestataire, Prestation
 from App_PADESCE.presences.control_utils import CONTROL_KEYS
 from App_PADESCE.presences.models import Presence
@@ -704,6 +705,27 @@ def home(request):
             }
         )
 
+        fa_stats = FAEnterprise.objects.aggregate(
+            pme_total=Count("id", filter=Q(campaign=FAEnterprise.CAMPAIGN_PME)),
+            pme_effectues=Count(
+                "id",
+                filter=Q(campaign=FAEnterprise.CAMPAIGN_PME) & ~Q(status="en_attente"),
+            ),
+            funds_total=Count("id", filter=Q(campaign=FAEnterprise.CAMPAIGN_FUNDS)),
+            funds_effectues=Count(
+                "id",
+                filter=Q(campaign=FAEnterprise.CAMPAIGN_FUNDS) & ~Q(status="en_attente"),
+            ),
+        )
+        counts.update(
+            {
+                "fa_pme_total": fa_stats["pme_total"],
+                "fa_pme_effectues": fa_stats["pme_effectues"],
+                "fa_funds_total": fa_stats["funds_total"],
+                "fa_funds_effectues": fa_stats["funds_effectues"],
+            }
+        )
+
         # AppelFormateur counts
         formateur_stats = AppelFormateur.objects.filter(is_active=True).aggregate(
             total=Count("id"), not_waiting=Count("id", filter=~Q(status="en_attente"))
@@ -813,6 +835,10 @@ def home(request):
         "cga_pas_interesses": cached_counts.get("cga_pas_interesses", 0),
         "cga_indisponibles": cached_counts.get("cga_indisponibles", 0),
         "cga_faux_numeros": cached_counts.get("cga_faux_numeros", 0),
+        "fa_pme_total": cached_counts.get("fa_pme_total", 0),
+        "fa_pme_effectues": cached_counts.get("fa_pme_effectues", 0),
+        "fa_funds_total": cached_counts.get("fa_funds_total", 0),
+        "fa_funds_effectues": cached_counts.get("fa_funds_effectues", 0),
         "progress_pct": progress_pct,
         "countdown_days": countdown_days,
         "deadline_iso": end_date.isoformat(),

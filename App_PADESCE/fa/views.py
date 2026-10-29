@@ -56,7 +56,7 @@ def _can_hear(user, attempt):
 
 def _filtered(request):
     filters = {name: str(request.GET.get(name, "")).strip()[:255] for name in FILTER_NAMES}
-    rows = Enterprise.objects.all()
+    rows = Enterprise.objects.filter(campaign=Enterprise.CAMPAIGN_PME)
     if filters["q"]:
         rows = rows.filter(
             Q(name__icontains=filters["q"])
@@ -149,25 +149,41 @@ def _filter_context(request, filters):
         "filters": filters,
         "statuses": Enterprise.STATUS_CHOICES,
         "sectors": list(
-            Enterprise.objects.exclude(sector="")
+            Enterprise.objects.filter(campaign=Enterprise.CAMPAIGN_PME)
+            .exclude(sector="")
             .order_by("sector")
             .values_list("sector", flat=True)
             .distinct()
         ),
         "cities": list(
-            Enterprise.objects.exclude(city="")
+            Enterprise.objects.filter(campaign=Enterprise.CAMPAIGN_PME)
+            .exclude(city="")
             .order_by("city")
             .values_list("city", flat=True)
             .distinct()
         ),
         "agents": get_user_model()
-        .objects.filter(fa_call_attempts__isnull=False)
+        .objects.filter(fa_call_attempts__enterprise__campaign=Enterprise.CAMPAIGN_PME)
         .distinct()
         .order_by("username"),
         "query_string": query.urlencode(),
         "can_import": request.user.is_superuser,
         "can_analyze": _can_analyze(request.user),
     }
+
+
+@login_required
+@require_GET
+@never_cache
+def hub(request):
+    return render(request, "fa/hub.html", {"can_analyze": _can_analyze(request.user)})
+
+
+@login_required
+@require_GET
+@never_cache
+def funds_pending(request):
+    return render(request, "fa/funds_pending.html")
 
 
 @login_required
@@ -207,7 +223,7 @@ def _attempt_urls(attempt):
 @require_GET
 @never_cache
 def detail(request, pk):
-    enterprise = get_object_or_404(Enterprise, pk=pk)
+    enterprise = get_object_or_404(Enterprise, pk=pk, campaign=Enterprise.CAMPAIGN_PME)
     attempts = list(
         enterprise.attempts.select_related("agent").prefetch_related("recordings")[:100]
     )
@@ -317,7 +333,9 @@ def start(request, pk):
         token = uuid.UUID(request.POST.get("client_token", ""))
     except (ValueError, TypeError, AttributeError):
         return _error("Identifiant de session absent ou invalide.")
-    previous = CallAttempt.objects.filter(client_token=token).first()
+    previous = CallAttempt.objects.filter(
+        client_token=token, enterprise__campaign=Enterprise.CAMPAIGN_PME
+    ).first()
     if previous:
         if previous.enterprise_id != pk or previous.agent_id != request.user.pk:
             return _error("Session déjà utilisée.", 409)
@@ -339,7 +357,9 @@ def start(request, pk):
         return _error(str(exc))
     try:
         with transaction.atomic():
-            enterprise = get_object_or_404(Enterprise.objects.select_for_update(), pk=pk)
+            enterprise = get_object_or_404(
+                Enterprise.objects.select_for_update(), pk=pk, campaign=Enterprise.CAMPAIGN_PME
+            )
             current = enterprise.attempts.filter(ended_at__isnull=True).first()
             if current:
                 return _error(
@@ -389,7 +409,9 @@ def start(request, pk):
 
 def _owned_attempt(request, pk):
     attempt = get_object_or_404(
-        CallAttempt.objects.select_for_update().select_related("enterprise"), pk=pk
+        CallAttempt.objects.select_for_update().select_related("enterprise"),
+        pk=pk,
+        enterprise__campaign=Enterprise.CAMPAIGN_PME,
     )
     if attempt.agent_id != request.user.pk and not request.user.is_superuser:
         return None, _error("Cet appel appartient à un autre opérateur.", 403)
@@ -549,7 +571,11 @@ def finish(request, pk):
 @require_GET
 @never_cache
 def audio(request, pk):
-    recording = get_object_or_404(Recording.objects.select_related("attempt"), pk=pk)
+    recording = get_object_or_404(
+        Recording.objects.select_related("attempt"),
+        pk=pk,
+        attempt__enterprise__campaign=Enterprise.CAMPAIGN_PME,
+    )
     if not _can_hear(request.user, recording.attempt):
         return HttpResponse(
             "Accès réservé à l’opérateur de l’appel et aux responsables autorisés.", status=403

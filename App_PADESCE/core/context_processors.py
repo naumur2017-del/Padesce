@@ -21,8 +21,10 @@ PAGE_TITLE_BY_PREFIX: tuple[tuple[str, str], ...] = (
     ("/suivi-utilisateurs/", "Suivi utilisateurs"),
     ("/analyses-cga/", "Analyses CGA"),
     ("/cga/", "CGA"),
-    ("/fa/analyses/", "Analyses FA"),
-    ("/fa/", "FA · Fond d’amortissement"),
+    ("/fa/analyses/", "Analyses FA · PME"),
+    ("/fa/pme/", "FA · Appels PME"),
+    ("/fa/fonds-amorcage/", "FA · Fonds d’amorçage"),
+    ("/fa/", "FA · Centre d’appels"),
     ("/consultant/", "Espace PADESCE"),
     ("/guide-operateur/", "Guide opérateur"),
     ("/messages/support/", "Support"),
@@ -88,9 +90,9 @@ def _build_menu_items(user, path: str, consultant_only: bool) -> list[dict[str, 
 
     add_item("Call Center", _safe_reverse("home"), "/dashboard/")
     if not consultant_only:
-        add_item("Appels FA", _safe_reverse("fa_index"), "/fa/")
+        add_item("Appels FA", _safe_reverse("fa_home"), "/fa/")
     if analysis_access or "manager_fa" in user_group_names(user):
-        add_item("Analyses FA", _safe_reverse("fa_analytics"), "/fa/analyses/")
+        add_item("Analyses FA · PME", _safe_reverse("fa_analytics"), "/fa/analyses/")
 
     if superadmin_access:
         add_item("Backup", _safe_reverse("backup_dashboard"), "/backup/")

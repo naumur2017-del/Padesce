@@ -1,0 +1,10 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}FA · Fonds d’amorçage{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="{% static 'fa/fa.css' %}">
+<div class="fa-app">
+  <header class="fa-heading"><div><p class="fa-eyebrow">FA · CAMPAGNE À VENIR</p><h1>Fonds d’amorçage</h1></div><a class="fa-btn fa-secondary" href="{% url 'fa_home' %}">Retour aux campagnes FA</a></header>
+  <section class="fa-panel"><h2>En attente des données et du questionnaire</h2><p>Cette campagne disposera de ses propres contacts, de son formulaire et de ses analyses.</p><p class="fa-muted">Elle sera activée lorsque vous aurez fourni ces éléments.</p></section>
+</div>
+{% endblock %}

@@ -1,14 +1,14 @@
 {% extends "base.html" %}
 {% load static %}
-{% block title %}FA · Fond d’amortissement{% endblock %}
+{% block title %}FA · Appels PME{% endblock %}
 {% block content %}
 <link rel="stylesheet" href="{% static 'fa/fa.css' %}">
 <div class="fa-app" data-fa-app data-user-id="{{ user.pk }}">
   {% csrf_token %}
   <div class="fa-notice" id="fa-global-feedback" role="status" hidden></div>
   <header class="fa-heading">
-    <div><p class="fa-eyebrow">CALL CENTER NAUMUR / APME</p><h1>FA <span>Fond d’amortissement</span></h1><p class="fa-muted">Enquête sur les besoins de financement des startups et PME.</p></div>
-    {% if can_analyze %}<div class="fa-actions"><a class="fa-btn" href="{% url 'fa_analytics' %}">Analyses des données</a><a class="fa-btn fa-secondary" href="{% url 'fa_export' %}?{{ query_string }}">Exporter les résultats</a></div>{% endif %}
+    <div><p class="fa-eyebrow">FA · CALL CENTER NAUMUR / APME</p><h1>Appels PME</h1><p class="fa-muted">Enquête sur les besoins de financement des startups et PME.</p></div>
+    <div class="fa-actions"><a class="fa-btn fa-secondary" href="{% url 'fa_home' %}">Campagnes FA</a>{% if can_analyze %}<a class="fa-btn" href="{% url 'fa_analytics' %}">Analyses PME</a><a class="fa-btn fa-secondary" href="{% url 'fa_export' %}?{{ query_string }}">Exporter les résultats</a>{% endif %}</div>
   </header>
   <section class="fa-metrics" aria-label="Suivi de la campagne">
     <article><span>Entreprises filtrées</span><strong>{{ metrics.total|default:0 }}</strong></article>

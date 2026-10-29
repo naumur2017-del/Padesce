@@ -5,10 +5,10 @@ from .models import CallAttempt, Enterprise, Recording
 
 @admin.register(Enterprise)
 class EnterpriseAdmin(admin.ModelAdmin):
-    list_display = ("reference", "name", "phone", "city", "sector", "status")
-    list_filter = ("status", "sector", "city")
+    list_display = ("reference", "campaign", "name", "phone", "city", "sector", "status")
+    list_filter = ("campaign", "status", "sector", "city")
     search_fields = ("reference", "name", "phone")
-    readonly_fields = ("answers", "status", "callback_at")
+    readonly_fields = ("campaign", "answers", "status", "callback_at")
 
 
 @admin.register(CallAttempt)

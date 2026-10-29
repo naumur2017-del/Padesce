@@ -1,10 +1,10 @@
 {% extends 'base.html' %}
 {% load static %}
-{% block title %}Analyses FA{% endblock %}
+{% block title %}Analyses FA · PME{% endblock %}
 {% block content %}
 <link rel="stylesheet" href="{% static 'fa/fa.css' %}">
 <div class="fa-app">
-  <header class="fa-heading"><div><p class="fa-eyebrow">ÉTUDE NAUMUR / APME</p><h1>Analyses FA</h1><p class="fa-muted">Avancement des appels et besoins de financement des entreprises.</p></div><div class="fa-actions"><a class="fa-btn fa-secondary" href="{% url 'fa_index' %}">Retour aux appels</a><a class="fa-btn" href="{% url 'fa_export' %}?{{ query_string }}">Exporter les réponses</a></div></header>
+  <header class="fa-heading"><div><p class="fa-eyebrow">FA · ÉTUDE NAUMUR / APME</p><h1>Analyses PME</h1><p class="fa-muted">Avancement des appels et besoins de financement des PME.</p></div><div class="fa-actions"><a class="fa-btn fa-secondary" href="{% url 'fa_index' %}">Retour aux appels PME</a><a class="fa-btn" href="{% url 'fa_export' %}?{{ query_string }}">Exporter les réponses PME</a></div></header>
   <section class="fa-panel">{% include 'fa/filters.html' %}</section>
   <section class="fa-metrics" aria-label="Indicateurs de l’enquête">
     <article><span>Entreprises filtrées</span><strong>{{ metrics.total|default:0 }}</strong></article>

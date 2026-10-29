@@ -156,6 +156,7 @@ def import_records(records, *, dry_run=False):
             result["warnings"].append(f"{reference} : téléphone absent.")
         safe_source = {k: str(v) if isinstance(v, Decimal) else v for k, v in row.items()}
         values = dict(
+            campaign=Enterprise.CAMPAIGN_PME,
             name=name,
             source_number=number,
             phone=phone,
@@ -166,6 +167,8 @@ def import_records(records, *, dry_run=False):
             source_data=safe_source,
         )
         enterprise, created = Enterprise.objects.get_or_create(reference=reference, defaults=values)
+        if enterprise.campaign != Enterprise.CAMPAIGN_PME:
+            raise ValueError(f"La référence {reference} appartient à une autre campagne.")
         if created:
             result["created"] += 1
         else:

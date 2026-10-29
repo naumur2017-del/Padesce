@@ -5,6 +5,7 @@ from decimal import Decimal
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
+from django.core.cache import cache
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
 from django.urls import reverse
@@ -307,6 +308,88 @@ class FAWorkflowTests(TestCase):
         self.assertEqual(self.client.get(reverse("fa_export")).status_code, 200)
         self.assertEqual(self.client.get(reverse("fa_index")).status_code, 302)
 
+    def test_fa_landing_distinguishes_pme_and_future_funds_campaign(self):
+        response = self.client.get(reverse("fa_home"))
+        self.assertContains(response, reverse("fa_index"))
+        self.assertContains(response, reverse("fa_funds"))
+        self.assertContains(response, "Fonds d’amorçage")
+        response = self.client.get(reverse("fa_funds"))
+        self.assertContains(response, "En attente des données et du questionnaire")
+        self.assertNotContains(response, "fa-questionnaire")
+        self.assertNotContains(response, "Démarrer l’appel")
+
+    def test_main_dashboard_shows_separate_pme_and_funds_call_totals(self):
+        Enterprise.objects.create(
+            reference="PME-APPELEE",
+            name="PME appelée",
+            campaign=Enterprise.CAMPAIGN_PME,
+            status="appel_tente",
+        )
+        Enterprise.objects.create(
+            reference="FONDS-FUTUR",
+            name="Fonds futur",
+            campaign=Enterprise.CAMPAIGN_FUNDS,
+            status="en_attente",
+        )
+        cache.clear()
+        response = self.client.get(reverse("home"))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["fa_pme_effectues"], 1)
+        self.assertEqual(response.context["fa_pme_total"], 2)
+        self.assertEqual(response.context["fa_funds_effectues"], 0)
+        self.assertEqual(response.context["fa_funds_total"], 1)
+        self.assertNotContains(response, "PME appelée")
+        self.assertContains(response, "1 / 2")
+        self.assertContains(response, "0 / 1")
+
+    def test_funds_data_cannot_enter_pme_list_filters_analytics_or_export(self):
+        self.agent.groups.add(Group.objects.get_or_create(name="manager_fa")[0])
+        Enterprise.objects.create(
+            reference="FONDS-FUTUR",
+            campaign=Enterprise.CAMPAIGN_FUNDS,
+            name="Fonds futur",
+            sector="Investissement",
+            city="Ville future",
+            status="formulaire_avec_audio",
+            answers={"q12_need": "Oui", "q13_amount": "999999"},
+        )
+        response = self.client.get(reverse("fa_index"))
+        self.assertEqual(response.context["metrics"]["total"], 1)
+        self.assertNotContains(response, "Fonds futur")
+        self.assertNotIn("Investissement", response.context["sectors"])
+        self.assertNotIn("Ville future", response.context["cities"])
+        response = self.client.get(reverse("fa_analytics"))
+        self.assertEqual(response.context["funding_total"], 0)
+        self.assertNotContains(self.client.get(reverse("fa_export")), "Fonds futur")
+
+    def test_pme_form_and_call_actions_reject_future_funds_contacts(self):
+        enterprise = Enterprise.objects.create(
+            reference="FONDS-FUTUR",
+            name="Fonds futur",
+            phone="699000005",
+            campaign=Enterprise.CAMPAIGN_FUNDS,
+        )
+        self.assertEqual(
+            self.client.get(reverse("fa_detail", args=[enterprise.pk])).status_code, 404
+        )
+        result = self.client.post(
+            reverse("fa_start", args=[enterprise.pk]),
+            {
+                "client_token": str(uuid.uuid4()),
+                "audio": audio(),
+            },
+        )
+        self.assertEqual(result.status_code, 404)
+        self.assertFalse(enterprise.attempts.exists())
+        attempt = CallAttempt.objects.create(
+            enterprise=enterprise,
+            agent=self.agent,
+            client_token=uuid.uuid4(),
+        )
+        self.assertEqual(
+            self.client.post(reverse("fa_save", args=[attempt.pk]), {}).status_code, 404
+        )
+
 
 class FAQuestionnaireTests(TestCase):
     def test_all_36_questions_and_support_skip_logic(self):
@@ -339,6 +422,18 @@ class FAQuestionnaireTests(TestCase):
 
 
 class FAImportTests(TestCase):
+    def test_pme_import_never_reuses_a_future_campaign_reference(self):
+        row = Enterprise.objects.create(
+            reference="FA-001",
+            name="Fonds futur",
+            campaign=Enterprise.CAMPAIGN_FUNDS,
+        )
+        with self.assertRaisesMessage(ValueError, "autre campagne"):
+            import_records([{"source_number": 1, "name": "PME"}])
+        row.refresh_from_db()
+        self.assertEqual(row.name, "Fonds futur")
+        self.assertEqual(row.campaign, Enterprise.CAMPAIGN_FUNDS)
+
     def test_import_idempotent_preserves_work_and_shared_phone(self):
         records = [
             {

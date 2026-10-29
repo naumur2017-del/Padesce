@@ -3,7 +3,9 @@ from django.urls import path
 from App_PADESCE.core.lazy_urls import lazy_view
 
 urlpatterns = [
-    path("", lazy_view("App_PADESCE.fa.views.index"), name="fa_index"),
+    path("", lazy_view("App_PADESCE.fa.views.hub"), name="fa_home"),
+    path("pme/", lazy_view("App_PADESCE.fa.views.index"), name="fa_index"),
+    path("fonds-amorcage/", lazy_view("App_PADESCE.fa.views.funds_pending"), name="fa_funds"),
     path("analyses/", lazy_view("App_PADESCE.fa.views.analytics"), name="fa_analytics"),
     path("export/", lazy_view("App_PADESCE.fa.views.export"), name="fa_export"),
     path("import/", lazy_view("App_PADESCE.fa.views.import_enterprises"), name="fa_import"),
