@@ -583,7 +583,8 @@ def import_enterprises(request):
     else:
         messages.success(
             request,
-            f"Import FA : {result['created']} entreprises créées, {result['updated']} existantes mises à jour.",
+            f"Import FA : {result['created']} entreprises créées, "
+            f"{result['updated']} existantes mises à jour.",
         )
         for warning in result["warnings"][:12]:
             messages.warning(request, warning)

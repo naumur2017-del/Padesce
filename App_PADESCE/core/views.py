@@ -68,7 +68,6 @@ from App_PADESCE.core.models import (
     UserActivityEvent,
     UserLoginLog,
 )
-from App_PADESCE.core.presence_bulk_cache import get_bulk_presence_controls
 from App_PADESCE.core.phase_scope import (
     PHASE_SCOPE_V1,
     PHASE_SCOPE_V1_COMBINED,
@@ -77,8 +76,9 @@ from App_PADESCE.core.phase_scope import (
     normalize_phase_scope,
     phase_scope_options,
 )
+from App_PADESCE.core.presence_bulk_cache import get_bulk_presence_controls
 from App_PADESCE.environnement.models import EnqueteEnvironnement
-from App_PADESCE.formations.models import Beneficiaire, Classe, Phase, Prestation, Prestataire
+from App_PADESCE.formations.models import Beneficiaire, Classe, Phase, Prestataire, Prestation
 from App_PADESCE.presences.control_utils import CONTROL_KEYS
 from App_PADESCE.presences.models import Presence
 from App_PADESCE.satisfaction_apprenants.models import SatisfactionApprenant
@@ -104,7 +104,9 @@ def data_search(request):
             condition |= Q(**{f"{field}__icontains": query})
         return condition
 
-    prestations = Prestation.objects.select_related("prestataire", "beneficiaire", "formation", "phase")
+    prestations = Prestation.objects.select_related(
+        "prestataire", "beneficiaire", "formation", "phase"
+    )
     prestataires = Prestataire.objects.all()
     beneficiaires = Beneficiaire.objects.all()
     apprenants = Apprenant.objects.select_related(
@@ -122,18 +124,36 @@ def data_search(request):
 
     if query:
         prestations = prestations.filter(
-            text_filter((
-                "code", "prestataire__raison_sociale", "beneficiaire__nom_structure",
-                "formation__nom", "formation__code", "ville",
-            ))
+            text_filter(
+                (
+                    "code",
+                    "prestataire__raison_sociale",
+                    "beneficiaire__nom_structure",
+                    "formation__nom",
+                    "formation__code",
+                    "ville",
+                )
+            )
         )
-        prestataires = prestataires.filter(text_filter(("code", "raison_sociale", "telephone", "email")))
-        beneficiaires = beneficiaires.filter(text_filter(("nom_structure", "region", "ville", "contact", "email")))
+        prestataires = prestataires.filter(
+            text_filter(("code", "raison_sociale", "telephone", "email"))
+        )
+        beneficiaires = beneficiaires.filter(
+            text_filter(("nom_structure", "region", "ville", "contact", "email"))
+        )
         apprenants = apprenants.filter(
-            text_filter((
-                "code", "nom_complet", "telephone1", "telephone2", "beneficiaire",
-                "prestataire", "classe__code", "formation__nom",
-            ))
+            text_filter(
+                (
+                    "code",
+                    "nom_complet",
+                    "telephone1",
+                    "telephone2",
+                    "beneficiaire",
+                    "prestataire",
+                    "classe__code",
+                    "formation__nom",
+                )
+            )
         )
 
     limit = 50

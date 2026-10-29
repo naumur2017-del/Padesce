@@ -97,3 +97,10 @@ class NavigationPerformanceTests(TestCase):
         # A cached label set must never cache call state or its queryset results.
         AppelCGA.objects.filter(niu="PERF-0").update(status="en_cours")
         self.assertEqual(rows.get(niu="PERF-0").status, "en_cours")
+
+    def test_legacy_cga_transcription_reports_unavailable_without_crashing(self):
+        self.client.force_login(self.user)
+        response = self.client.get("/cga/tools/transcribe-filtered-status/")
+        self.assertEqual(response.status_code, 501)
+        self.assertFalse(response.json()["ok"])
+        self.assertIn("pas configurée", response.json()["error"])

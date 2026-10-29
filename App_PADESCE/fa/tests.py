@@ -1,5 +1,4 @@
 import io
-import tempfile
 import uuid
 from datetime import timedelta
 from decimal import Decimal
@@ -7,7 +6,6 @@ from decimal import Decimal
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.db import IntegrityError, transaction
 from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
@@ -23,7 +21,7 @@ def audio(content=b"\x1aE\xdf\xa3" + b"test recording bytes" * 5):
 
 
 def complete_answers():
-    # A first-time applicant with no funding need still answers independent support/maturity questions.
+    # Support and maturity remain applicable to a first-time applicant without funding needs.
     return {
         "q1_name": "Entreprise Exemple",
         "q2_respondent": "Marie Exemple",
@@ -271,7 +269,7 @@ class FAWorkflowTests(TestCase):
         self.assertNotContains(result, "Brouillon")
 
     def test_detail_has_all_sections_and_audio_is_private(self):
-        attempt = self.start_call()
+        self.start_call()
         response = self.client.get(reverse("fa_detail", args=[self.enterprise.pk]))
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.context["form_sections"]), 7)

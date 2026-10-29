@@ -1,6 +1,6 @@
 import csv
-import hashlib
 import datetime
+import hashlib
 import io
 import subprocess
 import tempfile
@@ -19,9 +19,9 @@ from django.db import IntegrityError, transaction
 from django.db.models import Count, Q
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
 from django.utils.crypto import constant_time_compare
 from django.utils.dateparse import parse_datetime
-from django.utils import timezone
 from django.utils.text import slugify
 from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_GET, require_POST
@@ -1107,52 +1107,44 @@ def download_cga_audios(request):
 @login_required
 @require_POST
 def cga_transcription_detail(request, pk: int):
-    row = get_object_or_404(AppelCGA, pk=pk)
-    try:
-        obj, generated = _ensure_cga_transcription(row)
-        return JsonResponse(
-            {"ok": True, "generated": generated, "transcription": _transcription_to_payload(obj)}
-        )
-    except Exception as exc:
-        return JsonResponse({"ok": False, "error": str(exc)}, status=400)
+    get_object_or_404(AppelCGA, pk=pk)
+    return _cga_transcription_unavailable()
 
 
 @login_required
 def cga_transcription_download(request, pk: int):
-    row = get_object_or_404(AppelCGA, pk=pk)
-    try:
-        obj, _generated = _ensure_cga_transcription(row)
-    except Exception as exc:
-        return HttpResponse(str(exc), status=400, content_type="text/plain; charset=utf-8")
-    response = HttpResponse(obj.transcription_text or "", content_type="text/plain; charset=utf-8")
-    response["Content-Disposition"] = (
-        f'attachment; filename="transcription-cga-{slugify(row.niu) or row.pk}.txt"'
+    get_object_or_404(AppelCGA, pk=pk)
+    return HttpResponse(
+        "La transcription automatique CGA n’est pas configurée dans cette version.",
+        status=501,
+        content_type="text/plain; charset=utf-8",
     )
-    return response
 
 
 @login_required
 @require_POST
 def start_filtered_cga_transcription(request):
-    qs, _ = _build_filtered_cga_queryset(request)
-    jobs = _collect_jobs_from_cga(qs)
-    ok, payload, status_code = _start_transcription_task(
-        CGA_FILTERED_TRANSCRIPTION_TASK_KEY,
-        jobs,
-        "Transcription du tableau filtre CGA",
-    )
-    return JsonResponse(payload, status=status_code)
+    return _cga_transcription_unavailable()
 
 
 @login_required
 def filtered_cga_transcription_status(request):
-    return JsonResponse(
-        {"ok": True, "status": _transcription_status_response(CGA_FILTERED_TRANSCRIPTION_TASK_KEY)}
-    )
+    return _cga_transcription_unavailable()
 
 
 @login_required
 @require_POST
 def stop_filtered_cga_transcription(request):
-    ok, payload, status_code = _stop_transcription_task(CGA_FILTERED_TRANSCRIPTION_TASK_KEY)
-    return JsonResponse(payload, status=status_code)
+    return _cga_transcription_unavailable()
+
+
+def _cga_transcription_unavailable():
+    # These legacy routes had references to removed transcription helpers.
+    # Report the capability honestly instead of raising NameError or simulating work.
+    return JsonResponse(
+        {
+            "ok": False,
+            "error": "La transcription automatique CGA n’est pas configurée " "dans cette version.",
+        },
+        status=501,
+    )

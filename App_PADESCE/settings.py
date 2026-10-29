@@ -16,7 +16,6 @@ import tempfile
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 
-
 ENV_FILE_OVERRIDE_KEYS = {
     "ANTHROPIC_API_KEY",
     "BACKUP_RETENTION_DAYS",

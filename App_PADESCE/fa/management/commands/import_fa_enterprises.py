@@ -18,7 +18,8 @@ class Command(BaseCommand):
         prefix = "Simulation : " if options["dry_run"] else ""
         self.stdout.write(
             self.style.SUCCESS(
-                f"{prefix}{result['created']} créées, {result['updated']} existantes, {result['skipped']} ignorées."
+                f"{prefix}{result['created']} créées, {result['updated']} existantes, "
+                f"{result['skipped']} ignorées."
             )
         )
         for warning in result["warnings"][:100]:

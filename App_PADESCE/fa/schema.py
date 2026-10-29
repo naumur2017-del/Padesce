@@ -134,7 +134,8 @@ SECTIONS = [
             ),
             question(
                 "q20_applied",
-                "20. Avez-vous déjà essayé d’obtenir un financement auprès d’un fonds ou investisseur ?",
+                "20. Avez-vous déjà essayé d’obtenir un financement "
+                "auprès d’un fonds ou investisseur ?",
                 "choice",
                 YES_NO,
             ),
@@ -283,7 +284,8 @@ SECTIONS = [
             question("declaration_name", "Nom du répondant déclarant"),
             question(
                 "declaration_confirmed",
-                "Le répondant confirme l’exactitude des informations et leur utilisation pour l’étude.",
+                "Le répondant confirme l’exactitude des informations "
+                "et leur utilisation pour l’étude.",
                 "boolean",
             ),
         ],
