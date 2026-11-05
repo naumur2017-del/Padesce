@@ -1,5 +1,6 @@
 import csv
 import hashlib
+import io
 import json
 import uuid
 from datetime import datetime, time, timedelta
@@ -12,7 +13,7 @@ from django.contrib.auth.decorators import login_required
 from django.core.files.base import ContentFile
 from django.core.paginator import Paginator
 from django.db import IntegrityError, transaction
-from django.db.models import Count, Exists, OuterRef, Q
+from django.db.models import Count, Exists, Max, OuterRef, Q
 from django.http import FileResponse, Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -23,10 +24,15 @@ from django.views.decorators.http import require_GET, require_POST
 
 from App_PADESCE.core.access import has_analysis_access, require_superadmin_access, user_group_names
 
+from .campaigns import (
+    FUNDS_CAMPAIGNS,
+    PME,
+    campaign_for_enterprise,
+    campaign_for_slug,
+)
 from .forms import QuestionnaireForm
 from .imports import import_records, records_from_file
 from .models import CallAttempt, Enterprise, Recording
-from .schema import QUESTIONS
 
 OUTCOME_CODES = (
     "appel_tente",
@@ -40,6 +46,7 @@ OUTCOME_CODES = (
 OUTCOMES = [(c, label) for c, label in Enterprise.STATUS_CHOICES if c in OUTCOME_CODES]
 ACTIVE_CODES = ("en_cours", "pause")
 FILTER_NAMES = ("q", "status", "sector", "city", "agent", "date_from", "date_to", "audio")
+NUMERIC_KINDS = ("money", "integer", "year")
 
 
 def _error(message, status=400, **extra):
@@ -54,16 +61,16 @@ def _can_hear(user, attempt):
     return attempt.agent_id == user.pk or _can_analyze(user)
 
 
-def _filtered(request):
+def _filtered(request, campaign=PME):
     filters = {name: str(request.GET.get(name, "")).strip()[:255] for name in FILTER_NAMES}
-    rows = Enterprise.objects.filter(campaign=Enterprise.CAMPAIGN_PME)
+    rows = Enterprise.objects.filter(campaign=campaign.key)
     if filters["q"]:
         rows = rows.filter(
             Q(name__icontains=filters["q"])
             | Q(reference__icontains=filters["q"])
             | Q(phone__icontains=filters["q"])
             | Q(phone_raw__icontains=filters["q"])
-            | Q(answers__q2_respondent__icontains=filters["q"])
+            | Q(**{f"answers__{campaign.respondent_key}__icontains": filters["q"]})
         )
     for field in ("status", "sector", "city"):
         if filters[field]:
@@ -142,28 +149,29 @@ def _metrics(rows, request=None):
     return counts
 
 
-def _filter_context(request, filters):
+def _filter_context(request, filters, campaign=PME):
     query = request.GET.copy()
     query.pop("page", None)
     return {
+        "campaign": campaign,
         "filters": filters,
         "statuses": Enterprise.STATUS_CHOICES,
         "sectors": list(
-            Enterprise.objects.filter(campaign=Enterprise.CAMPAIGN_PME)
+            Enterprise.objects.filter(campaign=campaign.key)
             .exclude(sector="")
             .order_by("sector")
             .values_list("sector", flat=True)
             .distinct()
         ),
         "cities": list(
-            Enterprise.objects.filter(campaign=Enterprise.CAMPAIGN_PME)
+            Enterprise.objects.filter(campaign=campaign.key)
             .exclude(city="")
             .order_by("city")
             .values_list("city", flat=True)
             .distinct()
         ),
         "agents": get_user_model()
-        .objects.filter(fa_call_attempts__enterprise__campaign=Enterprise.CAMPAIGN_PME)
+        .objects.filter(fa_call_attempts__enterprise__campaign=campaign.key)
         .distinct()
         .order_by("username"),
         "query_string": query.urlencode(),
@@ -172,25 +180,48 @@ def _filter_context(request, filters):
     }
 
 
+def _cards(campaigns):
+    cards = []
+    for campaign in campaigns:
+        rows = Enterprise.objects.filter(campaign=campaign.key)
+        cards.append(
+            {
+                "campaign": campaign,
+                "total": rows.count(),
+                "called": rows.exclude(status="en_attente").count(),
+            }
+        )
+    return cards
+
+
 @login_required
 @require_GET
 @never_cache
 def hub(request):
-    return render(request, "fa/hub.html", {"can_analyze": _can_analyze(request.user)})
+    return render(
+        request,
+        "fa/hub.html",
+        {"can_analyze": _can_analyze(request.user), "pme": PME, "cards": _cards(FUNDS_CAMPAIGNS)},
+    )
 
 
 @login_required
 @require_GET
 @never_cache
-def funds_pending(request):
-    return render(request, "fa/funds_pending.html")
+def funds(request):
+    return render(
+        request,
+        "fa/funds.html",
+        {"can_analyze": _can_analyze(request.user), "cards": _cards(FUNDS_CAMPAIGNS)},
+    )
 
 
 @login_required
 @require_GET
 @never_cache
-def index(request):
-    rows, filters = _filtered(request)
+def index(request, slug=PME.slug):
+    campaign = campaign_for_slug(slug)
+    rows, filters = _filtered(request, campaign)
     page_obj = Paginator(
         rows.select_related("assigned_to")
         .annotate(attempt_count=Count("attempts"))
@@ -204,7 +235,7 @@ def index(request):
             "enterprises": page_obj.object_list,
             "page_obj": page_obj,
             "metrics": _metrics(rows, request),
-            **_filter_context(request, filters),
+            **_filter_context(request, filters, campaign),
         },
     )
 
@@ -223,7 +254,8 @@ def _attempt_urls(attempt):
 @require_GET
 @never_cache
 def detail(request, pk):
-    enterprise = get_object_or_404(Enterprise, pk=pk, campaign=Enterprise.CAMPAIGN_PME)
+    enterprise = get_object_or_404(Enterprise, pk=pk)
+    campaign = campaign_for_enterprise(enterprise)
     attempts = list(
         enterprise.attempts.select_related("agent").prefetch_related("recordings")[:100]
     )
@@ -239,21 +271,14 @@ def detail(request, pk):
         for recording in recordings:
             recording.audio_url = reverse("fa_audio", args=[recording.pk]) if allowed else ""
             recording.url = recording.audio_url
-    initial = {
-        "q1_name": enterprise.name,
-        "q4_phone": enterprise.phone,
-        "q5_city": enterprise.city,
-        "q8_sector": enterprise.sector,
-        "q22_currency": "FCFA",
-        **enterprise.answers,
-    }
-    form = QuestionnaireForm(initial=initial)
+    form = QuestionnaireForm(initial=campaign.initial(enterprise), campaign=campaign)
     urls = _attempt_urls(attempt) if attempt else {}
     next_sequence = (
         max((r.sequence for r in attempt.recordings.all()), default=-1) + 1 if attempt else 1
     )
     is_owner = bool(attempt and (attempt.agent_id == request.user.pk or request.user.is_superuser))
     context = {
+        "campaign": campaign,
         "enterprise": enterprise,
         "attempt": attempt,
         "attempts": attempts,
@@ -333,9 +358,7 @@ def start(request, pk):
         token = uuid.UUID(request.POST.get("client_token", ""))
     except (ValueError, TypeError, AttributeError):
         return _error("Identifiant de session absent ou invalide.")
-    previous = CallAttempt.objects.filter(
-        client_token=token, enterprise__campaign=Enterprise.CAMPAIGN_PME
-    ).first()
+    previous = CallAttempt.objects.filter(client_token=token).first()
     if previous:
         if previous.enterprise_id != pk or previous.agent_id != request.user.pk:
             return _error("Session déjà utilisée.", 409)
@@ -357,13 +380,12 @@ def start(request, pk):
         return _error(str(exc))
     try:
         with transaction.atomic():
-            enterprise = get_object_or_404(
-                Enterprise.objects.select_for_update(), pk=pk, campaign=Enterprise.CAMPAIGN_PME
-            )
+            enterprise = get_object_or_404(Enterprise.objects.select_for_update(), pk=pk)
+            campaign_for_enterprise(enterprise)
             current = enterprise.attempts.filter(ended_at__isnull=True).first()
             if current:
                 return _error(
-                    "Un appel est déjà en cours pour cette entreprise. Reprenez sa session.",
+                    "Un appel est déjà en cours pour ce contact. Reprenez sa session.",
                     409,
                     attempt_id=current.pk,
                 )
@@ -377,7 +399,7 @@ def start(request, pk):
                 enterprise.phone = normalized_phone
                 enterprise.answers = {**enterprise.answers, "q4_phone": supplied_phone[:255]}
             if not enterprise.phone:
-                return _error("Renseignez le téléphone de l’entreprise avant de démarrer.")
+                return _error("Renseignez le téléphone du contact avant de démarrer.")
             attempt = CallAttempt.objects.create(
                 enterprise=enterprise,
                 agent=request.user,
@@ -411,8 +433,8 @@ def _owned_attempt(request, pk):
     attempt = get_object_or_404(
         CallAttempt.objects.select_for_update().select_related("enterprise"),
         pk=pk,
-        enterprise__campaign=Enterprise.CAMPAIGN_PME,
     )
+    campaign_for_enterprise(attempt.enterprise)
     if attempt.agent_id != request.user.pk and not request.user.is_superuser:
         return None, _error("Cet appel appartient à un autre opérateur.", 403)
     if attempt.ended_at:
@@ -486,7 +508,7 @@ def save(request, pk):
         attempt, error = _owned_attempt(request, pk)
         if error:
             return error
-        form = QuestionnaireForm(request.POST)
+        form = QuestionnaireForm(request.POST, campaign=campaign_for_enterprise(attempt.enterprise))
         if not form.is_valid():
             return _error("Corrigez les réponses signalées.", errors=form.errors.get_json_data())
         _save_answers(attempt, form, request.POST.get("notes", attempt.notes))
@@ -531,8 +553,13 @@ def finish(request, pk):
             return _error(
                 "Arrêtez puis sauvegardez l’enregistrement complet avant de terminer cet appel."
             )
-        data = request.POST if any(q["key"] in request.POST for q in QUESTIONS) else attempt.answers
-        form = QuestionnaireForm(data, complete=status == "formulaire_avec_audio")
+        campaign = campaign_for_enterprise(attempt.enterprise)
+        submitted = any(q["key"] in request.POST for q in campaign.questions)
+        form = QuestionnaireForm(
+            request.POST if submitted else attempt.answers,
+            complete=status == "formulaire_avec_audio",
+            campaign=campaign,
+        )
         if not form.is_valid():
             return _error(
                 "Le questionnaire est incomplet ou comporte des erreurs.",
@@ -574,7 +601,6 @@ def audio(request, pk):
     recording = get_object_or_404(
         Recording.objects.select_related("attempt"),
         pk=pk,
-        attempt__enterprise__campaign=Enterprise.CAMPAIGN_PME,
     )
     if not _can_hear(request.user, recording.attempt):
         return HttpResponse(
@@ -597,27 +623,28 @@ def audio(request, pk):
 
 @require_superadmin_access
 @require_POST
-def import_enterprises(request):
+def import_enterprises(request, slug=PME.slug):
+    campaign = campaign_for_slug(slug)
     uploaded = request.FILES.get("file") or request.FILES.get("enterprises")
     if not uploaded or uploaded.size > 10 * 1024 * 1024:
         messages.error(request, "Choisissez un registre .xlsx de moins de 10 Mo.")
-        return redirect("fa_index")
+        return redirect(campaign.urls["index"])
     try:
-        result = import_records(records_from_file(uploaded))
+        result = import_records(records_from_file(uploaded, campaign), campaign=campaign)
     except (ValueError, OSError, KeyError, TypeError) as exc:
         messages.error(request, f"Import impossible : {exc}")
     else:
         messages.success(
             request,
-            f"Import FA : {result['created']} entreprises créées, "
+            f"Import FA : {result['created']} {campaign.contact_plural} créés, "
             f"{result['updated']} existantes mises à jour.",
         )
         for warning in result["warnings"][:12]:
             messages.warning(request, warning)
-    return redirect("fa_index")
+    return redirect(campaign.urls["index"])
 
 
-def _analytics(rows, request=None):
+def _analytics(rows, request=None, campaign=PME):
     metrics = _metrics(rows, request)
     labels = dict(Enterprise.STATUS_CHOICES)
     statuses = [
@@ -647,10 +674,12 @@ def _analytics(rows, request=None):
         ]
 
     amounts = []
-    for answers in answers_list:
-        if answers.get("q12_need") == "Oui" and answers.get("q13_amount") not in (None, ""):
+    funding = campaign.funding
+    for answers in answers_list if funding else []:
+        amount = answers.get(funding["amount"])
+        if answers.get(funding["need"]) == funding["yes"] and amount not in (None, ""):
             try:
-                value = Decimal(str(answers["q13_amount"]))
+                value = Decimal(str(amount))
                 if value.is_finite():
                     amounts.append(value)
             except InvalidOperation:
@@ -669,7 +698,7 @@ def _analytics(rows, request=None):
             "multiple": q["kind"] == "multi",
             "rows": distribution(q["key"], q["kind"] == "multi"),
         }
-        for q in QUESTIONS
+        for q in campaign.questions
         if q["kind"] in {"choice", "multi"}
     ]
     attempts = _attempt_scope(rows, request)
@@ -695,7 +724,7 @@ def _analytics(rows, request=None):
         "completion_rate": metrics["completion_rate"],
         "status_counts": statuses,
         "sector_counts": sectors,
-        "funding_counts": distribution("q12_need"),
+        "funding_counts": distribution(funding["need"]) if funding else [],
         "financing": financing,
         "funding_total": total,
         "funding_average": financing["average_requested"],
@@ -713,14 +742,15 @@ def _analytics(rows, request=None):
 @login_required
 @require_GET
 @never_cache
-def analytics(request):
+def analytics(request, slug=PME.slug):
     if not _can_analyze(request.user):
         return HttpResponse("Accès réservé aux managers et consultants.", status=403)
-    rows, filters = _filtered(request)
+    campaign = campaign_for_slug(slug)
+    rows, filters = _filtered(request, campaign)
     return render(
         request,
         "fa/analytics.html",
-        {**_analytics(rows, request), **_filter_context(request, filters)},
+        {**_analytics(rows, request, campaign), **_filter_context(request, filters, campaign)},
     )
 
 
@@ -729,43 +759,138 @@ def _csv_safe(value):
     return "'" + text if text.startswith(("=", "+", "-", "@", "\t", "\r")) else text
 
 
+def _answer_cell(question, value):
+    if isinstance(value, bool):
+        return "Oui" if value else ""
+    if isinstance(value, list):
+        return " / ".join(str(item) for item in value)
+    if value in (None, ""):
+        return ""
+    if question["kind"] in NUMERIC_KINDS:
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return value
+    return value
+
+
+def _date_cell(value):
+    return timezone.localtime(value).strftime("%d/%m/%Y %H:%M") if value else ""
+
+
+def _contact_columns(campaign):
+    columns = [
+        "Référence",
+        campaign.contact_label,
+        "Téléphone",
+        "E-mail",
+        "Ville",
+        campaign.sector_label,
+    ]
+    if campaign.is_pme:
+        columns.append("CA FCFA")
+    return [*columns, "Statut", "Opérateur", "Dernier appel", "Rappel"]
+
+
+def _response_rows(rows):
+    return (
+        rows.select_related("assigned_to")
+        .annotate(last_call=Max("attempts__started_at"))
+        .order_by("name", "pk")
+    )
+
+
+def _response_cells(row, campaign):
+    """Une ligne par contact : sa fiche, puis une cellule par question du formulaire."""
+    agent = row.assigned_to
+    cells = [row.reference, row.name, row.phone, row.email, row.city, row.sector]
+    if campaign.is_pme:
+        cells.append(row.annual_revenue_fcfa)
+    cells += [
+        row.get_status_display(),
+        (agent.get_full_name() or agent.get_username()) if agent else "",
+        _date_cell(row.last_call),
+        _date_cell(row.callback_at),
+    ]
+    return cells + [_answer_cell(q, row.answers.get(q["key"])) for q in campaign.questions]
+
+
 @login_required
 @require_GET
 @never_cache
-def export(request):
+def responses(request, slug):
     if not _can_analyze(request.user):
         return HttpResponse("Accès réservé aux managers et consultants.", status=403)
-    rows, _filters = _filtered(request)
+    campaign = campaign_for_slug(slug)
+    rows, filters = _filtered(request, campaign)
+    page_obj = Paginator(_response_rows(rows), 50).get_page(request.GET.get("page"))
+    return render(
+        request,
+        "fa/responses.html",
+        {
+            "page_obj": page_obj,
+            "contact_columns": _contact_columns(campaign),
+            "sections": campaign.sections,
+            "table_rows": [_response_cells(row, campaign) for row in page_obj.object_list],
+            **_filter_context(request, filters, campaign),
+        },
+    )
+
+
+@login_required
+@require_GET
+@never_cache
+def export(request, slug=PME.slug):
+    if not _can_analyze(request.user):
+        return HttpResponse("Accès réservé aux managers et consultants.", status=403)
+    campaign = campaign_for_slug(slug)
+    rows, _filters = _filtered(request, campaign)
     response = HttpResponse(content_type="text/csv; charset=utf-8")
-    response["Content-Disposition"] = 'attachment; filename="FA-enquetes.csv"'
+    response["Content-Disposition"] = f'attachment; filename="FA-{campaign.slug}-enquetes.csv"'
     response.write("\ufeff")
     writer = csv.writer(response, delimiter=";")
-    writer.writerow(
-        [
-            "Référence",
-            "Entreprise",
-            "Téléphone",
-            "Ville",
-            "Filière",
-            "CA FCFA",
-            "Statut",
-            "Rappel",
-            *[q["label"] for q in QUESTIONS],
-        ]
+    writer.writerow([*_contact_columns(campaign), *[q["label"] for q in campaign.questions]])
+    for row in _response_rows(rows).iterator(chunk_size=500):
+        writer.writerow([_csv_safe(value) for value in _response_cells(row, campaign)])
+    return response
+
+
+@login_required
+@require_GET
+@never_cache
+def export_xlsx(request, slug):
+    if not _can_analyze(request.user):
+        return HttpResponse("Accès réservé aux managers et consultants.", status=403)
+    import openpyxl
+    from openpyxl.cell.cell import ILLEGAL_CHARACTERS_RE
+    from openpyxl.styles import Alignment, Font
+
+    campaign = campaign_for_slug(slug)
+    rows, _filters = _filtered(request, campaign)
+    workbook = openpyxl.Workbook()
+    sheet = workbook.active
+    sheet.title = campaign.label[:31]
+    sheet.append([*_contact_columns(campaign), *[q["label"] for q in campaign.questions]])
+    for cell in sheet[1]:
+        cell.font = Font(bold=True)
+        cell.alignment = Alignment(wrap_text=True, vertical="top")
+        sheet.column_dimensions[cell.column_letter].width = 26
+    sheet.freeze_panes = "C2"
+    for row in _response_rows(rows).iterator(chunk_size=500):
+        sheet.append(
+            [
+                ILLEGAL_CHARACTERS_RE.sub("", value) if isinstance(value, str) else value
+                for value in _response_cells(row, campaign)
+            ]
+        )
+        for cell in sheet[sheet.max_row]:
+            if cell.data_type == "f":  # Une réponse commençant par « = » reste du texte.
+                cell.data_type = "s"
+    content = io.BytesIO()
+    workbook.save(content)
+    response = HttpResponse(
+        content.getvalue(),
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
-    for row in rows.iterator(chunk_size=500):
-        values = [
-            row.reference,
-            row.name,
-            row.phone,
-            row.city,
-            row.sector,
-            row.annual_revenue_fcfa,
-            row.get_status_display(),
-            row.callback_at.isoformat() if row.callback_at else "",
-        ]
-        for question in QUESTIONS:
-            value = row.answers.get(question["key"], "")
-            values.append(" / ".join(value) if isinstance(value, list) else value)
-        writer.writerow([_csv_safe(value) for value in values])
+    response["Content-Disposition"] = f'attachment; filename="FA-{campaign.slug}-reponses.xlsx"'
     return response

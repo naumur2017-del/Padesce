@@ -5,10 +5,40 @@ from App_PADESCE.core.lazy_urls import lazy_view
 urlpatterns = [
     path("", lazy_view("App_PADESCE.fa.views.hub"), name="fa_home"),
     path("pme/", lazy_view("App_PADESCE.fa.views.index"), name="fa_index"),
-    path("fonds-amorcage/", lazy_view("App_PADESCE.fa.views.funds_pending"), name="fa_funds"),
+    path("fonds-amorcage/", lazy_view("App_PADESCE.fa.views.funds"), name="fa_funds"),
+    path(
+        "fonds-amorcage/<slug:slug>/",
+        lazy_view("App_PADESCE.fa.views.index"),
+        name="fa_campaign",
+    ),
     path("analyses/", lazy_view("App_PADESCE.fa.views.analytics"), name="fa_analytics"),
+    path(
+        "analyses/<slug:slug>/",
+        lazy_view("App_PADESCE.fa.views.analytics"),
+        name="fa_campaign_analytics",
+    ),
+    path(
+        "analyses/<slug:slug>/reponses/",
+        lazy_view("App_PADESCE.fa.views.responses"),
+        name="fa_responses",
+    ),
     path("export/", lazy_view("App_PADESCE.fa.views.export"), name="fa_export"),
+    path(
+        "export/<slug:slug>/",
+        lazy_view("App_PADESCE.fa.views.export"),
+        name="fa_campaign_export",
+    ),
+    path(
+        "export/<slug:slug>/excel/",
+        lazy_view("App_PADESCE.fa.views.export_xlsx"),
+        name="fa_export_xlsx",
+    ),
     path("import/", lazy_view("App_PADESCE.fa.views.import_enterprises"), name="fa_import"),
+    path(
+        "import/<slug:slug>/",
+        lazy_view("App_PADESCE.fa.views.import_enterprises"),
+        name="fa_campaign_import",
+    ),
     path("<int:pk>/", lazy_view("App_PADESCE.fa.views.detail"), name="fa_detail"),
     path("<int:pk>/start/", lazy_view("App_PADESCE.fa.views.start"), name="fa_start"),
     path(

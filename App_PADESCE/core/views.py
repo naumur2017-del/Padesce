@@ -711,10 +711,10 @@ def home(request):
                 "id",
                 filter=Q(campaign=FAEnterprise.CAMPAIGN_PME) & ~Q(status="en_attente"),
             ),
-            funds_total=Count("id", filter=Q(campaign=FAEnterprise.CAMPAIGN_FUNDS)),
+            funds_total=Count("id", filter=Q(campaign__in=FAEnterprise.FUNDS_CAMPAIGNS)),
             funds_effectues=Count(
                 "id",
-                filter=Q(campaign=FAEnterprise.CAMPAIGN_FUNDS) & ~Q(status="en_attente"),
+                filter=Q(campaign__in=FAEnterprise.FUNDS_CAMPAIGNS) & ~Q(status="en_attente"),
             ),
         )
         counts.update(

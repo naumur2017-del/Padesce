@@ -1,0 +1,31 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Réponses FA · {{ campaign.label }}{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="{% static 'fa/fa.css' %}">
+<div class="fa-app">
+  <header class="fa-heading">
+    <div><p class="fa-eyebrow">FA · ÉTUDE NAUMUR / APME</p><h1>Réponses {{ campaign.label }}</h1><p class="fa-muted">Une ligne par contact, une colonne par question. Chaque ligne se remplit à l’enregistrement du formulaire.</p></div>
+    <div class="fa-actions"><a class="fa-btn fa-secondary" href="{{ campaign.urls.index }}">Retour aux appels</a><a class="fa-btn fa-secondary" href="{{ campaign.urls.analytics }}">Analyses</a><a class="fa-btn" href="{{ campaign.urls.export_xlsx }}?{{ query_string }}">Exporter en Excel</a><a class="fa-btn fa-secondary" href="{{ campaign.urls.export }}?{{ query_string }}">Exporter en CSV</a></div>
+  </header>
+  <section class="fa-panel">{% include 'fa/filters.html' %}</section>
+  <section class="fa-panel">
+    <div class="fa-section-title"><h2>{{ campaign.contact_plural|capfirst }}</h2><span class="fa-muted">{{ page_obj.paginator.count }} ligne{{ page_obj.paginator.count|pluralize }} · page {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span></div>
+    <div class="fa-table-wrap fa-responses"><table class="fa-table">
+      <thead>
+        <tr><th class="fa-section-head" colspan="{{ contact_columns|length }}">Contact et suivi</th>{% for section in sections %}<th class="fa-section-head" colspan="{{ section.questions|length }}">{{ section.title }}</th>{% endfor %}</tr>
+        <tr>{% for label in contact_columns %}<th{% if forloop.counter == 2 %} class="fa-sticky"{% endif %}>{{ label }}</th>{% endfor %}{% for section in sections %}{% for question in section.questions %}<th>{{ question.label }}</th>{% endfor %}{% endfor %}</tr>
+      </thead>
+      <tbody>
+        {% for row in table_rows %}<tr>{% for cell in row %}<td{% if forloop.counter == 2 %} class="fa-sticky"{% endif %}>{{ cell|default_if_none:"" }}</td>{% endfor %}</tr>
+        {% empty %}<tr><td colspan="{{ contact_columns|length }}" class="fa-empty"><strong>Aucun contact pour ces filtres.</strong></td></tr>{% endfor %}
+      </tbody>
+    </table></div>
+    {% if page_obj.has_other_pages %}<nav class="fa-pagination" aria-label="Pagination des réponses">
+      {% if page_obj.has_previous %}<a class="fa-btn fa-secondary" href="?{{ query_string }}&page={{ page_obj.previous_page_number }}">Précédent</a>{% endif %}
+      <span>{{ page_obj.start_index }}–{{ page_obj.end_index }} / {{ page_obj.paginator.count }}</span>
+      {% if page_obj.has_next %}<a class="fa-btn fa-secondary" href="?{{ query_string }}&page={{ page_obj.next_page_number }}">Suivant</a>{% endif %}
+    </nav>{% endif %}
+  </section>
+</div>
+{% endblock %}

@@ -8,8 +8,14 @@ from App_PADESCE.core.media_access import secure_media_upload_path
 
 class Enterprise(models.Model):
     CAMPAIGN_PME = "pme"
-    CAMPAIGN_FUNDS = "fonds_amorcage"
-    CAMPAIGN_CHOICES = [(CAMPAIGN_PME, "PME"), (CAMPAIGN_FUNDS, "Fonds d’amorçage")]
+    CAMPAIGN_PORTEURS = "fa_porteurs"
+    CAMPAIGN_INVESTORS = "fa_investisseurs"
+    FUNDS_CAMPAIGNS = (CAMPAIGN_PORTEURS, CAMPAIGN_INVESTORS)
+    CAMPAIGN_CHOICES = [
+        (CAMPAIGN_PME, "PME"),
+        (CAMPAIGN_PORTEURS, "Fonds d’amorçage · Porteurs de projets"),
+        (CAMPAIGN_INVESTORS, "Fonds d’amorçage · Fonds et investisseurs"),
+    ]
     campaign = models.CharField(
         max_length=30,
         choices=CAMPAIGN_CHOICES,
@@ -65,6 +71,10 @@ class Enterprise(models.Model):
     @property
     def phone_numbers(self):
         return [number.strip() for number in self.phone.split(" / ") if number.strip()]
+
+    @property
+    def email(self):
+        return " / ".join(str(self.source_data.get("email") or "").split())
 
 
 class CallAttempt(models.Model):

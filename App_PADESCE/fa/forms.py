@@ -3,14 +3,16 @@ from decimal import Decimal
 from django import forms
 from django.utils import timezone
 
-from .schema import QUESTIONS, SECTIONS, is_applicable
+from .campaigns import PME
+from .schema import is_applicable
 
 
 class QuestionnaireForm(forms.Form):
-    def __init__(self, *args, complete=False, **kwargs):
+    def __init__(self, *args, complete=False, campaign=PME, **kwargs):
         self.complete = complete
+        self.campaign = campaign
         super().__init__(*args, **kwargs)
-        for q in QUESTIONS:
+        for q in campaign.questions:
             options = {"label": q["label"], "required": False}
             kind = q["kind"]
             if kind in {"choice", "multi"}:
@@ -44,21 +46,24 @@ class QuestionnaireForm(forms.Form):
             field.widget.attrs["data-required-final"] = "1" if q["required"] else "0"
             if q["condition"]:
                 field.widget.attrs["data-condition-field"] = q["condition"][0]
-                field.widget.attrs["data-condition-value"] = q["condition"][1]
+                expected = q["condition"][1]
+                field.widget.attrs["data-condition-value"] = (
+                    expected if isinstance(expected, str) else "||".join(expected)
+                )
             self.fields[q["key"]] = field
 
     @property
     def sections(self):
         return [
             {"title": section["title"], "fields": [self[q["key"]] for q in section["questions"]]}
-            for section in SECTIONS
+            for section in self.campaign.sections
         ]
 
     def clean(self):
         cleaned = super().clean()
-        for q in QUESTIONS:
+        for q in self.campaign.questions:
             key = q["key"]
-            if not is_applicable(q, cleaned):
+            if not is_applicable(q, cleaned, self.campaign.question_map):
                 cleaned[key] = [] if q["kind"] == "multi" else ""
                 self._errors.pop(key, None)
                 continue
@@ -71,6 +76,11 @@ class QuestionnaireForm(forms.Form):
             )
             if self.complete and q["required"] and empty:
                 self.add_error(key, "Cette réponse est nécessaire pour finaliser le questionnaire.")
+        if self.campaign.is_pme:
+            self._clean_pme(cleaned)
+        return cleaned
+
+    def _clean_pme(self, cleaned):
         if self.complete and not cleaned.get("q11_none"):
             for key in ("q11_permanent", "q11_temporary"):
                 if cleaned.get(key) is None:
@@ -84,7 +94,6 @@ class QuestionnaireForm(forms.Form):
         ):
             if not cleaned.get("q27_other"):
                 self.add_error("q27_other", "Précisez l’autre accompagnement.")
-        return cleaned
 
     def answers(self):
         return {

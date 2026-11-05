@@ -296,12 +296,17 @@ QUESTIONS = [q for section in SECTIONS for q in section["questions"]]
 QUESTION_MAP = {q["key"]: q for q in QUESTIONS}
 
 
-def is_applicable(question, values):
+def is_applicable(question, values, questions=None):
+    """La condition vaut (question parente, valeur) ou (question parente, (valeurs...))."""
+    questions = QUESTION_MAP if questions is None else questions
     condition = question.get("condition")
     if not condition:
         return True
     parent, expected = condition
-    if not is_applicable(QUESTION_MAP[parent], values):
+    if not is_applicable(questions[parent], values, questions):
         return False
+    expected = (expected,) if isinstance(expected, str) else expected
     current = values.get(parent)
-    return expected in current if isinstance(current, list) else current == expected
+    if isinstance(current, list):
+        return any(value in current for value in expected)
+    return current in expected

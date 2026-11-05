@@ -1,12 +1,21 @@
 # FA : mise en service et vérification
 
-Le module FA regroupe deux campagnes distinctes : **PME** et **Fonds d’amorçage**. Les données et le questionnaire déjà fournis appartiennent à PME : 36 questions, six sections et une déclaration orale du répondant. Les réponses conditionnelles et les choix d’accompagnement de la question 27 sont repris. Les champs nécessaires à un questionnaire complet sont signalés ; les autres résultats d’appel acceptent un brouillon. Le formulaire, les contacts et les analyses de la future campagne Fonds d’amorçage seront ajoutés ultérieurement ; son espace reste en attente.
+Le module FA regroupe trois enquêtes, chacune avec ses contacts et son questionnaire :
+
+- **PME** : 36 questions, six sections et une déclaration orale du répondant. Les champs nécessaires à un questionnaire complet sont signalés ; les autres résultats d’appel acceptent un brouillon.
+- **Fonds d’amorçage · Porteurs de projets** : 43 questions, cinq sections (`fa/schema_porteurs.py`).
+- **Fonds d’amorçage · Fonds et investisseurs** : 29 questions, cinq sections, une fiche de l’organisme et cinq questions par stade coché à la question 5 (`fa/schema_investisseurs.py`).
+
+Le registre `fa/campaigns.py` relie chaque enquête à son questionnaire, à ses colonnes d’import et à ses URL. Les documents sources ne désignent aucune question obligatoire : aucune ne l’est dans les deux enquêtes Fonds d’amorçage.
+
+Sauts de questions retenus pour les porteurs : la réponse « Non » à la question 32 mène à la question 39, et la réponse « Non » à la question 22 masque les questions 23 à 28.
 
 ## Parcours
 
 - `/fa/` : choix entre les campagnes PME et Fonds d’amorçage.
 - `/fa/pme/` : entreprises PME, recherche, filtres de statut, ville, secteur, opérateur, dates de tentative et présence d’audio ; pagination de 50 lignes.
-- `/fa/fonds-amorcage/` : espace réservé, en attente de ses propres données et de son propre formulaire. Aucun formulaire PME ni bouton d’appel n’y est proposé.
+- `/fa/fonds-amorcage/` : choix entre les deux enquêtes, puis `/fa/fonds-amorcage/porteurs/` et `/fa/fonds-amorcage/investisseurs/` pour les listes d’appels.
+- `/fa/analyses/<enquête>/reponses/` : une ligne par contact et une colonne par question, remplie à chaque enregistrement du formulaire. Export Excel sur `/fa/export/<enquête>/excel/` et CSV sur `/fa/export/<enquête>/`. `<enquête>` vaut `pme`, `porteurs` ou `investisseurs`. Accès réservé aux responsables d’analyse.
 - Le bouton ouvre la fiche et le questionnaire dans une modale. Le téléphone peut être corrigé avant le démarrage, notamment pour les contacts absents du registre.
 - Le microphone doit fonctionner et un premier audio doit parvenir au serveur avant la création d’un appel. La composition du numéro devient disponible ensuite. Une source audio partagée peut compléter le microphone pour capter l’autre interlocuteur ; l’application ne passe pas elle-même d’appel téléphonique et ne dispose pas d’un fournisseur de téléphonie.
 - Les sauvegardes audio intermédiaires sont cumulatives, lisibles et conservées avec leur séquence. Le navigateur garde temporairement les uploads non acquittés dans IndexedDB et les réessaie après reconnexion. Les sauvegardes réussies sont retirées du stockage local.
@@ -66,3 +75,14 @@ Ces mesures ne constituent pas une garantie de chargement en production. Le prem
 Les tests ciblés couvrent l’authentification, les droits audio, la première capture obligatoire, les conflits d’opérateurs, les retries idempotents, les sauvegardes finales, les rappels, les questionnaires conditionnels, l’import et les analyses. Quatre simulations JavaScript sur DOM couvrent les branches imbriquées, le microphone refusé, le retry d’audio après coupure et la séquence d’une session reprise. Les trois gabarits FA sont rendus par Django sans erreur.
 
 Le contrôle du navigateur a refusé l’ouverture de l’aperçu local : la vérification visuelle et l’essai réel microphone/son distant restent à effectuer. Une suite élargie rencontre aussi deux problèmes préexistants : `core.tests` importe `_build_formateur_stats`, absent de `public_views`, et un ancien test CGA exige la suppression du premier audio alors que le module conserve déjà un historique. Ces problèmes ne sont pas masqués et ne sont pas traités comme des tests réussis.
+
+## Import des contacts Fonds d’amorçage
+
+Depuis la liste de chaque enquête (superadmin) ou en ligne de commande :
+
+```bash
+python manage.py import_fa_enterprises liste_porteurs.xlsx --campaign porteurs
+python manage.py import_fa_enterprises repertoire_fonds.xlsx --campaign investisseurs
+```
+
+Les références sont `FP-<numéro>` pour les porteurs et `FI-<feuille>-<numéro>` pour les structures. Une structure présente sur deux feuilles du répertoire est fusionnée. Un porteur sans nom reçoit un libellé provisoire construit avec son téléphone. Les numéros à vérifier sont signalés et ne sont jamais corrigés automatiquement.

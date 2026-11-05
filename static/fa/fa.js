@@ -94,7 +94,8 @@
       if (visited.has(name)) return false;
       visited.add(name);
       const source = wrappers.get(name)?.querySelector('[data-condition-field]');
-      return !source || (data.getAll(source.dataset.conditionField).includes(source.dataset.conditionValue) &&
+      const current = source ? data.getAll(source.dataset.conditionField) : [];
+      return !source || (source.dataset.conditionValue.split('||').some(value => current.includes(value)) &&
         applicable(source.dataset.conditionField, visited));
     };
     root.querySelectorAll('[data-condition-field]').forEach(input => {

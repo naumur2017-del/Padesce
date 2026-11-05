@@ -21,6 +21,8 @@ PAGE_TITLE_BY_PREFIX: tuple[tuple[str, str], ...] = (
     ("/suivi-utilisateurs/", "Suivi utilisateurs"),
     ("/analyses-cga/", "Analyses CGA"),
     ("/cga/", "CGA"),
+    ("/fa/analyses/porteurs/", "Analyses FA · Porteurs de projets"),
+    ("/fa/analyses/investisseurs/", "Analyses FA · Fonds et investisseurs"),
     ("/fa/analyses/", "Analyses FA · PME"),
     ("/fa/pme/", "FA · Appels PME"),
     ("/fa/fonds-amorcage/", "FA · Fonds d’amorçage"),

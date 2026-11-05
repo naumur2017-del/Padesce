@@ -1,0 +1,14 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}FA · Fonds d’amorçage{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="{% static 'fa/fa.css' %}">
+<div class="fa-app">
+  <header class="fa-heading"><div><p class="fa-eyebrow">FA · CALL CENTER NAUMUR / APME</p><h1>Fonds d’amorçage</h1><p class="fa-muted">Choisissez l’enquête.</p></div><a class="fa-btn fa-secondary" href="{% url 'fa_home' %}">Retour aux campagnes FA</a></header>
+  <div class="fa-analysis-grid">
+    {% for card in cards %}
+    <section class="fa-panel"><p class="fa-eyebrow">{{ card.called }} / {{ card.total }} APPELÉS</p><h2>{{ card.campaign.title }}</h2><p>{{ card.campaign.description }}</p><div class="fa-actions"><a class="fa-btn" href="{{ card.campaign.urls.index }}">Ouvrir les appels</a>{% if can_analyze %}<a class="fa-btn fa-secondary" href="{{ card.campaign.urls.responses }}">Tableau des réponses</a><a class="fa-btn fa-secondary" href="{{ card.campaign.urls.analytics }}">Analyses</a>{% endif %}</div></section>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

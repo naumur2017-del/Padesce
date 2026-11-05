@@ -10,6 +10,7 @@ from zipfile import BadZipFile
 
 from django.db import transaction
 
+from .campaigns import PME
 from .models import Enterprise
 
 
@@ -27,16 +28,16 @@ def as_text(value):
 
 
 def normalize_phone(value):
-    raw = as_text(value)
+    raw = value if isinstance(value, str) else as_text(value)
     numbers = []
-    for part in re.split(r"[/;,\n]+", raw):
+    for part in re.split(r"[/;,\r\n]+", raw.replace("(0)", "")):
         digits = re.sub(r"[^\d+]", "", part)
         if digits and digits not in numbers:
             numbers.append(digits)
     return " / ".join(numbers)[:150]
 
 
-def records_from_file(source):
+def records_from_file(source, campaign=PME):
     name = str(getattr(source, "name", source)).lower()
     if name.endswith(".json"):
         if hasattr(source, "read"):
@@ -71,10 +72,11 @@ def records_from_file(source):
         "ca fcfa": "annual_revenue_fcfa",
         "filieres": "sector",
         "secteur": "sector",
+        **campaign.aliases,
     }
     records = []
     try:
-        for sheet in workbook.worksheets:
+        for sheet_index, sheet in enumerate(workbook.worksheets, 1):
             mapping = None
             for row_number, values in enumerate(sheet.iter_rows(values_only=True), 1):
                 if row_number > 10001:
@@ -94,6 +96,7 @@ def records_from_file(source):
                 if not any(v not in (None, "") for v in row.values()):
                     continue
                 row["source_sheet"] = sheet.title
+                row["source_sheet_index"] = sheet_index
                 row["source_row"] = row_number
                 records.append(row)
     finally:
@@ -103,31 +106,65 @@ def records_from_file(source):
     return records
 
 
+def is_blank(value):
+    return value in (None, "") or normalize(value) == "non renseigne"
+
+
+def merge_same_names(records, warnings):
+    """Fusionne une structure présente sur plusieurs feuilles du même répertoire."""
+    merged = {}
+    for row in records:
+        row = {key: None if is_blank(value) else value for key, value in row.items()}
+        first = merged.setdefault(normalize(row.get("name")) or id(row), row)
+        if first is row:
+            continue
+        warnings.append(f"{as_text(row.get('name'))} : doublon fusionné ({row['source_sheet']}).")
+        for key, value in row.items():
+            if is_blank(value) or key.startswith("source_"):
+                continue
+            current = first.get(key)
+            if is_blank(current):
+                first[key] = value
+            elif key in {"phone_raw", "email"}:
+                extras = [v for v in str(value).split("\n") if v.strip() not in str(current)]
+                first[key] = "\n".join([str(current), *extras])
+    return list(merged.values())
+
+
 @transaction.atomic
-def import_records(records, *, dry_run=False):
+def import_records(records, *, campaign=PME, dry_run=False):
     result = {"created": 0, "updated": 0, "skipped": 0, "warnings": []}
     if len(records) > 20000:
         raise ValueError("Le registre dépasse la limite de 20 000 entreprises.")
+    if campaign.merge_same_name:
+        records = merge_same_names(records, result["warnings"])
     seen = set()
     for index, row in enumerate(records, 1):
         name = as_text(row.get("name"))[:255]
+        source_phone = row.get("phone_raw", row.get("phone"))
+        phone = normalize_phone(source_phone)
+        if not name and campaign.unnamed_contacts and phone:
+            name = f"Contact sans nom ({phone})"
+            result["warnings"].append(f"Ligne {index} : nom absent, {name}.")
         if not name:
             result["skipped"] += 1
             result["warnings"].append(f"Ligne {index} : nom absent.")
             continue
         number = as_text(row.get("source_number"))[:60]
         city = as_text(row.get("city"))[:150]
+        prefix = campaign.reference_prefix
+        # Un répertoire multi-feuilles renumérote chaque feuille à partir de 1.
+        sheet = f"{row.get('source_sheet_index', 1)}-" if campaign.merge_same_name else ""
         reference = (
-            f"FA-{number.zfill(3)}"
+            f"{prefix}-{sheet}{number.zfill(3)}"
             if number
-            else "FA-"
+            else f"{prefix}-"
             + hashlib.sha256(f"{normalize(name)}|{normalize(city)}".encode()).hexdigest()[:20]
         )
         if reference in seen:
             raise ValueError(f"Référence en double dans le fichier : {reference}.")
         seen.add(reference)
-        raw_phone = as_text(row.get("phone_raw", row.get("phone")))[:255]
-        phone = normalize_phone(raw_phone)
+        raw_phone = as_text(source_phone)[:255]
         revenue = row.get("annual_revenue_fcfa")
         if revenue in (None, ""):
             revenue = None
@@ -156,7 +193,7 @@ def import_records(records, *, dry_run=False):
             result["warnings"].append(f"{reference} : téléphone absent.")
         safe_source = {k: str(v) if isinstance(v, Decimal) else v for k, v in row.items()}
         values = dict(
-            campaign=Enterprise.CAMPAIGN_PME,
+            campaign=campaign.key,
             name=name,
             source_number=number,
             phone=phone,
@@ -167,7 +204,7 @@ def import_records(records, *, dry_run=False):
             source_data=safe_source,
         )
         enterprise, created = Enterprise.objects.get_or_create(reference=reference, defaults=values)
-        if enterprise.campaign != Enterprise.CAMPAIGN_PME:
+        if enterprise.campaign != campaign.key:
             raise ValueError(f"La référence {reference} appartient à une autre campagne.")
         if created:
             result["created"] += 1
