@@ -72,7 +72,7 @@ jobs:
           fi
 
           if [[ -z "${BASE_SHA}" || "${BASE_SHA}" == "0000000000000000000000000000000000000000" ]]; then
-            BASE_SHA="$(git rev-list --max-parents=0 HEAD)"
+            BASE_SHA="$(git merge-base origin/main HEAD 2>/dev/null || git rev-list --max-parents=0 HEAD)"
           fi
 
           # Vérifier si le BASE_SHA existe localement (peut manquer après un "force push" ou un squash)
